@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>デザイン案 v56：先生がツールの上で添削する（見本）</title>
+<style>
+  body { margin: 0; padding: 26px 30px 34px; background: #f4f2ee; color: #2a2622; font-family: 'BIZ UDPGothic', 'Yu Gothic UI', sans-serif; width: 1180px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 24px; }
+  .lead { margin: 0 0 18px; font-size: 14.5px; color: #6b655d; line-height: 1.7; word-break: auto-phrase; }
+  .card { margin-bottom: 22px; padding: 16px 18px 18px; border-radius: 14px; background: #fff; box-shadow: 0 1px 3px rgba(30, 25, 20, 0.08); }
+  .card > h2 { margin: 0 0 4px; font-size: 19px; }
+  .card > .why { margin: 0 0 12px; font-size: 14px; color: #6b655d; line-height: 1.6; word-break: auto-phrase; }
+  .pts { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 0; list-style: none; }
+  .pts li { padding: 4px 10px; border-radius: 8px; background: #f4f2ee; font-size: 12.5px; color: #4a4540; }
+  .pts li.good::before { content: '○ '; color: #3d7a3d; font-weight: 700; }
+  .pts li.bad::before { content: '△ '; color: #b0700a; font-weight: 700; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 20px; align-items: start; }
+  .opt h3 { margin: 0 0 6px; font-size: 15px; }
+  .shot { display: block; width: 100%; border-radius: 10px; box-shadow: 0 0 0 1px #ddd8cf; }
+  .tag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 99px; background: #2f3e75; color: #fff; font-size: 12px; vertical-align: 1px; }
+  .single { max-width: 580px; }
+  .foot { margin: 6px 2px 0; font-size: 13.5px; color: #6b655d; line-height: 1.7; word-break: auto-phrase; }
+</style>
+</head>
+<body>
+<h1>先生がツールの上で添削する（見本）</h1>
+<p class="lead">まだ作っていない仕組みを、画面に部品を足して見せた見本です。大きさの違う3つの形を並べました。学科での話し合いの材料にしてください（どれを作るかは、まだ決めなくて大丈夫です）。</p>
+
+<div class="card">
+  <h2>① 小：ページごとのコメント<span class="tag">はじめに作るなら</span></h2>
+  <p class="why">先生は管理ページで、学生が書き出した PDF の控えを見ながら、「本文1ページ：〜」とコメントを書いて送ります。学生のツールの右の欄に「先生からのコメント」が出て、「そのページへ」で移り、直したら「直した」を押します。</p>
+  <ul class="pts"><li class="good">学生の原稿を学科に置かずに済む（今と同じ PDF の控えだけ）</li><li class="good">数日で作れる</li><li class="bad">場所の指し方はページ単位（どの文かは言葉で書く）</li><li class="bad">PDF を書き出した時の中身を見る</li></ul>
+  <div class="opts">
+    <div class="opt"><h3>先生：管理ページの「学生の添削」</h3><img class="shot" src="shots/1-teacher.png" alt="①先生"></div>
+    <div class="opt"><h3>学生：右の欄の「先生からのコメント」</h3><img class="shot" src="shots/1-student.png" alt="①学生"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>② 中：紙面に付箋を貼る</h2>
+  <p class="why">学生が「先生に見てもらう」を押すと、原稿の写しが学科に届きます。先生は先生用の画面（読むだけ）で学生の紙面を開き、文をなぞって「コメントを付ける」。学生の紙面のその文に黄色の印と番号が付き、右の欄に一覧が出ます。直したら「直した」（印が緑になる）。</p>
+  <ul class="pts"><li class="good">どの文のことか、はっきり分かる</li><li class="good">学生は印をたどって直せる</li><li class="bad">学生の原稿の写しが学科のドライブに残る（大学の決まりの確認が要る）</li><li class="bad">管理ページを作ったときと同じくらいの手間</li></ul>
+  <div class="opts">
+    <div class="opt"><h3>先生：学生の原稿（読むだけ）に付箋を貼る</h3><img class="shot" src="shots/2-teacher.png" alt="②先生"></div>
+    <div class="opt"><h3>学生：紙面の印と番号・右の欄の一覧</h3><img class="shot" src="shots/2-student.png" alt="②学生"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>③ 大：赤ペン（先生の書き直し案）</h2>
+  <p class="why">先生が文を直接書き直した案を出し、学生の紙面に赤字で出ます。学生が「受け入れる」を押すと反映されます（Word の変更履歴に近い形）。先生の画面は②と同じで、付箋の代わりに書き直しを入れます。</p>
+  <ul class="pts"><li class="good">直し方まで具体的に伝わる</li><li class="bad">学生が自分で考えて直す機会が減る</li><li class="bad">学生が同じ所を書き換えていると、案とぶつかる</li><li class="bad">手間がいちばん大きい</li></ul>
+  <div class="single"><h3 style="margin:0 0 6px;font-size:15px">学生：紙面の赤字と「受け入れる」</h3><img class="shot" src="shots/3-student.png" alt="③学生"></div>
+</div>
+<p class="foot">どの形でも、先生の名前と日付が付き、学生が「直した」（③は「受け入れる」）を押したことは先生の画面にも出ます。②・③を作るときは、①の「先生からのコメント」の欄をそのまま広げて使えます。</p>
+</body>
+</html>
