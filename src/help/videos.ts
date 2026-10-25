@@ -14,11 +14,11 @@ export interface HelpVideo {
 
 export const HELP_VIDEOS: HelpVideo[] = [
   { number: 1, title: 'はじめ方（ログイン〜表紙）', file: '1-start', seconds: 74 },
-  { number: 2, title: '本文を書く・図を入れる', file: '2-body', seconds: 74 },
-  { number: 3, title: '表・作品写真', file: '3-table-photos', seconds: 82 },
+  { number: 2, title: '本文を書く・図を入れる', file: '2-body', seconds: 60 },
+  { number: 3, title: '表・作品写真', file: '3-table-photos', seconds: 69 },
   { number: 4, title: 'セルフチェックで直す', file: '4-check', seconds: 46 },
   { number: 5, title: 'PDF を書き出す', file: '5-pdf', seconds: 76 },
-  { number: 6, title: 'スマホで書く', file: '6-phone', seconds: 61, phone: true },
+  { number: 6, title: 'スマホで書く', file: '6-phone', seconds: 60, phone: true },
 ]
 
 /** 項目に入れた動画（番号の順） */
