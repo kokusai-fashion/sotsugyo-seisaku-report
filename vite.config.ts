@@ -107,6 +107,8 @@ export default defineConfig(({ mode }) => ({
   // GitHub Pages などのサブパスや学内サーバーのどこに置いても動くよう相対パスで出力する
   base: './',
   plugins: [react(), cspPlugin(), versionPlugin(), budouxBrowserPlugin()],
+  // 開発サーバーの下準備（依存の前もってのまとめ）には上の部品が効かず、BudouX の Node 用の部品でつまずいて止まるので、まとめない
+  optimizeDeps: { exclude: ['budoux'] },
   build: {
     rollupOptions: {
       // 学生用ツールと、提出前チェック（Word のひな形で書いている学生が、確かめて1つの PDF にまとめる）と、
