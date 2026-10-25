@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>デザイン案 v57：先生の付箋の見た目</title>
+<style>
+  body { margin: 0; padding: 26px 30px 34px; background: #f4f2ee; color: #2a2622; font-family: 'BIZ UDPGothic', 'Yu Gothic UI', sans-serif; width: 1180px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 24px; }
+  .lead { margin: 0 0 18px; font-size: 14.5px; color: #6b655d; line-height: 1.7; word-break: auto-phrase; }
+  .card { margin-bottom: 22px; padding: 16px 18px 18px; border-radius: 14px; background: #fff; box-shadow: 0 1px 3px rgba(30, 25, 20, 0.08); }
+  .card > h2 { margin: 0 0 4px; font-size: 19px; }
+  .card > .why { margin: 0 0 12px; font-size: 14px; color: #6b655d; line-height: 1.6; word-break: auto-phrase; }
+  .row { display: grid; grid-template-columns: 1fr 250px; gap: 18px; align-items: start; }
+  .shot { display: block; width: 100%; border-radius: 10px; box-shadow: 0 0 0 1px #ddd8cf; }
+  .tag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 99px; background: #2f3e75; color: #fff; font-size: 12px; vertical-align: 2px; }
+  .card.rec { box-shadow: 0 0 0 3px #2f3e75; }
+  .cap { margin-top: 5px; font-size: 12.5px; color: #6b655d; text-align: center; }
+  .foot { margin: 6px 2px 0; font-size: 13.5px; color: #6b655d; line-height: 1.7; word-break: auto-phrase; }
+</style>
+</head>
+<body>
+<h1>先生の付箋の見た目（案）</h1>
+<p class="lead">v56 の②（紙面に付箋を貼る）の付箋を、本物の付箋らしくした案です。どれも、付箋は紙面の右の端に貼り、文の下線と点線でつなぎます。字は手書き風（教科書体に近い「Klee One」）。右は付箋のあたりを大きくしたものです。</p>
+
+<div class="card rec">
+  <h2>A　正方形の付箋<span class="tag">おすすめ</span></h2>
+  <p class="why">いちばん見慣れた付箋の形。上が貼り付いていて下がわずかに浮いた影、右下の角が少しめくれています。直した付箋は緑の小さな付箋にたたみます。</p>
+  <div class="row"><div><img class="shot" src="shots/A.png" alt="案A"></div><div><img class="shot" src="shots/A-zoom.png" alt="案A 大きく"><div class="cap">大きくしたところ</div></div></div>
+</div>
+
+<div class="card">
+  <h2>B　フィルムの見出し付箋</h2>
+  <p class="why">本のページの端から出す、細長い透ける付箋。ふだんは短い言葉だけで場所を取らず、押すとメモが開きます。見開き・スマホの「つまみ」と同じ形にそろえられます。</p>
+  <div class="row"><div><img class="shot" src="shots/B.png" alt="案B"></div><div><img class="shot" src="shots/B-zoom.png" alt="案B 大きく"><div class="cap">1 を押して開いたところ</div></div></div>
+</div>
+
+<div class="card">
+  <h2>C　マスキングテープで留めたメモ用紙</h2>
+  <p class="why">罫線入りのクリーム色のメモ用紙を、マスキングテープで留めた形。手書きのメモらしさがいちばん出ますが、付箋（ふせん）というより「メモ書き」に見えます。</p>
+  <div class="row"><div><img class="shot" src="shots/C.png" alt="案C"></div><div><img class="shot" src="shots/C-zoom.png" alt="案C 大きく"><div class="cap">大きくしたところ</div></div></div>
+</div>
+
+<div class="card">
+  <h2>D　色分けの付箋（A の色ちがい）</h2>
+  <p class="why">先生が付箋の種類を選んで、色を変えます（直してほしい：ピンク／確かめてほしい：黄／よい所：水色）。よい所も伝えられますが、先生が毎回選ぶ手間が1つ増えます。A・B・C のどれとも組み合わせられます。</p>
+  <div class="row"><div><img class="shot" src="shots/D.png" alt="案D"></div><div><img class="shot" src="shots/D-zoom.png" alt="案D 大きく"><div class="cap">大きくしたところ</div></div></div>
+</div>
+<p class="foot">どの案でも、付箋は画面だけのもので、PDF には出ません。見開き・スマホでは、場所が足りないので、付箋をページの端の小さなつまみ（B の形）にたたみ、押すと開くようにします。</p>
+</body>
+</html>
