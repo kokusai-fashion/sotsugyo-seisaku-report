@@ -7,6 +7,9 @@ import type { Severity } from './types'
  * - 体言止めは単語の分解を使う判定に置き換えるまで、文末の文字で判定する暫定版
  */
 
+/** 箇条書きの形の行の頭（「1．」「（1）」「①」「■」）。短い行だけ（30字まで）。文末の「。」を求めない */
+const LIST_ITEM = /^(?:[0-9０-９]{1,2}[\s\u3000]*[．.、，,:：)）]|[（(][0-9０-９]{1,2}[)）]|[①-⑳]|[■□●◆◇▼▽★☆▶►・])[^。]{0,28}$/
+
 export interface TextFinding {
   ruleId: string
   severity: Severity
@@ -143,7 +146,8 @@ export const TEXT_RULES: TextRule[] = [
     source: 'guide',
     title: '「です・ます」ではなく「である」調で書く',
     find: (text) =>
-      matches(text, /(でしょう|でした|です|ました|ません|ます)(?=[。、」）！？]|$)/g)
+      // 文の終わりのほか、すぐ後ろに括弧書き（図を入れると「…しました（図1）。」になる）が続く形も見る（前は見逃していた：スマホの試し 2026-10-25）
+      matches(text, /(でしょう|でした|です|ました|ません|ます)(?=[。、」）！？（(]|$)/g)
         .filter(({ start }) => !quoted(text, start))
         .map(({ match, start, end }) => {
         // 「難しかったです」「かわいいです」「広げたいです」：「である」に置き換えると誤った日本語になるので、自動では直さない
@@ -212,7 +216,8 @@ export const TEXT_RULES: TextRule[] = [
     title: '文末に「。」を付ける',
     find: (text) => {
       const t = text.replace(/[\s　]+$/, '')
-      if (!t || /[。！？!?]$/.test(t)) return []
+      // 箇条書きの形の行（「1．ミシン」「（1）素材」「①素材」「■まとめ」）は、「。」を付けなくてよい（PC の試し 2026-10-25）
+      if (!t || /[。！？!?]$/.test(t) || LIST_ITEM.test(t)) return []
       return [{ start: t.length - 1, end: t.length, replacement: `${t[t.length - 1]}。`, detail: '段落の終わりに「。」を打つ' }]
     },
   },

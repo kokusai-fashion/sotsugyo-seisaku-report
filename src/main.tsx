@@ -10,6 +10,7 @@ import { startBridge } from './template/bridge'
 import { TEMPLATE_PARAM } from './template/protocol'
 import { TemplateApp } from './template/TemplateApp'
 import { startTrialBridge } from './trial/openTrial'
+import { startPhraseWrap } from './app/phraseWrap'
 
 // ?template=1：管理ページの上に重ねて開く、ひな形を作る画面（mockups/v44 案A）。学生の原稿・ドライブ・この端末の保存には触れない。
 // 管理ページからの知らせは、画面を作る前から聞き始める（iframe を読み込んですぐ送られるため）
@@ -21,6 +22,9 @@ else if (trialMode) startTrialBridge(import.meta.env.DEV || import.meta.env.MODE
 
 // 自動テスト（scripts/e2e）から部品を読み込む窓口（開発サーバーと、自動テスト用にまとめた版だけ。公開する版には入らない）
 if (import.meta.env.DEV || import.meta.env.MODE === 'e2e') void import('./testImports').then((m) => m.install())
+
+// iPhone・Mac の Safari（ことばの切れ目で折り返す CSS がない）でも、画面の文をことばの切れ目で折り返す（app/phraseWrap.ts）
+startPhraseWrap()
 
 // StrictMode は使わない（組版エンジンを二重に起動しないため）
 // 確認の窓・知らせの窓は、画面の中に出す（app/ask.tsx）

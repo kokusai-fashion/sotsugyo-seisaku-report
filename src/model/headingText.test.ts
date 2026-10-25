@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headingFromText, typedHeading } from './headingText'
+import { headingFromText, listItemLine, typedHeading } from './headingText'
 
 describe('段落に打った見出しの形（typedHeading）', () => {
   it('大見出し：「Ⅲ．まとめ」、英字の「I.」「II.」、全角の英字の「Ｉ．」。番号は除き、名前だけにする', () => {
@@ -68,5 +68,12 @@ describe('段落に打った見出しの形（typedHeading）', () => {
   it('Word から読み込むときの見分け方（headingFromText）は、今までどおり（「Ⅲ．」だけでも見出しの形とみなす）', () => {
     expect(headingFromText('Ⅰ．企画・立案')).toEqual({ level: 1, title: '企画・立案' })
     expect(headingFromText('Ⅲ．まとめとして、今回の制作を振り返る。')).toEqual({ level: 1, title: 'まとめとして、今回の制作を振り返る。' })
+  })
+})
+
+describe('箇条書きにも使う形の行（listItemLine。PC の試し 2026-10-25）', () => {
+  it('「1．ミシン」「（1）素材」「①素材」「■まとめ」は箇条書きにも使う形。ローマ数字・「第4章」は見出しの形', () => {
+    for (const line of ['1．ミシン', '2.アイロン', '（1）素材', '①素材', '■まとめ']) expect(listItemLine(line), line).toBe(true)
+    for (const line of ['Ⅲ．まとめ', 'ⅱ．袖の刺繍', 'iiiスカート', '第4章 考察', '本文の段落である。']) expect(listItemLine(line), line).toBe(false)
   })
 })

@@ -47,6 +47,9 @@ export type OverlayKind = 'paragraph' | 'line' | 'cell'
  */
 const LEADING_SPACE = /^[\s\u3000]+/
 
+/** 幅のない空白。薄い字を出す空の欄で、カーソルの置き場にする（書いた字には入らない） */
+const ZWSP = '\u200b'
+
 export interface OverlayCallbacks {
   /** 文字が変わった（日本語の変換中は呼ばない） */
   onInput(blockId: string, text: string): void
@@ -495,7 +498,7 @@ export class OverlayEditor {
   get text(): string {
     // 紙面と同じ組み方で書いているとき：日本語の変換中は、変換中の文字も含めて、書く欄の中身から読む（閉じる直前の保存に間に合わせるため）
     if (this.typeset) return this.composingNow ? this.domText() : this.model
-    const raw = this.element.innerText ?? ''
+    const raw = (this.element.innerText ?? '').replaceAll(ZWSP, '')
     return this.target?.kind === 'cell' ? raw.replace(/\n$/, '') : raw.replace(/\n/g, '')
   }
 
@@ -931,7 +934,9 @@ export class OverlayEditor {
       // 番号（図3.）を前に出す欄が空のとき：改行の印を1つ入れておく。空の欄では、ブラウザが真ん中にそろえた欄の真ん中にカーソルを描き、
       // 「図|3.」のように番号の途中に見えていた（打った字は番号の後ろに入るが、そこに入るように見える：依頼者の Android 2026-10-22）。
       // 改行の印があると、カーソルは番号のすぐ後ろに出る。字ではないので、書いた字（domText）には入らない
-      if (!this.model && el.dataset.label) el.replaceChildren(document.createElement('br'))
+      // 薄い字を出す欄（図表のタイトル）は、改行の印の代わりに幅のない空白（ZWSP）を入れる：カーソルが番号のすぐ後ろ・薄い字の前に出る
+      // （改行の印は薄い字を次の行へ送るので見せておらず、カーソルが欄の真ん中＝薄い字の途中に出ていた：PC の試し 2026-10-25）。書いた字には入らない（text で除く）
+      if (!this.model && el.dataset.label) el.replaceChildren(el.dataset.placeholder ? document.createTextNode(ZWSP) : document.createElement('br'))
       // スマホ：紙面の上の写しも、はじめから組む（段落は、紙面の段落の中身を写せるなら写す）
       if (this.sheetHost) this.syncMirror(this.model, { full: true, page: how.page })
       else this.resetTypeset()

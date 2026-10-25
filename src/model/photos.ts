@@ -179,18 +179,39 @@ export function fittingArrangement(count: number): { layout: WorkPhotoLayout; co
  * moved：詰めた枚数、removed：消したページの数
  */
 export function packPhotos(pages: WorkPhotoPage[], page: number): { pages: WorkPhotoPage[]; moved: number; removed: number } {
+  // 写真を取られて枠が空いたページも、その後ろのページから続けて詰める（前は、取られたページに空いた枠が残っていた：スマホの試し 2026-10-25）
+  let next = pages
+  let moved = 0
+  let removed = 0
+  for (let k: number | null = page; k !== null; ) {
+    const once = fillFromNext(next, k)
+    if (once.moved === 0) break
+    next = once.pages
+    moved += once.moved
+    removed += once.removed
+    k = once.partial
+  }
+  return moved === 0 ? { pages, moved: 0, removed: 0 } : { pages: next, moved, removed }
+}
+
+/** 写真の項目（切り抜く位置・全体を入れるもいっしょに）。写真のない枠は除く */
+const photoEntries = (p: WorkPhotoPage) => p.imageIds.map((id, i) => ({ id, position: p.positions?.[i] ?? null, whole: p.whole?.[i] === true })).filter((e) => e.id)
+const withEntries = (p: WorkPhotoPage, list: ReturnType<typeof photoEntries>) => withWhole({ ...p, imageIds: list.map((e) => e.id), positions: list.map((e) => e.position) }, list.map((e) => e.whole))
+
+/** page ページ目の空いた枠に、後ろのページから先頭の写真を移す（1回分）。partial：写真を取られて、まだ残っているページ（なければ null） */
+function fillFromNext(pages: WorkPhotoPage[], page: number): { pages: WorkPhotoPage[]; moved: number; removed: number; partial: number | null } {
   const target = pages[page]
-  if (!target) return { pages, moved: 0, removed: 0 }
-  const entries = (p: WorkPhotoPage) => p.imageIds.map((id, i) => ({ id, position: p.positions?.[i] ?? null, whole: p.whole?.[i] === true })).filter((e) => e.id)
-  const build = (p: WorkPhotoPage, list: ReturnType<typeof entries>) => withWhole({ ...p, imageIds: list.map((e) => e.id), positions: list.map((e) => e.position) }, list.map((e) => e.whole))
-  const mine = entries(target)
+  const none = { pages, moved: 0, removed: 0, partial: null }
+  if (!target) return none
+  const mine = photoEntries(target)
   let free = target.layout - mine.length
-  if (free <= 0) return { pages, moved: 0, removed: 0 }
+  if (free <= 0) return none
   const next = [...pages]
   let moved = 0
   let removed = 0
+  let partial: number | null = null
   for (let k = page + 1; k < next.length && free > 0; ) {
-    const theirs = entries(next[k])
+    const theirs = photoEntries(next[k])
     const take = theirs.slice(0, free)
     mine.push(...take)
     moved += take.length
@@ -201,12 +222,42 @@ export function packPhotos(pages: WorkPhotoPage[], page: number): { pages: WorkP
       removed += 1
       continue
     }
-    next[k] = build(next[k], rest)
+    next[k] = withEntries(next[k], rest)
+    if (take.length > 0) partial = k
     k += 1
   }
-  if (moved === 0) return { pages, moved: 0, removed: 0 }
-  next[page] = build(target, mine)
-  return { pages: next, moved, removed }
+  if (moved === 0) return none
+  next[page] = withEntries(target, mine)
+  return { pages: next, moved, removed, partial }
+}
+
+/**
+ * page ページ目を枠の少ない並べ方にして、あふれた写真を、次のページの先頭へ移す（次のページもあふれたら、その次へ。最後のページがあふれたら、
+ * 枚数に合う並べ方のページを足す。依頼者の選択 2026-10-25：前はあふれた写真を隠していて、PDF に入らず、チェックも何も言わなかった）。
+ * ページの上限（学科の設定）で足せないときは、残りを最後のページに隠したままにする（hidden）。moved：移した枚数、added：足したページの数
+ */
+export function spillPhotos(pages: WorkPhotoPage[], page: number, maxPages: number | null): { pages: WorkPhotoPage[]; moved: number; added: number; hidden: number } {
+  const next = [...pages]
+  let moved = 0
+  let added = 0
+  let hidden = 0
+  for (let k = page; k < next.length; k++) {
+    const list = photoEntries(next[k])
+    const over = list.slice(next[k].layout)
+    if (over.length === 0) break
+    if (k + 1 >= next.length) {
+      if (!canAddPhotoPage(next, maxPages)) {
+        hidden = over.length
+        break
+      }
+      next.push({ ...fittingArrangement(Math.min(over.length, PHOTOS_PER_PAGE_MAX)), imageIds: [] })
+      added += 1
+    }
+    if (k === page) moved = over.length
+    next[k] = withEntries(next[k], list.slice(0, next[k].layout))
+    next[k + 1] = withEntries(next[k + 1], [...over, ...photoEntries(next[k + 1])])
+  }
+  return { pages: next, moved, added, hidden }
 }
 
 /** 写真を枠に入れる（枠のページがまだなければ、最後のページと同じ並べ方の空のページを後ろに足す） */

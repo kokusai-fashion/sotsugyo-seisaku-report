@@ -87,11 +87,26 @@ function versionPlugin(): Plugin {
   }
 }
 
+/**
+ * BudouX（app/phraseWrap.ts。ことばの切れ目を見つける仕組み）の、HTML を読む部品は、ブラウザ用のもの（dom-browser.js）を使う。
+ * そのままだと、Node 用の部品（linkedom）までまとめようとして、まとめるのに失敗する（package.json の browser の指定が効かないため）
+ */
+function budouxBrowserPlugin(): Plugin {
+  return {
+    name: 'sotsugyo-budoux-browser',
+    enforce: 'pre',
+    async resolveId(source, importer) {
+      if (source !== './dom.js' || !importer || !/[\\/]budoux[\\/]module[\\/]/.test(importer)) return null
+      return this.resolve('./dom-browser.js', importer, { skipSelf: true })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   // GitHub Pages などのサブパスや学内サーバーのどこに置いても動くよう相対パスで出力する
   base: './',
-  plugins: [react(), cspPlugin(), versionPlugin()],
+  plugins: [react(), cspPlugin(), versionPlugin(), budouxBrowserPlugin()],
   build: {
     rollupOptions: {
       // 学生用ツールと、提出前チェック（Word のひな形で書いている学生が、確かめて1つの PDF にまとめる）と、

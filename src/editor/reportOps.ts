@@ -445,6 +445,30 @@ export function paragraphToHeading(report: Report, id: string, heading: { level:
   return { report: { ...report, body }, headingId: added.id, nextId }
 }
 
+/**
+ * 小見出しを、text の段落に戻す（打って小見出しにした「1．ミシン」のあとに、続けて「2．アイロン」と打った：箇条書きとみなす。PC の試し 2026-10-25）。
+ * 小見出しでなければ同じ原稿
+ */
+export function subheadingToParagraph(report: Report, headingId: string, text: string): Report {
+  let changed = false
+  const body = report.body.map((c) => {
+    const i = c.blocks.findIndex((b) => b.id === headingId && b.type === 'subheading')
+    if (i < 0) return c
+    changed = true
+    return { ...c, blocks: c.blocks.map((b, k) => (k === i ? paragraph(newId('p'), text, numbering(report)) : b)) }
+  })
+  return changed ? { ...report, body } : report
+}
+
+/** 本文で、id のブロックのすぐ前のブロック（同じ章の中。章の初めなら undefined） */
+export function blockBefore(report: Report, id: string): BodyBlock | undefined {
+  for (const c of report.body) {
+    const i = c.blocks.findIndex((b) => b.id === id)
+    if (i >= 0) return c.blocks[i - 1]
+  }
+  return undefined
+}
+
 /** 見出し（大見出しは章の ID、小見出しはその ID）の、番号を付けた名前（「Ⅲ．まとめ」「ⅱ．袖の刺繍」。紙面と同じ番号）。見出しでなければ null */
 export function headingLabel(report: Report, id: string): string | null {
   const ci = report.body.findIndex((c) => c.id === id)
@@ -723,7 +747,7 @@ function figureRowTargets(
   figureId: string,
   refLater = false,
   mentions: Map<string, number> = new Map(),
-): { from: number; sectionEnd: number | null; paragraph: number | null; up: number | null; down: number | null; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null } | null {
+): { from: number; sectionEnd: number | null; paragraph: number | null; up: number | null; down: number | null; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null; inSubsection: boolean } | null {
   const from = chapter.blocks.findIndex((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
   if (from < 0) return null
   const row = chapter.blocks[from] as Extract<BodyBlock, { type: 'figureRow' }>
@@ -789,7 +813,9 @@ function figureRowTargets(
             ? 'order'
             : null
   const downBlock: FigureMoveBlock | null = !below ? 'chapter' : below.type === 'subheading' ? 'subheading' : !keepsOrder(below, true) ? 'order' : null
-  return { from, sectionEnd: atEnd ? null : end, paragraph, up: upBlock ? null : from - 1, down: downBlock ? null : from + 1, upBlock, downBlock }
+  // 図の前に小見出しがあるか（なければ「大見出しの終わりへ」と言う：PC の試し 2026-10-25）
+  const inSubsection = chapter.blocks.slice(0, from).some((b) => b.type === 'subheading')
+  return { from, sectionEnd: atEnd ? null : end, paragraph, up: upBlock ? null : from - 1, down: downBlock ? null : from + 1, upBlock, downBlock, inSubsection }
 }
 
 /**
@@ -803,12 +829,12 @@ export type FigureMoveBlock = 'chapter' | 'subheading' | 'ref' | 'refLater' | 'o
 export function figurePlacement(
   report: Report,
   figureId: string,
-): { toSectionEnd: boolean; toParagraph: boolean; up: boolean; down: boolean; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null } {
+): { toSectionEnd: boolean; toParagraph: boolean; up: boolean; down: boolean; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null; inSubsection: boolean } {
   for (const chapter of report.body) {
     const t = figureRowTargets(chapter, figureId, refOnlyLater(report, chapter, figureId), figureMentionOrder(report))
-    if (t) return { toSectionEnd: t.sectionEnd !== null, toParagraph: t.paragraph !== null, up: t.up !== null, down: t.down !== null, upBlock: t.upBlock, downBlock: t.downBlock }
+    if (t) return { toSectionEnd: t.sectionEnd !== null, toParagraph: t.paragraph !== null, up: t.up !== null, down: t.down !== null, upBlock: t.upBlock, downBlock: t.downBlock, inSubsection: t.inSubsection }
   }
-  return { toSectionEnd: false, toParagraph: false, up: false, down: false, upBlock: null, downBlock: null }
+  return { toSectionEnd: false, toParagraph: false, up: false, down: false, upBlock: null, downBlock: null, inSubsection: false }
 }
 
 /** 図（のまとまり）を参照している段落が、その図の章より後ろの章にしかないか（その章や前の章にあれば false） */

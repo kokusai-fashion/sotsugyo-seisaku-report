@@ -9,6 +9,7 @@ import {
   fittingArrangement,
   movePhoto,
   packPhotos,
+  spillPhotos,
   pageOfPhotoPage,
   photoCount,
   photoGrid,
@@ -263,5 +264,33 @@ describe('作品写真をまとめて選んだとき・並べ方を変えたと�
     const full = packPhotos([{ layout: 1, imageIds: ['a'] }, { layout: 1, imageIds: ['b'] }], 0)
     expect(full.moved).toBe(0)
     expect(full.pages.map((p) => p.imageIds.join('+'))).toEqual(['a', 'b'])
+  })
+
+  it('写真を取られて枠が空いたページも、その後ろのページから続けて詰める（スマホの試し 2026-10-25）', () => {
+    const pages: WorkPhotoPage[] = [
+      { layout: 2, columns: 2, imageIds: ['a'] },
+      { layout: 4, columns: 2, imageIds: ['b', 'c', 'd', 'e'] },
+      { layout: 1, imageIds: ['f'] },
+    ]
+    const r = packPhotos(pages, 0)
+    expect(r.pages.map((p) => p.imageIds.join('+'))).toEqual(['a+b', 'c+d+e+f'])
+    expect(r.moved).toBe(2)
+    expect(r.removed).toBe(1)
+  })
+
+  it('枠の少ない並べ方：あふれた写真を次のページの先頭へ移す。最後のページなら、枚数に合う並べ方のページを足す（依頼者の選択 2026-10-25）', () => {
+    const one = spillPhotos([{ layout: 2, columns: 2, imageIds: ['a', 'b', 'c'] }], 0, null)
+    expect(one.pages.map((p) => [p.layout, p.imageIds.join('+')])).toEqual([[2, 'a+b'], [1, 'c']])
+    expect(one).toMatchObject({ moved: 1, added: 1, hidden: 0 })
+    // 次のページもあふれたら、その次へ（順番はそのまま）
+    const chain = spillPhotos([{ layout: 1, imageIds: ['a', 'b'] }, { layout: 2, columns: 2, imageIds: ['c', 'd'] }], 0, null)
+    expect(chain.pages.map((p) => p.imageIds.join('+'))).toEqual(['a', 'b+c', 'd'])
+    expect(chain).toMatchObject({ moved: 1, added: 1 })
+    // あふれなければ何もしない
+    expect(spillPhotos([{ layout: 4, columns: 2, imageIds: ['a', 'b'] }], 0, null).moved).toBe(0)
+    // ページの上限で足せないときは、最後のページに隠れたまま
+    const capped = spillPhotos([{ layout: 1, imageIds: ['a', 'b', 'c'] }], 0, 1)
+    expect(capped).toMatchObject({ moved: 0, added: 0, hidden: 2 })
+    expect(capped.pages.map((p) => p.imageIds.join('+'))).toEqual(['a+b+c'])
   })
 })

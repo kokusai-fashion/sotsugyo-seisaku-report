@@ -372,7 +372,12 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         {/* 図の置き場所（依頼者の選択 2026-10-22 案A）：小見出しのまとまりのいちばん下へ。そこにあれば、参照している段落の下へ戻す。
             スマホの帯は、1列に入る5つ（差し替え・もう1枚・上へ・下へ・削除。依頼者の選択 2026-10-23 の見本）にするので出さない */}
         {phone ? null : place.toSectionEnd ? (
-          <Tool label={'小見出しの\n終わりへ'} icon={Icon.toSectionEnd} title="この図を、小見出しのまとまりのいちばん下へ動かす（図の番号は、紙面の順にそろいます）" onClick={() => void editor.moveFigure(figureId, 'sectionEnd')} />
+          <Tool
+            label={place.inSubsection ? '小見出しの\n終わりへ' : '大見出しの\n終わりへ'}
+            icon={Icon.toSectionEnd}
+            title={`この図を、${place.inSubsection ? '小見出し' : '大見出し'}のまとまりのいちばん下へ動かす（図の番号は、紙面の順にそろいます）`}
+            onClick={() => void editor.moveFigure(figureId, 'sectionEnd')}
+          />
         ) : place.toParagraph ? (
           <Tool label={'段落の下へ\n戻す'} icon={Icon.toParagraph} title="この図を、この図のことを書いた段落のすぐ下へ戻す" onClick={() => void editor.moveFigure(figureId, 'paragraph')} />
         ) : null}

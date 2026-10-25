@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 import { confirmParts, isList } from './confirmText'
 import { useDialogFocus } from './useDialogFocus'
+import { Keep } from './keepPhrases'
 
 /**
  * 学生のツールの確認の窓・知らせの窓（画面の中に出す。管理ページの admin/confirm.tsx と同じ形：依頼者の選択 2026-10-23）。
@@ -103,7 +104,9 @@ function AskDialog({ request, onAnswer }: { request: Request; onAnswer: (ok: boo
                   ))}
                 </ul>
               ) : (
-                <p key={i}>{p}</p>
+                <p key={i}>
+                  <Keep text={p} />
+                </p>
               ),
             )}
         </div>

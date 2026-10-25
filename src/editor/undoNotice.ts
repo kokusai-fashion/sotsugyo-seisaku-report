@@ -12,7 +12,7 @@ import type { BodyBlock, Report, WorkPhotoPage } from '../model/types'
  * 削除したもの（知らせの言葉に使う）。下書き：コースを変えて、本文の下書きをそのコースのひな形に入れ替えた。
  * 選んだ文：紙面をなぞって選んだ範囲を Delete・Backspace で消した／切り取り：選んだ範囲を Ctrl+X で切り取った（editor/rangeOps.ts）
  */
-export type RemovedWhat = '段落' | '小見出し' | '大見出し（章）' | '図' | '表' | '表の行' | '表の列' | '改ページ' | '作品写真' | '作品写真のページ' | '写真を詰めた' | '表の画像' | '下書き' | '選んだ文' | '切り取り'
+export type RemovedWhat = '段落' | '小見出し' | '大見出し（章）' | '図' | '表' | '表の行' | '表の列' | '改ページ' | '作品写真' | '作品写真のページ' | '写真を詰めた' | '写真を移した' | '表の画像' | '下書き' | '選んだ文' | '切り取り'
 
 /**
  * 画面の下に出す知らせの中身。
@@ -54,6 +54,7 @@ export function noticeText(notice: NoticeBody): string {
   switch (notice.kind) {
     case 'restored':
       if (notice.what === '写真を詰めた') return '写真を詰める前に戻しました'
+      if (notice.what === '写真を移した') return '写真を移す前に戻しました'
       return notice.what === '切り取り' ? '切り取る前に戻しました' : `${notice.what}を戻しました`
     case 'removed': {
       // note：添える一言（選んだ範囲に大見出しがかかったが、大見出しは残した、など）
@@ -64,6 +65,8 @@ export function noticeText(notice: NoticeBody): string {
       if (notice.what === '作品写真のページ') return `作品写真のページを消しました${note}`
       // 並べ方を変えて、次のページの写真を詰めた（note は「（空いたページは消しました）」。mockups/v53 ① 案A）
       if (notice.what === '写真を詰めた') return `次のページの写真を詰めました${note}`
+      // 枠の少ない並べ方にして、あふれた写真を次のページへ移した（note は「（2枚。ページを足しました）」。依頼者の選択 2026-10-25）
+      if (notice.what === '写真を移した') return `あふれた写真を次のページへ移しました${note}`
       // 表の行・列：道具の「行を消す」「列を消す」と同じ「消しました」
       if (notice.what === '表の行' || notice.what === '表の列') return `${notice.what}を消しました${note}`
       return notice.what === '作品写真' || notice.what === '表の画像' ? `${notice.what}を外しました` : `${notice.what}を削除しました${note}`

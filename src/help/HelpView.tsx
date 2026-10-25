@@ -1,11 +1,11 @@
-import { keepParts } from '../app/keepPhrases'
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../app/icons'
+import { keepParts } from '../app/keepPhrases'
 import { useDialogFocus } from '../app/useDialogFocus'
 import { deviceName } from '../drive/device'
 import { groupVideos, lengthText, topicOfVideo, topicVideos, videosOf, type HelpVideo } from './videos'
 import { TROUBLE_GROUP, type HelpDevice, type HelpTopic } from './helpTopics'
-import { highlightParts, searchTopics, termsOf } from './search'
+import { highlightParts, normalize, searchTopics, termsOf } from './search'
 import './help.css'
 
 /**
@@ -408,7 +408,7 @@ function Results({ topics, query, who, onOpen }: { topics: HelpTopic[]; query: s
                   {/* 言葉はかぎかっこで囲む（前は「消えたでも探せる項目」と続いて読みにくかった。PC の試し 2026-10-24） */}
                   {h.hidden.map((w) => (
                     <span key={w}>
-                      「<mark className="help-hit">{w}</mark>」
+                      「<mark className="help-hit">{words.find((t) => normalize(t) === w) ?? w}</mark>」
                     </span>
                   ))}
                   でも探せる項目

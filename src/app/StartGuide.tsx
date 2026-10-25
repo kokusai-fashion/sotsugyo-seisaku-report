@@ -304,7 +304,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
         return (
           <>
             <h2 id={titleId}>氏名を入力してください</h2>
-            <p>姓と名の間は、全角の空白を入れます（例：文化　花子）。{narrow ? '欄をタップして入力します。' : ''}</p>
+            <p>姓と名の間は、全角の空白を入れます（例：文化　花子）。{narrow ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}</p>
           </>
         )
       case 'subtitle':
@@ -313,7 +313,8 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             <h2 id={titleId}>サブタイトルを入力してください</h2>
             <p>
               「{subtitleBefore}〇〇{subtitleAfter}」の〇〇の部分だけを入力します。前後は自動で付きます。
-              {narrow ? '欄をタップして入力します。' : ''}
+              {/* PC は学籍番号の段がとばされることが多く、「Enter で次へ」を見ないまま進んでいた（PC の試し 2026-10-25） */}
+              {narrow ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}
             </p>
           </>
         )

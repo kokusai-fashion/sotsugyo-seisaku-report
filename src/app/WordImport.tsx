@@ -13,6 +13,7 @@ import { useBusy, useSlow } from './useBusy'
 import { Modal } from './dialogs'
 import { Icon } from './icons'
 import type { WordTodo } from './useWordTodo'
+import { Keep } from './keepPhrases'
 
 /**
  * 今年度だけ：Word のひな形（04_本文.docx・01_表紙.docx）で書き始めた分を、ツールに写す「Wordから読み込む」の画面（mockups/v24）。
@@ -701,7 +702,7 @@ function WordConfirm({
                   <figure key={f.label} className={noTitle || !f.imageId ? 'problem' : ''}>
                     {url ? <img src={url} alt="" /> : <span className="noimg">{f.imageId ? '' : '画像なし'}</span>}
                     <figcaption>
-                      {f.label}　{noTitle ? '（タイトルなし）' : f.caption}
+                      <Keep text={`${f.label}　${noTitle ? '（タイトルなし）' : f.caption}`} />
                     </figcaption>
                   </figure>
                 )
@@ -720,17 +721,23 @@ function WordConfirm({
       <div className="word-keep">
         {keepIcon}
         <div>
-          <b>いまのツールの原稿は「自動の控え」に残します</b>
+          <b>
+            <Keep text="いまのツールの原稿は「自動の控え」に残します" />
+          </b>
           {/* ツールで書いた本文が消えるときは、どの章の何段落かを先に知らせる（同じ Word を読み込み直したときなど） */}
           {lost.length > 0 && (
             <strong className="word-lost">
               {lost.map((l) => `${l.heading}（ツールで書いた${lostCounts(l)}）`).join('、')}は消えます。ツールで書いた分を続けるなら、読み込まずに「やめる」を押します。
             </strong>
           )}
-          {files.cover
-            ? `本文は Word の中身に入れ替わり、表紙の学籍番号・氏名・サブタイトル${wordCourseId && choice === 'word' ? '・コース' : ''}も Word のものになります（抄録・作品写真・引用・参考文献はそのまま）。`
-            : '本文は Word の中身に入れ替わります（表紙・抄録・作品写真・引用・参考文献はそのまま）。'}
-          元に戻したいときは「読み込む前の原稿に戻す」か「バックアップ・作り直す」から戻せます。
+          <Keep
+            text={
+              files.cover
+                ? `本文は Word の中身に入れ替わり、表紙の学籍番号・氏名・サブタイトル${wordCourseId && choice === 'word' ? '・コース' : ''}も Word のものになります（抄録・作品写真・引用・参考文献はそのまま）。`
+                : '本文は Word の中身に入れ替わります（表紙・抄録・作品写真・引用・参考文献はそのまま）。'
+            }
+          />
+          <Keep text="元に戻したいときは「読み込む前の原稿に戻す」か「バックアップ・作り直す」から戻せます。" />
         </div>
       </div>
       {error && (
@@ -752,9 +759,10 @@ function WordConfirm({
             読み込む
           </BusyLabel>
         </button>
+        {/* 読み込む（図の画像をこの端末に保存して、紙面を組み直す）のが2秒を過ぎたら。図が多いと十数秒かかることがある。
+            段の中に置く（段のうしろに置くと、段が窓のいちばん後ろでなくなり、スマホで窓の下に止まらなかった：スマホの試し 2026-10-25） */}
+        <SlowNote busy={busy} text={result.images.length > 3 ? '図が多いと、十数秒かかることがあります' : '数秒かかることがあります'} className="row-note" />
       </div>
-      {/* 読み込む（図の画像をこの端末に保存して、紙面を組み直す）のが2秒を過ぎたら。図が多いと十数秒かかることがある */}
-      <SlowNote busy={busy} text={result.images.length > 3 ? '図が多いと、十数秒かかることがあります' : '数秒かかることがあります'} className="row-note" />
     </>
   )
 }

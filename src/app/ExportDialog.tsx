@@ -12,6 +12,7 @@ import { Modal } from './dialogs'
 import { Icon } from './icons'
 import { AREA_LABELS } from './labels'
 import type { DrivePdfState } from './useDrivePdf'
+import { Keep } from './keepPhrases'
 
 /** 保存の画面が開くのを待つ長さ（これを過ぎたら「保存しました」にする。保存の画面を出さずに「ダウンロード」へ保存するブラウザのため） */
 const SAVE_WAIT_MS = 4000
@@ -35,7 +36,7 @@ function PrintSteps() {
     return (
       <ul>
         <li>
-          印刷の画面の右上（または下）の <b>共有のボタン（四角に上向きの矢印）</b> を押し、<b>「"ファイル"に保存」</b> を選ぶ
+          印刷の画面の右上（または下）の <b>共有のボタン（四角に上向きの矢印）</b> を押し、<b className="nb">「"ファイル"に保存」</b> を選ぶ
         </li>
         <li>保存する場所（「iCloud Drive」や「このiPhone内」など）を選んで「保存」</li>
         <li>うまく保存できないときは、パソコンで書き出してください</li>
@@ -99,7 +100,9 @@ function FileBox({ fileName, note }: { fileName: string; note: string }) {
       {Icon.pdf}
       <div>
         <b className="fn">{fileName}</b>
-        <small>{note}</small>
+        <small>
+          <Keep text={note} />
+        </small>
       </div>
     </div>
   )
@@ -420,11 +423,15 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
           <FileBox fileName={pdf.fileName} note={size} />
           <Thumbs urls={thumbs} total={pdf.pageCount} />
           <p className="lead">
-            {saved === 'shared'
-              ? '保存しました。ほかの場所にも保存するときは、もう一度「保存する」を押します。'
-              : saved === 'fallback'
-                ? '保存の画面を開けなかったため、ダウンロードしました。「PDF を開く」からも保存できます。'
-                : '「保存する」を押して、「"ファイル"に保存」を選んでください。'}
+            <Keep
+              text={
+                saved === 'shared'
+                  ? '保存しました。ほかの場所にも保存するときは、もう一度「保存する」を押します。'
+                  : saved === 'fallback'
+                    ? '保存の画面を開けなかったため、ダウンロードしました。「PDF を開く」からも保存できます。'
+                    : '「保存する」を押して、「"ファイル"に保存」を選んでください。'
+              }
+            />
           </p>
           <DriveLine state={drivePdf} />
           <button className="primary pdf-save" data-autofocus onClick={() => void share(pdf)}>

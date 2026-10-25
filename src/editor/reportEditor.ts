@@ -3,12 +3,12 @@ import { checkReportDetailed, type ReportFinding } from '../checker/reportChecks
 import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
-import { typedHeading, type HeadingText } from '../model/headingText'
+import { listItemLine, typedHeading, type HeadingText } from '../model/headingText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
 import { putImage, type StoredImage } from '../model/storage'
 import { skippedPages } from '../pdf/exportPages'
 import { applyCourseTemplate, bodyWritten } from '../model/template'
-import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
+import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, spillPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
 import { addColumn, addRow, blankTable, cellPosition, colWidthsOf, columnCount, equalColumnWidths, materialTable, normalizeColumnWidths, removeColumn, removeRow, setCellCrop, setCellImage } from '../model/table'
 import type { BodyBlock, Chapter, PhotoPosition, Report, TableBlock, TableCell, WorkPhotoLayout } from '../model/types'
 import { abstractPasteNotice, stripFigureRefs } from './abstractRefs'
@@ -237,12 +237,17 @@ function bodyIds(report: Report): Set<string> {
   return ids
 }
 
-/** 図表のタイトルが空のときに、書く欄に出す薄い字（mockups/v55 ③ 案A） */
-function captionPlaceholder(kind: ops.EditableKind): string | undefined {
-  if (kind === 'figureCaption') return '（図のタイトルを入力。例：デザイン画）'
-  if (kind === 'tableCaption') return '（表のタイトルを入力。例：使用素材表）'
+/**
+ * 図表のタイトルが空のときに、書く欄に出す薄い字（mockups/v55 ③ 案A）。
+ * 欄が狭いとき（横に2枚並べた図）は短くする（長いと語の途中で2行になっていた：PC の試し 2026-10-25）
+ */
+function captionPlaceholder(kind: ops.EditableKind, narrow = false): string | undefined {
+  if (kind === 'figureCaption') return narrow ? '（例：デザイン画）' : '（図のタイトルを入力。例：デザイン画）'
+  if (kind === 'tableCaption') return narrow ? '（例：使用素材表）' : '（表のタイトルを入力。例：使用素材表）'
   return undefined
 }
+/** 図表のタイトルの書く欄が狭いか（紙面の px。本文の幅は 567px、横に2枚並べた図は 270px ほど） */
+const NARROW_CAPTION = 400
 
 export class ReportEditor {
   private report: Report
@@ -378,6 +383,19 @@ export class ReportEditor {
         // 図・表のタイトル：Enter で、図・表の後ろに新しい段落を作る（mockups/v32 ① 案A）
         const editing = ops.findEditable(this.report, id)?.kind
         if (editing === 'figureCaption' || editing === 'tableCaption') return this.enterAfterCaption(id, before + after)
+        // 空の段落で Enter：次のページへ送るつもりで連打して、空の段落が増えていた（PC の試し 2026-10-25）。1回だけ知らせる
+        if (editing === 'paragraph' && !(before + after).trim() && !this.emptyEnterNoticed) {
+          this.emptyEnterNoticed = true
+          this.showNotice(`次のページから書くときは、${this.phone ? '「追加」の' : '道具の'}「改ページ」を使います（空の段落は「直すところ」に出ます）`)
+        }
+        // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って小見出しにしたもの）を段落に戻す
+        const reverted = editing === 'paragraph' ? this.revertListHeading(this.report, id, before) : null
+        if (reverted) {
+          this.pushHistory(this.reportBeforeEdit ?? this.report)
+          this.reportBeforeEdit = reverted
+          this.report = reverted
+          this.showNotice('番号の行が続いたので、見出しにせず箇条書き（段落）にしました')
+        }
         // 本文の段落に「Ⅲ．まとめ」のように打って Enter：カーソルより前を見出しにして、後ろを次の段落にする（「。」は付けない）
         const heading = editing === 'paragraph' ? this.headingOf(id, before) : null
         if (heading) return this.enterAsHeading(id, before, after, heading)
@@ -391,7 +409,8 @@ export class ReportEditor {
         if (ops.findEditable(start, id)?.text !== ops.findEditable(typed, id)?.text) this.pushHistory(start)
         this.pushHistory(typed)
         // ひな形を作る画面では「。」を付けない（ひな形の説明は、先生が書いたまま）
-        const result = ops.split(typed, id, before, after, { period: !this.template })
+        // 箇条書きの形の行（「2．アイロン」）には「。」を付けない
+        const result = ops.split(typed, id, before, after, { period: !this.template && !listItemLine(before) })
         this.report = result.report
         // 前の段落に「。」を自動で付けたときは覚えておく（すぐ Backspace でつなぎ直したら、元に戻す）
         const kind = ops.findEditable(this.report, id)?.kind
@@ -444,6 +463,8 @@ export class ReportEditor {
         const table = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'table' && (b.id === id || b.rows.some((r) => r.cells.some((c) => c.id === id))))
         const cells = table?.type === 'table' ? this.tabCells(table) : []
         const next = table?.id === id ? cells[0] : cells[cells.findIndex((c) => c.id === id) + (backward ? -1 : 1)]
+        // 1つ目のマスで Shift+Tab：表のタイトルへ戻る（前は書き終えていた：PC の試し 2026-10-25）
+        if (!next && backward && table && table.id !== id && cells[0]?.id === id) return this.continueWriting(table.id, ops.findEditable(this.report, table.id)?.text.length ?? 0)
         if (next) this.continueWriting(next.id, next.text.length)
         else this.onCommitEdit(id, text, true)
       },
@@ -455,6 +476,11 @@ export class ReportEditor {
       onTabStay: (id) => {
         const kind = ops.findEditable(this.report, id)?.kind
         if (kind === 'paragraph' || kind === 'abstractParagraph') this.noticeLeadingSpaceOnce('tab')
+        // 表紙の項目：フォームのくせで Tab を押しても何も起きず、迷っていた（PC の試し 2026-10-25）
+        else if (kind === 'field' && !this.fieldTabNoticed) {
+          this.fieldTabNoticed = true
+          this.showNotice('書き終えたら Enter を押します（Tab では次の欄へ移りません）')
+        }
       },
       onPasteParagraphs: (id, paragraphs, caretInLast) => {
         this.pushHistory(this.reportBeforeEdit ?? this.report)
@@ -1828,7 +1854,12 @@ export class ReportEditor {
 
   /** 入力欄を閉じて、書いた文字を確定する。frozen：閉じる前の入力欄の見た目を写した要素（紙面に重ねる。PC だけ） */
   private onCommitEdit(id: string, text: string, byKey: boolean, frozen: HTMLElement | null = null): void {
-    const committed = ops.setText(this.report, id, this.tidyText(id, text))
+    const tidy = this.tidyText(id, text)
+    // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って小見出しにしたもの）を段落に戻す（Enter のときと同じ）
+    const kindNow = ops.findEditable(this.report, id)?.kind
+    const reverted = kindNow === 'paragraph' && tidy !== ops.findEditable(this.reportBeforeEdit ?? this.report, id)?.text ? this.revertListHeading(this.report, id, tidy) : null
+    if (reverted) this.showNotice('番号の行が続いたので、見出しにせず箇条書き（段落）にしました')
+    const committed = ops.setText(reverted ?? this.report, id, tidy)
     // 本文の段落に「Ⅲ．まとめ」のように打って閉じた（ほかを押した・Esc・スマホの「完了」）：段落ごと見出しにする（headingOnClose）
     const heading = this.headingOnClose(id, text, committed)
     // 仮に表示する欄（見出しにしたときは、見出し。組み直して見出しが出るまで、打ったままの文を見せる）
@@ -2108,7 +2139,7 @@ export class ReportEditor {
       page: this.renderer.pageView.fragments(id),
       // 表紙の項目のすぐ後ろに続く決まった字（サブタイトルの「の衣装制作―」）：書く欄の中で、字の後ろに見せる
       suffix: editable.kind === 'field' ? suffixAfter(styleSource) : undefined,
-      placeholder: captionPlaceholder(editable.kind),
+      placeholder: captionPlaceholder(editable.kind, (placement.rect.right - placement.rect.left) / placement.scale < NARROW_CAPTION),
     }
   }
 
@@ -2413,11 +2444,37 @@ export class ReportEditor {
    * 本文の段落だけ（抄録・図表のタイトル・表のセル・表紙・見出しはしない）。図表の参照（「（図1）」）のある行はしない。
    * 見出しにしたのを「戻す」で戻した段落は、同じ文のままなら、もうしない
    */
-  private headingOf(id: string, line: string): HeadingText | null {
+  private headingOf(id: string, line: string, report: Report = this.report): HeadingText | null {
     const heading = typedHeading(line)
     if (!heading || this.declined.get(id) === line.trim()) return null
-    if (ops.findEditable(this.report, id)?.kind !== 'paragraph' || ops.refRanges(line, ops.numbering(this.report)).length > 0) return null
+    if (ops.findEditable(report, id)?.kind !== 'paragraph' || ops.refRanges(line, ops.numbering(report)).length > 0) return null
+    // 本文をはさまずに箇条書きの形の行が続いた（すぐ前が、打って小見出しにした「1．ミシン」か、段落の「1．ミシン」）：見出しにしない
+    if (this.listContinues(id, line, report)) return null
     return heading
+  }
+
+  /** 打って小見出しにした、箇条書きの形の行（小見出しの ID → 打った文）。すぐ後ろに同じ形の行が続いたら、段落に戻す */
+  private listHeadings = new Map<string, string>()
+
+  /** line（id の段落）が箇条書きの形で、すぐ前のブロックも箇条書きの形の行（打って小見出しにしたもの・段落）か */
+  private listContinues(id: string, line: string, report: Report): boolean {
+    if (!listItemLine(line)) return false
+    const prev = ops.blockBefore(report, id)
+    if (prev?.type === 'subheading') return this.listHeadings.has(prev.id)
+    return prev?.type === 'paragraph' && listItemLine(ops.findEditable(report, prev.id)?.text ?? '')
+  }
+
+  /**
+   * id の段落に箇条書きの形の行を打ったとき、すぐ前が打って小見出しにした箇条書きの形の行なら、その小見出しを段落に戻す（箇条書きとみなす）。
+   * 戻したら、戻した原稿（戻さなければ null）
+   */
+  private revertListHeading(report: Report, id: string, line: string): Report | null {
+    if (!listItemLine(line)) return null
+    const prev = ops.blockBefore(report, id)
+    const typed = prev?.type === 'subheading' ? this.listHeadings.get(prev.id) : undefined
+    if (!prev || typed === undefined) return null
+    this.listHeadings.delete(prev.id)
+    return ops.subheadingToParagraph(report, prev.id, typed)
   }
 
   /**
@@ -2462,6 +2519,7 @@ export class ReportEditor {
     this.report = result.report
     this.autoPeriod = null
     const step = this.headingStep(typed, [[id, before.trim()]], this.headingNoticeBody(result.report, result.headingId, heading))
+    if (listItemLine(before)) this.listHeadings.set(result.headingId, before.trim())
     // 組み直すまでは、打ったままの文を仮に表示しておく（組み直すと、見出しになる）
     this.continueWriting(result.nextId, 0, { ghostOf: id, ghostText: before })
     this.noticeHeading(step)
@@ -2476,10 +2534,11 @@ export class ReportEditor {
     if (this.holdingRender || this.keepParagraph || !this.reportBeforeEdit || !typedHeading(typed)) return null
     const text = ops.findEditable(committed, id)?.text
     if (text === undefined || text === ops.findEditable(this.reportBeforeEdit, id)?.text) return null
-    const heading = this.headingOf(id, text)
+    const heading = this.headingOf(id, text, committed)
     const result = heading ? ops.paragraphToHeading(committed, id, heading) : null
     if (!heading || !result) return null
     const step = this.headingStep(committed, [[id, text.trim()]], this.headingNoticeBody(result.report, result.headingId, heading))
+    if (listItemLine(text)) this.listHeadings.set(result.headingId, text.trim())
     return { report: result.report, headingId: result.headingId, step }
   }
 
@@ -3194,7 +3253,7 @@ export class ReportEditor {
     if (this.autoPeriodNoticed) return
     this.autoPeriodNoticed = true
     // スマホのキーボードには「Backspace」の字がないので、消すキー（⌫）と言う（学生の試し 2026-10-24）
-    this.showNotice(this.phone ? '段落の終わりに「。」を付けました（すぐキーボードの ⌫ で取り消せます）' : '段落の終わりに「。」を付けました（すぐ Backspace で取り消せます）')
+    this.showNotice(this.phone ? '段落の終わりに「。」を付けました（キーボードの ⌫ で取り消せます）' : '段落の終わりに「。」を付けました（Backspace で取り消せます）')
   }
   private autoPeriodNoticed = false
 
@@ -3205,6 +3264,8 @@ export class ReportEditor {
     this.showNotice(by === 'tab' ? '段落の書き出しの1字下げは自動で入ります（Tab は押さなくて大丈夫です）' : '段落の書き出しの1字下げは自動で入ります（空白は入れなくて大丈夫です）')
   }
   private leadingSpaceNoticed = new Set<'space' | 'tab'>()
+  private fieldTabNoticed = false
+  private emptyEnterNoticed = false
 
   /**
    * 書き終えた欄に入れる文字。サブタイトルは、自動で付く前後の決まり文句（「―」「の衣装制作―」など）まで入力していたら取る。
@@ -3621,12 +3682,19 @@ export class ReportEditor {
     const imageId = await this.importImage('figure')
     if (!imageId) return
     const newFigure = { id: ops.newId('f'), imageId, caption: '' }
+    // 並びがいっぱい（横に2枚）なら、あふれる図（並びの後ろの図）は下の段へ移る。黙って移すと、番号が変わったことに気づかない（スマホの試し 2026-10-25）
+    const row = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
+    const pushed = row?.type === 'figureRow' && row.figures.length >= ops.FIGURES_PER_ROW ? (row.figures.at(-1) ?? null) : null
     this.pushHistory(this.report)
     this.report = ops.insertRefAfterRef(ops.addFigureAfter(this.report, figureId, newFigure), figureId, newFigure.id)
     // 段落にその図の番号を手で書いていたら（「図2に示す」）、（図2）は足さずに、書いた番号を図につなげる
     const paragraph = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'paragraph' && b.content.some((n) => n.type === 'ref' && n.targetId === newFigure.id))
     if (paragraph) this.report = ops.linkWrittenRef(this.report, paragraph.id, newFigure.id) ?? this.report
     this.reopenAfterRender(newFigure.id, 0, { id: figureId, place: 'after' })
+    if (pushed) {
+      const name = pushed.id === figureId ? '新しい図' : pushed.caption.trim() ? `「${pushed.caption.trim()}」` : '後ろの図'
+      this.showNotice(`横に並べるのは2枚までなので、${name}を下の段に移しました`)
+    }
   }
 
   /** 段落・小見出し・大見出し（章ごと）を削除する。削除したばかりで、まだ組み直していなければ何もしない（removed） */
@@ -3870,7 +3938,8 @@ export class ReportEditor {
   /** 選んだセルの画像を切り抜く（マスいっぱい。まず中央）・全体に戻す。切り抜いたら、ずらし方を画面の下に知らせる */
   setCellCropOn(cellId: string, on: boolean): void {
     this.changeCellImage(cellId, (t) => setCellCrop(t, cellId, on ? { x: 50, y: 50 } : null))
-    if (on) this.noticeInfo(this.phone ? '指でずらすと、写る所が変わります' : 'マウスでずらすと、写る所が変わります')
+    // スマホは紙面の下の帯に「指でずらして、写る所を調整」が出るので、知らせは出さない（同じ言葉が2つ出ていた：スマホの試し 2026-10-25）
+    if (on && !this.phone) this.noticeInfo('マウスでずらすと、写る所が変わります')
   }
 
   /** 切り抜いたセルの画像の、見える位置を変える */
@@ -4278,16 +4347,23 @@ export class ReportEditor {
     // 写真の順番が変わることがあるので、選んでいた写真は選び直してもらう
     if (this.selection?.kind === 'photos') this.selection = { kind: 'photos', page }
     let packed = { moved: 0, removed: 0 }
+    let spilled = { moved: 0, added: 0, hidden: 0 }
     this.update((r) => {
       const arranged = updatePhotoPage(r.workPhotos, page, (p) => changeArrangement(p, layout, columns))
+      // 枠の少ない並べ方：あふれた写真を次のページへ移す（spillPhotos）。枠の多い並べ方：次のページから詰める（packPhotos）
+      const spill = spillPhotos(arranged, page, this.maxPhotoPages)
+      if (spill.moved > 0 || spill.hidden > 0) {
+        spilled = spill
+        return { ...r, workPhotos: spill.pages }
+      }
       const result = packPhotos(arranged, page)
       packed = result
       return { ...r, workPhotos: result.pages }
     })
     if (packed.moved > 0) return this.noticeRemoved('写真を詰めた', packed.removed > 0 ? '（空いたページは消しました）' : undefined)
-    // 写真の数より枠の少ない並べ方にした：後ろの写真は消さずに残しているが、ページには出ないことを知らせる
-    const filled = this.report.workPhotos[page]?.imageIds.filter(Boolean).length ?? 0
-    if (filled > layout) this.noticeInfo(`${layout + 1}枚目からは隠れています（並べ方を戻すと出ます）`)
+    // ページの上限（学科の設定）で、移しきれなかった写真は隠れたまま（PDF に入らない）
+    if (spilled.hidden > 0) return this.noticeInfo(`作品写真は${this.maxPhotoPages}ページまでなので、あふれた写真${spilled.hidden}枚は隠れています（並べ方を戻すと出ます）`)
+    if (spilled.moved > 0) return this.noticeRemoved('写真を移した', `（${spilled.moved}枚${spilled.added > 0 ? '。ページを足しました' : ''}）`)
   }
 
   /**

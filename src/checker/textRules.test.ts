@@ -50,6 +50,13 @@ describe('である調', () => {
     expect(ids('使いませんでした。')).toEqual(['desu-masu'])
   })
 
+  it('すぐ後ろに図表の参照（「（図1）」）が続いても見つける（図を入れると「…しました（図1）。」になる：スマホの試し 2026-10-25）', () => {
+    expect(ids('伝統的な装いをもとにしました（図1）。')).toEqual(['desu-masu'])
+    expect(ids('袖を大きくしました（図1）（図2）。')).toEqual(['desu-masu'])
+    expect(ids('布を選びました(表1)。')).toContain('desu-masu')
+    expect(fixAll('主人公の衣装です（図1）。')).toBe('主人公の衣装である（図1）。')
+  })
+
   it('「です」「でした」は自動で直せる', () => {
     expect(fixAll('主人公の衣装です。')).toBe('主人公の衣装である。')
     expect(fixAll('難しい工程でした。')).toBe('難しい工程であった。')

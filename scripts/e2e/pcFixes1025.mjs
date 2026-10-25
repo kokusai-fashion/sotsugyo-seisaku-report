@@ -276,6 +276,180 @@ await withEdge(async (browser) => {
     })
     await page.screenshot({ path: `${OUT}/8-narrow-1100.png` })
     check('窓が小さい（1100×700）ときは、‹ › を右下（「元に戻す」の帯の上）に移し、紙面の幅を 400px 以上にする（前は 266px）', narrow.narrow && narrow.paper >= 400 && narrow.nextRight < 60 && narrow.nextAboveBar, JSON.stringify(narrow))
+    // 「拡大」：本文の幅を台に合わせて広げる（前は 412px → 416px で、ほとんど変わらなかった：PC の試し 2026-10-25）
+    await page.evaluate(() => window.__editor.setView('zoom'))
+    await wait(600)
+    await ready()
+    const zoomed = await page.evaluate(() => Math.round([...document.querySelectorAll('.page-viewport.front [data-vivliostyle-page-container]')].find((e) => e.classList.contains('is-current')).getBoundingClientRect().width))
+    check('窓が小さい（1100×700）ときも「拡大」で紙面が大きくなる（本文の幅を台に合わせる。紙面の幅 520px 以上）', zoomed >= 520, `${narrow.paper} → ${zoomed}`)
+    await context.close()
+  }
+
+  // ---- 2回目の試し（2026-10-25）の直し：箇条書き・作品写真・薄い字のカーソル・Shift+Tab・作り直すの確認 ----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    const blocksOf = () => page.evaluate(() => window.__editor.getSnapshot().report.body[0].blocks.map((b) => `${b.type[0]}:${b.title ?? (b.content ?? []).map((n) => n.text ?? '').join('')}`.slice(0, 16)))
+
+    // 箇条書き：「1．ミシン」「2．アイロン」「3．ロックミシン」と1行ずつ打つと、見出しにならず段落のまま（前の行も段落に戻す。「。」は付けない）
+    await goTo(page, ready, 'p2')
+    await clickAt(page, '.page-viewport.front [data-block-id="p2"]', 40)
+    await editingWait(page, 'p2')
+    await page.keyboard.press('End')
+    await page.keyboard.press('Enter')
+    await wait(300)
+    for (const line of ['1．ミシン', '2．アイロン', '3．ロックミシン']) {
+      await page.keyboard.type(line)
+      await page.keyboard.press('Enter')
+      await wait(600)
+    }
+    const listNotice = await notice(page)
+    await page.keyboard.press('Escape')
+    await wait(800)
+    await ready()
+    const list = await blocksOf()
+    check(
+      '箇条書きのつもりで「1．ミシン」「2．アイロン」「3．ロックミシン」と打つと、小見出しにならず段落のまま（「。」も付かない）。「番号の行が続いたので、見出しにせず箇条書き（段落）にしました」と出る',
+      list.includes('p:1．ミシン') && list.includes('p:2．アイロン') && list.includes('p:3．ロックミシン') && !list.some((b) => b.startsWith('s:ミシン')) && listNotice.includes('箇条書き'),
+      JSON.stringify({ list, listNotice }),
+    )
+
+    // 図のタイトルを空にして開くと、書く欄の中身は幅のない空白だけ（カーソルが番号のすぐ後ろ・薄い字の前に出る）。打った字に空白は入らない
+    await goTo(page, ready, 'f1')
+    await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.type === 'figureRow' && b.id === 'r1' ? { ...b, figures: b.figures.map((f) => ({ ...f, caption: '' })) } : b)) })) })))
+    await wait(500)
+    await ready()
+    await clickAt(page, '.page-viewport.front figure[data-figure-id="f1"] figcaption')
+    await editingWait(page, 'f1')
+    const emptyHtml = await page.evaluate(() => document.querySelector('.overlay-clip:not([hidden]) .overlay-editor').innerHTML)
+    await page.keyboard.type('デザイン画')
+    await page.keyboard.press('Escape')
+    await wait(800)
+    await ready()
+    const cap = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'r1').figures[0].caption)
+    check('空の図のタイトルを開くと、書く欄には幅のない空白だけが入り（カーソルが番号のすぐ後ろに出る）、書き終えたタイトルに空白は入らない', emptyHtml === '​' && cap === 'デザイン画', JSON.stringify({ emptyHtml, cap }))
+
+    // 表の1つ目のマスで Shift+Tab：表のタイトルへ戻る
+    await goTo(page, ready, 't1')
+    await clickAt(page, '.page-viewport.front .table-caption')
+    await editingWait(page, 't1')
+    await page.keyboard.press('Tab')
+    await wait(400)
+    const inCell = (await snap(page)).editingId
+    await page.keyboard.down('Shift')
+    await page.keyboard.press('Tab')
+    await page.keyboard.up('Shift')
+    await wait(400)
+    const back = (await snap(page)).editingId
+    check('表の1つ目のマスで Shift+Tab を押すと、表のタイトルへ戻る（前は書き終えていた）', inCell === 't1:h0' && back === 't1', JSON.stringify({ inCell, back }))
+    await page.keyboard.press('Escape')
+    await wait(500)
+
+    // 作品写真：枠の少ない並べ方にすると、あふれた写真を次のページへ移す（隠さない）
+    await page.evaluate(() => window.__editor.update((r) => ({ ...r, workPhotos: [{ layout: 4, columns: 2, imageIds: ['g-photo1', 'g-design', 'g-mood'] }] })))
+    await wait(500)
+    await ready()
+    await page.evaluate(() => window.__editor.setPhotoLayout(0, 2, 2))
+    await wait(500)
+    const spilled = { pages: await page.evaluate(() => window.__editor.getSnapshot().report.workPhotos.map((p) => `${p.layout}:${p.imageIds.filter(Boolean).length}`).join(',')), notice: await notice(page) }
+    check('作品写真を枠の少ない並べ方（3枚→「2枚 左右」）にすると、あふれた1枚を次のページへ移し（ページを足す）、［戻す］つきで知らせる', spilled.pages === '2:2,1:1' && spilled.notice.includes('あふれた写真を次のページへ移しました') && spilled.notice.includes('戻す'), JSON.stringify(spilled))
+
+    // 最初から作り直す：確認の窓が出ている間は、ボタンは「作り直しています…」にならない
+    await page.evaluate(() => [...document.querySelectorAll('.side .menu-btn')][0]?.click())
+    await page.waitForSelector('.side .head-menu [role="menuitem"]')
+    await page.evaluate(() => [...document.querySelectorAll('.side .head-menu [role="menuitem"]')].find((b) => b.textContent.includes('バックアップ')).click())
+    await page.waitForSelector('.start-over-row button')
+    await page.evaluate(() => document.querySelector('.start-over-row button').click())
+    await page.waitForSelector('#ask-body', { timeout: 10000 })
+    const during = await page.evaluate(() => document.querySelector('.start-over-row button').textContent)
+    await page.evaluate(() => document.querySelector('[data-confirm="cancel"]').click())
+    await wait(300)
+    check('「最初から作り直す」の確認が出ている間は、ボタンは「最初から作り直す」のまま（「作り直しています…」にならない）', during.includes('最初から作り直す') && !during.includes('作り直しています'), during)
+    await context.close()
+  }
+
+  // ---- 画面の案内（指差し確認）の間の Ctrl+S：ブラウザの保存の画面を出さない ----
+  {
+    const { context, page, ready } = await open(browser, { tour: true })
+    await startGuide(page, ready)
+    // はじめての案内を最後まで進めて「本文へ進む」を押すと、画面の案内が始まる（「あとで」では始まらない）
+    await editingWait(page, 'basic:studentId')
+    await page.keyboard.type('24AB001')
+    await page.keyboard.press('Enter')
+    await page.waitForSelector('.guide.step-name', { timeout: 20000 })
+    await editingWait(page, 'basic:name')
+    await page.keyboard.type('文化　花子')
+    await page.keyboard.press('Enter')
+    await page.waitForSelector('.guide.step-subtitle', { timeout: 20000 })
+    await editingWait(page, 'basic:subtitleInput')
+    await page.keyboard.type('シンドバッド')
+    await page.keyboard.press('Enter')
+    await page.waitForSelector('.guide.step-done .g-actions .primary', { timeout: 20000 })
+    await page.evaluate(() => document.querySelector('.guide.step-done .g-actions .primary').click())
+    await page.waitForSelector('.tour .tour-tip', { timeout: 20000 }).catch(() => {})
+    const tourOn = !!(await page.$('.tour .tour-tip'))
+    const prevented = await page.evaluate(() => {
+      const e = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true })
+      window.dispatchEvent(e)
+      return e.defaultPrevented
+    })
+    check('画面の案内（指差し確認）の間に Ctrl+S を押しても、ブラウザの保存の画面を出さない', tourOn && prevented, JSON.stringify({ tourOn, prevented }))
+    await context.close()
+  }
+
+  // ---- iPhone の Safari のまね（ことばの切れ目で折り返す CSS がない）：画面の文に、ことばの切れ目の幅のない空白が入る ----
+  {
+    const context = await browser.createBrowserContext()
+    const page = await context.newPage()
+    await page.evaluateOnNewDocument(() => {
+      const supports = CSS.supports.bind(CSS)
+      CSS.supports = (a, b) => (String(a).includes('auto-phrase') || String(b).includes('auto-phrase') ? false : b === undefined ? supports(a) : supports(a, b))
+    })
+    await stubConfig(page)
+    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+    await page.goto(`${APP}/?nodrive`, { waitUntil: 'networkidle0', timeout: 90000 })
+    await page.waitForSelector('.guide.step-course .g-opts button', { timeout: 60000 })
+    await wait(1500)
+    const phrased = await page.evaluate(() => {
+      const p = document.querySelector('.g-tip p')
+      return { zwsp: (p?.textContent ?? '').includes('​'), wordBreak: getComputedStyle(p).wordBreak }
+    })
+    check('ことばの切れ目で折り返す CSS がないブラウザ（iPhone の Safari のまね）では、案内の文のことばの切れ目に幅のない空白が入る（BudouX）', phrased.zwsp, JSON.stringify(phrased))
+    await context.close()
+  }
+
+  // ---- スマホ：Word の確認の窓の「やめる／読み込む」の段は、窓の下に止まる ----
+  {
+    const context = await browser.createBrowserContext()
+    const page = await context.newPage()
+    page.on('pageerror', (e) => console.log('pageerror:', e.message))
+    await stubConfig(page)
+    await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')
+    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+    await page.goto(`${APP}/?nodrive`, { waitUntil: 'networkidle0', timeout: 90000 })
+    await page.waitForSelector('.guide.step-course .g-opts button', { timeout: 60000 })
+    await page.evaluate(() => document.querySelector('.g-opts button').click())
+    await page.waitForSelector('.guide.step-word .g-word-opt.yes')
+    await page.evaluate(() => document.querySelector('.g-word-opt.yes').click())
+    await page.waitForSelector('.modal.word-mid')
+    const [chooser] = await Promise.all([page.waitForFileChooser(), page.evaluate(() => document.querySelectorAll('.word-file .acts button:not(.link)')[0].click())])
+    await chooser.accept(['scripts/e2e/fixtures/word-sample-body.docx'])
+    await wait(300)
+    await page.evaluate(() => [...document.querySelectorAll('.modal .row-buttons button')].find((b) => b.textContent.includes('中身を確かめる')).click())
+    await page.waitForSelector('.modal.word-modal', { timeout: 60000 })
+    await wait(500)
+    const sticky = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.modal.word-modal .row-buttons')].at(-1)
+      const b = [...row.querySelectorAll('button')].find((x) => x.textContent.includes('読み込む')).getBoundingClientRect()
+      return { position: getComputedStyle(row).position, visible: b.bottom <= innerHeight && b.top >= 0, bottom: Math.round(b.bottom), h: innerHeight }
+    })
+    await page.screenshot({ path: `${OUT}/9-phone-word-confirm.png` })
+    check('スマホ：Word の確認の窓の「読み込む」の段は窓の下に止まり、下までずらさなくても見える（前は止まらなかった）', sticky.position === 'sticky' && sticky.visible, JSON.stringify(sticky))
     await context.close()
   }
 
@@ -332,6 +506,19 @@ await withEdge(async (browser) => {
       'Word の確認：表紙の学籍番号（00ZZ0123）がログインしたアカウント（00ZZ901）と違えば、赤く出して「ログインしたアカウントは 00ZZ901」と添える',
       row.ng && row.dd.includes('00ZZ0123') && row.dd.includes('ログインしたアカウントは 00ZZ901'),
       JSON.stringify(row),
+    )
+    // 読み込むと、すぐに「学籍番号を直す」の窓が出る（Word 用の文）。直すと、アカウントの学籍番号になる（依頼者の選択 2026-10-25）
+    await page.evaluate(() => [...document.querySelectorAll('.modal .row-buttons button')].find((b) => b.textContent.includes('読み込む')).click())
+    await page.waitForSelector('.id-choices', { timeout: 30000 }).catch(() => {})
+    const dialog = await page.evaluate(() => ({ text: document.querySelector('.id-compare')?.textContent ?? '', notMine: [...document.querySelectorAll('.id-choices button')].some((b) => b.textContent.includes('自分の原稿ではない')) }))
+    await page.screenshot({ path: `${OUT}/6b-word-id-dialog.png` })
+    await page.evaluate(() => [...document.querySelectorAll('.id-choices button')].find((b) => b.textContent.includes('に直す'))?.click())
+    await wait(500)
+    const fixedId = await page.evaluate(() => window.__editor.getSnapshot().report.basicInfo.studentId)
+    check(
+      'Word を読み込むと、すぐに「Word の表紙の学籍番号」とアカウントの違いの窓が出て（「自分の原稿ではない」はない）、「学籍番号を 00ZZ901 に直す」で直る',
+      dialog.text.includes('Word の表紙の学籍番号') && !dialog.notMine && fixedId === '00ZZ901',
+      JSON.stringify({ dialog, fixedId }),
     )
     await context.close()
   }

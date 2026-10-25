@@ -14,6 +14,8 @@ export const PAGE_H = 1122.52
 export const TEXT_LEFT = 132.3
 export const TEXT_W = 566.9
 const MAX_ZOOM = 1.4
+/** パソコンの1ページの表示の左右の余白（index.css の .stage の --inset-side。道具と ‹ › の分）。台が狭いか（narrow・tight）を、この余白で決める */
+const ROOMY_SIDE = 185
 /**
  * 全体の表示の倍率の下限（台がとても低いとき（キーボードなど）に、紙面がつぶれないため）。
  * 前は 0.2 倍で、横向きのスマホ（844×390 など）では紙面が台に収まらず、紙面の下の端がページ送りに隠れていた（800×360 では 25px ほど）。
@@ -117,10 +119,11 @@ export class PageStage {
     const bottom = this.inset('--inset-bottom', 18)
     // 台が狭く、紙面の大きさが台の幅で決まるとき（ブラウザの窓が小さい）：narrow を付ける。パソコンは ‹ › を右下に移し、その分の左右の余白を
     // 空けない（--inset-side を小さくする。index.css。1100×700 で紙面の幅 266px → 412px：PC の試し 2026-10-24、依頼者の選択 mockups/v55 ④ 案A）
-    this.stage.classList.remove('narrow')
-    const roomy = this.inset('--inset-side', 180)
-    // （1440×900 などは、幅と高さのどちらで決まってもほぼ同じ大きさなので付けない。幅で決まる大きさが、高さで決まる大きさの9割より小さいときだけ）
-    this.stage.classList.toggle('narrow', !this.zoomed && !this.spread && (w - roomy * 2) / PAGE_W < ((h - top - bottom) / PAGE_H) * 0.9)
+    // （1440×900 などは、幅と高さのどちらで決まってもほぼ同じ大きさなので付けない。幅で決まる大きさが、高さで決まる大きさの9割より小さいときだけ）。
+    // 拡大のときも tight を付け、本文の幅を台に合わせて広げる（前は拡大の余白と narrow の余白がほぼ同じで、「拡大」を押しても大きくならなかった：PC の試し 2026-10-25）
+    const tight = (w - ROOMY_SIDE * 2) / PAGE_W < ((h - top - bottom) / PAGE_H) * 0.9
+    this.stage.classList.toggle('narrow', tight && !this.zoomed && !this.spread)
+    this.stage.classList.toggle('tight', tight)
     const side = this.inset('--inset-side', 180)
     // スマホで拡大するときは、余白を外して本文の幅を画面の幅に合わせる（--zoom-to-text: 1）
     const toText = this.zoomed && this.inset('--zoom-to-text', 0) === 1

@@ -920,7 +920,8 @@ export async function phoneDirectPhone(browser, check) {
     const el = window.__editor.overlay.element
     const sel = getSelection()
     // 空の欄では、改行の印を1つ入れ、カーソルはその前（番号のすぐ後ろに描かれる。空のままだと、真ん中にそろえた欄の真ん中＝「図|4.」に描かれていた：依頼者の Android 2026-10-22）
-    return { shown: getComputedStyle(el, '::before').content, text: window.__editor.overlay.text, html: el.innerHTML, caret: sel.anchorNode === el ? sel.anchorOffset : -1 }
+    // 薄い字を出す欄（図表のタイトル）は、改行の印の代わりに幅のない空白を置き、カーソルはその前（PC の試し 2026-10-25）
+    return { shown: getComputedStyle(el, '::before').content, text: window.__editor.overlay.text, html: el.innerHTML, caret: sel.anchorNode === el ? sel.anchorOffset : sel.anchorNode === el.firstChild && sel.anchorNode?.nodeType === Node.TEXT_NODE ? sel.anchorOffset : -1 }
   })
   await page.keyboard.type('新しい図')
   await wait(200)
@@ -934,7 +935,7 @@ export async function phoneDirectPhone(browser, check) {
   )
   check(
     '入れた図の空のタイトル：書く欄の前に番号（「図4. |」のように番号のすぐ後ろにカーソル）。打った字も番号のすぐ後ろ（1字分以内）で、書いた字に番号は入らない',
-    /^"図\d+\."$/.test(insLabel.shown) && insLabel.text === '' && insLabel.html === '<br>' && insLabel.caret === 0 && gapOk(insGap) && insGap.text === '新しい図',
+    /^"図\d+\."$/.test(insLabel.shown) && insLabel.text === '' && ['<br>', '​'].includes(insLabel.html) && insLabel.caret === 0 && gapOk(insGap) && insGap.text === '新しい図',
     `${insLabel.shown} ${insLabel.html} caret:${insLabel.caret} ${gapDetail(insGap)}`,
   )
   await page.tap('.direct-bar .db-done')

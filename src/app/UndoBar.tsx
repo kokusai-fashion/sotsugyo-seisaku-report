@@ -1,9 +1,9 @@
-import { Keep } from './keepPhrases'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReportEditor } from '../editor/reportEditor'
 import { headingNotice, noticeText, tableCutNotice, undoable, type UndoNotice } from '../editor/undoNotice'
 import { Icon } from './icons'
 import { keepFocus } from './uiShared'
+import { Keep } from './keepPhrases'
 
 /** 見出しにした知らせの、終わりの何文字かを1行にまとめる（「た」だけが次の行に出ないように。index.css の「段落に打った見出し」） */
 const KEEP_TAIL = 5

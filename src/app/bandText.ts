@@ -109,6 +109,8 @@ export function topicsForTouch(topics: HelpTopic[]): HelpTopic[] {
     forTouch(
       text
         .replace(/クリック[（(]スマホはタップ[）)]/g, 'タップ')
+        // スマホのキーボードは「改行」（使い方の「Enter で次の段落へ」「タイトルで Enter」：スマホの試し 2026-10-25）
+        .replace(/Enter/g, '改行キー')
         .replace('「図を入れる」「表を入れる」（スマホは「図」「表」）', '「図」「表」')
         .replace('右下の「元に戻す」（スマホは画面の上の「戻す」）', '画面の上の「戻す」')
         .replace(/「画像を入れる」/g, '「画像」')

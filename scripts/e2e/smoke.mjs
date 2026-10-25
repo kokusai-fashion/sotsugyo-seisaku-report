@@ -1121,7 +1121,9 @@ await withEdge(async (browser) => {
         }
       }, pid)
     const m0 = await order(firstParagraph)
-    await clickPaletteButton('小見出しの終わりへ')
+    // 小見出しのない章では「大見出しの終わりへ」（PC の試し 2026-10-25）
+    const endLabel = m0.tools.find((t) => /^(小|大)見出しの終わりへ$/.test(t)) ?? '小見出しの終わりへ'
+    await clickPaletteButton(endLabel)
     await ready()
     const m1 = await order(firstParagraph)
     await page.screenshot({ path: `${OUT}/2b-figure-section-end.png` })
@@ -1129,15 +1131,15 @@ await withEdge(async (browser) => {
     const next1 = m1.ids.slice(fig1 + 1).filter((x) => x !== 'PB')[0]
     check(
       '図を選ぶと道具に「小見出しの終わりへ」。押すと、図が小見出しのまとまりのいちばん下へ動き（後ろは次の小見出しか章の終わり）、図は選んだまま。道具は「段落の下へ戻す」になる',
-      m0.tools.includes('小見出しの終わりへ') && !m0.tools.includes('段落の下へ戻す') && fig1 > m1.ids.indexOf('p-e2e-after') && (next1 === undefined || next1 === 'SUB') && m1.selected === figId && m1.tools.includes('段落の下へ戻す') && !m1.tools.includes('小見出しの終わりへ'),
+      m0.tools.includes(endLabel) && !m0.tools.includes('段落の下へ戻す') && fig1 > m1.ids.indexOf('p-e2e-after') && (next1 === undefined || next1 === 'SUB') && m1.selected === figId && m1.tools.includes('段落の下へ戻す') && !m1.tools.includes(endLabel),
       JSON.stringify({ before: m0.ids.slice(0, 8), after: m1.ids.slice(0, 12), tools: [m0.tools, m1.tools] }),
     )
     await clickPaletteButton('段落の下へ戻す')
     await ready()
     const m2 = await order(firstParagraph)
     check(
-      '「段落の下へ戻す」で、図はその図のことを書いた段落のすぐ下に戻る（道具は「小見出しの終わりへ」に戻る）',
-      m2.ids[m2.ids.indexOf(firstParagraph) + 1] === 'FIG' && m2.selected === figId && m2.tools.includes('小見出しの終わりへ'),
+      '「段落の下へ戻す」で、図はその図のことを書いた段落のすぐ下に戻る（道具は「小見出し（大見出し）の終わりへ」に戻る）',
+      m2.ids[m2.ids.indexOf(firstParagraph) + 1] === 'FIG' && m2.selected === figId && m2.tools.includes(endLabel),
       JSON.stringify({ after: m2.ids.slice(0, 8), tools: m2.tools }),
     )
     await page.evaluate(() => window.__editor.update(() => window.__beforeMove))
@@ -1440,10 +1442,15 @@ await withEdge(async (browser) => {
   const moved = (await snap()).report.workPhotos[0].positions?.[0]
   check('作品写真をつかんでずらすと、トリミングが変わる（写真は選び直さない。パソコンは選ばずにずらせる）', !!moved && moved.y < 50 && moved.x === 50 && !chooserOpened, JSON.stringify(moved))
   await chooseArrangement('1枚')
-  const oneShown = await page.evaluate(() => document.querySelectorAll('.page-viewport.front [data-photo-slot]').length)
+  // 1枚にすると、あふれた2枚目は次のページへ移る（前は隠していた。依頼者の選択 2026-10-25）。2枚に戻すと、次のページから詰めて、空いたページは消す
+  const oneShown = (await snap()).report.workPhotos.map((p) => p.imageIds.filter(Boolean).length).join()
   await chooseArrangement('2枚（上下')
   s = await snap()
-  check('1枚にしてから2枚に戻すと、2枚目の写真も戻る（1枚目から順に載る）', oneShown === 1 && s.report.workPhotos[0].imageIds.filter(Boolean).length === 2 && !s.findings.some((f) => f.ruleId.startsWith('photos')), String(oneShown))
+  check(
+    '1枚にすると2枚目の写真は次のページへ移り、2枚に戻すと、その写真が詰めて戻る（1枚目から順に載る。空いたページは消える）',
+    oneShown === '1,1' && s.report.workPhotos.length === 1 && s.report.workPhotos[0].imageIds.filter(Boolean).length === 2 && !s.findings.some((f) => f.ruleId.startsWith('photos')),
+    JSON.stringify({ oneShown, after: s.report.workPhotos.map((p) => p.imageIds.filter(Boolean).length) }),
+  )
   // 入っている写真を押すと、その写真を選び（写真を選ぶ画面は出さない）、道具の「外す」で枠を空にできる（mockups/v23 ⑧ 案A）
   chooserOpened = false
   page.on('filechooser', onChooser)

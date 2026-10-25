@@ -290,9 +290,9 @@ export function ReferencesDialog({ report, onSave, onClose }: { report: Report; 
               反映する
             </BusyLabel>
           </button>
+          <SlowNote busy={!!busy} className="row-note" />
         </div>
       )}
-      <SlowNote busy={!!busy} className="row-note" />
     </Modal>
   )
 }
@@ -330,6 +330,8 @@ export function BackupDialog({
   onRestoreFile,
   onRestoreSnapshot,
   onStartOver,
+  confirmRestore,
+  confirmStartOver,
   onClose,
 }: {
   /** 自動の控え（読み込んでいる間は null。窓はすぐ開き、一覧の所に「控えを読み込んでいます…」） */
@@ -342,6 +344,12 @@ export function BackupDialog({
   onRestoreFile: (file: File) => Promise<void> | void
   onRestoreSnapshot: (s: Snapshot) => Promise<void> | void
   onStartOver: () => Promise<void> | void
+  /**
+   * 控えに戻す・作り直す前に聞く（はいなら true）。聞いている間は、ボタンに「〜しています…」を出さない
+   * （前は聞いている間から「作り直しています…」になっていた：スマホの試し 2026-10-25）
+   */
+  confirmRestore?: (s: Snapshot) => Promise<boolean>
+  confirmStartOver?: () => Promise<boolean>
   onClose: () => void
 }) {
   const ask = useAsk()
@@ -437,7 +445,13 @@ export function BackupDialog({
                 </b>
                 <small>{reportSummary(s.report)}</small>
               </span>
-              <button disabled={off} onClick={() => void run(`snap:${s.savedAt}`, () => onRestoreSnapshot(s), { paintFirst: false })}>
+              <button
+                disabled={off}
+                onClick={async () => {
+                  if (confirmRestore && !(await confirmRestore(s))) return
+                  void run(`snap:${s.savedAt}`, () => onRestoreSnapshot(s), { paintFirst: false })
+                }}
+              >
                 <BusyLabel busy={busy === `snap:${s.savedAt}`} text="戻しています…">
                   この時点に戻す
                 </BusyLabel>
@@ -451,7 +465,14 @@ export function BackupDialog({
         <h3 id={startOverId}>最初から作り直す（新しく始める）</h3>
         <div className="start-over-row">
           <p>いまの原稿は自動の控えに残ります</p>
-          <button className="danger" disabled={off} onClick={() => void run('startOver', onStartOver, { paintFirst: false })}>
+          <button
+            className="danger"
+            disabled={off}
+            onClick={async () => {
+              if (confirmStartOver && !(await confirmStartOver())) return
+              void run('startOver', onStartOver, { paintFirst: false })
+            }}
+          >
             {busy === 'startOver' ? (
               <>
                 <Spinner />

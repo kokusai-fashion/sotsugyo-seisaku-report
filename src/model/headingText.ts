@@ -87,6 +87,16 @@ const TYPED_TITLE_MAX = 40
  * - 番号のあとに名前がある（「Ⅲ．」だけは見出しにしない。名前に文字か数字が1つ以上ある）
  * - 文ではない（「。」「！」「？」で終わらない）。名前は 40字まで
  */
+/**
+ * 箇条書きにも使う形の行（「1．ミシン」「（1）素材」「①素材」「■まとめ」。小見出しにする算用数字・丸数字・記号の形）。
+ * 本文をはさまずに、この形の行が続いたら、見出しにせずに箇条書き（段落）とみなす（PC の試し 2026-10-25：「1．ミシン」「2．アイロン」と
+ * 1行ずつ打つと、全部が小見出しになり、目次と章立てが崩れた。依頼者の選択）。ローマ数字・「第4章」は見出しの形なので含めない
+ */
+export function listItemLine(line: string): boolean {
+  if (headingFromText(line) || romanBeforeJapanese(line)) return false
+  return arabicHeading(line)?.level === 2
+}
+
 export function typedHeading(line: string): HeadingText | null {
   const found = headingFromText(line) ?? romanBeforeJapanese(line) ?? arabicHeading(line)
   if (!found) return null

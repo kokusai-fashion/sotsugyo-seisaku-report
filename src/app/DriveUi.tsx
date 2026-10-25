@@ -443,8 +443,8 @@ export function ConflictDialog({
               ドライブの原稿を開く
             </BusyLabel>
           </button>
+          <SlowNote busy={!!busy} className="row-note" />
         </div>
-        <SlowNote busy={!!busy} className="row-note" />
       </div>
     </div>
   )
@@ -479,8 +479,8 @@ export function WipeDialog({ lastSaved, busy, onConfirm, onClose }: { lastSaved:
               この端末から消す（ドライブの原稿は残ります）
             </BusyLabel>
           </button>
+          <SlowNote busy={busy} className="row-note" />
         </div>
-        <SlowNote busy={busy} className="row-note" />
       </div>
     </div>
   )
@@ -509,8 +509,8 @@ export function ReloginDialog({ busy, error, onLogin, onLater }: { busy: boolean
               ログインし直す
             </BusyLabel>
           </button>
+          <SlowNote busy={busy} className="row-note" />
         </div>
-        <SlowNote busy={busy} className="row-note" />
       </div>
     </div>
   )
@@ -555,7 +555,9 @@ export function OtherAccountDialog({ previousEmail, unsynced, onRelogin, onDisca
 
 /**
  * 表紙の学籍番号と、ログインしたアカウントの学籍番号が違う（mockups/v23 ③ 案A）。
- * 共用のパソコンで、ほかの人の原稿がこの端末に残っていた（そのまま自分のドライブに送らないように）、または学籍番号の打ち間違い
+ * 共用のパソコンで、ほかの人の原稿がこの端末に残っていた（そのまま自分のドライブに送らないように）、または学籍番号の打ち間違い。
+ * fromWord：Word から読み込んだ直後（表紙の Word の学籍番号が違う。「自分の原稿ではない」は出さない。依頼者の選択 2026-10-25：
+ * 前は確認の窓で赤く出すだけで、読み込んだあとは次に開くまで何も知らせなかった）
  */
 export function IdMismatchDialog({
   coverId,
@@ -565,6 +567,7 @@ export function IdMismatchDialog({
   onFix,
   onNotMine,
   onKeep,
+  fromWord,
 }: {
   coverId: string
   accountEmail: string
@@ -572,8 +575,9 @@ export function IdMismatchDialog({
   /** 「自分の原稿ではない」を選んで、自分の原稿を確かめている途中（そのボタンに回る印と「準備しています…」） */
   busy: boolean
   onFix: () => void
-  onNotMine: () => void
+  onNotMine?: () => void
   onKeep: () => void
+  fromWord?: boolean
 }) {
   // 必ずどれかを選んでもらうので、Esc では閉じない
   const ref = useRef<HTMLDivElement>(null)
@@ -585,33 +589,45 @@ export function IdMismatchDialog({
           <h2>表紙の学籍番号と、ログインしたアカウントが違います</h2>
         </header>
         <div className="id-compare">
-          <span>表紙の学籍番号</span>
+          <span>{fromWord ? 'Word の表紙の学籍番号' : '表紙の学籍番号'}</span>
           <b className="ng">{coverId}</b>
           <span>ログインしたアカウント</span>
-          <b>{accountEmail}</b>
+          {/* 「@」の後ろで折り返す（前は「…@bunk／a-wu.ac.jp」と途中で切れた：スマホの試し 2026-10-25） */}
+          <b>
+            {accountEmail.split('@')[0]}
+            {accountEmail.includes('@') && (
+              <>
+                @<wbr />
+                {accountEmail.split('@').slice(1).join('@')}
+              </>
+            )}
+          </b>
         </div>
-        <p className="lead">共用のパソコンで、ほかの人の原稿を開いているかもしれません。どれに当たるかを選んでください。</p>
+        <p className="lead">{fromWord ? 'Word の表紙に書いた学籍番号が、ログインしたアカウントと違います。どちらにするかを選んでください。' : '共用のパソコンで、ほかの人の原稿を開いているかもしれません。どれに当たるかを選んでください。'}</p>
         <p className="drive-small">学籍番号は、提出された PDF がだれのものかを確かめるのに使います。</p>
         <div className="id-choices">
           <button className="primary" disabled={busy} onClick={onFix}>
             学籍番号を {accountId} に直す<small>自分の原稿で、学籍番号を打ち間違えていたとき</small>
           </button>
-          <button disabled={busy} onClick={onNotMine}>
-            {busy ? (
-              <span className="busy-line">
-                <Spinner />
-                準備しています…
-              </span>
-            ) : (
-              '自分の原稿ではない'
-            )}
-            <small>この端末の原稿は使わずに（この端末の控えに残します）、自分の原稿で続けるとき</small>
-          </button>
+          {onNotMine && (
+            <button disabled={busy} onClick={onNotMine}>
+              {busy ? (
+                <span className="busy-line">
+                  <Spinner />
+                  準備しています…
+                </span>
+              ) : (
+                '自分の原稿ではない'
+              )}
+              <small>この端末の原稿は使わずに（この端末の控えに残します）、自分の原稿で続けるとき</small>
+            </button>
+          )}
           <button disabled={busy} onClick={onKeep}>
-            このまま続ける<small>学籍番号が合っているとき</small>
+            {fromWord ? 'Word の学籍番号のまま' : 'このまま続ける'}
+            <small>学籍番号が合っているとき</small>
           </button>
+          <SlowNote busy={busy} className="row-note" />
         </div>
-        <SlowNote busy={busy} className="row-note" />
       </div>
     </div>
   )

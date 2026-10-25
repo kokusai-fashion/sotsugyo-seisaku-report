@@ -1,5 +1,4 @@
-import { Keep } from './keepPhrases'
-import { Fragment, useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { findCourse, type YearConfig } from '../config'
 import { exportNote, splitFindings, type ProgressRow } from '../checker/progress'
 import type { ReportFinding } from '../checker/reportChecks'
@@ -14,6 +13,7 @@ import { checkSummary, goToTarget } from './checkSummary'
 import { DriveChipMenu, type DriveControls } from './DriveUi'
 import { SideMenu } from './SideMenu'
 import type { SaveState } from './useAutosave'
+import { Keep } from './keepPhrases'
 
 /**
  * 右の欄（PC）。上から：名前と年度・「≡ メニュー」（使い方・手順書・バックアップ・作り直す・今年度だけ Word の読み込み。app/SideMenu.tsx）／
@@ -302,8 +302,8 @@ function DoneLine({ rows, editor, onPick }: { rows: ProgressRow[]; editor: Repor
           {rows.map((row, i) => {
             const target = row.target
             return (
-              <Fragment key={row.id}>
-                {i > 0 && '・'}
+              // 区切りの「・」は前の名前に付けて、いっしょに折り返す（前は「・抄録」と、行の頭に「・」が来ていた：PC の試し 2026-10-25）
+              <span key={row.id} className="nb">
                 {target ? (
                   <button
                     type="button"
@@ -318,7 +318,8 @@ function DoneLine({ rows, editor, onPick }: { rows: ProgressRow[]; editor: Repor
                 ) : (
                   <span title={`${row.label}：${row.value}`}>{row.label}</span>
                 )}
-              </Fragment>
+                {i < rows.length - 1 && '・'}
+              </span>
             )
           })}
         </span>
@@ -500,7 +501,8 @@ export function CheckBody({ editor, snap, config, onPick, pc }: { editor: Report
       )}
       {snap.acknowledged.length > 0 && (
         <details className="acked">
-          <summary>確認済み {snap.acknowledged.length}件（エラーに数えない）</summary>
+          {/* 作品写真の空いた枠（要確認）も入るので「直すところに数えない」（前は「エラーに数えない」：PC・スマホの試し 2026-10-25） */}
+          <summary>確認済み {snap.acknowledged.length}件（直すところに数えない）</summary>
           <ul>
             {snap.acknowledged.map((f) => (
               <li key={f.key}>

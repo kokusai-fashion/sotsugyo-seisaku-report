@@ -696,6 +696,11 @@ export default function App() {
   // ←→・PageUp／PageDown（入力欄の外）でページを送る
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl+S（⌘+S）は、ログイン・指差し確認の間も、ブラウザの保存の画面を出さない（前はその間だけ出ていた：PC の試し 2026-10-25）
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 's' && (!editor || gate || tabLock.locked || tourOn)) {
+        e.preventDefault()
+        return
+      }
       // ログインするまでは、何もできないようにする（指差し確認の間も）
       if (!editor || gate || tabLock.locked || tourOn) return
       if (e.ctrlKey || e.metaKey) {
@@ -708,6 +713,9 @@ export default function App() {
         } else if (key === 'z' && !e.shiftKey && !isTyping(e.target)) {
           e.preventDefault()
           editor.undo()
+        } else if (key === 'a' && !e.shiftKey && !e.altKey && !isTyping(e.target) && !dialog && !driveDialog) {
+          // 書く欄の外の Ctrl+A：道具・右の欄まで画面じゅうが青く選ばれていた（消えはしないが、壊れたように見える：PC の試し 2026-10-25）
+          e.preventDefault()
         } else if (e.key === 's') {
           e.preventDefault()
           // 何も出ないと、保存されたか不安になる（PC の試し 2026-10-24）
@@ -823,6 +831,8 @@ export default function App() {
       editor.replace(applyWordImport(before, result, courseId ? { courseId, config: configRef.current } : undefined))
       setWordTodo({ at: new Date().toISOString(), snapshotAt, figuresSeen: 0, coverSeen: false, coverChecked: false, pagesSeen: false, pagesChecked: false })
       setDialog(null)
+      // 表紙の Word の学籍番号がアカウントと違う：読み込んだすぐあとに、直すかを聞く（依頼者の選択 2026-10-25）
+      setWordIdCheck(idMismatch(editor.getSnapshot().report))
       const next = firstEmptyCoverStep(editor.getSnapshot().report)
       setGuide(next)
       if (next) return
@@ -831,8 +841,10 @@ export default function App() {
       // スマホは、チェックの欄を開き、そのいちばん上に「つぎにすること」を出す
       if (narrow) setCheckRequest((n) => n + 1)
     },
-    [editor, setWordTodo, narrow],
+    [editor, setWordTodo, narrow, idMismatch],
   )
+  /** Word から読み込んだ表紙の学籍番号が、アカウントと違う（読み込んだすぐあとに聞く） */
+  const [wordIdCheck, setWordIdCheck] = useState<{ coverId: string; accountId: string } | null>(null)
 
   /** 引用・参考文献を「反映する」：組み直したら、そのページへ移り、画面の下に知らせる（前は、反映しても何も変わらないように見えた） */
   const showReferences = useCallback(async (ed: ReportEditor) => {
@@ -1142,17 +1154,17 @@ export default function App() {
           snapshots={dialog.snapshots}
           onSaveBackup={saveBackup}
           onRestoreFile={restoreFile}
+          // 今の原稿が控えに残ることも書く（前は書いておらず、戻すと今の原稿が消えるように見えた：PC の試し 2026-10-24）
+          confirmRestore={(s) => ask.confirm(`${new Date(s.savedAt).toLocaleString('ja-JP')}${s.label ? `（${s.label}）` : ''} の控えに戻しますか？\n（今の原稿は自動の控えに残すので、あとで戻せます）${courseChangeNote(configRef.current, snap.report, s.report)}`, { ok: '戻す' })}
           onRestoreSnapshot={async (s) => {
-            // 今の原稿が控えに残ることも書く（前は書いておらず、戻すと今の原稿が消えるように見えた：PC の試し 2026-10-24）
-            if (!(await ask.confirm(`${new Date(s.savedAt).toLocaleString('ja-JP')}${s.label ? `（${s.label}）` : ''} の控えに戻しますか？\n（今の原稿は自動の控えに残すので、あとで戻せます）${courseChangeNote(configRef.current, snap.report, s.report)}`, { ok: '戻す' }))) return
             await keepSnapshot(snap.report, '控えに戻す前')
             editor.replace(s.report)
             await matchYear(editor, s.report)
             setDialog(null)
             editor.showNotice(`${new Date(s.savedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} の控えに戻しました`)
           }}
+          confirmStartOver={() => ask.confirm('今の原稿を消して、最初から作り直しますか？\n（今の原稿は自動の控えに残します）', { ok: '作り直す', danger: true })}
           onStartOver={async () => {
-            if (!(await ask.confirm('今の原稿を消して、最初から作り直しますか？\n（今の原稿は自動の控えに残します）', { ok: '作り直す', danger: true }))) return
             await keepSnapshot(snap.report, '作り直す前')
             // 作り直すときは、公開中の年度で作る（前年度の原稿だった学生も、新年度で書き直せる）
             const fresh = createReport(publishedRef.current)
@@ -1295,6 +1307,27 @@ export default function App() {
             } finally {
               setDriveBusy(false)
             }
+          }}
+        />
+      )}
+      {drive && editor && wordIdCheck && (
+        <IdMismatchDialog
+          fromWord
+          coverId={wordIdCheck.coverId}
+          accountEmail={driveState?.email ?? ''}
+          accountId={wordIdCheck.accountId}
+          busy={false}
+          onFix={() => {
+            editor.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, studentId: wordIdCheck.accountId } }))
+            setWordIdCheck(null)
+          }}
+          onKeep={() => {
+            try {
+              localStorage.setItem(ID_OK_KEY, `${driveState?.email}|${wordIdCheck.coverId}`)
+            } catch {
+              // 覚えておけなければ、次にログインしたときにもう一度聞く
+            }
+            setWordIdCheck(null)
           }}
         />
       )}

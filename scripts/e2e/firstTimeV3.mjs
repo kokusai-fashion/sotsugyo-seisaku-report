@@ -370,8 +370,8 @@ export async function firstTimeV3Pc(browser, check) {
   await page.keyboard.press('Escape')
   await ready()
   check(
-    'はじめて「。」を自動で付けたとき、「段落の終わりに「。」を付けました（すぐ Backspace で取り消せます）」と出る（2回目からは出さない）',
-    periodToast === '段落の終わりに「。」を付けました（すぐ Backspace で取り消せます）' && secondId === periodId,
+    'はじめて「。」を自動で付けたとき、「段落の終わりに「。」を付けました（Backspace で取り消せます）」と出る（2回目からは出さない）',
+    periodToast === '段落の終わりに「。」を付けました（Backspace で取り消せます）' && secondId === periodId,
     JSON.stringify({ periodToast, periodId, secondId }),
   )
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p16' && b.type === 'paragraph' ? { ...b, content: [{ type: 'text', text: '制作を通して、舞台衣装は客席からの見え方と演者の動きやすさの両方を考える必要があることを学んだ。この経験を、今後の衣装制作に生かしたい。' }] } : b)) })) })))
@@ -517,7 +517,12 @@ export async function firstTimeV3Pc(browser, check) {
   const hiddenToast = await toastText(page)
   await ready()
   await page.screenshot({ path: `${OUT}/11-photos-hidden.png` })
-  check('写真より枠の少ない並べ方にすると「2枚目からは隠れています（並べ方を戻すと出ます）」と出る', hiddenToast === '2枚目からは隠れています（並べ方を戻すと出ます）', hiddenToast)
+  // 前は「2枚目からは隠れています」と出して隠していた（PDF に入らなかった）。あふれた写真は次のページへ移す（依頼者の選択 2026-10-25）
+  check(
+    '写真より枠の少ない並べ方にすると、あふれた写真を次のページへ移し（なければページを足す）、「あふれた写真を次のページへ移しました（1枚。ページを足しました）［戻す］」と出る',
+    hiddenToast.includes('あふれた写真を次のページへ移しました（1枚。ページを足しました）') && hiddenToast.includes('戻す') && ['2,1,1', '1,2,1'].includes(await counts()),
+    JSON.stringify({ hiddenToast, counts: await counts() }),
+  )
 
   // ---- 作品写真がまだないときの PDF には、空の作品写真のページを入れない（前は下書きの PDF だけの決まり） ----
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, workPhotos: [{ layout: 1, imageIds: [] }] })))

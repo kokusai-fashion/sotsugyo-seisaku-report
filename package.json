@@ -22,6 +22,7 @@
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
     "@vivliostyle/core": "^2.45.2",
+    "budoux": "0.9.3",
     "fflate": "^0.8.3",
     "jspdf": "^4.2.1",
     "modern-screenshot": "^4.7.0",

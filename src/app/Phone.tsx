@@ -272,7 +272,17 @@ function PinchTip({ hidden }: { hidden: boolean }) {
   const visible = shown && !hidden
   useEffect(() => {
     if (!visible) return
-    return () => markPinchTip()
+    // 2本の指で広げたら（言われたとおりにできたら）、すぐ閉じる（前は、その段落を書き終えるまで紙面の上の行を隠していた：スマホの試し 2026-10-25）
+    const onTouch = (e: TouchEvent) => {
+      if (e.touches.length < 2) return
+      markPinchTip()
+      setShown(false)
+    }
+    window.addEventListener('touchmove', onTouch, { passive: true })
+    return () => {
+      window.removeEventListener('touchmove', onTouch)
+      markPinchTip()
+    }
   }, [visible])
   useLayoutEffect(() => {
     const el = ref.current
