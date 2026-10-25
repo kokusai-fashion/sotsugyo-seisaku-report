@@ -94,6 +94,22 @@ const MOCK_CSS = `
 .mk-form .row .sp { flex: 1; }
 .mk-form button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 14px; font: 13px 'BIZ UDPGothic', sans-serif; }
 .mk-form button.pri { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.mk-note { position: fixed; z-index: 32; width: 196px; box-sizing: border-box; padding: 0 12px 12px; background: #fff4a8; color: #3b3320; font: 12.5px/1.65 'BIZ UDPGothic', sans-serif; box-shadow: 1px 2px 2px rgba(0,0,0,.08), 3px 6px 14px rgba(60,40,0,.22); border-radius: 1px 1px 2px 2px; word-break: auto-phrase; }
+.mk-note .hd { display: flex; align-items: center; gap: 6px; margin: 0 -12px 7px; padding: 5px 12px 4px; background: #f6e27c; font-size: 11px; color: #7a6420; }
+.mk-note .hd b { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: #c99400; color: #fff; font-size: 10.5px; }
+.mk-note .acts { display: flex; gap: 6px; margin-top: 8px; }
+.mk-note .acts button { border: 1px solid rgba(0,0,0,.15); background: rgba(255,255,255,.75); border-radius: 6px; padding: 3px 9px; font: 11.5px 'BIZ UDPGothic', sans-serif; color: #3b3320; }
+.mk-note .acts button.pri { background: #2f3e75; border-color: #2f3e75; color: #fff; font-weight: 700; }
+.mk-note .ok { color: #3d7a3d; font-weight: 700; font-size: 11.5px; }
+.mk-note.done { background: #e9f3e3; opacity: .92; padding-bottom: 0; }
+.mk-note.done .hd { margin-bottom: 0; }
+.mk-note.done .hd { background: #cfe5c4; color: #3d6a33; }
+.mk-note.done .hd b { background: #6aa36a; }
+.mk-note.writing { background: #fffbd9; outline: 2px solid #2f3e75; }
+.mk-note.writing .txt { min-height: 66px; padding: 4px 6px; border-radius: 4px; background: rgba(255,255,255,.85); border: 1px solid #d8c56a; }
+.mk-note.writing .txt::after { content: ''; display: inline-block; width: 1.5px; height: 1.1em; margin-left: 1px; vertical-align: -2px; background: #2f3e75; }
+.mk-lines { position: fixed; inset: 0; z-index: 31; pointer-events: none; }
+.app .stage .arrow.prev, .app .stage .arrow.next { visibility: var(--mk-arrows, visible); }
 `
 
 /** 紙面の欄の中の文字を包む・印を付ける部品（ページの中で動かす） */
@@ -167,6 +183,41 @@ function HELPERS() {
     box.innerHTML = html
     side.append(box)
   }
+  /** 紙面の右の端に付箋を貼る（印の文と点線でつなぐ）。notes：[{ span, html, cls, tilt }] を上から順に。重ならないように下へずらす */
+  window.__notes = (notes) => {
+    const p = window.__paper()
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('class', 'mk-lines')
+    svg.setAttribute('width', innerWidth)
+    svg.setAttribute('height', innerHeight)
+    document.body.append(svg)
+    let next = 0
+    for (const n of notes) {
+      const rects = [...n.span.getClientRects()]
+      const last = rects.at(-1)
+      const el = document.createElement('div')
+      el.className = `mk-note ${n.cls ?? ''}`
+      el.innerHTML = n.html
+      el.style.left = `${p.right - 46}px`
+      el.style.transform = `rotate(${n.tilt ?? -1.5}deg)`
+      document.body.append(el)
+      const top = Math.max(next, rects[0].top - 14)
+      el.style.top = `${top}px`
+      next = top + el.getBoundingClientRect().height + 12
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      // 線は、段落の右の端（余白）から付箋へ（文の上を横切らないように）。文には下線の印が付いている
+      const x1 = n.span.closest('[data-block-id]').getBoundingClientRect().right + 4
+      const y1 = last.top + last.height / 2
+      const x2 = p.right - 46
+      const y2 = top + 12
+      line.setAttribute('d', `M${x1} ${y1} C ${x1 + 20} ${y1}, ${x2 - 20} ${y2}, ${x2} ${y2}`)
+      line.setAttribute('fill', 'none')
+      line.setAttribute('stroke', n.cls?.includes('done') ? '#7fb174' : n.cls?.includes('writing') ? '#2f3e75' : '#d0a400')
+      line.setAttribute('stroke-width', '1.5')
+      line.setAttribute('stroke-dasharray', '4 3')
+      svg.append(line)
+    }
+  }
   window.__band = (html) => {
     const b = document.createElement('div')
     b.className = 'mk-band'
@@ -178,11 +229,13 @@ function HELPERS() {
 }
 
 const shot = (page, file) => page.screenshot({ path: `${OUT}/${file}.png` })
+/** FUSEN=1：付箋の見た目の②だけを撮る */
+const FUSEN = !!process.env.FUSEN
 
 await withEdge(async (browser) => {
   // ---- 学生の PDF のページの絵（① の先生の画面で使う） ----
   const pages = []
-  {
+  if (!FUSEN) {
     const { context, page, ready } = await openStudent(browser, 2)
     // PDF の絵には、紙面に重なる画面の部品（右下の帯・‹ ›・道具）を写さない
     await page.addStyleTag({ content: '.view-bar, .arrow, .palette, .continue-row { visibility: hidden !important; }' })
@@ -197,7 +250,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ① 小：先生（管理ページで、届いた PDF を見てコメントを書く） ----
-  {
+  if (!FUSEN) {
     const context = await browser.createBrowserContext()
     const page = await context.newPage()
     await page.setViewport({ width: W, height: H })
@@ -251,7 +304,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ① 小：学生（右の欄に「先生からのコメント」） ----
-  {
+  if (!FUSEN) {
     const { context, page } = await openStudent(browser)
     await page.evaluate(() => {
       window.__sideSection(`<h3>先生からのコメント <span class="n">1</span></h3>
@@ -264,7 +317,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ② 中：先生（学生の原稿の写しを開いて、紙面に付箋を貼る） ----
-  {
+  if (!FUSEN) {
     const { context, page, ready } = await openStudent(browser)
     // 先生の画面は読むだけ：道具と「元に戻す・やり直す」は出さない
     await page.addStyleTag({ content: '.palette, .view-bar .undo-redo { display: none !important; }' })
@@ -291,7 +344,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ② 中：学生（紙面に印と番号、右の欄に一覧） ----
-  {
+  if (!FUSEN) {
     const { context, page } = await openStudent(browser)
     await page.evaluate(() => {
       const a = window.__wrap('p4', '袖は風をはらむように大きく膨らませた', 'mk-mark')
@@ -310,8 +363,59 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
-  // ---- ③ 大：学生（先生の書き直し案を、受け入れる・受け入れない） ----
+  // ---- ② 中（付箋の見た目）：先生（紙面の右の端に付箋を貼る。いま3枚目を書いている） ----
   {
+    const { context, page, ready } = await openStudent(browser)
+    await page.addStyleTag({ content: '.palette, .view-bar .undo-redo { display: none !important; } .app .stage { --mk-arrows: hidden; }' })
+    await page.evaluate(() => window.__band('<b>先生の画面</b>文化　花子さん（00ZZ0123）の原稿・10月30日 14:05 に届いた写し（読むだけ。書き換えはできません）<span class="sp"></span><button>学生の一覧へ戻る</button>'))
+    await wait(900)
+    await ready()
+    await page.evaluate(() => {
+      const c = window.__wrap('p3', 'キーワードは自由、勇気、海である', 'mk-sel')
+      const a = window.__wrap('p4', '袖は風をはらむように大きく膨らませた', 'mk-mark')
+      const b = window.__wrap('p4b', '藍色の濃さは、照明の下でも黒く沈まないものを選んだ', 'mk-mark')
+      window.__notes([
+        { span: c, cls: 'writing', tilt: 0, html: '<div class="hd"><b>3</b>付箋を書いています</div><div class="txt">キーワードが、衣装のどこに表れているかを続けて書きましょう。</div><div class="acts"><button class="pri">貼る</button><button>やめる</button></div>' },
+        { span: a, tilt: -1.8, html: '<div class="hd"><b>1</b>梶田・10月31日</div>なぜ大きくしたのか、キャラクターの性格とのつながりも書きましょう。' },
+        { span: b, tilt: 1.2, html: '<div class="hd"><b>2</b>梶田・10月31日</div>どのように確かめたか（照明を当てて試したなど）を書くと、説得力が出ます。' },
+      ])
+      window.__teacherSide(`<div class="hd"><b>文化　花子さん</b><small>映画・舞台衣装デザイナー コース・00ZZ0123</small></div>
+        <div class="list"><h3>貼った付箋 2枚</h3>
+          <div class="mk-item"><div class="top"><span class="num">1</span>本文 1ページ・10月31日・学生：まだ</div>なぜ大きくしたのか、キャラクターの性格とのつながりも…</div>
+          <div class="mk-item"><div class="top"><span class="num">2</span>本文 1ページ・10月31日・学生：まだ</div>どのように確かめたか（照明を当てて試したなど）を…</div>
+          <p style="margin:14px 0 0;font-size:12.5px;color:var(--muted);line-height:1.7">紙面の文をなぞると、その横に新しい付箋が出ます。書いて「貼る」と、学生のツールに届きます。</p>
+        </div>`)
+    })
+    await wait(300)
+    await shot(page, '2-teacher-fusen')
+    await context.close()
+  }
+
+  // ---- ② 中（付箋の見た目）：学生（紙面の右の端に先生の付箋。直したら「直した」） ----
+  {
+    const { context, page } = await openStudent(browser)
+    await page.addStyleTag({ content: '.app .stage { --mk-arrows: hidden; }' })
+    await page.evaluate(() => {
+      const c = window.__wrap('p3', 'キーワードは自由、勇気、海である', 'mk-mark')
+      const a = window.__wrap('p4', '袖は風をはらむように大きく膨らませた', 'mk-mark')
+      const b = window.__wrap('p4b', '藍色の濃さは、照明の下でも黒く沈まないものを選んだ', 'mk-mark done')
+      window.__notes([
+        { span: c, tilt: -1.2, html: '<div class="hd"><b>3</b>梶田先生・10月31日</div>キーワードが、衣装のどこに表れているかを続けて書きましょう。<div class="acts"><button class="pri">直した</button></div>' },
+        { span: a, tilt: 1.4, html: '<div class="hd"><b>1</b>梶田先生・10月31日</div>なぜ大きくしたのか、キャラクターの性格とのつながりも書きましょう。<div class="acts"><button class="pri">直した</button></div>' },
+        { span: b, cls: 'done', tilt: -0.8, html: '<div class="hd"><b>2</b>直した ✓（押すと開く）</div>' },
+      ])
+      window.__sideSection(`<h3>先生の付箋 <span class="n">2</span></h3>
+        <div class="mk-item"><div class="top"><span class="num">3</span>本文 1ページ</div>キーワードが、衣装のどこに表れているかを…<div class="acts"><button>その付箋へ</button></div></div>
+        <div class="mk-item"><div class="top"><span class="num">1</span>本文 1ページ</div>なぜ大きくしたのか、キャラクターの性格との…<div class="acts"><button>その付箋へ</button></div></div>
+        <div class="mk-item done"><div class="top"><span class="num">2</span>本文 1ページ・直した ✓</div>どのように確かめたかを書くと…</div>`)
+    })
+    await wait(300)
+    await shot(page, '2-student-fusen')
+    await context.close()
+  }
+
+  // ---- ③ 大：学生（先生の書き直し案を、受け入れる・受け入れない） ----
+  if (!FUSEN) {
     const { context, page } = await openStudent(browser)
     await page.evaluate(() => {
       const del = window.__wrap('p4', '全体を軽く見せた', 'mk-del')
