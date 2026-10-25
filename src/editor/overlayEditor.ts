@@ -546,6 +546,7 @@ export class OverlayEditor {
   open(target: OverlayTarget): void {
     this.unpark()
     this.clearGhosts()
+    this.setWaiting(false)
     // ほかの欄を開く：前の欄の、紙面の上の写しはやめる（同じ欄を開き直すときは、下で見せるかを決め直す）
     if (this.target?.blockId !== target.blockId) this.setLive(false)
     this.target = target
@@ -599,6 +600,18 @@ export class OverlayEditor {
   /** スマホ：紙面の上の写しを見せる・やめる（見せられるのは、段落で、紙面の上の位置が決まっているときだけ） */
   showLive(on: boolean): void {
     this.setLive(on && this.spacingBox === this.mirror)
+  }
+
+  /**
+   * 書く欄を見せずに待たせる・見せる（入れたばかりの図・表のタイトル：図・表が紙面に出るまで。reportEditor の openBeforeRender）。
+   * 待たせている間も、欄はカーソルを持ったままで、打った字は入る（見えないだけ）
+   */
+  setWaiting(on: boolean): void {
+    this.clip.classList.toggle('waiting', on)
+  }
+
+  get waiting(): boolean {
+    return this.clip.classList.contains('waiting')
   }
 
   private setLive(on: boolean): void {
@@ -1402,7 +1415,8 @@ export class OverlayEditor {
    */
   private freeze(): HTMLElement | null {
     const text = this.text
-    if (!this.target || !this.placed || this.clip.hidden || (!text.trim() && this.ghosts.length === 0)) return null
+    // 見せずに待たせていた欄（入れたばかりの図・表のタイトル）は写さない（図・表が紙面に出る前の、仮の位置のため）
+    if (!this.target || !this.placed || this.clip.hidden || this.waiting || (!text.trim() && this.ghosts.length === 0)) return null
     const clip = document.createElement('div')
     clip.className = 'overlay-clip overlay-frozen'
     clip.style.cssText = this.clip.style.cssText
@@ -1452,6 +1466,7 @@ export class OverlayEditor {
     this.setTypeset(false)
     this.resetTypeset()
     this.resetHistory()
+    this.setWaiting(false)
     this.clip.hidden = true
     this.sheetHost?.closest('.edit-sheet')?.classList.remove('open')
   }

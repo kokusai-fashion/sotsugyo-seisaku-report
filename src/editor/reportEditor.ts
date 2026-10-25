@@ -100,6 +100,11 @@ export interface EditorSnapshot {
   photoPage: number | null
   /** 拡大して表示しているか */
   zoomed: boolean
+  /**
+   * 入れたばかりの図・表が紙面に出るのを待っている（タイトルの書く欄を見せていない。左の道具も、図・表が出るまで切り替えない。mockups/v58 案B）。
+   * 「図を入れる」で写真を選んで取り込んでいる間も含む
+   */
+  waiting: boolean
   /** 見開き（いまのページと次のページを並べる。1–2、3–4…の組。PC だけ。mockups/v35 ③ 案A）で表示しているか */
   spread: boolean
   /** 紙面の台が、見開きを出せる広さか（狭いときは「見開き」を出さない） */
@@ -678,6 +683,7 @@ export class ReportEditor {
       pageCount: this.layout?.kinds.length ?? 0,
       photoPage: this.layout ? photoPageAt(this.layout.kinds, this.page) : null,
       zoomed: this.stage.zoomed,
+      waiting: this.overlay.waiting || this.insertingFigure,
       spread: this.stage.spread,
       spreadFits: this.stage.spreadFits,
       turning: this.turning !== null,
@@ -1010,6 +1016,9 @@ export class ReportEditor {
     } else if (this.overlay.blockId) {
       this.followCaret()
     }
+    // 入れた図・表が紙面に出た（または、そのタイトルを書くのをやめた）：待たせていた書く欄を見せ、「図を入れています…」を消す
+    const waiting = this.waitingFor
+    if (waiting && !this.renderAgain && (this.overlay.blockId !== waiting.id || this.renderer.pageView.fragments(waiting.id).length > 0)) this.endWaiting()
     // スマホ：組み直した紙面が書いた字に追いついたら、打った字をその場で見せていた写しをやめて、紙面の段落を見せる
     this.syncLive()
     // 開いた直後に頼まれていたページへの移動（すべて組み終えたので、まだならここで移る）
@@ -2334,6 +2343,9 @@ export class ReportEditor {
     const target = shown ? this.overlayTarget(id, caret) : this.unrenderedTarget(id, editable, caret, near, page)
     if (!target) return false
     this.overlay.open(target)
+    // 入れたばかりの図・表のタイトル：図・表が紙面に出るまで、書く欄は見せずに（打った字は入る）、画面の下に「図を入れています…」を出す
+    // （前は、タイトルの欄だけが先に出て、次の段落の1行目に重なり、字が切れて見えた。依頼者の選択 2026-10-25：mockups/v58 案B）
+    if (!shown && (editable.kind === 'figureCaption' || editable.kind === 'tableCaption')) this.startWaiting(id, editable.kind === 'figureCaption' ? '図' : '表')
     if (this.writingOnPaper) {
       this.hideStyle.textContent = this.editingStyle(id)
       this.revealEditing()
@@ -3248,6 +3260,25 @@ export class ReportEditor {
     this.notify()
   }
 
+  /** 紙面に出るのを待っている、入れたばかりの図・表のタイトル（id）と、その間に出す知らせの番号（startWaiting） */
+  private waitingFor: { id: string; noticeId: number } | null = null
+
+  /** 入れたばかりの図・表のタイトルの書く欄を、紙面に出るまで見せずに待たせ、画面の下に「図を入れています…」を出す */
+  private startWaiting(id: string, what: '図' | '表'): void {
+    this.overlay.setWaiting(true)
+    this.showNotice(`${what}を入れています…`)
+    this.waitingFor = { id, noticeId: this.noticeCount }
+  }
+
+  /** 待たせていた書く欄を見せ、「図を入れています…」を消す（ほかの知らせに替わっていれば、そのまま） */
+  private endWaiting(): void {
+    const waiting = this.waitingFor
+    if (!waiting) return
+    this.waitingFor = null
+    if (this.overlay.blockId === waiting.id) this.overlay.setWaiting(false)
+    if (this.notice?.notice.id === waiting.noticeId) this.notice = null
+  }
+
   /** Enter で「。」を自動で付けたことを、開いている間に1回だけ知らせる（すぐ Backspace で取り消せることも） */
   private noticeAutoPeriodOnce(): void {
     if (this.autoPeriodNoticed) return
@@ -3554,6 +3585,9 @@ export class ReportEditor {
     if (paragraphId) return this.insertFigureAtCaret(paragraphId)
   }
 
+  /** 「図を入れる」で、写真を選んで取り込んでいる間（insertFigureAtCaret） */
+  private insertingFigure = false
+
   /** 本文の段落を書いているなら、その段落の ID */
   private editingParagraph(): string | null {
     const id = this.overlay.blockId
@@ -3565,8 +3599,16 @@ export class ReportEditor {
     this.marker.hidden = true
     // 書いた文字を確定してから写真を選ぶ（写真を選ぶ画面を開くと入力欄は閉じる。段落のまま確定する：見出しの形でも見出しにしない）
     this.commitAsParagraph()
-    // ひな形を作る画面：写真は選ばず、空の枠を入れる（学生が写真を入れる）
-    const imageId = this.template ? '' : await this.importImage('figure')
+    // 写真を選んで取り込む間も、左の道具は図が紙面に出るまでと同じ形（押せない本文の道具。snapshot の waiting）
+    this.insertingFigure = true
+    this.notify()
+    let imageId: string | null
+    try {
+      // ひな形を作る画面：写真は選ばず、空の枠を入れる（学生が写真を入れる）
+      imageId = this.template ? '' : await this.importImage('figure')
+    } finally {
+      this.insertingFigure = false
+    }
     if (imageId === null) {
       this.reopenAfterRender(paragraphId, caret)
       return

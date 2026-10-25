@@ -4,6 +4,7 @@
 // - はじめての案内：氏名・サブタイトルが空のまま進むと「まだ入っていない項目があります」（前は「表紙ができました」）
 // - 作品写真の空いた枠の要確認は「このままにする」にできる
 // - Word の確認：表紙の学籍番号がログインしたアカウントと違えば赤く出す（偽物の Google でログイン）
+// - 図を入れた直後：図が紙面に出るまで、タイトルの欄は見せずに「図を入れています…」（前は欄だけが先に出て、次の行に重なった）
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -370,6 +371,69 @@ await withEdge(async (browser) => {
     await page.evaluate(() => document.querySelector('[data-confirm="cancel"]').click())
     await wait(300)
     check('「最初から作り直す」の確認が出ている間は、ボタンは「最初から作り直す」のまま（「作り直しています…」にならない）', during.includes('最初から作り直す') && !during.includes('作り直しています'), during)
+    await context.close()
+  }
+
+  // ---- 図を入れた直後：図が紙面に出るまで、タイトルの欄は見せず（打った字は入る）、画面の下に「図を入れています…」（mockups/v58 案B）----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'p2')
+    await clickAt(page, '.page-viewport.front [data-block-id="p2"]', 40)
+    await editingWait(page, 'p2')
+    // 図が紙面に出るまでのようすを、描くたびに記録する（タイトルを書いているか・欄を見せていないか・図が紙面にあるか・画面の下の知らせ）
+    await page.evaluate(() => {
+      window.__waitLog = []
+      const tick = () => {
+        const s = window.__editor.getSnapshot()
+        const caption = !!s.editingId?.startsWith('f-')
+        const clip = [...document.querySelectorAll('.overlay-clip')].find((c) => !c.hidden && !c.classList.contains('overlay-frozen'))
+        window.__waitLog.push({
+          caption,
+          waiting: !!clip?.classList.contains('waiting'),
+          onPaper: caption && !!document.querySelector(`.page-viewport.front figure[data-figure-id="${s.editingId}"]`),
+          toast: document.querySelector('.undo-area')?.textContent ?? '',
+          // 左の道具が、図の道具（差し替え・上へ・下へ…）に替わっているか
+          figureTools: !!document.querySelector('.palette.compact'),
+          // 「図・表は、入れたい所をクリックしてから押します」の一言（写真を取り込む間も出さない）
+          hint: !!document.querySelector('.palette .ctx-note'),
+        })
+        if (window.__waitLog.length < 900) requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    })
+    const btn = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.includes('図を入れる')).getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    })
+    const [chooser] = await Promise.all([page.waitForFileChooser(), page.mouse.click(btn.x, btn.y)])
+    await chooser.accept([join(process.cwd(), 'docs', 'guide-images', 'sample', 'design.jpg')])
+    // 待つ間に打った字も入る
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId?.startsWith('f-'), { timeout: 20000 })
+    await page.keyboard.type('デザイン画')
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId?.startsWith('f-') && !document.querySelector('.overlay-clip.waiting'), { timeout: 30000 })
+    await ready()
+    await wait(300)
+    const log = await page.evaluate(() => window.__waitLog)
+    const before = log.filter((x) => x.caption && !x.onPaper)
+    const after = log.filter((x) => x.caption && x.onPaper).at(-1)
+    const typed = await page.evaluate(() => document.querySelector('.overlay-clip:not([hidden]) .overlay-editor')?.innerText.replaceAll('​', '') ?? '')
+    await page.screenshot({ path: `${OUT}/9-figure-waiting.png` })
+    check(
+      '図を入れた直後、図が紙面に出るまでは、タイトルの欄を見せず、左の道具も図の道具に替えず、画面の下に「図を入れています…」を出す',
+      before.length > 0 && before.every((x) => x.waiting && !x.figureTools) && before.some((x) => x.toast.includes('図を入れています…')) && !log.some((x) => x.hint),
+      JSON.stringify({ frames: before.length, shown: before.filter((x) => !x.waiting).length, tools: before.filter((x) => x.figureTools).length, hint: log.filter((x) => x.hint).length, toast: before.at(-1)?.toast }),
+    )
+    check(
+      '図が紙面に出たら、タイトルの欄と図の道具を見せ、「図を入れています…」は消える。待つ間に打った字も欄に入っている',
+      !!after && !after.waiting && after.figureTools && !after.toast.includes('図を入れています') && typed === 'デザイン画',
+      JSON.stringify({ after, typed }),
+    )
     await context.close()
   }
 

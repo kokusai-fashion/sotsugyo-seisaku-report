@@ -136,6 +136,9 @@ body.resizing .page-viewport { pointer-events: none; }
 /* 紙面に重ねる入力欄。書体・字間・行送りは紙面の要素から写し取り、紙面と同じ倍率で縮小する */
 .overlay-clip { position: absolute; overflow: hidden; pointer-events: none; }
 .overlay-clip[hidden] { display: none; }
+/* 入れたばかりの図・表のタイトル：図・表が紙面に出るまで見せない（カーソルは持ったまま。押しても紙面に届く。mockups/v58 案B） */
+.overlay-clip.waiting { opacity: 0; }
+.overlay-clip.waiting * { pointer-events: none !important; }
 .overlay-editor {
   position: absolute;
   pointer-events: auto;

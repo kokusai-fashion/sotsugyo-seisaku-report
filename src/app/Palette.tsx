@@ -256,6 +256,8 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
   const ask = useAsk()
   const { editingKind, editingId, selection, report } = snap
   const kind = snap.layout?.kinds[snap.page]
+  // 入れたばかりの図・表が紙面に出るまでは、その物の道具を出さない（図・表と一緒に出す。mockups/v58 案B）
+  if (snap.waiting) return null
 
   // ひな形を作る画面：作品写真は学生が入れる（道具は出さない）
   if (kind === 'photos' && template) return null
@@ -524,7 +526,8 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
   const preview = (on: boolean) => editor.previewInsert(on)
   // 図・表・改ページを選んでいる（表のセルや図のタイトルを書いている）ときは、その物の道具だけを出す
   // （本文に足す道具まで並べると、ノートパソコンの画面では表の「削除」「元に戻す」が下にはみ出して押せなかったため）
-  const onObject = !!snap.selection || ['tableCell', 'tableCaption', 'figureCaption'].includes(snap.editingKind ?? '')
+  // 入れたばかりの図・表が紙面に出るのを待っている間は、本文の道具のまま（押せない形。図・表が出たら、その物の道具に替わる。mockups/v58 案B）
+  const onObject = !snap.waiting && (!!snap.selection || ['tableCell', 'tableCaption', 'figureCaption'].includes(snap.editingKind ?? ''))
   return (
     <nav className={`palette${onObject ? ' compact' : ''}`} aria-label="道具">
       {/* 低い画面では、ひとこと（span）を出さず、マウスを乗せると出す（title。index.css の「低い画面の左の道具」） */}
@@ -558,7 +561,7 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
             />
             <TableMenu editor={editor} disabled={!writing} template={template} />
             {/* 道具の幅（1行6字ほど）で、言葉の切れ目で折り返す（1字だけ次の行に残らないように） */}
-            {!writing && (
+            {!writing && !snap.waiting && (
               <div className="ctx-note">
                 図・表は、
                 <br />
