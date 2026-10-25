@@ -719,18 +719,56 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(ops.figurePlacement(later, 'f1')).toMatchObject({ up: false, down: true })
   })
 
-  it('「上へ」「下へ」で、本文で出てくる順が入れ替わるようには、ほかの図を越えない（入れ替わりを直す向きには越える。2026-10-24）', () => {
-    // 本文：図A（fa）が先、図B（fb）があと。紙面も A・B の順
+  it('「上へ」「下へ」で、本文で出てくる順が入れ替わるようには、ほかの図を越えない。隣が1枚だけの図なら、その横に並べる（2026-10-24・10-25）', () => {
+    const rows = (r: Report) => r.body[0].blocks.filter((b) => b.type === 'figureRow').map((b) => (b.type === 'figureRow' ? b.figures.map((f) => f.id).join('+') : ''))
+    // 本文：図A（fa）が先、図B（fb）があと。紙面も A・B の順で、1枚ずつ上下に続く → 「上へ」「下へ」で横に並ぶ（並びは本文で出てくる順）
     const r0 = report([p('p1', 'fa'), p('p2', 'fb'), row('ra', 'fa'), row('rb', 'fb'), p('p3')])
-    expect(ops.figurePlacement(r0, 'fa')).toMatchObject({ down: false })
-    expect(ops.figurePlacement(r0, 'fb')).toMatchObject({ up: false, down: true })
-    // 紙面が B・A の順（入れ替わっている）なら、直す向きには動く
+    expect(ops.figurePlacement(r0, 'fa')).toMatchObject({ down: true, downJoin: true, downBlock: null })
+    expect(ops.figurePlacement(r0, 'fb')).toMatchObject({ up: true, upJoin: true, down: true, downJoin: false })
+    expect(rows(ops.moveFigureRow(r0, 'fb', 'up'))).toEqual(['fa+fb'])
+    expect(order(ops.moveFigureRow(r0, 'fb', 'up'))).toEqual(['p1', 'p2', 'ra', 'p3'])
+    expect(rows(ops.moveFigureRow(r0, 'fa', 'down'))).toEqual(['fa+fb'])
+    // 紙面が B・A の順（入れ替わっている）でも、横に並べると本文で出てくる順（A・B）になる
     const r1 = report([p('p1', 'fa'), p('p2', 'fb'), row('rb', 'fb'), row('ra', 'fa'), p('p3')])
-    expect(ops.figurePlacement(r1, 'fa')).toMatchObject({ up: true })
-    expect(order(ops.moveFigureRow(r1, 'fb', 'down'))).toEqual(['p1', 'p2', 'ra', 'rb', 'p3'])
-    // 本文に出てこない図とは、どちらの向きにも越える
+    expect(rows(ops.moveFigureRow(r1, 'fb', 'down'))).toEqual(['fa+fb'])
+    expect(rows(ops.moveFigureRow(r1, 'fa', 'up'))).toEqual(['fa+fb'])
+    // 本文に出てこない図と並べるときは、上から来た図が左
     const r2 = report([p('p1', 'fa'), row('ra', 'fa'), row('rx', 'fx'), p('p2')])
-    expect(ops.figurePlacement(r2, 'fa')).toMatchObject({ down: true })
+    expect(rows(ops.moveFigureRow(r2, 'fa', 'down'))).toEqual(['fa+fx'])
+    // 相手が2枚並び（横に並べられない）なら、本文で出てくる順が入れ替わる向きには越えない
+    const r3 = report([p('p1', 'fa'), p('p2', 'fb'), row('ra', 'fa'), row('rbc', 'fb', 'fc'), p('p3')])
+    expect(ops.figurePlacement(r3, 'fa')).toMatchObject({ down: false, downJoin: false, downBlock: 'order' })
+    expect(ops.figurePlacement(r3, 'fb')).toMatchObject({ up: false, upJoin: false, upBlock: 'order' })
+  })
+
+  it('つかんで運ぶ：置ける所は、小見出しの中・（図n）の段落より下・本文で出てくる順のまま。1枚だけの図の横にも置ける（2026-10-25）', () => {
+    const sub = (id: string) => ({ type: 'subheading' as const, id, title: id })
+    const gaps = (r: Report, id: string) => (ops.figureDrops(r, id)?.drops ?? []).flatMap((d) => (d.kind === 'gap' ? [`${d.after}|${d.before}`] : []))
+    const joins = (r: Report, id: string) => (ops.figureDrops(r, id)?.drops ?? []).flatMap((d) => (d.kind === 'join' ? [d.figureId] : []))
+    // s1：p1（図A・図B のことを書く）→ 図A → p2 → 図B → p3、s2：p4
+    const r0 = report([sub('s1'), p('p1', 'fa'), row('ra', 'fa'), p('p2'), row('rb', 'fb'), p('p3'), sub('s2'), p('p4')])
+    r0.body[0].blocks[1] = { ...p('p1', 'fa'), content: [...p('p1', 'fa').content, { type: 'ref', targetId: 'fb', withParens: true }] }
+    // 図B：（図B）の段落 p1 より下、図A より後ろ、s2 より前。いまの所（p2 の後ろ）も入る
+    expect(gaps(r0, 'fb')).toEqual(['ra|p2', 'p2|p3', 'p3|s2'])
+    expect(joins(r0, 'fb')).toEqual(['fa'])
+    const d = ops.figureDrops(r0, 'fb')!
+    expect(d.section).toEqual({ from: 's1', to: 's2' })
+    expect(d.ref).toBe('p1')
+    // 図A：図B より前だけ（後ろへは、本文で出てくる順が入れ替わる）
+    expect(gaps(r0, 'fa')).toEqual(['p1|p2', 'p2|rb'])
+    // 置くと動く。いまの所に置いても変わらない。横に並べると、並びは本文で出てくる順
+    const moved = ops.applyFigureDrop(r0, 'fb', ops.figureDrops(r0, 'fb')!.drops.find((x) => x.kind === 'gap' && x.before === 's2')!)
+    expect(order(moved)).toEqual(['s1', 'p1', 'ra', 'p2', 'p3', 'rb', 's2', 'p4'])
+    expect(ops.applyFigureDrop(r0, 'fb', ops.figureDrops(r0, 'fb')!.drops.find((x) => x.kind === 'gap' && x.after === 'p2')!)).toBe(r0)
+    const joined = ops.applyFigureDrop(r0, 'fb', { kind: 'join', figureId: 'fa' })
+    expect(joined.body[0].blocks.filter((b) => b.type === 'figureRow').map((b) => (b.type === 'figureRow' ? b.figures.map((f) => f.id) : []))).toEqual([['fa', 'fb']])
+    // 2枚並びの図は、横に並べる先にならない・2枚並びは横に並べない
+    const r1 = report([sub('s1'), p('p1', 'fa'), row('rab', 'fa', 'fb'), p('p2'), row('rc', 'fc'), p('p3')])
+    expect(joins(r1, 'fc')).toEqual([])
+    expect(joins(r1, 'fa')).toEqual([])
+    // （図n）が後ろの章にしかない図は、いまの所より上へは置けない
+    const later: Report = { ...demoReport(), body: [{ id: 'c1', title: '一', blocks: [p('p1'), p('p2'), row('rx', 'fx'), p('p3')] }, { id: 'c2', title: '二', blocks: [p('p9', 'fx')] }] }
+    expect((ops.figureDrops(later, 'fx')?.drops ?? []).flatMap((x) => (x.kind === 'gap' ? [x.at] : []))).toEqual([2, 3])
   })
 
   it('並びから外す：並んだ図を1枚ずつにする（順番はそのまま）。横に並べる：すぐ上・下の1枚だけの図と並べる（2026-10-24）', () => {

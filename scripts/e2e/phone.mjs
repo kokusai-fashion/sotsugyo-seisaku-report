@@ -423,7 +423,7 @@ await withEdge(async (browser) => {
     undoAt.shown && undoAt.covers.length === 0 && undoAt.below.includes('.pager') && undoAt.inside && undoAt.buttonH >= 44,
     JSON.stringify(undoAt),
   )
-  check('選んだ表を削除すると、画面の下に「表を削除しました［戻す］」が出る（読み上げにも伝わる・残りの時間の線は15秒）', tableGone && toast.text.includes('表を削除しました') && toast.role === 'status' && toast.line === '15s', JSON.stringify(toast))
+  check('選んだ表を削除すると、画面の下に「表を削除しました［戻す］」が出る（読み上げにも伝わる・残りの時間の線は8秒）', tableGone && toast.text.includes('表を削除しました') && toast.role === 'status' && toast.line === '8s', JSON.stringify(toast))
   check('知らせの「戻す」は、押せる範囲が高さ 44px 以上', toast.hitH >= 44, `${toast.hitH}px`)
   await wait(7000)
   check('7秒たっても、知らせは出たまま（前は6秒ほどで消えていた）', !!(await page.$('.undo-toast button')))

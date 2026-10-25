@@ -5,6 +5,10 @@
 // - 作品写真の空いた枠の要確認は「このままにする」にできる
 // - Word の確認：表紙の学籍番号がログインしたアカウントと違えば赤く出す（偽物の Google でログイン）
 // - 図を入れた直後：図が紙面に出るまで、タイトルの欄は見せずに「図を入れています…」（前は欄だけが先に出て、次の行に重なった）
+// - 図の「上へ」「下へ」：すぐ上（下）が1枚だけの図なら、その横に並べる
+// - パソコン：「（図1）。」の「）」と「。」の間に、右・左のキーで止まれる
+// - 図をつかんで運ぶ（パソコン。mockups/v60）
+// - パソコンの「拡大」の倍率（mockups/v59 案A）
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -371,6 +375,280 @@ await withEdge(async (browser) => {
     await page.evaluate(() => document.querySelector('[data-confirm="cancel"]').click())
     await wait(300)
     check('「最初から作り直す」の確認が出ている間は、ボタンは「最初から作り直す」のまま（「作り直しています…」にならない）', during.includes('最初から作り直す') && !during.includes('作り直しています'), during)
+    await context.close()
+  }
+
+  // ---- パソコンの「拡大」の倍率（mockups/v59 案A）：拡大しているときだけ「－ 100% ＋」。1段ずつ変わり、この端末で覚えておく ----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'p3')
+    const zoomInfo = () => page.evaluate(() => ({ step: document.querySelector('.zoom-step b')?.textContent ?? null, s: Number(getComputedStyle(document.querySelector('.stage')).getPropertyValue('--s')), minus: document.querySelector('.zoom-step button[aria-label="小さく"]')?.disabled ?? null, saved: localStorage.getItem('sotsugyo-seisaku-report-zoom-level') }))
+    const fitView = await zoomInfo()
+    await page.evaluate(() => [...document.querySelectorAll('.view-bar .zoom button')].find((b) => b.textContent.includes('拡大')).click())
+    await wait(600)
+    const z100 = await zoomInfo()
+    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="大きく"]').click())
+    await wait(300)
+    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="大きく"]').click())
+    await wait(600)
+    const z150 = await zoomInfo()
+    await page.screenshot({ path: `${OUT}/8b-zoom-150.png` })
+    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="小さく"]').click())
+    await wait(300)
+    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="小さく"]').click())
+    await wait(600)
+    const back = await zoomInfo()
+    check(
+      '「拡大」していないときは倍率の段は出ず、拡大すると「100%」。「大きく」2回で「150%」（紙面は1.5倍・この端末で覚える）、「小さく」で100%に戻り、それより小さくはできない',
+      fitView.step === null && z100.step === '100%' && z150.step === '150%' && Math.abs(z150.s / z100.s - 1.5) < 0.01 && z150.saved === '1.5' && back.step === '100%' && back.minus === true,
+      JSON.stringify({ fitView, z100, z150, back }),
+    )
+    await context.close()
+  }
+
+  // ---- 図をつかんで運ぶ（パソコン。mockups/v60）：長押し・置ける所の印と線・置けない所のわけ・離すと動く・ただのクリック・Esc・横に並べる・「›」でめくる ----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    const blocksOrder = () => page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks.map((b) => b.id)))
+    const rectOf = (sel) => page.evaluate((sel) => { const r = [...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect()).find((x) => x.width > 0); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null }, sel)
+    const CUR = '.page-viewport.front [data-vivliostyle-page-container].is-current'
+    const overlay = () => page.evaluate(() => ({ ghost: !!document.querySelector('.fd-ghost'), dim: !!document.querySelector('.fd-dim'), ticks: document.querySelectorAll('.fd-tick').length, line: document.querySelector('.fd-line .fd-label')?.textContent ?? null, vline: document.querySelector('.fd-vline.on .fd-label')?.textContent ?? null, tip: document.querySelector('.fd-tip')?.textContent ?? '' }))
+    await goTo(page, ready, 'p8')
+    // 1. 図3（袖の刺繍）を押したまま待つと、つかめる
+    const img = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    await page.mouse.move(img.x, img.y)
+    await page.mouse.down()
+    await wait(650)
+    const held = await overlay()
+    // 2. 段落 p10 の下へ → 「ここに置く」の線
+    const p10 = await rectOf(`${CUR} [data-block-id="p10"]`)
+    await page.mouse.move(img.x, p10.bottom + 4, { steps: 8 })
+    await wait(150)
+    const near = await overlay()
+    // 3. （図3）がある段落 p8 より上 → わけ（線は出さない）
+    const p8 = await rectOf(`${CUR} [data-block-id="p8"]`)
+    await page.mouse.move(img.x, p8.top - 10, { steps: 8 })
+    await wait(150)
+    const above = await overlay()
+    // 4. 段落 p10 の下で離す → 図が動く
+    await page.mouse.move(img.x, p10.bottom + 4, { steps: 8 })
+    await wait(150)
+    await page.mouse.up()
+    await wait(700)
+    await ready()
+    const after = await blocksOrder()
+    const moved = { order: after.slice(after.indexOf('p8'), after.indexOf('p8') + 5), selected: await page.evaluate(() => window.__editor.getSnapshot().selection?.id), gone: !(await overlay()).ghost }
+    await page.screenshot({ path: `${OUT}/7-drag.png` })
+    check(
+      '図を押したまま待つとつかめ（写し・元の所の枠・置ける所の印）、段落の下では「ここに置く」、（図3）の段落より上では線を出さずにわけを出し、離すとその所へ動く（図は選んだまま）',
+      held.ghost && held.dim && held.ticks >= 1 && near.line === 'ここに置く' && above.line === null && above.tip.includes('（図3）」がある段落より上には置けません') &&
+        JSON.stringify(moved.order) === JSON.stringify(['p8', 'p9', 'p10', 'r3', 's6']) && moved.selected === 'f3' && moved.gone,
+      JSON.stringify({ held, near, above, moved }),
+    )
+    // 5. ただ押して離す（クリック）と、今までどおり図を選ぶだけ（動かない）。押したまま動かすと、待たずにつかむ。Esc でやめる
+    await page.evaluate(() => window.__editor.select(null))
+    const img2 = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    await page.mouse.click(img2.x, img2.y)
+    await wait(300)
+    const clicked = { selected: await page.evaluate(() => window.__editor.getSnapshot().selection?.id), same: JSON.stringify(await blocksOrder()) === JSON.stringify(after), ghost: (await overlay()).ghost }
+    await page.mouse.move(img2.x, img2.y)
+    await page.mouse.down()
+    await page.mouse.move(img2.x + 30, img2.y + 30, { steps: 4 })
+    await wait(100)
+    const quick = (await overlay()).ghost
+    await page.keyboard.press('Escape')
+    await wait(150)
+    const escaped = (await overlay()).ghost
+    await page.mouse.up()
+    await wait(300)
+    check(
+      'ただクリックすると図を選ぶだけ（動かない・つかまない）。押したまま動かすと待たずにつかみ、Esc でやめると動かない',
+      clicked.selected === 'f3' && clicked.same && !clicked.ghost && quick && !escaped && JSON.stringify(await blocksOrder()) === JSON.stringify(after),
+      JSON.stringify({ clicked, quick, escaped }),
+    )
+    // 6. 1枚だけの図の横へ運ぶと「横に並べる」→ 離すと横に並ぶ。2章を「袖の刺繍」だけにし（図2枚が同じページに入るように）、
+    //    段落 p8 にもう1枚の図のことを書いて、図3（p8 の下）・p9・もう1枚の図・p10 の順にする
+    await page.evaluate(() =>
+      window.__editor.update((r) => ({
+        ...r,
+        body: r.body.map((c) => {
+          if (!c.blocks.some((b) => b.id === 'p8')) return c
+          const get = (id) => c.blocks.find((b) => b.id === id)
+          const p8 = get('p8')
+          const r3 = get('r3')
+          return {
+            ...c,
+            blocks: [
+              get('s5'),
+              { ...p8, content: [...p8.content, { type: 'text', text: '並べる図も示す' }, { type: 'ref', targetId: 'f-x', withParens: true }, { type: 'text', text: '。' }] },
+              r3,
+              get('p9'),
+              { type: 'figureRow', id: 'r-x', figures: [{ id: 'f-x', imageId: r3.figures[0].imageId, caption: '並べる図' }] },
+              get('p10'),
+            ],
+          }
+        }),
+      })),
+    )
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'f3')
+    const fx = await rectOf(`${CUR} figure[data-figure-id="f-x"] img`)
+    const f3 = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    let joined = null
+    if (fx && f3) {
+      await page.mouse.move(fx.x, fx.y)
+      await page.mouse.down()
+      await wait(600)
+      await page.mouse.move(f3.right - 10, f3.y, { steps: 10 })
+      await wait(150)
+      const beside = await overlay()
+      await page.mouse.up()
+      await wait(700)
+      await ready()
+      joined = { beside: beside.vline, rows: await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).filter((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === 'f-x')).map((b) => b.figures.map((f) => f.id))) }
+    }
+    check('1枚だけの図の右へ運ぶと「横に並べる」が出て、離すと横に並ぶ（並びは本文で出てくる順）', !!joined && joined.beside === '横に並べる' && JSON.stringify(joined.rows) === JSON.stringify([['f3', 'f-x']]), JSON.stringify({ joined, fx: !!fx, f3: !!f3 }))
+    // 7. 「›」の上で待つと、つかんだままめくれる（小見出しのまとまりが次のページまで続くよう、段落を足す）
+    await page.evaluate(() =>
+      window.__editor.update((r) => ({
+        ...r,
+        body: r.body.map((c) => {
+          const i = c.blocks.findIndex((b) => b.id === 'p10')
+          if (i < 0) return c
+          const blocks = [...c.blocks]
+          const long = '刺繍の糸は、照明の下での見え方を比べて選んだ。金の糸は光りすぎると波の形がつぶれて見えるため、つやを抑えたものと強いものを交互に使い、波の重なりが分かるようにした。'
+          blocks.splice(i + 1, 0, ...['pa', 'pb', 'pc', 'pd', 'pe', 'pf', 'pg', 'ph'].map((id) => ({ type: 'paragraph', id, content: [{ type: 'text', text: long }] })))
+          return { ...c, blocks }
+        }),
+      })),
+    )
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'f3')
+    const startPage = await page.evaluate(() => window.__editor.getSnapshot().page)
+    const lastPage = await page.evaluate(() => window.__editor.pageOfBlock('ph'))
+    const f3b = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    const next = await rectOf('.stage .arrow.next')
+    await page.mouse.move(f3b.x, f3b.y)
+    await page.mouse.down()
+    await wait(600)
+    await page.mouse.move(next.x, next.y, { steps: 10 })
+    await wait(250)
+    const hint = await overlay()
+    await wait(1400)
+    await ready().catch(() => {})
+    const turned = { page: await page.evaluate(() => window.__editor.getSnapshot().page), ghost: (await overlay()).ghost }
+    const ph = await rectOf(`${CUR} [data-block-id="ph"]`)
+    if (ph) await page.mouse.move(ph.x, ph.bottom + 3, { steps: 10 })
+    await wait(200)
+    const there = await overlay()
+    await page.mouse.up()
+    await wait(800)
+    await ready()
+    const final = await blocksOrder()
+    check(
+      '「›」の上で待つと「ここで少し待つと、次のページへ」と出て、つかんだまま次のページへめくれ、そこで離すとそのページの所へ動く',
+      lastPage > startPage && hint.tip.includes('次のページへ') && turned.page === startPage + 1 && turned.ghost && !!ph && there.line === 'ここに置く' && final.indexOf('r3') === final.indexOf('ph') + 1,
+      JSON.stringify({ startPage, lastPage, hint: hint.tip, turned, there, at: final.slice(final.indexOf('ph') - 1, final.indexOf('ph') + 3) }),
+    )
+    await context.close()
+  }
+
+  // ---- パソコン：「（図1）。」の「）」と「。」の間に、右・左のキーで止まれる（前は「）」の前から右で「。」の後ろへ飛んだ：依頼者の指摘 2026-10-25）----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'p3')
+    await page.evaluate(() => window.__editor.openWhenReady('p3', 0))
+    await editingWait(page, 'p3')
+    await wait(600)
+    const refAt = await page.evaluate(() => window.__editor.overlay.text.indexOf('（図1）'))
+    const caretOf = () => page.evaluate(() => ({ at: window.__editor.overlay.selectionOffsets().start, inText: getSelection().anchorNode?.nodeType === Node.TEXT_NODE }))
+    // 「1」の後ろ（「）」の前）から右 → 「）」と「。」の間。もう1つ右（「。」の後ろ）から左 → 同じ所
+    await page.evaluate((at) => window.__editor.overlay.setCaret(at), refAt + 3)
+    await wait(150)
+    await page.keyboard.press('ArrowRight')
+    await wait(150)
+    const right = await caretOf()
+    await page.keyboard.press('ArrowRight')
+    await wait(150)
+    await page.keyboard.press('ArrowLeft')
+    await wait(150)
+    const left = await caretOf()
+    // そこで打つと、「）」と「。」の間に入る
+    await page.keyboard.type('★')
+    await wait(300)
+    const typed = await page.evaluate(() => { const t = window.__editor.overlay.text; const i = t.indexOf('★'); return i < 0 ? '' : t.slice(i - 4, i + 2) })
+    check(
+      'パソコン：「（図1）。」で、「）」の前から右のキーで「）」と「。」の間に止まり、「。」の後ろから左でも同じ所に止まる。そこで打つと「（図1）★。」',
+      refAt >= 0 && right.at === refAt + 4 && right.inText && left.at === refAt + 4 && typed === '（図1）★。',
+      JSON.stringify({ refAt, right, left, typed }),
+    )
+    await context.close()
+  }
+
+  // ---- 図の「上へ」「下へ」：すぐ上（下）が1枚だけの図なら、その横に並べる（依頼者の要望 2026-10-25。前は止まり、「横に並べる」を別に押した）----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    // 見本の最初の図のすぐ下に、もう1枚の図（同じ写真）を1枚だけの段で置き、その図のことを同じ段落の終わりに書く
+    const first = await page.evaluate(() => {
+      let found = null
+      window.__editor.update((r) => ({
+        ...r,
+        body: r.body.map((c) => {
+          const i = c.blocks.findIndex((b) => b.type === 'figureRow' && b.figures.length === 1)
+          if (found || i < 0) return c
+          const row = c.blocks[i]
+          const para = c.blocks.findLastIndex((b, k) => k < i && b.type === 'paragraph')
+          found = row.figures[0].id
+          const blocks = [...c.blocks]
+          blocks.splice(i + 1, 0, { type: 'figureRow', id: 'r-join', figures: [{ id: 'f-join', imageId: row.figures[0].imageId, caption: '並べる図' }] })
+          blocks[para] = { ...blocks[para], content: [...blocks[para].content, { type: 'text', text: '並べた図も示す' }, { type: 'ref', targetId: 'f-join', withParens: true }, { type: 'text', text: '。' }] }
+          return { ...c, blocks }
+        }),
+      }))
+      return found
+    })
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'f-join')
+    await clickAt(page, '.page-viewport.front figure[data-figure-id="f-join"] img')
+    await page.waitForFunction(() => window.__editor.getSnapshot().selection?.id === 'f-join', { timeout: 10000 })
+    const upTitle = await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.includes('上へ'))?.title ?? '')
+    await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.includes('上へ')).click())
+    await wait(600)
+    await ready()
+    const joined = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).filter((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === 'f-join')).map((b) => b.figures.map((f) => f.id)))
+    await page.screenshot({ path: `${OUT}/8-figure-up-join.png` })
+    check(
+      '1枚だけの図のすぐ上も1枚だけの図なら、「上へ」は「上の図の横に並べる」になり、押すと横に並ぶ（並びは本文で出てくる順）',
+      upTitle.includes('上の図の横に並べる') && JSON.stringify(joined) === JSON.stringify([[first, 'f-join']]),
+      JSON.stringify({ upTitle, joined, first }),
+    )
     await context.close()
   }
 

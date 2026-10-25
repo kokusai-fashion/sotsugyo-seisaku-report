@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
+import { ZOOM_LEVELS } from '../editor/pageStage'
 import { figurePairing, figurePlacement, type FigureMoveBlock } from '../editor/reportOps'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
@@ -202,6 +203,18 @@ export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSn
           {Icon.zoom}拡大
         </button>
       </div>
+      {/* 拡大しているときだけ：倍率を1段ずつ変える（100%＝いまの「拡大」。mockups/v59 案A） */}
+      {snap.zoomed && (
+        <div className="zoom-step" role="group" aria-label="拡大の倍率">
+          <button title="小さく（拡大の倍率を1段下げる）" aria-label="小さく" disabled={snap.zoomLevel <= ZOOM_LEVELS[0]} onClick={() => editor.zoomStep(-1)}>
+            －
+          </button>
+          <b aria-live="polite">{Math.round(snap.zoomLevel * 100)}%</b>
+          <button title="大きく（拡大の倍率を1段上げる）" aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => editor.zoomStep(1)}>
+            ＋
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -369,8 +382,8 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         {!template && <Tool label="差し替え" icon={Icon.replace} title="写真を差し替える" onClick={() => void editor.replaceFigureImage(figureId)} />}
         {!template && <Tool label="もう1枚" icon={Icon.beside} title="この図のすぐ後ろにもう1枚入れる（本文の参照の後ろにも「（図n）」が入ります）" onClick={() => void editor.addFigureBeside(figureId)} />}
         {/* 1つ上へ・1つ下へ（段落・表を1つずつ越える。小見出しの中だけ。上は本文の（図n）の段落まで。依頼者の選択 2026-10-23・24） */}
-        <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up') : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />
-        <Tool label="下へ" className="tb-move" icon={Icon.moveDown} title={place.downBlock ? FIGURE_MOVE_WHY[place.downBlock]('down') : 'この図を、1つ下（次の段落などの下）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.down} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'down')} />
+        <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up') : place.upJoin ? 'この図を、上の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />
+        <Tool label="下へ" className="tb-move" icon={Icon.moveDown} title={place.downBlock ? FIGURE_MOVE_WHY[place.downBlock]('down') : place.downJoin ? 'この図を、下の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ下（次の段落などの下）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.down} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'down')} />
         {/* 図の置き場所（依頼者の選択 2026-10-22 案A）：小見出しのまとまりのいちばん下へ。そこにあれば、参照している段落の下へ戻す。
             スマホの帯は、1列に入る5つ（差し替え・もう1枚・上へ・下へ・削除。依頼者の選択 2026-10-23 の見本）にするので出さない */}
         {phone ? null : place.toSectionEnd ? (

@@ -27,12 +27,19 @@ export const SPREAD_MIN_W = 640
 
 /** スマホで指で広げられる大きさの上限（本文の幅を画面の幅に合わせる倍率の何倍まで。1字 30px ほど） */
 export const PINCH_MAX = 3
+/**
+ * パソコンの「拡大」の倍率の段（いまの「拡大」の大きさを 100% として。依頼者の選択 2026-10-25：mockups/v59 案A）。
+ * 紙面が台より広くなるときは、本文の版面を台の真ん中に置き（左右の余白は切れる）、本文も入らなければ横にも動かせるようにする
+ */
+export const ZOOM_LEVELS = [1, 1.25, 1.5, 1.75, 2]
 /** 指で広げた倍率が、本文の幅に合わせる倍率にこれより近ければ、本文の幅に合わせる（そろえやすく。比で） */
 const SNAP_TO_TEXT = 0.04
 
 export class PageStage {
   scale = 1
   zoomed = false
+  /** パソコンの「拡大」の倍率（ZOOM_LEVELS の1つ。スマホは 1） */
+  zoomLevel = 1
   /**
    * スマホ：指で広げた・縮めた倍率（拡大しているとき。null なら、本文の幅を画面の幅に合わせる：--zoom-to-text）。
    * このときは、紙面の左の端を台の左の端に置き（紙面が台より狭ければ真ん中）、横の位置は紙面の表示枠のスクロールで決める（editor/reportEditor.ts の applyPinch）
@@ -63,6 +70,12 @@ export class PageStage {
     this.zoomed = zoomed
     this.spread = false
     this.free = null
+    this.fit()
+  }
+
+  /** パソコンの「拡大」の倍率を変える（拡大していないときは、次に拡大したときに使う） */
+  setZoomLevel(level: number): void {
+    this.zoomLevel = level
     this.fit()
   }
 
@@ -131,11 +144,16 @@ export class PageStage {
     this.textScale = (w - side * 2) / TEXT_W
     // 指で広げた倍率（スマホ）：紙面の左の端を台の左の端に（台より狭ければ真ん中に）置き、横の位置はスクロールで決める
     const free = this.zoomed && this.free !== null ? this.clampPinch(this.free) : null
-    let scale = free ?? (this.zoomed ? Math.min(MAX_ZOOM, byWidth) : Math.max(MIN_FIT, Math.min(byWidth, (h - top - bottom) / PAGE_H)))
+    const level = this.zoomed && free === null ? this.zoomLevel : 1
+    let scale = free ?? (this.zoomed ? (toText ? byWidth : Math.min(MAX_ZOOM, byWidth)) * level : Math.max(MIN_FIT, Math.min(byWidth, (h - top - bottom) / PAGE_H)))
     if (!this.zoomed && !this.spread) this.fitScale = scale
     let pageTop = this.zoomed ? top : top + (h - top - bottom - PAGE_H * scale) / 2
     let pageLeft = free !== null ? Math.max(0, (w - PAGE_W * scale) / 2) : toText ? side - TEXT_LEFT * scale : (w - PAGE_W * scale) / 2
-    this.panX = free !== null && PAGE_W * scale > w
+    // 「拡大」の倍率を上げて紙面が台より広い：本文の版面を台の真ん中に。真ん中に入らなければ、本文の左を台の左の余白に置く。
+    // それでも本文の右の端が台からはみ出すときだけ、横にも動かせるようにする（左右の余白は切れる）
+    const wideText = level > 1 && TEXT_W * scale > w - side * 2
+    if (level > 1 && !toText && PAGE_W * scale > w - side * 2) pageLeft = wideText ? side - TEXT_LEFT * scale : (w - TEXT_W * scale) / 2 - TEXT_LEFT * scale
+    this.panX = (free !== null && PAGE_W * scale > w) || (wideText && side + TEXT_W * scale > w - 16)
     this.stage.classList.toggle('pan-x', this.panX)
     const s = this.stage.style
     if (this.spread) {

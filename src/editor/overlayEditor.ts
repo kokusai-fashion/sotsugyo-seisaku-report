@@ -1069,14 +1069,15 @@ export class OverlayEditor {
   }
 
   /**
-   * スマホで紙面に直接書く：1文字のまとまりにした句読点・括弧（contenteditable="false"）のうち、すぐ後ろに書ける字がないもの
+   * 紙面に重ねて書く（パソコン・スマホ）：1文字のまとまりにした句読点・括弧（contenteditable="false"）のうち、すぐ後ろに書ける字がないもの
    * （「（図1）。」の「）」、段落の終わりの「。」など）は、まとまりをやめる。
    * スマホのブラウザは、指で押した所の近くの「書ける字の間」にしかカーソルを置かないため、まとまりが2つ続く所（「）」と「。」の間）には
-   * カーソルを置けず、手前の「1」と「）」の間に置かれていた（依頼者の Android 2026-10-22）。
+   * カーソルを置けず、手前の「1」と「）」の間に置かれていた（依頼者の Android 2026-10-22）。パソコンも、右・左のキーで「）」と「。」の間に
+   * 止まれなかった（「）」の前から右で「。」の後ろへ飛んだ：依頼者の指摘 2026-10-25）。
    * まとまりをやめた所で日本語を変換すると、変換中の字が詰めた字間で少し重なって見えることがある（変換を終えると組み直す）
    */
   private openCaretGaps(): void {
-    if (!this.direct) return
+    if (this.sheetHost) return
     const el = this.element
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
     const texts: Text[] = []

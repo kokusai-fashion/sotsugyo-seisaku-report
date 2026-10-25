@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>v59 拡大の倍率</title>
+<style>
+  body { margin: 0; padding: 28px 32px 34px; background: #f4f1ea; font-family: 'BIZ UDPGothic', 'Yu Gothic', sans-serif; color: #222; width: 1536px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  .lead { margin: 0 0 22px; font-size: 16px; color: #555; line-height: 1.6; }
+  .row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 26px 30px; }
+  h2 { margin: 0 0 4px; font-size: 19px; word-break: auto-phrase; }
+  .sub { margin: 0 0 10px; font-size: 14px; color: #666; line-height: 1.5; word-break: auto-phrase; min-height: 42px; }
+  .shot { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); background: #fff; }
+  .shot img { display: block; width: 100%; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .now .tag { background: #f3d9d6; color: #a03a2c; }
+  .opt .tag { background: #dde3f5; color: #27367a; }
+  .big .tag { background: #e3eedf; color: #2f6b2a; }
+  .wide { grid-column: 1 / -1; }
+  .crop { height: 520px; overflow: hidden; }
+  .crop img { width: 140%; margin: -8% 0 0 -12%; }
+  .note { margin-top: 22px; font-size: 15px; color: #444; line-height: 1.7; }
+</style>
+<h1>パソコンの「拡大」の倍率を変えられるようにする案</h1>
+<p class="lead">いまの「拡大」は、紙面の横幅を画面の真ん中の幅に合わせる、決まった大きさです。どの案も、倍率は「拡大」を押しているときだけ変えられ、次に開いたときも同じ倍率で拡大します（スマホは今までどおり、2本の指で広げます）。</p>
+<div class="row">
+  <div class="now">
+    <span class="tag">いま</span>
+    <h2>「拡大」は決まった大きさ</h2>
+    <p class="sub">倍率は変えられません</p>
+    <div class="shot"><img src="shots/0-now.png" /></div>
+  </div>
+  <div class="opt">
+    <span class="tag">案A（おすすめ）</span>
+    <h2>「拡大」の右に「－ 125% ＋」</h2>
+    <p class="sub">押すたびに1段ずつ（100・125・150・175・200%）。いまの倍率がいつも見える</p>
+    <div class="shot"><img src="shots/A-buttons.png" /></div>
+  </div>
+  <div class="opt">
+    <span class="tag">案B</span>
+    <h2>「拡大」を押すと、倍率を選ぶ小さな窓</h2>
+    <p class="sub">「幅に合わせる」「125%」…から選ぶ。ふだんは窓を閉じていて、すっきり</p>
+    <div class="shot"><img src="shots/B-menu.png" /></div>
+  </div>
+  <div class="opt">
+    <span class="tag">案C</span>
+    <h2>「拡大」の右に、つまみ</h2>
+    <p class="sub">つまみを動かして、細かく決める（5%ずつ）。細かく決められるが、小さくて動かしにくい</p>
+    <div class="shot"><img src="shots/C-slider.png" /></div>
+  </div>
+  <div class="big wide">
+    <span class="tag">大きくしたときの見え方（150%）</span>
+    <h2>紙面が画面の幅より広くなったら、横にも動かして見る</h2>
+    <p class="sub">字が大きくなる分、行の終わりは画面の右に隠れます（下の横のバーか、Shift＋ホイールで動かします。書いている所には、自動でついていきます）</p>
+    <div class="shot crop"><img src="shots/D-150-full.png" /></div>
+  </div>
+</div>
+<p class="note">100% は、いまの「拡大」と同じ大きさです。</p>
+</html>

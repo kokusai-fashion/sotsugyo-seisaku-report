@@ -237,6 +237,12 @@ body.resizing .page-viewport { pointer-events: none; }
 .zoom button { display: flex; align-items: center; gap: 4px; border: 0; background: none; border-radius: 7px; padding: 5px 10px 5px 7px; font-size: 12px; color: var(--muted); }
 .zoom button svg { width: 16px; height: 16px; }
 .zoom button.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+/* 拡大の倍率（拡大しているときだけ。mockups/v59 案A） */
+.view-bar .zoom-step { display: flex; align-items: center; gap: 1px; margin-left: 2px; padding-left: 4px; border-left: 1px solid var(--line); }
+.view-bar .zoom-step button { min-width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--accent); font-size: 16px; font-weight: 700; line-height: 1; }
+.view-bar .zoom-step button:hover:not(:disabled) { background: var(--accent-soft); }
+.view-bar .zoom-step button:disabled { color: #b5b7bc; }
+.view-bar .zoom-step b { min-width: 42px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 /* ---- 右の欄 ---- */
 .side { display: flex; flex-direction: column; min-height: 0; background: var(--panel-bg); border-left: 1px solid var(--line); }
@@ -1023,7 +1029,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .app.phone .continue-row.tight { font-size: 12px; }
 @media print { .continue-row { display: none !important; } }
 
-/* ---- v32 ② 削除の「戻す」の知らせを PC にも出し、15秒か次の操作まで出す（mockups/v32 ② 案A。部品は app/UndoBar.tsx） ---- */
+/* ---- v32 ② 削除の「戻す」の知らせを PC にも出し、8秒（前は15秒）か次の操作まで出す（mockups/v32 ② 案A。部品は app/UndoBar.tsx） ---- */
 /* PC：紙面の台の下の真ん中（紙面の下に少し重なる）。スマホは前からの .undo-area のまま（下のタブの上） */
 /* 右下の「元に戻す・やり直す」の帯のすぐ上に出す（前は帯に重なって、ボタンを隠していた：PC の試し 2026-10-24、依頼者の選択 mockups/v55 ① 案A） */
 .stage .undo-area.on-stage { position: absolute; left: 50%; right: auto; bottom: 66px; width: min(380px, calc(100% - 32px)); transform: translateX(-50%); }
@@ -2067,3 +2073,27 @@ p.busy-line { display: flex; }
 .id-choices button small { line-height: 1.5; }
 .modal h2 { line-height: 1.45; }
 .snapshots .snap-when small, .modal .start-over-row p { line-height: 1.6; }
+
+/* ---- 図をつかんで運ぶ（パソコン。mockups/v60。部品は editor/figureDrag.ts） ---- */
+body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select: none; }
+.fd-layer { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.fd-ring { position: fixed; z-index: 61; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; }
+.fd-ring circle { fill: none; stroke: #d99a00; stroke-width: 4; stroke-dasharray: 126; stroke-dashoffset: 126; transform: rotate(-90deg); transform-origin: 50% 50%; animation: fd-ring 0.33s linear forwards; }
+@keyframes fd-ring { to { stroke-dashoffset: 0; } }
+.fd-ghost { position: fixed; border-radius: 6px; background: #fff; box-shadow: 0 14px 34px rgba(20, 24, 50, 0.32); transform: scale(1.04) rotate(-1deg); opacity: 0.93; overflow: hidden; }
+.fd-ghost img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.fd-ghost.empty { background: repeating-linear-gradient(45deg, #eef0f6, #eef0f6 8px, #f8f9fc 8px, #f8f9fc 16px); border: 2px dashed #8a93b8; }
+.fd-dim { position: fixed; border: 2px dashed #8a93b8; border-radius: 6px; background: rgba(244, 241, 234, 0.72); }
+/* 置ける所：ふだんは本文の左の余白に短い印。いちばん近い所だけ、本文の幅いっぱいの金色の線（段落の間に線を引くと、字の取り消し線に見えるため） */
+.fd-tick { position: fixed; width: 18px; height: 0; margin-top: -2px; border-top: 4px solid rgba(39, 54, 122, 0.55); border-radius: 2px; }
+.fd-line { position: fixed; height: 0; margin-top: -2px; border-top: 4px solid #d99a00; }
+.fd-vline { position: fixed; width: 0; border-left: 2px dashed rgba(39, 54, 122, 0.45); }
+.fd-vline.on { border-left: 4px solid #d99a00; margin-left: -1px; }
+.fd-label { position: absolute; right: 0; top: -28px; padding: 2px 9px; border-radius: 6px; background: #d99a00; color: #fff; font: 700 12.5px/1.5 'BIZ UDPGothic', sans-serif; white-space: nowrap; }
+.fd-vline .fd-label { right: auto; left: 8px; top: 0; }
+.fd-tip { position: fixed; padding: 6px 11px; border-radius: 8px; background: #2b2e36; color: #fff; font: 13px/1.5 'BIZ UDPGothic', sans-serif; white-space: nowrap; box-shadow: 0 6px 16px rgba(20, 20, 30, 0.25); }
+.fd-tip.hint { background: #d99a00; }
+.fd-tip.left { transform: translateX(-100%); }
+.stage .arrow.fd-arrow-on { box-shadow: 0 0 0 4px #d99a00, 0 0 0 10px rgba(217, 154, 0, 0.25); background: #fff7e0; }
+/* 置いた図：少しの間、金色の枠で光らせる */
+.page-viewport figure.drop-flash { outline: 3px solid #d99a00; outline-offset: 5px; box-shadow: 0 0 0 10px rgba(217, 154, 0, 0.2); border-radius: 4px; }

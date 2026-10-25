@@ -14,9 +14,10 @@ import type { BodyBlock, Chapter, PhotoPosition, Report, TableBlock, TableCell, 
 import { abstractPasteNotice, stripFigureRefs } from './abstractRefs'
 import { ColumnHandles, type ColumnTarget } from './columnHandles'
 import { ContinueRow, endsPageWithRoom, type ContinueTarget } from './continueRow'
+import { FigureDrag } from './figureDrag'
 import { EditHistory } from './history'
 import { OverlayEditor, offsetInCopy, type OverlayKind, type OverlayPlacement, type OverlayTarget } from './overlayEditor'
-import { PageStage, TEXT_LEFT, TEXT_W } from './pageStage'
+import { PageStage, TEXT_LEFT, TEXT_W, ZOOM_LEVELS } from './pageStage'
 import { loadWritingZoom, PinchZoom, saveWritingZoom, type Point } from './pinchZoom'
 import { blockPaperKey, fixedTitleNote, markFocusable, PAPER_FOCUSABLE, paperElement, paperKeyOf, paperOrder, rememberTabStop, setTabStop } from './paperFocus'
 import * as ops from './reportOps'
@@ -100,6 +101,8 @@ export interface EditorSnapshot {
   photoPage: number | null
   /** 拡大して表示しているか */
   zoomed: boolean
+  /** パソコンの「拡大」の倍率（1 = 100%。pageStage.ts の ZOOM_LEVELS） */
+  zoomLevel: number
   /**
    * 入れたばかりの図・表が紙面に出るのを待っている（タイトルの書く欄を見せていない。左の道具も、図・表が出るまで切り替えない。mockups/v58 案B）。
    * 「図を入れる」で写真を選んで取り込んでいる間も含む
@@ -567,6 +570,8 @@ export class ReportEditor {
       if (this.phone) this.revealEditing(false)
       this.notify()
     })
+    // パソコンの「拡大」の倍率：この端末で前に選んだもの（スマホにしたときは 1 に戻す：setSheetHost）
+    this.stage.zoomLevel = loadZoomLevel()
     // スマホ：2本の指で紙面を広げる・縮める（紙面の倍率だけを変える。上の帯・道具・タブは大きくしない）
     this.pinchZoom = new PinchZoom(stage, {
       // 表の列の丸いつまみを動かしている間は、2本の指の拡大を始めない（columnHandles.ts）
@@ -645,6 +650,24 @@ export class ReportEditor {
     window.addEventListener('pointercancel', () => this.cancelPhotoDrag())
     window.addEventListener('beforeprint', () => this.beforePrint())
     window.addEventListener('afterprint', () => this.refreshHighlights())
+    // 図をつかんで運ぶ（パソコン。mockups/v60）
+    new FigureDrag(scroller, {
+      enabled: () => !this.phone && !this.settlingRemoval && !!this.layout,
+      report: () => this.report,
+      visiblePages: () => {
+        const pages = this.renderer.pageView.pages()
+        const left = this.stage.spread ? this.page - (this.page % 2) : this.page
+        return [pages[left], this.stage.spread ? pages[left + 1] : undefined].filter((p): p is HTMLElement => !!p)
+      },
+      numberOf: (id) => ops.numbering(this.report).numbers.get(id),
+      beforeLift: () => {
+        if (this.overlay.blockId) this.finishEditing()
+        getSelection()?.removeAllRanges()
+        this.selectionBar.hideBar()
+      },
+      turn: (dir) => this.turnBy(dir),
+      drop: (figureId, drop) => void this.dropFigure(figureId, drop),
+    })
     // 紙面を組む前から、文字のチェック（紙面の情報を使わないもの）の指摘を出しておく（組み終えるまで、チェックの欄が空にならないように）
     this.runChecks()
   }
@@ -683,6 +706,7 @@ export class ReportEditor {
       pageCount: this.layout?.kinds.length ?? 0,
       photoPage: this.layout ? photoPageAt(this.layout.kinds, this.page) : null,
       zoomed: this.stage.zoomed,
+      zoomLevel: this.stage.zoomLevel,
       waiting: this.overlay.waiting || this.insertingFigure,
       spread: this.stage.spread,
       spreadFits: this.stage.spreadFits,
@@ -1359,6 +1383,22 @@ export class ReportEditor {
     else this.stage.setZoom(view === 'zoom')
   }
 
+  /**
+   * パソコンの「拡大」の倍率を1段上げる（dir 1）・下げる（-1）。選んだ倍率は、この端末で覚えておく（mockups/v59 案A）。
+   * 読んでいた所（台の上下の位置の割合）は、なるべくそのままにし、書いている欄があれば見える所へ
+   */
+  zoomStep(dir: 1 | -1): void {
+    const at = ZOOM_LEVELS.indexOf(this.stage.zoomLevel)
+    const level = ZOOM_LEVELS[Math.max(0, Math.min(ZOOM_LEVELS.length - 1, (at < 0 ? 0 : at) + dir))]
+    if (level === this.stage.zoomLevel || this.phone) return
+    const ratio = this.scroller.scrollTop / Math.max(1, this.scroller.scrollHeight)
+    this.stage.setZoomLevel(level)
+    saveZoomLevel(level)
+    this.scroller.scrollTop = ratio * this.scroller.scrollHeight
+    if (this.overlay.blockId) this.followCaret()
+    this.notify()
+  }
+
   /** 紙面のまわりに空ける幅（台の CSS の変数）を変えたとき、紙面の倍率と位置を求め直す（スマホの紙面の下の帯。app/PageBand.tsx） */
   refitPage(): void {
     this.stage.fit()
@@ -1373,6 +1413,8 @@ export class ReportEditor {
     this.hideStyle.textContent = ''
     this.sheetHostEl = host
     this.direct = !!host && direct
+    // 「拡大」の倍率の段はパソコンだけ（スマホは2本の指で広げる）
+    this.stage.zoomLevel = host ? 1 : loadZoomLevel()
     // 書いていた欄は、段落のまま確定する（画面の並べ方が変わっただけで、見出しにしない）
     this.keepParagraph = true
     try {
@@ -3678,6 +3720,24 @@ export class ReportEditor {
    * 選んでいる図（のまとまり）を、その小見出しのまとまりのいちばん下へ（'sectionEnd'）・最初に参照している段落のすぐ下へ（'paragraph'）動かす
    * （依頼者の選択 2026-10-22 案A）。1つ上へ（'up'）・1つ下へ（'down'。2026-10-23）も。元に戻す1回で戻る。動かした先のページを見せ、図は選んだまま
    */
+  /** つかんで運んだ図を、置いた所へ動かす（figureDrag.ts）。図を選び、図が出たページを見せて、少しの間光らせる */
+  async dropFigure(figureId: string, drop: ops.FigureDrop): Promise<void> {
+    const next = ops.applyFigureDrop(this.report, figureId, drop)
+    if (next !== this.report) this.update(() => next)
+    this.select({ kind: 'figure', id: figureId })
+    await this.whenLaidOut()
+    const page = this.pageOfBlock(figureId)
+    const left = this.stage.spread ? this.page - (this.page % 2) : this.page
+    if (page >= 0 && page !== left && !(this.stage.spread && page === left + 1)) {
+      await this.goToPage(page, 'none')
+      this.select({ kind: 'figure', id: figureId })
+    }
+    this.markSelection()
+    const el = this.viewport.querySelector<HTMLElement>(`figure[data-figure-id="${CSS.escape(figureId)}"]`)
+    el?.classList.add('drop-flash')
+    window.setTimeout(() => el?.classList.remove('drop-flash'), 1600)
+  }
+
   async moveFigure(figureId: string, to: ops.FigureMove): Promise<void> {
     const next = ops.moveFigureRow(this.report, figureId, to)
     if (next === this.report) return
@@ -4660,5 +4720,25 @@ export class ReportEditor {
   get pdfTitle(): string {
     const { studentId, name } = this.report.basicInfo
     return submissionTitle(studentId, name, this.config.reportName)
+  }
+}
+
+const ZOOM_LEVEL_KEY = 'sotsugyo-seisaku-report-zoom-level'
+
+/** この端末で前に選んだ「拡大」の倍率（なければ 100%） */
+function loadZoomLevel(): number {
+  try {
+    const v = Number(localStorage.getItem(ZOOM_LEVEL_KEY))
+    return ZOOM_LEVELS.includes(v) ? v : 1
+  } catch {
+    return 1
+  }
+}
+
+function saveZoomLevel(level: number): void {
+  try {
+    localStorage.setItem(ZOOM_LEVEL_KEY, String(level))
+  } catch {
+    // 覚えておけないときは、次に開いたとき 100% になるだけ
   }
 }

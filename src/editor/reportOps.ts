@@ -747,7 +747,18 @@ function figureRowTargets(
   figureId: string,
   refLater = false,
   mentions: Map<string, number> = new Map(),
-): { from: number; sectionEnd: number | null; paragraph: number | null; up: number | null; down: number | null; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null; inSubsection: boolean } | null {
+): {
+  from: number
+  sectionEnd: number | null
+  paragraph: number | null
+  up: number | null
+  down: number | null
+  joinUp: boolean
+  joinDown: boolean
+  upBlock: FigureMoveBlock | null
+  downBlock: FigureMoveBlock | null
+  inSubsection: boolean
+} | null {
   const from = chapter.blocks.findIndex((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
   if (from < 0) return null
   const row = chapter.blocks[from] as Extract<BodyBlock, { type: 'figureRow' }>
@@ -801,7 +812,13 @@ function figureRowTargets(
     const them = mentioned(other)
     return self === null || them === null || (otherFirst ? them < self : self < them)
   }
-  const upBlock: FigureMoveBlock | null = !above
+  // 1枚だけの図で、すぐ上（下）も1枚だけの図なら、「上へ」（「下へ」）でその横に並べる（依頼者の要望 2026-10-25：上へで横並びの位置まで来たら、横並びにしてよい）
+  const single = (b: BodyBlock | undefined) => b?.type === 'figureRow' && b.figures.length === 1
+  const joinUp = row.figures.length === 1 && single(above)
+  const joinDown = row.figures.length === 1 && single(below)
+  const upBlock: FigureMoveBlock | null = joinUp
+    ? null
+    : !above
     ? 'chapter'
     : above.type === 'subheading'
       ? 'subheading'
@@ -812,10 +829,21 @@ function figureRowTargets(
           : !keepsOrder(above, false)
             ? 'order'
             : null
-  const downBlock: FigureMoveBlock | null = !below ? 'chapter' : below.type === 'subheading' ? 'subheading' : !keepsOrder(below, true) ? 'order' : null
+  const downBlock: FigureMoveBlock | null = joinDown ? null : !below ? 'chapter' : below.type === 'subheading' ? 'subheading' : !keepsOrder(below, true) ? 'order' : null
   // 図の前に小見出しがあるか（なければ「大見出しの終わりへ」と言う：PC の試し 2026-10-25）
   const inSubsection = chapter.blocks.slice(0, from).some((b) => b.type === 'subheading')
-  return { from, sectionEnd: atEnd ? null : end, paragraph, up: upBlock ? null : from - 1, down: downBlock ? null : from + 1, upBlock, downBlock, inSubsection }
+  return {
+    from,
+    sectionEnd: atEnd ? null : end,
+    paragraph,
+    up: upBlock || joinUp ? null : from - 1,
+    down: downBlock || joinDown ? null : from + 1,
+    joinUp,
+    joinDown,
+    upBlock,
+    downBlock,
+    inSubsection,
+  }
 }
 
 /**
@@ -829,12 +857,34 @@ export type FigureMoveBlock = 'chapter' | 'subheading' | 'ref' | 'refLater' | 'o
 export function figurePlacement(
   report: Report,
   figureId: string,
-): { toSectionEnd: boolean; toParagraph: boolean; up: boolean; down: boolean; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null; inSubsection: boolean } {
+): {
+  toSectionEnd: boolean
+  toParagraph: boolean
+  up: boolean
+  down: boolean
+  /** 「上へ」「下へ」で、隣の1枚だけの図の横に並べる */
+  upJoin: boolean
+  downJoin: boolean
+  upBlock: FigureMoveBlock | null
+  downBlock: FigureMoveBlock | null
+  inSubsection: boolean
+} {
   for (const chapter of report.body) {
     const t = figureRowTargets(chapter, figureId, refOnlyLater(report, chapter, figureId), figureMentionOrder(report))
-    if (t) return { toSectionEnd: t.sectionEnd !== null, toParagraph: t.paragraph !== null, up: t.up !== null, down: t.down !== null, upBlock: t.upBlock, downBlock: t.downBlock, inSubsection: t.inSubsection }
+    if (t)
+      return {
+        toSectionEnd: t.sectionEnd !== null,
+        toParagraph: t.paragraph !== null,
+        up: t.up !== null || t.joinUp,
+        down: t.down !== null || t.joinDown,
+        upJoin: t.joinUp,
+        downJoin: t.joinDown,
+        upBlock: t.upBlock,
+        downBlock: t.downBlock,
+        inSubsection: t.inSubsection,
+      }
   }
-  return { toSectionEnd: false, toParagraph: false, up: false, down: false, upBlock: null, downBlock: null, inSubsection: false }
+  return { toSectionEnd: false, toParagraph: false, up: false, down: false, upJoin: false, downJoin: false, upBlock: null, downBlock: null, inSubsection: false }
 }
 
 /** 図（のまとまり）を参照している段落が、その図の章より後ろの章にしかないか（その章や前の章にあれば false） */
@@ -855,14 +905,129 @@ export type FigureMove = 'sectionEnd' | 'paragraph' | 'up' | 'down'
  */
 export function moveFigureRow(report: Report, figureId: string, to: FigureMove): Report {
   let moved = false
+  const mentions = figureMentionOrder(report)
   const body = report.body.map((chapter) => {
-    const t = figureRowTargets(chapter, figureId, refOnlyLater(report, chapter, figureId), figureMentionOrder(report))
+    const t = figureRowTargets(chapter, figureId, refOnlyLater(report, chapter, figureId), mentions)
+    // 隣の1枚だけの図の横に並べる（並びの中は、本文で出てくる順。分からなければ、上から来た図は左・下から来た図は右）
+    if (t && ((to === 'up' && t.joinUp) || (to === 'down' && t.joinDown))) {
+      moved = true
+      const other = to === 'up' ? t.from - 1 : t.from + 1
+      const self = (chapter.blocks[t.from] as FigureRowBlock).figures[0]
+      const them = chapter.blocks[other] as FigureRowBlock
+      const [a, b] = [mentions.get(self.id), mentions.get(them.figures[0].id)]
+      const selfFirst = a !== undefined && b !== undefined ? a < b : to === 'down'
+      const merged: BodyBlock = { type: 'figureRow', id: them.id, figures: selfFirst ? [self, ...them.figures] : [...them.figures, self] }
+      const lo = Math.min(t.from, other)
+      return { ...chapter, blocks: [...chapter.blocks.slice(0, lo), merged, ...chapter.blocks.slice(lo + 2)] }
+    }
     const at = t && t[to === 'sectionEnd' ? 'sectionEnd' : to]
     if (!t || at === null) return chapter
     moved = true
     const rest = chapter.blocks.filter((_, i) => i !== t.from)
     rest.splice(at, 0, chapter.blocks[t.from])
     return { ...chapter, blocks: rest }
+  })
+  return moved ? { ...report, body } : report
+}
+
+// ---- 図をつかんで運ぶ（パソコン。依頼者の選択 2026-10-25：mockups/v60） ----
+
+/**
+ * 図をつかんで置ける所。gap：章の中の、ブロックの間（before のブロックの前。before が null なら after のブロックの後ろ）。
+ * join：1枚だけの図（figureId）の横に並べる。どちらも、図のまとまりごと動かす
+ */
+export type FigureDrop = { kind: 'gap'; at: number; after: string | null; before: string | null } | { kind: 'join'; figureId: string }
+
+/**
+ * 図をつかんで置ける所の一覧と、置けない所のわけを決める材料。決まりは「上へ」「下へ」と同じ（figureRowTargets）：
+ * 小見出しのまとまりの外へは出さない・本文の（図n）がある段落より上へは置かない（後ろの章にしか（図n）がなければ、上へは動かさない）・
+ * 図の順は本文で出てくる順のまま。いまの所（動かさない）も gap に入れる。
+ * section：まとまりの初めの小見出し（なければ null：大見出しの初め）と、次の小見出し（なければ null：大見出しの終わり）。ref：（図n）がある段落
+ */
+export function figureDrops(
+  report: Report,
+  figureId: string,
+): { rowId: string; figures: string[]; drops: FigureDrop[]; section: { from: string | null; to: string | null }; ref: string | null; current: number } | null {
+  const mentions = figureMentionOrder(report)
+  for (const chapter of report.body) {
+    const from = chapter.blocks.findIndex((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
+    if (from < 0) continue
+    const row = chapter.blocks[from] as FigureRowBlock
+    const ids = new Set(row.figures.map((f) => f.id))
+    const rest = chapter.blocks.filter((_, i) => i !== from)
+    // 小見出しのまとまり（抜いたあとの位置で）：前の小見出しのすぐ後ろ〜次の小見出しの前
+    let start = 0
+    for (let i = from - 1; i >= 0; i--) if (rest[i].type === 'subheading') {
+      start = i + 1
+      break
+    }
+    let end = rest.findIndex((b, i) => i >= from && b.type === 'subheading')
+    if (end < 0) end = rest.length
+    const ref = rest.findIndex((b) => b.type === 'paragraph' && b.content.some((n) => n.type === 'ref' && ids.has(n.targetId)))
+    const refLater = ref < 0 && refOnlyLater(report, chapter, figureId)
+    // 置いたあとの章で、ほかの図（本文で出てくる所が分かるもの）との順が、本文で出てくる順のままか
+    const self = Math.min(...[...ids].map((id) => mentions.get(id) ?? Infinity))
+    const keepsOrder = (blocks: BodyBlock[]) => {
+      if (self === Infinity) return true
+      const order = blocks.flatMap((b) => (b.type === 'figureRow' ? b.figures.map((f) => f.id) : []))
+      const at = order.findIndex((id) => ids.has(id))
+      return order.every((id, i) => {
+        const m = mentions.get(id)
+        if (ids.has(id) || m === undefined) return true
+        return i < at ? m < self : m > self
+      })
+    }
+    const placeable = (k: number) => k >= start && k <= end && (ref >= 0 ? k > ref : !refLater || k >= from)
+    const drops: FigureDrop[] = []
+    for (let k = start; k <= end; k++) {
+      if (!placeable(k)) continue
+      const blocks = [...rest.slice(0, k), row, ...rest.slice(k)]
+      if (keepsOrder(blocks)) drops.push({ kind: 'gap', at: k, after: rest[k - 1]?.id ?? null, before: rest[k]?.id ?? null })
+    }
+    if (row.figures.length === 1) {
+      for (let j = start; j < end; j++) {
+        const b = rest[j]
+        if (b.type !== 'figureRow' || b.figures.length !== 1 || !placeable(j)) continue
+        const merged = applyFigureDrop(report, figureId, { kind: 'join', figureId: b.figures[0].id })
+        const blocks = merged.body.find((c) => c.id === chapter.id)?.blocks ?? []
+        if (keepsOrder(blocks)) drops.push({ kind: 'join', figureId: b.figures[0].id })
+      }
+    }
+    const heading = (i: number) => (rest[i]?.type === 'subheading' ? rest[i].id : null)
+    return {
+      rowId: row.id,
+      figures: row.figures.map((f) => f.id),
+      drops,
+      section: { from: start > 0 ? heading(start - 1) : null, to: end < rest.length ? heading(end) : null },
+      ref: ref >= 0 ? rest[ref].id : null,
+      current: from,
+    }
+  }
+  return null
+}
+
+/** 図のまとまりを、つかんで置いた所へ動かす（figureDrops の1つ。横に並べるときは、並びの中も本文で出てくる順。分からなければ右へ） */
+export function applyFigureDrop(report: Report, figureId: string, drop: FigureDrop): Report {
+  const mentions = figureMentionOrder(report)
+  let moved = false
+  const body = report.body.map((chapter) => {
+    const from = chapter.blocks.findIndex((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
+    if (from < 0) return chapter
+    const row = chapter.blocks[from] as FigureRowBlock
+    const rest = chapter.blocks.filter((_, i) => i !== from)
+    if (drop.kind === 'gap') {
+      if (drop.at === from) return chapter
+      moved = true
+      return { ...chapter, blocks: [...rest.slice(0, drop.at), row, ...rest.slice(drop.at)] }
+    }
+    const j = rest.findIndex((b) => b.type === 'figureRow' && b.figures.length === 1 && b.figures[0].id === drop.figureId)
+    if (j < 0 || row.figures.length !== 1) return chapter
+    moved = true
+    const them = rest[j] as FigureRowBlock
+    const [a, b] = [mentions.get(row.figures[0].id), mentions.get(them.figures[0].id)]
+    const selfFirst = a !== undefined && b !== undefined && a < b
+    const merged: BodyBlock = { type: 'figureRow', id: them.id, figures: selfFirst ? [row.figures[0], them.figures[0]] : [them.figures[0], row.figures[0]] }
+    return { ...chapter, blocks: [...rest.slice(0, j), merged, ...rest.slice(j + 1)] }
   })
   return moved ? { ...report, body } : report
 }
