@@ -2,6 +2,7 @@ import { findCourse, subtitleInputOnly, type YearConfig } from '../config'
 import { checkReportDetailed, type ReportFinding } from '../checker/reportChecks'
 import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
+import { captionWithoutNumber } from '../model/captionText'
 import { typedHeading, type HeadingText } from '../model/headingText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
 import { putImage, type StoredImage } from '../model/storage'
@@ -236,6 +237,13 @@ function bodyIds(report: Report): Set<string> {
   return ids
 }
 
+/** 図表のタイトルが空のときに、書く欄に出す薄い字（mockups/v55 ③ 案A） */
+function captionPlaceholder(kind: ops.EditableKind): string | undefined {
+  if (kind === 'figureCaption') return '（図のタイトルを入力。例：デザイン画）'
+  if (kind === 'tableCaption') return '（表のタイトルを入力。例：使用素材表）'
+  return undefined
+}
+
 export class ReportEditor {
   private report: Report
   private config: YearConfig
@@ -427,18 +435,26 @@ export class ReportEditor {
           this.pendingOpen = { id: next.id, caret: direction === 'prev' ? next.text.length : 0 }
           return
         }
-        this.report = ops.setText(this.report, id, text)
+        this.report = ops.setText(this.report, id, this.tidyText(id, text))
         this.continueWriting(next?.id ?? id, direction === 'prev' ? (next?.text.length ?? 0) : 0)
       },
       onTab: (id, text, backward) => {
-        // 表のセル：Tab で隣のセルへ（最後のセルでは書き終わる）
-        this.report = ops.setText(this.report, id, text)
-        const table = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'table' && b.rows.some((r) => r.cells.some((c) => c.id === id)))
-        // ひな形を作る画面では、見出しの行の中だけを移る（中身の行は学生が書く）
-        const cells = table?.type === 'table' ? (this.template ? (table.rows[0]?.cells ?? []) : table.rows.flatMap((r) => r.cells)) : []
-        const next = cells[cells.findIndex((c) => c.id === id) + (backward ? -1 : 1)]
+        // 表のセル：Tab で隣のセルへ（最後のセルでは書き終わる）。表のタイトル：Tab で1つ目のマスへ（tabMoves）
+        this.report = ops.setText(this.report, id, this.tidyText(id, text))
+        const table = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'table' && (b.id === id || b.rows.some((r) => r.cells.some((c) => c.id === id))))
+        const cells = table?.type === 'table' ? this.tabCells(table) : []
+        const next = table?.id === id ? cells[0] : cells[cells.findIndex((c) => c.id === id) + (backward ? -1 : 1)]
         if (next) this.continueWriting(next.id, next.text.length)
         else this.onCommitEdit(id, text, true)
+      },
+      tabMoves: (id, backward) => {
+        const table = this.report.body.flatMap((c) => c.blocks).find((b) => b.id === id)
+        return !backward && table?.type === 'table' && this.tabCells(table).length > 0
+      },
+      // 段落で Tab：Word のつもりで字下げしようとした。1字下げは自動で付くことを、開いている間に1回だけ知らせる
+      onTabStay: (id) => {
+        const kind = ops.findEditable(this.report, id)?.kind
+        if (kind === 'paragraph' || kind === 'abstractParagraph') this.noticeLeadingSpaceOnce('tab')
       },
       onPasteParagraphs: (id, paragraphs, caretInLast) => {
         this.pushHistory(this.reportBeforeEdit ?? this.report)
@@ -1812,9 +1828,7 @@ export class ReportEditor {
 
   /** 入力欄を閉じて、書いた文字を確定する。frozen：閉じる前の入力欄の見た目を写した要素（紙面に重ねる。PC だけ） */
   private onCommitEdit(id: string, text: string, byKey: boolean, frozen: HTMLElement | null = null): void {
-    // サブタイトル：自動で付く前後の決まり文句（「―」「の衣装制作―」など）まで入力していたら取る（表紙で二重にならないように）
-    const course = id === FIELD_IDS.subtitleInput ? findCourse(this.config, this.report.basicInfo.courseId) : undefined
-    const committed = ops.setText(this.report, id, course ? subtitleInputOnly(course, text) : text)
+    const committed = ops.setText(this.report, id, this.tidyText(id, text))
     // 本文の段落に「Ⅲ．まとめ」のように打って閉じた（ほかを押した・Esc・スマホの「完了」）：段落ごと見出しにする（headingOnClose）
     const heading = this.headingOnClose(id, text, committed)
     // 仮に表示する欄（見出しにしたときは、見出し。組み直して見出しが出るまで、打ったままの文を見せる）
@@ -2094,6 +2108,7 @@ export class ReportEditor {
       page: this.renderer.pageView.fragments(id),
       // 表紙の項目のすぐ後ろに続く決まった字（サブタイトルの「の衣装制作―」）：書く欄の中で、字の後ろに見せる
       suffix: editable.kind === 'field' ? suffixAfter(styleSource) : undefined,
+      placeholder: captionPlaceholder(editable.kind),
     }
   }
 
@@ -2333,6 +2348,7 @@ export class ReportEditor {
       scale,
       alignOffset: 0,
       label: number === undefined ? undefined : `${editable.kind === 'figureCaption' ? '図' : '表'}${number}.`,
+      placeholder: captionPlaceholder(editable.kind),
       blockId: id,
       kind: this.overlayKind(editable.kind),
       text: editable.text,
@@ -2365,7 +2381,8 @@ export class ReportEditor {
    * （前は図の上の段落の終わりに戻ったため、次の文が図の前に入ってしまっていた）。
    * 元に戻すと、まず作った段落だけが消える（タイトルは残る）
    */
-  private enterAfterCaption(id: string, text: string): void {
+  private enterAfterCaption(id: string, typed: string): void {
+    const text = this.tidyText(id, typed)
     const titled = ops.setText(this.report, id, text)
     const created = ops.paragraphAfter(titled, id)
     if (!created) return this.onCommitEdit(id, text, true)
@@ -3182,12 +3199,33 @@ export class ReportEditor {
   private autoPeriodNoticed = false
 
   /** 段落の書き出しに打った空白を入れなかったことを、開いている間に1回だけ知らせる（依頼者の指摘 2026-10-24） */
-  private noticeLeadingSpaceOnce(): void {
-    if (this.leadingSpaceNoticed) return
-    this.leadingSpaceNoticed = true
-    this.showNotice('段落の書き出しの1字下げは自動で入ります（空白は入れなくて大丈夫です）')
+  private noticeLeadingSpaceOnce(by: 'space' | 'tab' = 'space'): void {
+    if (this.leadingSpaceNoticed.has(by)) return
+    this.leadingSpaceNoticed.add(by)
+    this.showNotice(by === 'tab' ? '段落の書き出しの1字下げは自動で入ります（Tab は押さなくて大丈夫です）' : '段落の書き出しの1字下げは自動で入ります（空白は入れなくて大丈夫です）')
   }
-  private leadingSpaceNoticed = false
+  private leadingSpaceNoticed = new Set<'space' | 'tab'>()
+
+  /**
+   * 書き終えた欄に入れる文字。サブタイトルは、自動で付く前後の決まり文句（「―」「の衣装制作―」など）まで入力していたら取る。
+   * 図・表のタイトルは、頭に打った番号（「図1 」）を外して、画面の下に知らせる（どちらも、紙面で二重にならないように）
+   */
+  private tidyText(id: string, text: string): string {
+    if (id === FIELD_IDS.subtitleInput) {
+      const course = findCourse(this.config, this.report.basicInfo.courseId)
+      return course ? subtitleInputOnly(course, text) : text
+    }
+    const kind = ops.findEditable(this.report, id)?.kind
+    if (kind !== 'figureCaption' && kind !== 'tableCaption') return text
+    const tidy = captionWithoutNumber(kind === 'figureCaption' ? '図' : '表', text)
+    if (tidy !== text) this.showNotice(`${kind === 'figureCaption' ? '図' : '表'}の番号は自動で付くので、打った「${text.slice(0, text.length - tidy.length).trim()}」を外しました`)
+    return tidy
+  }
+
+  /** 表の中で Tab で移るマス（ひな形を作る画面では、見出しの行の中だけ。中身の行は学生が書く） */
+  private tabCells(table: TableBlock): TableCell[] {
+    return this.template ? (table.rows[0]?.cells ?? []) : table.rows.flatMap((r) => r.cells)
+  }
 
   /** 削除した（画面の下に「〜を削除しました［戻す］」を出す） */
   private noticeRemoved(what: RemovedWhat, note?: string): void {
@@ -4333,7 +4371,10 @@ export class ReportEditor {
     const added = this.report.workPhotos.length - before
     const left = files.length - tried
     const notes = [
-      fit && stored.length >= 2 ? `${Math.min(stored.length, PHOTOS_PER_PAGE_MAX)}枚なので「${photoGrid(fit).label.replace(/（.*）/, '')}${fit.layout === 2 ? ' 左右' : ''}」の並べ方にしました` : '',
+      // 1ページに入りきらない枚数のときは「7枚なので「4枚」」と言わない（選んだ枚数と合わなかった：PC の試し 2026-10-24）
+      fit && stored.length >= 2
+        ? `${stored.length > PHOTOS_PER_PAGE_MAX ? `${page + 1}ページ目は` : `${stored.length}枚なので`}「${photoGrid(fit).label.replace(/（.*）/, '')}${fit.layout === 2 ? ' 左右' : ''}」の並べ方にしました`
+        : '',
       added > 0 ? `作品写真のページを${added}つ足して、${stored.filter((s) => s.page >= before).length}枚入れました` : '',
       left > 0 && max !== null ? `${left}枚は入れていません（作品写真は${max}ページまでです）` : '',
     ].filter(Boolean)

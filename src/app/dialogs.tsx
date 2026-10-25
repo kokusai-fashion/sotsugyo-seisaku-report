@@ -104,7 +104,7 @@ export function CourseChangeDialog({ courseName, onReplace, onNameOnly, onClose 
   return (
     <Modal title="コースを変えますか？" onClose={onClose} busy={!!busy}>
       <p className="lead">
-        「{courseName}」コースに変えます。「コース名だけ変える」なら、いま書いている本文はそのまま残ります。
+        「{courseName}」コースに変えます。「コース名だけ変える」なら、いま書いている本文はそのまま残ります。{''}
         「下書きを入れ替える」は、本文を、そのコースのひな形（章立てと、書くことの説明）に入れ替えます（いまの本文は「自動の控え」に残すので、あとで「バックアップ・作り直す」から戻せます）。
       </p>
       <p className="muted">表紙の学籍番号・氏名・サブタイトル、抄録、引用・参考文献、作品写真は、どちらでもそのまま残ります。</p>

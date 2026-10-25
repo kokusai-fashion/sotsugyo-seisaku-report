@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useDialogFocus } from './useDialogFocus'
 
 /**
@@ -19,7 +19,7 @@ interface Rect {
 }
 interface Step {
   title: string
-  text: string
+  text: ReactNode
   /** 光を当てる要素（いくつかなら、それらを囲む範囲） */
   targets: () => Element[]
   /** 吹き出しを置く側（前から順に、画面に入る側を選ぶ） */
@@ -52,7 +52,18 @@ const PC_STEPS = (drive: boolean): Step[] => [
     sides: ['left', 'below'],
   },
   { title: 'セルフチェック', text: '進み具合と、直すところの一覧です。押すと、その場所へ移ります。', targets: first('.side .sec.check'), sides: ['left'] },
-  { title: 'PDFを書き出す', text: 'ここから PDF にします。提出の前に、直すところ・まだのところを0にします。', targets: first('.side .export'), sides: ['left', 'above'] },
+  // 言葉を使い方の「PDF の出し方」にそろえた（要確認は「このままにする」で残せるため。PC の試し 2026-10-24）。語の途中で切れないよう、まとまりは折り返さない
+  {
+    title: 'PDFを書き出す',
+    text: (
+      <>
+        ここから PDF にします。<span className="nb">提出の前に、</span>
+        <span className="nb">まだのところ</span>と <span className="nb">× エラー</span>を0にします。
+      </>
+    ),
+    targets: first('.side .export'),
+    sides: ['left', 'above'],
+  },
   // 「？ 使い方」は、右の欄の「メニュー」の中（mockups/v37 案C）。光はメニューのボタンに当てる
   { title: '？ 使い方', text: '困ったときの「？ 使い方」は、右上の「メニュー」の中です。使い方の動画（6本）もあり、言葉で探せます。', targets: first('.side .menu-btn'), sides: ['left', 'below'] },
 ]
@@ -236,7 +247,7 @@ function TourSteps({ steps, narrow, onDone }: { steps: Step[]; narrow: boolean; 
         {last && (
           <span className="tour-again">
             {/* PC の「？ 使い方」は、右の欄の「メニュー」の中（mockups/v37 案C。スマホは今までどおり） */}
-            この案内は、{!narrow && <><b>メニュー</b>の</>}<b>？使い方</b>からもう一度見られます
+            この案内は、{!narrow && <><b>メニュー</b>の</>}<b>？使い方</b>から<span className="nb">もう一度見られます</span>
           </span>
         )}
       </div>

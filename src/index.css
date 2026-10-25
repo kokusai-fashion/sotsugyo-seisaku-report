@@ -336,7 +336,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .modal .close { border: 0; background: none; font-size: 22px; color: var(--muted); }
 .modal .lead { line-height: 1.8; margin: 4px 0 14px; color: var(--ink); }
 .modal .note { margin: -4px 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 12.5px; line-height: 1.7; color: var(--ink); }
-.modal .muted { color: var(--muted); font-size: 13px; }
+.modal .muted { color: var(--muted); font-size: 13px; line-height: 1.7; }
 .modal button { border: 1px solid var(--line); background: #fff; border-radius: var(--r-md); padding: 7px 14px; font-size: 13px; color: var(--ink); }
 .modal button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
 .modal button.danger { color: var(--error); }
@@ -535,6 +535,8 @@ body.resizing .page-viewport { pointer-events: none; }
 .g-steps .past { color: var(--ok); }
 .g-tip h2 { font-family: 'BIZ UDMincho', serif; font-weight: 400; font-size: 19px; letter-spacing: 0.04em; margin: 0 0 6px; }
 .g-tip p { margin: 0 0 12px; font-size: 12.5px; line-height: 1.8; color: #4a4d54; }
+/* 表紙の空のまま進んだ項目（PC の試し 2026-10-24） */
+.g-tip p.g-missing { padding: 8px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-weight: 700; line-height: 1.7; }
 .g-opts { display: flex; flex-direction: column; gap: 6px; }
 .g-opts button { text-align: left; padding: 11px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; font-size: 14px; color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
 .g-opts button:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
@@ -1020,7 +1022,8 @@ body.resizing .page-viewport { pointer-events: none; }
 
 /* ---- v32 ② 削除の「戻す」の知らせを PC にも出し、15秒か次の操作まで出す（mockups/v32 ② 案A。部品は app/UndoBar.tsx） ---- */
 /* PC：紙面の台の下の真ん中（紙面の下に少し重なる）。スマホは前からの .undo-area のまま（下のタブの上） */
-.stage .undo-area.on-stage { position: absolute; left: 50%; right: auto; bottom: 18px; width: min(380px, calc(100% - 32px)); transform: translateX(-50%); }
+/* 右下の「元に戻す・やり直す」の帯のすぐ上に出す（前は帯に重なって、ボタンを隠していた：PC の試し 2026-10-24、依頼者の選択 mockups/v55 ① 案A） */
+.stage .undo-area.on-stage { position: absolute; left: 50%; right: auto; bottom: 66px; width: min(380px, calc(100% - 32px)); transform: translateX(-50%); }
 /* 残りの時間の細い線（右から縮む。マウスを重ねている・中に移っている間は止める） */
 .undo-toast { position: relative; overflow: hidden; }
 .undo-toast .undo-timer { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, 0.16); pointer-events: none; }
@@ -1195,7 +1198,7 @@ p.check-pending { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: va
 .word-course label { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-weight: 700; cursor: pointer; }
 .word-course input { flex: none; width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--accent); }
 .word-cover dd.ng { color: var(--error); }
-.word-cover dd small { display: block; font-size: 11.5px; font-weight: 400; }
+.word-cover dd small { display: block; font-size: 11.5px; font-weight: 400; line-height: 1.5; }
 .word-cover dd.keep small { color: var(--muted); }
 /* サブタイトルが、コースの決まった形と違う（表紙にどう出るか） */
 .word-sub-off { margin: -6px 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--error-soft); color: var(--error); font-size: 12.5px; line-height: 1.7; }
@@ -1642,6 +1645,10 @@ button.row { cursor: pointer; }
    表のタイトルのすぐ下の、表の上の線（線の太さの半分が、タイトルの行にかかる）が、書いている間に消えて見えないように。
    仮の表示（overlay-ghost・overlay-frozen）は白い地を style で付けているので、!important で替える */
 .overlay-editor[data-label], .overlay-ghost[data-label], .overlay-frozen > div[data-label] { background: linear-gradient(#fff, #fff) top / 100% calc(100% - 1.5px) no-repeat !important; }
+/* 図表のタイトルが空のときの薄い字（番号の後ろ。打ち始めると消える。editor/overlayEditor.ts の placeholder。mockups/v55 ③ 案A）。
+   空の欄のカーソルの置き場の改行の印（br）は、薄い字を番号と同じ行に出すため見せない（カーソルは番号のすぐ後ろに出る） */
+.overlay-editor[data-placeholder][data-empty]::after { content: attr(data-placeholder); color: #b3a99b; pointer-events: none; }
+.overlay-editor[data-placeholder][data-empty] > br { display: none; }
 
 /* ---- 表の列の幅を自分で決める（mockups/v42：パソコンは縦の線をドラッグ、スマホは丸いつまみ。切り替えはスマホでは小さな窓） ---- */
 /* 紙面に重ねる層（#overlay-layer）の、画面だけの部品（editor/columnHandles.ts）。PDF・印刷には出ない */
@@ -1961,8 +1968,17 @@ p.busy-line { display: flex; }
 /* ---- 低い画面の左の道具（ノートパソコンのブラウザ 1366×634・1280×586 など。mockups/v47 案C）：道具の中のひとことは出さない（マウスを乗せると出る：title）。
    前は作品写真を選ぶと、道具が画面に入らず「このページを消す」などが隠れていた ---- */
 @media (max-height: 760px) {
-  .app:not(.phone) .palette :is(.p-head span, .ctx-note, .lay-sub) { display: none; }
+  .app:not(.phone) .palette :is(.p-head span, .ctx-note) { display: none; }
+  /* 並べ方のボタン：2枚の並べ方は「2枚」の代わりに「左右」「上下」と書く（前は「左右」「上下」を消していて、「2枚」が2つ並び見分けにくかった。
+     高さは同じ。PC の試し 2026-10-24、依頼者の選択 mockups/v55 ② 案A） */
+  .app:not(.phone) .palette .lay:has(.lay-sub) .lay-n { display: none; }
+  .app:not(.phone) .palette .lay .lay-sub { font-size: inherit; color: inherit; }
 }
+/* ブラウザの窓が小さく、紙面の幅が台の幅で決まるとき（editor/pageStage.ts の narrow）：‹ › を右下（見開き・拡大のときと同じ所）に移し、
+   その分の左右の余白を空けない（PC の試し 2026-10-24、依頼者の選択 mockups/v55 ④ 案A） */
+.app:not(.phone) .stage.narrow { --inset-side: 112px; }
+.app:not(.phone) .stage.narrow .arrow.prev { left: auto; right: 87px; top: auto; bottom: 68px; translate: none; }
+.app:not(.phone) .stage.narrow .arrow.next { left: auto; right: 31px; top: auto; bottom: 68px; translate: none; }
 
 /* スマホ：紙面で直接書くとき、はじめて1回だけの「字を大きくするには」（app/Phone.tsx の PinchTip。mockups/v48 A） */
 .pinch-tip { position: fixed; z-index: 35; left: 12px; right: 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 6px 11px 14px; border-radius: 12px; background: var(--accent); color: #fff; font-size: 14px; line-height: 1.5; box-shadow: 0 8px 24px rgba(30, 25, 20, 0.25); word-break: auto-phrase; }
@@ -1998,6 +2014,8 @@ p.busy-line { display: flex; }
 :is(.modal, .sheet, .help, .notice, .undo-toast, .login-over, .guide, .tour, .word-todo, .pinch-tip, .page-band) { word-break: auto-phrase; text-wrap: pretty; }
 /* 下のタブの名前は折り返さない（360px の画面で「ページ一／覧」になっていた）。狭い画面では字を少し小さく */
 .p-nav button { white-space: nowrap; }
+/* 折り返さないまとまり（ボタンの名前・短いかっこ書き・数など。app/keepPhrases.tsx。PC の試し 2026-10-24） */
+.nb { white-space: nowrap; }
 @media (max-width: 379px) { .p-nav button { font-size: 12px; } }
 /* 「追加」の段の、大見出しの入る場所の一言（mockups/v53 ⑤ 案B） */
 .direct-bar .db-add-note { word-break: auto-phrase; }
@@ -2028,3 +2046,5 @@ p.busy-line { display: flex; }
 .snapshots .snap-when small { color: var(--muted); font-size: 11.5px; line-height: 1.5; word-break: auto-phrase; }
 .snapshots li { gap: 10px; }
 .snapshots li button { flex: none; }
+/* 窓が小さいとき（narrow）は ‹ › が右下にあるので、画面の下の知らせはその上に出す（重ならないように） */
+.app:not(.phone) .stage.narrow .undo-area.on-stage { bottom: 124px; }

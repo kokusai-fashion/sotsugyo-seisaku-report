@@ -81,8 +81,12 @@ export interface OverlayCallbacks {
   onPasteNote?(what: 'firstLine' | 'table'): void
   /** 段落の書き出しに打った空白を入れなかった（1字下げは自動で付く） */
   onLeadingSpace?(): void
-  /** 表のセルで Tab（Shift+Tab）を押した（隣のセルへ移る） */
+  /** 表のセルで Tab（Shift+Tab）を押した（隣のセルへ移る）。ほかの欄では、tabMoves が true のときだけ呼ぶ */
   onTab?(blockId: string, text: string, backward: boolean): void
+  /** セルでない欄で Tab（Shift+Tab）を押したとき、ほかの欄へ移るか（表のタイトルから1つ目のマスへ。移るなら onTab を呼ぶ） */
+  tabMoves?(blockId: string, backward: boolean): boolean
+  /** セルでない欄で Tab を押したが、移らなかった（その欄にとどまる） */
+  onTabStay?(blockId: string): void
   /** 紙面に重ねた入力欄の大きさが変わった（行が増えた・減った。日本語の変換中も呼ぶ。スマホは、紙面の上の写しを見せているとき） */
   onResize?(): void
   /** スマホ：紙面の上の写し（打った字をその場で見せる段落）を見せはじめた・やめた（見せている間は、紙面のその段落を隠す） */
@@ -111,6 +115,11 @@ export interface OverlayPlacement {
    * （前は、書く欄が番号の後ろの空いた所から始まり、その中で真ん中にそろえていたため、「図4.」と「新しい図」が離れて見えた）
    */
   label?: string
+  /**
+   * 欄が空のときに出す薄い字（図表のタイトル：「（図のタイトルを入力。例：デザイン画）」。番号の後ろに出し、打ち始めると消える。
+   * 図を入れた直後に「図1.」とカーソルだけで、何を書くか分かりにくかった：PC の試し 2026-10-24、依頼者の選択 mockups/v55 ③ 案A）
+   */
+  placeholder?: string
 }
 
 export interface OverlayTarget extends OverlayPlacement {
@@ -328,15 +337,18 @@ export class OverlayEditor {
 
     this.element.addEventListener('compositionstart', () => {
       this.composingNow = true
+      this.markEmpty()
       if (this.typeset) this.beforeComposition = { text: this.model, ...this.selectionOffsets() }
     })
     this.element.addEventListener('compositionend', () => {
       this.composingNow = false
+      this.markEmpty()
       if (this.typeset) this.syncFromDom(this.beforeComposition)
       else this.emitInput()
       this.beforeComposition = null
     })
     this.element.addEventListener('input', () => {
+      this.markEmpty()
       if (this.composingNow) {
         // スマホ：日本語の変換中の字も、紙面の上の写しに出す（原稿には、変換を終えてから入れる）
         if (this.sheetHost && this.target) this.liveInput(this.text)
@@ -536,6 +548,8 @@ export class OverlayEditor {
     this.target = target
     this.element.dataset.kind = target.kind
     this.setLabel(target.label)
+    if (target.placeholder && !this.sheetHost) this.element.dataset.placeholder = target.placeholder
+    else delete this.element.dataset.placeholder
     this.setTypeset(!this.sheetHost && target.kind === 'paragraph')
     this.model = target.text
     this.resetHistory()
@@ -557,6 +571,7 @@ export class OverlayEditor {
     // 紙面の上の位置が決まっているか（スマホの写しを組むかどうか）を、先に決めておく
     this.setFrame(target)
     this.renderText(null, { full: true, page: target.page })
+    this.markEmpty()
     this.moveTo(target)
     // 「表の形を整える」の窓・欄の中をキーボードで使っている（表を変えると、組み直してからセルを開き直す）：そこから動かさない。
     // 書く欄は開いたまま待たせ、窓を閉じて書く欄に戻ったら、このカーソルの位置から書ける（park。app/tableShape.tsx）
@@ -1719,8 +1734,14 @@ export class OverlayEditor {
     this.handOff(() => clip.paste(blockId, text, start, end))
   }
 
+  /** 欄が空か（空なら data-empty。薄い字 data-placeholder を出す。日本語の変換中は出さない） */
+  private markEmpty(): void {
+    this.element.toggleAttribute('data-empty', !this.composingNow && this.text === '')
+  }
+
   private emitInput(): void {
     if (!this.target) return
+    this.markEmpty()
     const text = this.text
     // スマホ：紙面の上の写しにも、書いている字を入れる（段落は、その場で紙面に見せる。ほかの欄は見えない写し：仮の表示に使う）
     if (this.sheetHost) this.liveInput(text)
@@ -1767,6 +1788,14 @@ export class OverlayEditor {
       e.preventDefault()
       const onTab = this.callbacks.onTab
       this.handOff(() => onTab(blockId, text, e.shiftKey))
+    } else if (e.key === 'Tab') {
+      // 段落・見出し・タイトル・表紙の項目：Tab で書く欄から出ない（表のタイトルは、表の1つ目のマスへ進む）。
+      // 前は左の道具の「大見出し」に移り、続けて Enter を押すと空の章が増えた。表のタイトルでは、マスに書いたつもりの字がタイトルに入った
+      // （Word のつもりで字下げ・次のマスへ Tab を押す。PC の試し 2026-10-24）。紙面の欄・道具へ移るときは、Esc で書き終えてから Tab
+      e.preventDefault()
+      const onTab = this.callbacks.onTab
+      if (onTab && this.callbacks.tabMoves?.(blockId, e.shiftKey)) this.handOff(() => onTab(blockId, text, e.shiftKey))
+      else this.callbacks.onTabStay?.(blockId)
     } else if (e.key === 'Enter') {
       e.preventDefault()
       this.closingByKey = true

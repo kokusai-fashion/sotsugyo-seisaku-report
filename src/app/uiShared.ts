@@ -14,12 +14,12 @@ export const keepFocus = (e: React.MouseEvent) => e.preventDefault()
  * 道具の幅（1行6字ほど）で、言葉の切れ目で行を分ける（1字だけ次の行に残らないように。目次は前の「見出しから／自動で作られる」が「る」だけの行になっていた：mockups/v41）
  */
 export const PAGE_CONTEXT: Record<PageKind, { name: string; hint: string }> = {
-  cover: { name: '表紙', hint: '項目をクリック\nして入力' },
+  cover: { name: '表紙', hint: '項目を\nクリックして\n入力' },
   abstract: { name: '抄録', hint: 'Enter で\n段落を分ける' },
   toc: { name: '目次', hint: '本文の\n見出しから\n自動で\n作ります' },
   body: { name: '本文', hint: 'クリックして\nその場で書く' },
   references: { name: '参考文献', hint: 'クリックして\n編集する' },
-  photos: { name: '作品写真', hint: '枠をクリック\nして選ぶ' },
+  photos: { name: '作品写真', hint: '枠を\nクリックして\n選ぶ' },
   unknown: { name: '', hint: '' },
 }
 

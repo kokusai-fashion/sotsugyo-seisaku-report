@@ -1,3 +1,4 @@
+import { Keep } from './keepPhrases'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReportEditor } from '../editor/reportEditor'
 import { headingNotice, noticeText, tableCutNotice, undoable, type UndoNotice } from '../editor/undoNotice'
@@ -10,7 +11,13 @@ const KEEP_TAIL = 5
 /** 知らせの言葉。見出しにした知らせは、終わりの何文字かを折り返さないまとまりにする */
 function NoticeWords({ notice }: { notice: UndoNotice }) {
   const text = noticeText(notice)
-  if (!headingNotice(notice) || text.length <= KEEP_TAIL * 2) return <span>{text}</span>
+  // ほかの知らせも、短いかっこ書き・かぎかっこの語は折り返さない（「（空いた｜ページは消しました）」と切れていた）
+  if (!headingNotice(notice) || text.length <= KEEP_TAIL * 2)
+    return (
+      <span>
+        <Keep text={text} />
+      </span>
+    )
   return (
     <span>
       {text.slice(0, -KEEP_TAIL)}
@@ -99,11 +106,13 @@ export function UndoBar({
             </>
           ) : notice.kind === 'info' ? (
             // 戻すもののない知らせ（表の行・列を消せないわけなど）：言葉だけ
-            <span className="undo-info">{noticeText(notice)}</span>
+            <span className="undo-info">
+              <Keep text={noticeText(notice)} />
+            </span>
           ) : (
             <span className="undo-done">
               {Icon.check}
-              {noticeText(notice)}
+              <Keep text={noticeText(notice)} />
             </span>
           )}
         </div>

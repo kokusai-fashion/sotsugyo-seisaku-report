@@ -34,6 +34,7 @@ for (const src of readdirSync(IN).filter((f) => f.endsWith('.mp4'))) {
   run(FFMPEG, ['-y', '-loglevel', 'error', '-i', from, '-vf', 'scale=1280:-2', '-c:v', 'libx264', '-preset', 'slow', '-crf', '27', '-pix_fmt', 'yuv420p', '-an', '-movflags', '+faststart', mp4])
   // はじめの題名の場面（0.8秒。題名がはっきり出ている）
   run(FFMPEG, ['-y', '-loglevel', 'error', '-ss', '0.8', '-i', from, '-frames:v', '1', '-vf', 'scale=640:-2', '-q:v', '4', join(OUT, `${name}.jpg`)])
-  const seconds = Math.round(Number(run(FFPROBE, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', mp4]).trim()))
+  // 切り捨て（再生の画面の長さと同じ。前は四捨五入で、一覧の「1:07」と再生の「1:06」がずれていた：PC の試し 2026-10-24）
+  const seconds = Math.floor(Number(run(FFPROBE, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', mp4]).trim()))
   console.log(`${n} ${name}：${seconds}秒・${(statSync(mp4).size / 1e6).toFixed(1)}MB`)
 }

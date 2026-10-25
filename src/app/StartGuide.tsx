@@ -243,7 +243,9 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
         return (
           <>
             <h2 {...courseTitle}>はじめに、コースを選んでください</h2>
-            <p>選んだコースの下書き（章立てと、それぞれに書くことの説明）が本文に入ります。そのあと、表紙の項目を順に案内します。</p>
+            <p>
+              選んだコースの下書き（章立てと、それぞれに<span className="nb">書くことの説明</span>）が本文に入ります。そのあと、表紙の項目を順に案内します。
+            </p>
             <div className="g-opts">
               {config.courses
                 .filter((c) => !c.hidden)
@@ -315,10 +317,26 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             </p>
           </>
         )
-      case 'done':
+      case 'done': {
+        // 空のまま Enter で進んだ項目（前は、何も入れなくても「表紙ができました」と出ていた。PC の試し 2026-10-24）
+        const info = snap.report.basicInfo
+        const missing = (
+          [
+            ['学籍番号', info.studentId],
+            ['氏名', info.name],
+            ['サブタイトル', info.subtitleInput],
+          ] as const
+        )
+          .filter(([, v]) => !v.trim())
+          .map(([label]) => label)
         return (
           <>
-            <h2 id={titleId}>表紙ができました</h2>
+            <h2 id={titleId}>{missing.length ? 'まだ入っていない項目があります' : '表紙ができました'}</h2>
+            {missing.length > 0 && (
+              <p className="g-missing">
+                {missing.join('・')}が空です。あとで表紙の欄を{narrow ? 'タップ' : 'クリック'}して入力できます。
+              </p>
+            )}
             <p>
               次は本文を書きます（抄録は、本文を書き終えて先生の許可が出てから書きます）。
               {/* スマホの紙面には薄い字が出ず、まだ書いていない段落は「＋」の印（学生の試し 2026-10-24） */}
@@ -347,6 +365,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             </div>
           </>
         )
+      }
     }
   })()
 

@@ -710,6 +710,8 @@ export default function App() {
           editor.undo()
         } else if (e.key === 's') {
           e.preventDefault()
+          // 何も出ないと、保存されたか不安になる（PC の試し 2026-10-24）
+          if (!e.repeat) editor.showNotice(drive ? '書くたびに、ドライブに自動で保存しています（保存のボタンはありません）' : '書くたびに、この端末に自動で保存しています（保存のボタンはありません）')
         } else if (key === 'x' && !e.shiftKey && !e.altKey && !isTyping(e.target) && !dialog && !driveDialog && editor.cutSelection()) {
           // 紙面をなぞって選んだ範囲を切り取る（段落をまたいでも。コピー（Ctrl+C）は、編集の中核がブラウザのコピーを受け取る：editor/reportEditor.ts の onCopy）
           e.preventDefault()
@@ -749,7 +751,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editor, dialog, guide, gate, driveDialog, tabLock.locked, tourOn])
+  }, [editor, drive, dialog, guide, gate, driveDialog, tabLock.locked, tourOn])
 
   /**
    * 「バックアップ・作り直す」の窓を開く。窓はすぐ開き、自動の控えの一覧は読み込んでから出す
@@ -1098,7 +1100,13 @@ export default function App() {
       {/* 指差し確認（ほかの窓や案内が出ている間は出さない） */}
       {ready && tourOn && !tourBlocked && <Tour narrow={narrow} drive={!!drive && !driveStopped} direct={direct} onDone={endTour} />}
       {dialog?.kind === 'word' && snap && editor && (
-        <WordImportDialog config={config} report={snap.report} onImport={importWord} onClose={() => setDialog(null)} />
+        <WordImportDialog
+          config={config}
+          report={snap.report}
+          onImport={importWord}
+          onClose={() => setDialog(null)}
+          accountStudentId={driveState?.email ? studentIdFromEmail(driveState.email, config.studentIdPattern) : null}
+        />
       )}
       {dialog?.kind === 'references' && snap && editor && (
         <ReferencesDialog
@@ -1135,7 +1143,8 @@ export default function App() {
           onSaveBackup={saveBackup}
           onRestoreFile={restoreFile}
           onRestoreSnapshot={async (s) => {
-            if (!(await ask.confirm(`${new Date(s.savedAt).toLocaleString('ja-JP')}${s.label ? `（${s.label}）` : ''} の控えに戻しますか？${courseChangeNote(configRef.current, snap.report, s.report)}`, { ok: '戻す' }))) return
+            // 今の原稿が控えに残ることも書く（前は書いておらず、戻すと今の原稿が消えるように見えた：PC の試し 2026-10-24）
+            if (!(await ask.confirm(`${new Date(s.savedAt).toLocaleString('ja-JP')}${s.label ? `（${s.label}）` : ''} の控えに戻しますか？\n（今の原稿は自動の控えに残すので、あとで戻せます）${courseChangeNote(configRef.current, snap.report, s.report)}`, { ok: '戻す' }))) return
             await keepSnapshot(snap.report, '控えに戻す前')
             editor.replace(s.report)
             await matchYear(editor, s.report)

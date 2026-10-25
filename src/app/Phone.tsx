@@ -483,7 +483,7 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
   if (kind !== 'body') {
     return (
       <p className="sheet-hint">
-        {kind === 'cover' || kind === 'abstract' || kind === 'photos' ? `${PAGE_CONTEXT[kind].name}：${forTouch(PAGE_CONTEXT[kind].hint.replace('\n', ''))}。` : ''}
+        {kind === 'cover' || kind === 'abstract' || kind === 'photos' ? `${PAGE_CONTEXT[kind].name}：${forTouch(PAGE_CONTEXT[kind].hint.replace(/\n/g, ''))}。` : ''}
         段落や図は、本文のページで足せます。
       </p>
     )

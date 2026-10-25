@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>デザイン案 v55：パソコンの試しの直し（見た目）</title>
+<style>
+  body { margin: 0; padding: 26px 30px 34px; background: #f4f2ee; color: #2a2622; font-family: 'BIZ UDPGothic', 'Yu Gothic UI', sans-serif; width: 1180px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 24px; }
+  .lead { margin: 0 0 18px; font-size: 14.5px; color: #6b655d; line-height: 1.7; word-break: auto-phrase; }
+  .card { margin-bottom: 22px; padding: 16px 18px 18px; border-radius: 14px; background: #fff; box-shadow: 0 1px 3px rgba(30, 25, 20, 0.08); }
+  .card > h2 { margin: 0 0 4px; font-size: 19px; }
+  .card > .why { margin: 0 0 12px; font-size: 14px; color: #6b655d; line-height: 1.6; word-break: auto-phrase; }
+  .opts { display: grid; gap: 18px 20px; align-items: start; }
+  .opts.g2 { grid-template-columns: 1fr 1fr; }
+  .opts.g3 { grid-template-columns: repeat(3, 1fr); }
+  .opt h3 { margin: 0 0 3px; font-size: 15px; }
+  .opt p { margin: 0 0 8px; font-size: 13px; color: #6b655d; line-height: 1.55; word-break: auto-phrase; min-height: 3.1em; }
+  .tag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 99px; background: #2f3e75; color: #fff; font-size: 12px; vertical-align: 1px; }
+  .shot { display: block; width: 100%; border-radius: 12px; box-shadow: 0 0 0 1px #ddd8cf; background: #ebe8e3; }
+  .pal .shot { width: 150px; margin: 0 auto; }
+  .opt.rec .shot { box-shadow: 0 0 0 3px #2f3e75; }
+  .h { margin-top: 6px; font-size: 12.5px; color: #6b655d; text-align: center; }
+</style>
+</head>
+<body>
+<h1>パソコンの試しの直し：見た目が変わるもの（案）</h1>
+<p class="lead">はじめて使う学生の目で、パソコンで試して見つかったもののうち、見た目が変わる4つです。それぞれ1つ選んでください。</p>
+
+<div class="card">
+  <h2>① 画面の下の知らせ</h2>
+  <p class="why">「段落を削除しました［戻す］」などの知らせが、右下の「元に戻す・やり直す」の帯に重なって、ボタンを隠していました（どの画面の大きさでも）。</p>
+  <div class="opts g2">
+    <div class="opt"><h3>今</h3><p>知らせが帯の上にかぶさり、「元に戻す」「やり直す」が隠れる。</p><img class="shot" src="shots/1-now.png" alt="今"></div>
+    <div class="opt rec"><h3>A　帯のすぐ上に出す<span class="tag">おすすめ</span></h3><p>出る場所は今と同じ真ん中のまま、少し上げる。帯のボタンも押せる。</p><img class="shot" src="shots/1-A.png" alt="案A"></div>
+    <div class="opt"><h3>B　帯の左に並べる</h3><p>帯と同じ高さで、帯の左に出す。紙面の左下に少しかかる。</p><img class="shot" src="shots/1-B.png" alt="案B"></div>
+    <div class="opt"><h3>C　画面の上に出す</h3><p>紙面の上の端に出す。帯とは離れるが、書いている所から目が遠くなる。</p><img class="shot" src="shots/1-C.png" alt="案C"></div>
+  </div>
+</div>
+
+<div class="card pal">
+  <h2>② 低い画面の、作品写真の並べ方のボタン</h2>
+  <p class="why">ノートパソコン（1280×720 など）では、ボタンの「左右」「上下」が消え、「2枚」が2つ並んで見分けにくくなっていました。</p>
+  <div class="opts g3">
+    <div class="opt"><h3>今</h3><p>「1枚・2枚・2枚・4枚」。絵でしか見分けられない。</p><img class="shot" src="shots/2-now.png" alt="今"></div>
+    <div class="opt rec"><h3>A　「左右」「上下」と書く<span class="tag">おすすめ</span></h3><p>低い画面だけ、2枚のボタンの名前を「左右」「上下」にする。高さは今と同じ。</p><img class="shot" src="shots/2-A.png" alt="案A"></div>
+    <div class="opt"><h3>B　絵を小さくして2行に</h3><p>「2枚」の下に小さく「左右」「上下」。字がとても小さい。</p><img class="shot" src="shots/2-B.png" alt="案B"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>③ 図を入れた直後のタイトルの欄</h2>
+  <p class="why">図を入れると、タイトルの欄は「図1.」とカーソルだけで、何を書けばよいか分かりにくい、という声がありました。</p>
+  <div class="opts g3">
+    <div class="opt"><h3>今</h3><p>「図1.」のあとにカーソルが出るだけ。</p><img class="shot" src="shots/3-now.png" alt="今"></div>
+    <div class="opt rec"><h3>A　欄に薄い字を出す<span class="tag">おすすめ</span></h3><p>「（図のタイトルを入力。例：デザイン画）」。打ち始めると消える。段落の薄い字と同じ考え方。</p><img class="shot" src="shots/3-A.png" alt="案A"></div>
+    <div class="opt"><h3>B　欄の下に吹き出し</h3><p>「図のタイトル（例：デザイン画）を入れて Enter」。目立つが、本文の上にかぶさる。</p><img class="shot" src="shots/3-B.png" alt="案B"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>④ ブラウザの窓が小さいとき（1100×700）の紙面</h2>
+  <p class="why">窓を小さくすると、紙面の幅が 266px ほどになり、字が読めませんでした。左右の ‹ › と道具の分の余白が、紙面を狭くしていました。</p>
+  <div class="opts g2">
+    <div class="opt"><h3>今</h3><p>紙面の幅 266px。</p><img class="shot" src="shots/4-now.png" alt="今"></div>
+    <div class="opt rec"><h3>A　‹ › を右下に移す<span class="tag">おすすめ</span></h3><p>窓が狭いときだけ、‹ › を右下（見開き・拡大のときと同じ所）に移す。紙面の幅 412px。</p><img class="shot" src="shots/4-A.png" alt="案A"></div>
+    <div class="opt"><h3>B　左右の欄を細くする</h3><p>窓が狭いときだけ、ページの一覧と右の欄を細くする。紙面の幅 344px。右上の名前が2行になる。</p><img class="shot" src="shots/4-B.png" alt="案B"></div>
+    <div class="opt"><h3>C　A と B の両方</h3><p>紙面の幅 469px（画面の高さいっぱい）。右の欄が狭く、字が詰まる。</p><img class="shot" src="shots/4-C.png" alt="案C"></div>
+  </div>
+</div>
+</body>
+</html>

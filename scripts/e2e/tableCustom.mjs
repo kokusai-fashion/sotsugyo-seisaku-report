@@ -376,10 +376,11 @@ export async function tableCustomPc(browser, check) {
   const help = await linesOf(page, '.help-topic .help-item')
   await page.screenshot({ path: `${OUT}/pc-7-help-1366x768.png` })
   check(
-    'パソコン（1366×768）：使い方の「図・表の入れ方」に「表の形を整える」と「列の幅を自分で決める」（縦の線を左右に）の1行ずつ。補足の文に1字だけの行はない',
+    // 項目は3つまで（図を動かす・表の形を整える・マスの中）なので、「列の幅を自分で決める」は「表の形を整える」の中に書いた（PC の試し 2026-10-24）
+    'パソコン（1366×768）：使い方の「図・表の入れ方」の「表の形を整える」に、列の幅を「自分で決める」（縦の線を左右に）も書いてある。補足の文に1字だけの行はない',
     help.length === 3 &&
       help.flat().join('').includes('道具の「表の形を整える」（スマホは「表の形」）で、列の幅・項目の列（左端）・行の高さを、絵を見て選べます') &&
-      help.flat().join('').includes('「自分で決める」を選ぶと、表の縦の線（スマホは丸）を左右に動かして') &&
+      help.flat().join('').includes('列の幅を「自分で決める」にすると、表の縦の線（スマホは丸）を左右に動かして') &&
       help.every((l) => l.every((x) => x.length >= 2)),
     JSON.stringify(help),
   )

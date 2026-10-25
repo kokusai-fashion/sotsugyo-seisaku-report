@@ -1,3 +1,4 @@
+import { Keep } from './keepPhrases'
 import { Fragment, useEffect, useRef, type ReactNode } from 'react'
 import { findCourse, type YearConfig } from '../config'
 import { exportNote, splitFindings, type ProgressRow } from '../checker/progress'
@@ -355,8 +356,15 @@ function Issue({ finding, editor, onPick, active }: { finding: ReportFinding; ed
       <i className="dot" />
       {/* キーボードでは、題名の部分のボタンに Tab で移り、Enter でその箇所へ（押すと上の li の onClick が働く） */}
       <button type="button" className="go" aria-label={`${finding.severity === 'error' ? 'エラー' : '要確認'}：${finding.title}${finding.detail ? `（${finding.detail}）` : ''}`}>
-        <span className="ttl">{finding.title}</span>
-        {finding.detail && <span className="detail">{finding.detail}</span>}
+        {/* 短いかっこ書き・かぎかっこの語は折り返さない（「「2.」｜を消します」と切れていた：PC の試し 2026-10-24） */}
+        <span className="ttl">
+          <Keep text={finding.title} />
+        </span>
+        {finding.detail && (
+          <span className="detail">
+            <Keep text={finding.detail} />
+          </span>
+        )}
       </button>
       {/* 手順書のルールではない補助の指摘は、学生が確かめて「このままにする」にできる（mockups/v22 ① 案A）。
           書き間違えやすい語のエラーには目印（key）がないので出ない（checker/reportChecks.ts） */}

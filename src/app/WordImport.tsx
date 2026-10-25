@@ -229,6 +229,8 @@ interface DialogProps {
    */
   onImport: (result: WordImportResult, courseId?: string) => Promise<void>
   onClose: () => void
+  /** ログインしたアカウントの学籍番号（学生のとき）。表紙の Word の学籍番号と違えば、確認の窓で赤く出す */
+  accountStudentId?: string | null
 }
 
 /** 読み取った中身と、読み込むと消える、ツールで書いた本文 */
@@ -244,7 +246,7 @@ interface ReadResult {
 type CourseChoice = 'word' | 'keep' | null
 
 /** 「Wordから読み込む」の窓。ファイルを選ぶ → 読み取る → 中身を確かめる → 読み込む */
-export function WordImportDialog({ config, report, onImport, onClose }: DialogProps) {
+export function WordImportDialog({ config, report, onImport, onClose, accountStudentId }: DialogProps) {
   const courseId = report.basicInfo.courseId
   const [files, setFiles] = useState<Partial<Record<Slot, File>>>({})
   /** 選んだが、読めない形だったファイルの名前（その行に、✓ を付けずに出す） */
@@ -335,6 +337,7 @@ export function WordImportDialog({ config, report, onImport, onClose }: DialogPr
           courseId={choice === 'word' && wordCourse ? wordCourse : courseId}
           currentCourseId={courseId}
           wordCourseId={mismatch ? wordCourse : undefined}
+          accountStudentId={accountStudentId}
           choice={choice}
           onChoice={(c) => void chooseCourse(c)}
           files={files}
@@ -460,7 +463,15 @@ function Outline({ outline, untitled, lost }: { outline: OutlineItem[]; untitled
               {title || <span className="noname">{item.level === 1 ? '（名前のない大見出し）' : '（名前のない小見出し）'}</span>}
             </span>
             {item.fromTemplate ? (
-              <span className="cnt">{gone ? `ツールで書いた${lostCounts(gone)}は消えます` : 'ツールのひな形で続ける'}</span>
+              <span className="cnt">
+                {gone ? (
+                  <>
+                    ツールで書いた<span className="nb">{lostCounts(gone)}</span>は消えます
+                  </>
+                ) : (
+                  'ツールのひな形で続ける'
+                )}
+              </span>
             ) : (
               (counts || item.problem) && (
                 <span className="cnt">
@@ -469,7 +480,12 @@ function Outline({ outline, untitled, lost }: { outline: OutlineItem[]; untitled
                 </span>
               )
             )}
-            {replaced && <span className="gone">Word の中身に入れ替わり、ツールで書いた{lostCounts(replaced)}は消えます</span>}
+            {/* 数は折り返さない（「図2枚・表｜1つ」と切れていた：PC の試し 2026-10-24） */}
+            {replaced && (
+              <span className="gone">
+                Word の中身に入れ替わり、ツールで書いた<span className="nb">{lostCounts(replaced)}</span>は消えます
+              </span>
+            )}
           </li>
         )
       })}
@@ -508,6 +524,7 @@ function WordConfirm({
   courseId,
   currentCourseId,
   wordCourseId,
+  accountStudentId,
   choice,
   onChoice,
   files,
@@ -527,6 +544,8 @@ function WordConfirm({
   currentCourseId: string
   /** 表紙の Word のコース（いまの原稿のコースと違うときだけ） */
   wordCourseId?: string
+  /** ログインしたアカウントの学籍番号（学生のとき） */
+  accountStudentId?: string | null
   choice: CourseChoice
   onChoice: (c: Exclude<CourseChoice, null>) => void
   files: Partial<Record<Slot, File>>
@@ -559,6 +578,7 @@ function WordConfirm({
   // 表紙に出るサブタイトル。Word のサブタイトルがコースの決まった形と合わなければ、決まった形の前後が付いて Word と違う文になるので、赤で知らせる
   const printedSubtitle = cover.subtitleInput === undefined ? undefined : course ? renderSubtitle(course, cover.subtitleInput) : cover.subtitleInput
   const subtitleOff = !!result.subtitleOffForm && !!printedSubtitle
+  const idOff = !!accountStudentId && !!cover.studentId?.trim() && cover.studentId.trim().normalize('NFKC').toUpperCase() !== accountStudentId
   const coverRows: [string, string | undefined, string?][] = [
     // コース：Word と違えば、選ぶまで赤く出す。Word にコースがなければ、いまのツールのコースのまま
     [
@@ -566,7 +586,8 @@ function WordConfirm({
       wordCourseId ? (choice === 'keep' ? currentName : wordName) : course?.name,
       unchosen ? 'ng' : !result.coverCourseId && course ? 'keep' : undefined,
     ],
-    ['学籍番号', cover.studentId],
+    // 学籍番号：ログインしたアカウントと違えば赤く出す（前は読み込んだあと、次に開いたときに初めて知らせていた。PC の試し 2026-10-24）
+    ['学籍番号', cover.studentId, idOff ? 'ng' : undefined],
     ['氏名', cover.name],
     ['サブタイトル', printedSubtitle, subtitleOff ? 'ng' : undefined],
   ]
@@ -650,6 +671,7 @@ function WordConfirm({
                       <dd className={mark}>
                         {value}
                         {mark === 'ng' && label === 'コース' && <small>（いまのツールと違います）</small>}
+                        {mark === 'ng' && label === '学籍番号' && <small>（ログインしたアカウントは {accountStudentId}。読み込んだあと、直してください）</small>}
                         {mark === 'keep' && <small>（Word に見つからないため、いまのまま）</small>}
                       </dd>
                     ) : (

@@ -776,6 +776,16 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(order(ops.moveFigureRow(r1, 'f1', 'paragraph'))).toEqual(order(r0))
   })
 
+  it('「段落の下へ戻す」：段落のすぐ下に、本文で先に出てくる図があれば、その後ろに入れる（図の順番が入れ替わらない。PC の試し 2026-10-24）', () => {
+    const ref = (targetId: string) => ({ type: 'ref' as const, targetId, withParens: true })
+    const p1 = { type: 'paragraph' as const, id: 'p1', content: [t('…'), ref('f1'), ref('f2'), ref('f3'), t('。')] }
+    const r0 = report([{ type: 'subheading', id: 's1', title: 'a' }, p1, row('r12', 'f1', 'f2'), row('r3', 'f3'), p('p2'), { type: 'subheading', id: 's2', title: 'b' }])
+    const down = ops.moveFigureRow(r0, 'f3', 'down')
+    expect(order(down)).toEqual(['s1', 'p1', 'r12', 'p2', 'r3', 's2'])
+    expect(ops.figurePlacement(down, 'f3')).toMatchObject({ toParagraph: true })
+    expect(order(ops.moveFigureRow(down, 'f3', 'paragraph'))).toEqual(order(r0))
+  })
+
   it('大見出しのはじめの部分（最初の小見出しの前）の図は、最初の小見出しの前まで。小見出しがなければ章の終わりまで', () => {
     const r0 = report([p('p1', 'f1'), row('r1', 'f1'), p('p2'), { type: 'subheading', id: 's1', title: 'a' }, p('p3')])
     expect(order(ops.moveFigureRow(r0, 'f1', 'sectionEnd'))).toEqual(['p1', 'p2', 'r1', 's1', 'p3'])

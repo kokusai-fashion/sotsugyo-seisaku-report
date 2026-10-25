@@ -112,10 +112,16 @@ export class PageStage {
     // 拡大しているか・見開きかで余白の幅を変えられるよう、先にクラスを付ける
     this.stage.classList.toggle('zoomed', this.zoomed)
     this.stage.classList.toggle('spread', this.spread)
-    const side = this.inset('--inset-side', 180)
     const top = this.inset('--inset-top', 18)
     // スマホの紙面の下の案内の帯は、紙面に重ねる（帯の分は空けない。どのページも紙面が同じ位置に出る。app/PageBand.tsx・mockups/v46 案B）
     const bottom = this.inset('--inset-bottom', 18)
+    // 台が狭く、紙面の大きさが台の幅で決まるとき（ブラウザの窓が小さい）：narrow を付ける。パソコンは ‹ › を右下に移し、その分の左右の余白を
+    // 空けない（--inset-side を小さくする。index.css。1100×700 で紙面の幅 266px → 412px：PC の試し 2026-10-24、依頼者の選択 mockups/v55 ④ 案A）
+    this.stage.classList.remove('narrow')
+    const roomy = this.inset('--inset-side', 180)
+    // （1440×900 などは、幅と高さのどちらで決まってもほぼ同じ大きさなので付けない。幅で決まる大きさが、高さで決まる大きさの9割より小さいときだけ）
+    this.stage.classList.toggle('narrow', !this.zoomed && !this.spread && (w - roomy * 2) / PAGE_W < ((h - top - bottom) / PAGE_H) * 0.9)
+    const side = this.inset('--inset-side', 180)
     // スマホで拡大するときは、余白を外して本文の幅を画面の幅に合わせる（--zoom-to-text: 1）
     const toText = this.zoomed && this.inset('--zoom-to-text', 0) === 1
     const byWidth = (w - side * 2) / (toText ? TEXT_W : PAGE_W)

@@ -37,7 +37,7 @@ export interface ReportFinding {
    */
   replacement?: string
   /**
-   * 学生が「このままにする（確認済み）」にできる指摘（手順書のルールではない、文章の補助のチェック）の目印。
+   * 学生が「このままにする（確認済み）」にできる指摘（手順書のルールではない、文章の補助のチェック。作品写真の空いた枠も）の目印。
    * 規則・場所・指摘した文字で決まるので、文を書き足しても同じ指摘なら同じ目印になる。
    * 書き間違えやすい語のエラー（TextFinding.locked）には付けない（前に「確認済み」にしていても、目印がないので隠れない）
    */
@@ -568,7 +568,8 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
       const n = counts[k]
       if (n === 0) findings.push(guide('photos-empty-page', 'warning', `作品写真の${k + 1}ページ目が空`, 'photos', { photoPage: k, detail: '写真を入れるか、このページを消す（空のページは PDF に入りません）' }))
       else if (n < page.layout)
-        findings.push(guide('photos-empty-slot', 'warning', '作品写真のページに空いている枠がある', 'photos', { detail: `${many ? `${k + 1}ページ目：` : ''}${page.layout}枚の配置に${n}枚`, ...(many ? { photoPage: k } : {}) }))
+        // 空いた枠は、わざと残すこともあるので「このままにする」にできる（目印は、ページ・並べ方・枚数で決める。並べ方・枚数を変えると、また知らせる。依頼者の選択 2026-10-25）
+        findings.push(guide('photos-empty-slot', 'warning', '作品写真のページに空いている枠がある', 'photos', { detail: `${many ? `${k + 1}ページ目：` : ''}${page.layout}枚の配置に${n}枚`, key: `photos-empty-slot|${k}|${page.layout}|${n}`, ...(many ? { photoPage: k } : {}) }))
     })
 
   if (includeAcknowledged) return findings

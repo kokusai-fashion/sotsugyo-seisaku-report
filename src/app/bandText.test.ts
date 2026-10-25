@@ -37,7 +37,7 @@ describe('スマホの言葉：「クリック」ではなく「タップ」', (
 
   it('ページの種類ごとのひとこと（スマホの「追加」の欄にも出す）は、スマホでは「クリック」が残らない', () => {
     for (const { hint } of Object.values(PAGE_CONTEXT)) expect(forTouch(hint)).not.toContain('クリック')
-    expect(forTouch(PAGE_CONTEXT.photos.hint.replace('\n', ''))).toBe('枠をタップして選ぶ')
+    expect(forTouch(PAGE_CONTEXT.photos.hint.replace(/\n/g, ''))).toBe('枠をタップして選ぶ')
   })
 })
 

@@ -46,6 +46,12 @@ describe('言葉で探す：項目を探す', () => {
     expect(searchTopics(TEACHER_TOPICS, '締切を変える').hits.length).toBeGreaterThan(0)
   })
 
+  it('「図の番号」「フォント」でも見つかる（PC の試し 2026-10-24：0件だった）', () => {
+    expect(searchTopics(STUDENT_TOPICS, '図の番号').hits[0]?.topic.id).toBe('figure')
+    expect(searchTopics(STUDENT_TOPICS, '写真の枚数').hits.length).toBeGreaterThan(0)
+    expect(searchTopics(STUDENT_TOPICS, 'フォント').hits[0]?.topic.id).toBe('write')
+  })
+
   it('道具のボタンの言葉（改ページ・行を足す・生地見本・字数）でも見つかる（はじめて使う学生の試し 2026-10-21：0件だった）', () => {
     // 改ページは「書き方」（道具の改ページ）と「Word からの移し方」（読み込んだあとに見直す）。一覧が書く順になり、Word の項目が先（mockups/v51 案C）
     expect(ids(searchTopics(STUDENT_TOPICS, '改ページ').hits).slice(0, 2).sort()).toEqual(['word', 'write'])
@@ -75,7 +81,8 @@ describe('言葉で探す：項目を探す', () => {
   it('「ローマ数字」「見出し 番号」「勝手に」では、書き方の項目が先に出て、段落に「Ⅲ．まとめ」と打って見出しにする行を示す', () => {
     for (const q of ['ローマ数字', '見出し 番号', '勝手に']) expect(ids(searchTopics(STUDENT_TOPICS, q).hits)[0], q).toBe('write')
     const write = STUDENT_TOPICS.find((t) => t.id === 'write')!
-    expect(write.items?.some((i) => i.t.includes('段落に「Ⅲ．まとめ」のように打って Enter でも、大見出しになります（「ⅰ．」なら小見出し）'))).toBe(true)
+    // 項目は3つまでなので、手順の3つ目に入れた（PC の試し 2026-10-24）
+    expect(write.steps?.some((s) => s.includes('「Ⅲ．まとめ」と打って Enter でも大見出しに'))).toBe(true)
   })
 
   it('「やり直す」「やり直」では、元に戻す・やり直すの項目が先に出る（最初から作り直す項目は、その下に出る）', () => {

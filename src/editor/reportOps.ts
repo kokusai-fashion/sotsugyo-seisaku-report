@@ -718,7 +718,12 @@ function orderByRefs(figures: Figure[], paragraph: ParagraphBlock): Figure[] {
 /**
  * refLater：この図を参照している段落が、この章より後ろの章にしかない（「上へ」では、本文の（図n）から遠ざかるだけなので動かさない）
  */
-function figureRowTargets(chapter: Chapter, figureId: string, refLater = false, mentions: Map<string, number> = new Map()): { from: number; sectionEnd: number | null; paragraph: number | null; up: number | null; down: number | null } | null {
+function figureRowTargets(
+  chapter: Chapter,
+  figureId: string,
+  refLater = false,
+  mentions: Map<string, number> = new Map(),
+): { from: number; sectionEnd: number | null; paragraph: number | null; up: number | null; down: number | null; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null } | null {
   const from = chapter.blocks.findIndex((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
   if (from < 0) return null
   const row = chapter.blocks[from] as Extract<BodyBlock, { type: 'figureRow' }>
@@ -739,12 +744,26 @@ function figureRowTargets(chapter: Chapter, figureId: string, refLater = false, 
     if (later <= ref) break
     end--
   }
+  // 本文で出てくる順（図のまとまりのうち、いちばん先に出てくる図の順。図でない・参照のないものは null）
+  const mentioned = (b: BodyBlock): number | null => {
+    if (b.type !== 'figureRow') return null
+    const at = b.figures.map((f) => mentions.get(f.id)).filter((n): n is number => n !== undefined)
+    return at.length ? Math.min(...at) : null
+  }
+  const self = mentioned(row)
   let paragraph: number | null = null
   if (ref >= 0) {
     // 段落のすぐ下に続く図・表の中にいまあるなら、戻さない
     let below = ref + 1
     while (below < rest.length && isAttachment(rest[below])) below++
-    paragraph = from >= ref + 1 && from <= below ? null : ref + 1
+    // 段落のすぐ下に、本文でこの図より先に出てくる図があれば、その後ろに入れる（前は段落のすぐ下に入れたため、図の順番が入れ替わり、
+    // 「本文で出てくる順に並べる」のエラーが出た。PC の試し 2026-10-24）
+    let at = ref + 1
+    for (let i = ref + 1; i < below; i++) {
+      const them = mentioned(rest[i])
+      if (self !== null && them !== null && them < self) at = i + 1
+    }
+    paragraph = from >= ref + 1 && from <= below ? null : at
   }
   // 図の後ろに図・表しか続かないなら、もう終わりにある（いくつかの図を終わりへ動かしたとき、前の図にも「段落の下へ戻す」を出す）
   const atEnd = rest.slice(from, end).every(isAttachment)
@@ -754,28 +773,42 @@ function figureRowTargets(chapter: Chapter, figureId: string, refLater = false, 
   const above = chapter.blocks[from - 1]
   const below = chapter.blocks[from + 1]
   // ほかの図を越えるときは、本文で出てくる順が入れ替わらないときだけ（図の順番を、本文で出てくる順のままにする。依頼者の要望 2026-10-24）
-  const mentioned = (b: BodyBlock): number | null => {
-    if (b.type !== 'figureRow') return null
-    const at = b.figures.map((f) => mentions.get(f.id)).filter((n): n is number => n !== undefined)
-    return at.length ? Math.min(...at) : null
-  }
-  const self = mentioned(row)
   const keepsOrder = (other: BodyBlock, otherFirst: boolean) => {
     const them = mentioned(other)
     return self === null || them === null || (otherFirst ? them < self : self < them)
   }
-  const up = above && above.type !== 'subheading' && !(refHere < 0 && refLater) && from - 1 > refHere && keepsOrder(above, false) ? from - 1 : null
-  const down = below && below.type !== 'subheading' && keepsOrder(below, true) ? from + 1 : null
-  return { from, sectionEnd: atEnd ? null : end, paragraph, up, down }
+  const upBlock: FigureMoveBlock | null = !above
+    ? 'chapter'
+    : above.type === 'subheading'
+      ? 'subheading'
+      : refHere < 0 && refLater
+        ? 'refLater'
+        : from - 1 <= refHere
+          ? 'ref'
+          : !keepsOrder(above, false)
+            ? 'order'
+            : null
+  const downBlock: FigureMoveBlock | null = !below ? 'chapter' : below.type === 'subheading' ? 'subheading' : !keepsOrder(below, true) ? 'order' : null
+  return { from, sectionEnd: atEnd ? null : end, paragraph, up: upBlock ? null : from - 1, down: downBlock ? null : from + 1, upBlock, downBlock }
 }
 
+/**
+ * 図を「上へ」「下へ」動かせないわけ（道具に出す説明を、わけに合わせる。前は「下へ」がいつも「小見出しの外には動かせません」だった：PC の試し 2026-10-24）。
+ * chapter：大見出しの初め・終わり／subheading：小見出しの境／ref：本文の（図n）がある段落のすぐ下／refLater：本文の（図n）が後ろの章にしかない／
+ * order：ほかの図を越えると、本文で出てくる順と入れ替わる
+ */
+export type FigureMoveBlock = 'chapter' | 'subheading' | 'ref' | 'refLater' | 'order'
+
 /** 図のまとまりを動かせるか（図を押したときの道具に「上へ」「下へ」「小見出しの終わりへ」「段落の下へ戻す」を出すか） */
-export function figurePlacement(report: Report, figureId: string): { toSectionEnd: boolean; toParagraph: boolean; up: boolean; down: boolean } {
+export function figurePlacement(
+  report: Report,
+  figureId: string,
+): { toSectionEnd: boolean; toParagraph: boolean; up: boolean; down: boolean; upBlock: FigureMoveBlock | null; downBlock: FigureMoveBlock | null } {
   for (const chapter of report.body) {
     const t = figureRowTargets(chapter, figureId, refOnlyLater(report, chapter, figureId), figureMentionOrder(report))
-    if (t) return { toSectionEnd: t.sectionEnd !== null, toParagraph: t.paragraph !== null, up: t.up !== null, down: t.down !== null }
+    if (t) return { toSectionEnd: t.sectionEnd !== null, toParagraph: t.paragraph !== null, up: t.up !== null, down: t.down !== null, upBlock: t.upBlock, downBlock: t.downBlock }
   }
-  return { toSectionEnd: false, toParagraph: false, up: false, down: false }
+  return { toSectionEnd: false, toParagraph: false, up: false, down: false, upBlock: null, downBlock: null }
 }
 
 /** 図（のまとまり）を参照している段落が、その図の章より後ろの章にしかないか（その章や前の章にあれば false） */

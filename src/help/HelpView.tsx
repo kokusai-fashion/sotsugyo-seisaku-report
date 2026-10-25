@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { keepParts } from '../app/keepPhrases'
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../app/icons'
 import { useDialogFocus } from '../app/useDialogFocus'
 import { deviceName } from '../drive/device'
@@ -44,17 +45,30 @@ function currentDevice(): HelpDevice['id'] {
   return /^(iPhone|iPad)/.test(d) ? 'iphone' : /^Android/.test(d) ? 'android' : /^Mac・Safari/.test(d) ? 'mac' : 'pc'
 }
 
-/** 言葉の入っているところに印（黄色）を付けて出す */
+/**
+ * 言葉の入っているところに印（黄色）を付けて出す。短いかっこ書き・ボタンの名前（かぎかっこの語）は折り返さない
+ * （「「横に｜並べる」」「（横に｜2枚まで）」と切れていた：PC の試し 2026-10-24。app/keepPhrases.tsx）
+ */
 function Hl({ text, terms }: { text: string; terms: string[] }) {
+  const marked = (s: string) =>
+    highlightParts(s, terms).map((p, i) =>
+      p.hit ? (
+        <mark key={i} className="help-hit">
+          {p.text}
+        </mark>
+      ) : (
+        p.text
+      ),
+    )
   return (
     <>
-      {highlightParts(text, terms).map((p, i) =>
-        p.hit ? (
-          <mark key={i} className="help-hit">
-            {p.text}
-          </mark>
+      {keepParts(text).map((part, i) =>
+        part.keep ? (
+          <span key={i} className="nb">
+            {marked(part.text)}
+          </span>
         ) : (
-          p.text
+          <Fragment key={i}>{marked(part.text)}</Fragment>
         ),
       )}
     </>
@@ -391,10 +405,10 @@ function Results({ topics, query, who, onOpen }: { topics: HelpTopic[]; query: s
               </span>
               {h.hidden.length > 0 && (
                 <span className="w">
-                  {h.hidden.map((w, k) => (
+                  {/* 言葉はかぎかっこで囲む（前は「消えたでも探せる項目」と続いて読みにくかった。PC の試し 2026-10-24） */}
+                  {h.hidden.map((w) => (
                     <span key={w}>
-                      {k > 0 && '・'}
-                      <mark className="help-hit">{w}</mark>
+                      「<mark className="help-hit">{w}</mark>」
                     </span>
                   ))}
                   でも探せる項目

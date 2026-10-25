@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
-import { figurePairing, figurePlacement } from '../editor/reportOps'
+import { figurePairing, figurePlacement, type FigureMoveBlock } from '../editor/reportOps'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
 import { SELECTION_TEXTS } from '../editor/selectionBar'
@@ -114,6 +114,15 @@ function TableMenu({ editor, disabled, template }: { editor: ReportEditor; disab
 }
 
 /** 「元に戻す」「やり直す」のキーボードでの押し方（マウスを乗せると出す。mockups/v35 ④ 案A） */
+/** 図を「上へ」「下へ」動かせないわけの説明（reportOps の figurePlacement が返すわけごと） */
+const FIGURE_MOVE_WHY: Record<FigureMoveBlock, (dir: 'up' | 'down') => string> = {
+  chapter: (dir) => `図は、大見出しの${dir === 'up' ? '初めより上' : '終わりより下'}には動かせません`,
+  subheading: () => '図は、小見出しの外には動かせません',
+  ref: () => '図は、本文の「（図n）」がある段落より上には動かせません',
+  refLater: () => 'この図が本文に出てくるのは後ろの章なので、上へは動かせません',
+  order: (dir) => `${dir === 'up' ? '上' : '下'}の図を越えると、図の順番が本文で出てくる順と入れ替わるので、動かせません`,
+}
+
 const UNDO_TIP = ['元に戻す（Ctrl+Z）']
 const REDO_TIP = ['やり直す（Ctrl+Y）', 'Mac は ⌘+Shift+Z']
 
@@ -358,8 +367,8 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         {!template && <Tool label="差し替え" icon={Icon.replace} title="写真を差し替える" onClick={() => void editor.replaceFigureImage(figureId)} />}
         {!template && <Tool label="もう1枚" icon={Icon.beside} title="この図のすぐ後ろにもう1枚入れる（本文の参照の後ろにも「（図n）」が入ります）" onClick={() => void editor.addFigureBeside(figureId)} />}
         {/* 1つ上へ・1つ下へ（段落・表を1つずつ越える。小見出しの中だけ。上は本文の（図n）の段落まで。依頼者の選択 2026-10-23・24） */}
-        <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.up ? 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）' : '図は、本文の「（図n）」がある段落より上・小見出しの外には動かせません'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />
-        <Tool label="下へ" className="tb-move" icon={Icon.moveDown} title={place.down ? 'この図を、1つ下（次の段落などの下）へ動かす（図の番号は、紙面の順にそろいます）' : '図は、小見出しの外には動かせません'} disabled={!place.down} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'down')} />
+        <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up') : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />
+        <Tool label="下へ" className="tb-move" icon={Icon.moveDown} title={place.downBlock ? FIGURE_MOVE_WHY[place.downBlock]('down') : 'この図を、1つ下（次の段落などの下）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.down} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'down')} />
         {/* 図の置き場所（依頼者の選択 2026-10-22 案A）：小見出しのまとまりのいちばん下へ。そこにあれば、参照している段落の下へ戻す。
             スマホの帯は、1列に入る5つ（差し替え・もう1枚・上へ・下へ・削除。依頼者の選択 2026-10-23 の見本）にするので出さない */}
         {phone ? null : place.toSectionEnd ? (

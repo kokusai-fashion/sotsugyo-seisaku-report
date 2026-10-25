@@ -53,11 +53,11 @@ const lineText = (l: HelpLine) => normalize(`${l.label ?? ''} ${l.text}`)
  * 結果に出す1行は、題に入っていない言葉が多く入っている行（題と合わせて、入れた言葉がなるべくみな見えるように）
  */
 /**
- * 「先生を追加」「締切を変える」のような言い方を、助詞（を・に・で・が・は・へ・と）で区切った言葉（2字以上）。
+ * 「先生を追加」「締切を変える」「図の番号」のような言い方を、助詞（を・に・で・が・は・へ・と・の）で区切った言葉（2字以上か、漢字1字：図・表・章）。
  * 空白で区切らずに打った言い方で1件も見つからないとき、こちらで探し直す（先生の試し 2026-10-21：「先生を追加」は0件、「先生 追加」は4件だった）
  */
 export function phraseTerms(query: string): string[] {
-  return [...new Set(termsOf(query).flatMap((t) => t.split(/[をにでがはへと]/)).filter((t) => t.length >= 2))]
+  return [...new Set(termsOf(query).flatMap((t) => t.split(/[をにでがはへとの]/)).filter((t) => t.length >= 2 || /^\p{Script=Han}$/u.test(t)))]
 }
 
 export function searchTopics(topics: HelpTopic[], query: string): { terms: string[]; hits: HelpHit[] } {
