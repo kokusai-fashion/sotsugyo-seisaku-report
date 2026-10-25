@@ -231,11 +231,13 @@ function HELPERS() {
 const shot = (page, file) => page.screenshot({ path: `${OUT}/${file}.png` })
 /** FUSEN=1：付箋の見た目の②だけを撮る */
 const FUSEN = !!process.env.FUSEN
+/** SPREAD=1：見開きの付箋だけを撮る */
+const SPREAD = !!process.env.SPREAD
 
 await withEdge(async (browser) => {
   // ---- 学生の PDF のページの絵（① の先生の画面で使う） ----
   const pages = []
-  if (!FUSEN) {
+  if (!FUSEN && !SPREAD) {
     const { context, page, ready } = await openStudent(browser, 2)
     // PDF の絵には、紙面に重なる画面の部品（右下の帯・‹ ›・道具）を写さない
     await page.addStyleTag({ content: '.view-bar, .arrow, .palette, .continue-row { visibility: hidden !important; }' })
@@ -250,7 +252,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ① 小：先生（管理ページで、届いた PDF を見てコメントを書く） ----
-  if (!FUSEN) {
+  if (!FUSEN && !SPREAD) {
     const context = await browser.createBrowserContext()
     const page = await context.newPage()
     await page.setViewport({ width: W, height: H })
@@ -304,7 +306,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ① 小：学生（右の欄に「先生からのコメント」） ----
-  if (!FUSEN) {
+  if (!FUSEN && !SPREAD) {
     const { context, page } = await openStudent(browser)
     await page.evaluate(() => {
       window.__sideSection(`<h3>先生からのコメント <span class="n">1</span></h3>
@@ -317,7 +319,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ② 中：先生（学生の原稿の写しを開いて、紙面に付箋を貼る） ----
-  if (!FUSEN) {
+  if (!FUSEN && !SPREAD) {
     const { context, page, ready } = await openStudent(browser)
     // 先生の画面は読むだけ：道具と「元に戻す・やり直す」は出さない
     await page.addStyleTag({ content: '.palette, .view-bar .undo-redo { display: none !important; }' })
@@ -344,7 +346,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ② 中：学生（紙面に印と番号、右の欄に一覧） ----
-  if (!FUSEN) {
+  if (!FUSEN && !SPREAD) {
     const { context, page } = await openStudent(browser)
     await page.evaluate(() => {
       const a = window.__wrap('p4', '袖は風をはらむように大きく膨らませた', 'mk-mark')
@@ -364,7 +366,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ② 中（付箋の見た目）：先生（紙面の右の端に付箋を貼る。いま3枚目を書いている） ----
-  {
+  if (!SPREAD) {
     const { context, page, ready } = await openStudent(browser)
     await page.addStyleTag({ content: '.palette, .view-bar .undo-redo { display: none !important; } .app .stage { --mk-arrows: hidden; }' })
     await page.evaluate(() => window.__band('<b>先生の画面</b>文化　花子さん（00ZZ0123）の原稿・10月30日 14:05 に届いた写し（読むだけ。書き換えはできません）<span class="sp"></span><button>学生の一覧へ戻る</button>'))
@@ -392,7 +394,7 @@ await withEdge(async (browser) => {
   }
 
   // ---- ② 中（付箋の見た目）：学生（紙面の右の端に先生の付箋。直したら「直した」） ----
-  {
+  if (!SPREAD) {
     const { context, page } = await openStudent(browser)
     await page.addStyleTag({ content: '.app .stage { --mk-arrows: hidden; }' })
     await page.evaluate(() => {
@@ -414,8 +416,69 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  // ---- ② 中（付箋の見た目）：見開きのとき（学生）。付箋は、それぞれのページの右の端から出る小さなつまみ（番号）にたたむ。押すと開く ----
+  if (!FUSEN || SPREAD) {
+    const { context, page, ready } = await openStudent(browser)
+    await page.evaluate(() => window.__editor.setView('spread'))
+    await wait(600)
+    await ready()
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p6'), 'none'))
+    await ready()
+    await wait(500)
+    await page.addStyleTag({
+      content: `.mk-tab { position: fixed; z-index: 32; display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 7px 0 6px; border-radius: 2px 5px 5px 2px; background: #fff4a8; border-left: 4px solid #e2c84a; color: #6b5410; font: 700 11.5px 'BIZ UDPGothic', sans-serif; box-shadow: 2px 2px 6px rgba(60,40,0,.25); }
+      .mk-tab.open { background: #ffe97a; outline: 2px solid #2f3e75; }
+      .mk-tab.done { background: #e1f0d9; border-left-color: #8fbf84; color: #3d6a33; }
+      .mk-note.pop { transform: none !important; }`,
+    })
+    await page.evaluate(() => {
+      const pageOf = (span) => span.closest('[data-vivliostyle-page-container]').getBoundingClientRect()
+      const tab = (span, n, cls = '') => {
+        const r = span.getClientRects()[0]
+        const p = pageOf(span)
+        const t = document.createElement('div')
+        t.className = `mk-tab ${cls}`
+        t.textContent = n
+        t.style.left = `${p.right - 10}px`
+        t.style.top = `${r.top + r.height / 2 - 12}px`
+        document.body.append(t)
+        return t
+      }
+      // 見えている2ページの段落から、2つずつ選ぶ（左のページ：1・2、右のページ：3・4）
+      const report = window.__editor.getSnapshot().report
+      const textOf = (id) => report.body.flatMap((c) => c.blocks).find((b) => b.id === id)?.content?.filter((n) => n.type === 'text').map((n) => n.text).join('') ?? ''
+      const shown = [...document.querySelectorAll('.page-viewport.front [data-vivliostyle-page-container]')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > 0 && r.left < innerWidth && getComputedStyle(e).visibility !== 'hidden' }).sort((x, y) => x.getBoundingClientRect().left - y.getBoundingClientRect().left)
+      const picks = shown.slice(0, 2).map((pg) => [...new Set([...pg.querySelectorAll('p[data-block-id]')].map((e) => e.dataset.blockId))].filter((id) => textOf(id).length > 30))
+      const phrase = (id) => textOf(id).slice(0, 14)
+      const left = picks[0] ?? []
+      const right = picks[1] ?? []
+      // 左のページ：1（開いている）。右のページ：2（直した）・3
+      const a = window.__wrap(left[0], phrase(left[0]), 'mk-mark')
+      const b = window.__wrap(right[0], phrase(right[0]), 'mk-mark done')
+      const c = window.__wrap(right[Math.min(2, right.length - 1)], phrase(right[Math.min(2, right.length - 1)]), 'mk-mark')
+      const open = tab(a, '1', 'open')
+      tab(b, '2 ✓', 'done')
+      tab(c, '3')
+      // 開いた付箋：つまみのすぐ下に、ページに重ねて出す（ほかを押すと、またたたむ）
+      const o = open.getBoundingClientRect()
+      const note = document.createElement('div')
+      note.className = 'mk-note pop'
+      note.innerHTML = '<div class="hd"><b>1</b>梶田先生・10月31日</div>コットンサテンを選んだ理由を、照明や場面とのつながりから書きましょう。<div class="acts"><button class="pri">直した</button><button>たたむ</button></div>'
+      document.body.append(note)
+      note.style.left = `${o.right - 196}px`
+      note.style.top = `${o.bottom + 6}px`
+      window.__sideSection(`<h3>先生の付箋 <span class="n">2</span></h3>
+        <div class="mk-item"><div class="top"><span class="num">1</span>本文 2ページ（左）</div>コットンサテンを選んだ理由を、照明や…<div class="acts"><button>その付箋へ</button></div></div>
+        <div class="mk-item"><div class="top"><span class="num">3</span>本文 3ページ（右）</div>刺繍の模様の大きさを、どう決めたかを…<div class="acts"><button>その付箋へ</button></div></div>
+        <div class="mk-item done"><div class="top"><span class="num">2</span>本文 3ページ（右）・直した ✓</div>仮縫いで確かめたことを…</div>`)
+    })
+    await wait(300)
+    await shot(page, '2-student-spread')
+    await context.close()
+  }
+
   // ---- ③ 大：学生（先生の書き直し案を、受け入れる・受け入れない） ----
-  if (!FUSEN) {
+  if (!FUSEN && !SPREAD) {
     const { context, page } = await openStudent(browser)
     await page.evaluate(() => {
       const del = window.__wrap('p4', '全体を軽く見せた', 'mk-del')
