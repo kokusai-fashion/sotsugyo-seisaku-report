@@ -1162,11 +1162,11 @@ async function detailShots(browser, config, images) {
   }
 
   // ---- 紙面をなぞって選ぶ：コピー・切り取り・削除 ----
-  // 図をはさまない、続いた2つの段落（p4・p5）をなぞる
+  // 図をはさまない、続いた2つの段落（p4・p4b）をなぞる（前の p5 は、入りきらない図を小見出しを越えて送らなくなり、次のページへ移った）
   await goToBlock(page, 'p4')
   {
     const from = await charPoint(page, 'p4', 20)
-    const to = await charPoint(page, 'p5', 14)
+    const to = await charPoint(page, 'p4b', 14)
     await page.mouse.move(from.x, from.y)
     await page.mouse.down()
     for (let i = 1; i <= 12; i++) {
@@ -1179,10 +1179,13 @@ async function detailShots(browser, config, images) {
     await sleep(500)
     const tools = await page.evaluate(rectOf, '.palette .sel-tools')
     const p4 = await page.evaluate(rectOf, `${CUR} [data-block-id="p4"]`)
-    const p5 = await page.evaluate(rectOf, `${CUR} [data-block-id="p5"]`)
-    const text = union(p4, p5)
+    const p4b = await page.evaluate(rectOf, `${CUR} [data-block-id="p4b"]`)
+    const text = union(p4, p4b)
     const y = Math.min(tools.y, text.y) - 12
-    await capture(page, 'g-d-range', { x: tools.x - 10, y, w: text.x + text.w + 14 - (tools.x - 10), h: Math.max(tools.y + tools.h, text.y + text.h) + 12 - y }, [
+    // 選んだ所の上に出るボタン（コピー・切り取り・削除）も、右の端まで入れる（前は「削除」が切れていた）
+    const bar = await page.evaluate(() => { const r = document.querySelector('.range-bar:not([hidden])')?.getBoundingClientRect(); return r ? r.right : 0 })
+    const right = Math.max(text.x + text.w, bar) + 14
+    await capture(page, 'g-d-range', { x: tools.x - 10, y, w: right - (tools.x - 10), h: Math.max(tools.y + tools.h, text.y + text.h) + 12 - y }, [
       // 1：選んだ行（なぞり始めの行から終わりの行まで）
       { n: 1, box: { x: text.x, y: from.y - 9, w: text.w, h: to.y - from.y + 18 }, at: 'r' },
       { n: 2, box: tools, at: 'r' },
