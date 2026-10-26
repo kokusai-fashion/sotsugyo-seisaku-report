@@ -123,7 +123,7 @@ export async function trialFixesPc(browser, check) {
   await page.keyboard.press('Escape')
   await wait(300)
   await ready()
-  await page.click('.view-bar .undo-redo .tb:first-child')
+  await page.click('.palette .undo-redo .tb:first-child')
   await wait(150)
   await wait(300)
   await ready()
@@ -234,7 +234,7 @@ export async function trialFixesPc(browser, check) {
     JSON.stringify(menu),
   )
 
-  // ---- 7. 低い画面の左の道具（mockups/v47 案C）：「元に戻す」は右下・道具のひとことは出さない・矢印は右下・「画像を入れる」は同じ所 ----
+  // ---- 7. 低い画面の左の道具（mockups/v47 案C）：道具のひとことは出さない・矢印は右下・「画像を入れる」は同じ所。「元に戻す」は左の道具のいちばん下（mockups/v65 案B）でも入る ----
   await page.evaluate(() => window.__editor.finishEditing())
   await ready()
   // 作品写真を2枚（4枚の並べ方）にして、1枚目を選ぶ（全体の表示）
@@ -254,8 +254,8 @@ export async function trialFixesPc(browser, check) {
   })
   await page.screenshot({ path: `${OUT}/pc-7-photo-1280x586.png` })
   check(
-    'パソコン（1280×586）：作品写真を選んでも、左の道具が画面に入る（隠れるボタンがない）。道具のひとことは出さず、「元に戻す」「やり直す」は右下（mockups/v47 案C）',
-    !photoPal.scrolls && photoPal.hidden.length === 0 && photoPal.hint === 'none' && photoPal.undoInBar && !photoPal.undoInPalette,
+    'パソコン（1280×586）：作品写真を選んでも、左の道具が画面に入る（隠れるボタンがない）。道具のひとことは出さず、「元に戻す」「やり直す」は左の道具のいちばん下（右下の帯にはない。mockups/v65 案B）',
+    !photoPal.scrolls && photoPal.hidden.length === 0 && photoPal.hint === 'none' && !photoPal.undoInBar && photoPal.undoInPalette,
     JSON.stringify(photoPal),
   )
   // 拡大で表のマスを書く：ページ送りの「‹」は右下（拡大しているときは右下の帯の中。mockups/v63 ① 案A）で、左の道具に重ならない。表を選ぶと「画像を入れる」は薄く、同じ所にある

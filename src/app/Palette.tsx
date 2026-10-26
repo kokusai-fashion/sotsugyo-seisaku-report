@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
-import { ZOOM_LEVELS } from '../editor/pageStage'
+import { ZOOM_STEPS } from '../editor/pageStage'
 import { figurePairing, figurePlacement, numbering, type FigureMoveBlock } from '../editor/reportOps'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
@@ -51,6 +51,7 @@ function Tool({
   onPreview,
   className,
   onWhy,
+  short,
 }: {
   label: string
   icon: ReactNode
@@ -66,6 +67,8 @@ function Tool({
    * 渡したときは、押せない形（薄い）のまま押せるボタンにする
    */
   onWhy?: (why: string) => void
+  /** 道具が台の高さに入りきらないとき（index.css の fit-3）に、1行で出す短い名前 */
+  short?: string
 }) {
   const why = disabled && onWhy && title ? onWhy : undefined
   return (
@@ -85,7 +88,7 @@ function Tool({
     >
       {icon}
       {/* 名前の \n：パソコンの左の道具（幅が狭い）で、言葉の切れ目で折り返す（1字だけ次の行に残らないように）。スマホの道具の帯では1行 */}
-      <span>{label.includes('\n') ? label.split('\n').map((line, i) => <span key={i} className="tb-line">{line}</span>) : label}</span>
+      <span data-short={short}>{label.includes('\n') ? label.split('\n').map((line, i) => <span key={i} className="tb-line">{line}</span>) : label}</span>
     </button>
   )
 }
@@ -129,8 +132,9 @@ const UNDO_TIP = ['元に戻す（Ctrl+Z）']
 const REDO_TIP = ['やり直す（Ctrl+Y）', 'Mac は ⌘+Shift+Z']
 
 /**
- * 紙面の右下の「元に戻す」「やり直す」（ViewBar の中。前は左の道具のいちばん下にあったが、低い画面で道具が入りきらず隠れたため移した：mockups/v47 案C）。
- * マウスを乗せる（キーボードで移る）と、少しして、ボタンの上に黒い吹き出しでキーボードでの押し方を出す（画面に重ねて出す）
+ * 「元に戻す」「やり直す」（左の道具のいちばん下。v47 案C で右下の帯へ移したが、表示の道具と並んで、表示を戻すつもりで原稿を戻すおそれがあったので戻した：
+ * 依頼者の選択 2026-10-26 mockups/v65 案B。いまの左の道具は、ふつうのノートパソコンの高さに入る。とても低い窓では2つを横に並べる：index.css）。
+ * マウスを乗せる（キーボードで移る）と、少しして、ボタンの右に黒い吹き出しでキーボードでの押し方を出す（画面に重ねて出す）
  */
 function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot }) {
   const [tip, setTip] = useState<{ lines: string[]; left: number; top: number } | null>(null)
@@ -140,7 +144,8 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
     clearTimeout(timer.current)
     timer.current = window.setTimeout(() => {
       const r = el.getBoundingClientRect()
-      setTip({ lines, left: r.left + r.width / 2, top: r.top - 8 })
+      // 左の道具の右に出す（前の右下の帯では、ボタンの上に出していた）
+      setTip({ lines, left: r.right + 10, top: r.top + r.height / 2 })
     }, 350)
   }
   const hide = () => {
@@ -172,7 +177,7 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
       {button('元に戻す', Icon.undo, UNDO_TIP, 'Control+Z Meta+Z', snap.canUndo, () => editor.undo())}
       {button('やり直す', Icon.redo, REDO_TIP, 'Control+Y Control+Shift+Z Meta+Shift+Z', snap.canRedo, () => editor.redo())}
       {tip && (
-        <div className="ur-tip above" role="tooltip" style={{ left: tip.left, top: tip.top }}>
+        <div className="ur-tip" role="tooltip" style={{ left: tip.left, top: tip.top }}>
           {tip.lines.map((line) => (
             <span key={line}>{line}</span>
           ))}
@@ -183,13 +188,12 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
 }
 
 /**
- * 紙面の右下の道具：「元に戻す」「やり直す」と、表示の大きさ（全体／見開き／拡大。mockups/v35 ③ 案A。見開きは、台が狭いときは出さない）。
+ * 紙面の右下の道具：表示（1ページ／見開き／拡大・－ ％ ＋・拡大中の ‹ ›。mockups/v35 ③ 案A・v64 案B。見開きは、台が狭いときは出さない）。
  * 学生のツール（App）と、ひな形を作る画面（TemplateApp）で使う
  */
 export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot }) {
   return (
     <div className="view-bar">
-      <UndoRedo editor={editor} snap={snap} />
       <div className="zoom" role="group" aria-label="表示の大きさ">
         <button className={!snap.zoomed && !snap.spread ? 'on' : ''} aria-pressed={!snap.zoomed && !snap.spread} title="1ページずつ、ページ全体を表示" onClick={() => editor.setView('fit')}>
           {/* 前は「全体」。見開きもページ全体が見えるので、何ページ見えるかの名前にした（依頼者の選択 2026-10-24） */}
@@ -204,14 +208,15 @@ export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSn
           {Icon.zoom}拡大
         </button>
       </div>
-      {/* 拡大しているときだけ：倍率を1段ずつ変える（100%＝いまの「拡大」。mockups/v59 案A） */}
-      {snap.zoomed && (
-        <div className="zoom-step" role="group" aria-label="拡大の倍率">
-          <button title="小さく（拡大の倍率を1段下げる）" aria-label="小さく" disabled={snap.zoomLevel <= ZOOM_LEVELS[0]} onClick={() => editor.zoomStep(-1)}>
+      {/* 表示の大きさを1段ずつ変える（「1ページ」の大きさを 100% として。1ページと「拡大」の間の大きさにもできる：依頼者の選択 mockups/v64 案B。
+          前は拡大しているときだけ出し、100% が「拡大」の大きさだった：v59 案A）。見開きのときは出さない */}
+      {!snap.spread && (
+        <div className="zoom-step" role="group" aria-label="表示の大きさ">
+          <button title="小さく（1段下げる。100% は「1ページ」の大きさ）" aria-label="小さく" disabled={!snap.zoomed} onClick={() => editor.zoomStep(-1)}>
             －
           </button>
           <b aria-live="polite">{Math.round(snap.zoomLevel * 100)}%</b>
-          <button title="大きく（拡大の倍率を1段上げる）" aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]} onClick={() => editor.zoomStep(1)}>
+          <button title="大きく（1段上げる）" aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01} onClick={() => editor.zoomStep(1)}>
             ＋
           </button>
         </div>
@@ -317,6 +322,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
       <>
         <Tool
           label={phone ? 'ページを\n足す' : '写真の\nページを足す'}
+          short={phone ? undefined : 'ページを足す'}
           icon={Icon.photoPageAdd}
           title={canAdd ? '作品写真のページを、このページの後ろに1つ足す（このページと同じ並べ方）' : `作品写真は${max}ページまでです`}
           disabled={!canAdd}
@@ -324,6 +330,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         />
         <Tool
           label={phone ? 'ページを\n消す' : 'この\nページを消す'}
+          short={phone ? undefined : 'ページを消す'}
           icon={Icon.remove}
           danger
           title={pageCount > 1 ? 'このページを、中の写真ごと消す（「戻す」で戻せます）' : '作品写真のページが1つだけのときは、消せません'}
@@ -563,8 +570,28 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
   // （本文に足す道具まで並べると、ノートパソコンの画面では表の「削除」「元に戻す」が下にはみ出して押せなかったため）
   // 入れたばかりの図・表が紙面に出るのを待っている間は、本文の道具のまま（押せない形。図・表が出たら、その物の道具に替わる。mockups/v58 案B）
   const onObject = !snap.waiting && (!!snap.selection || ['tableCell', 'tableCaption', 'figureCaption'].includes(snap.editingKind ?? ''))
+  // 道具が台の高さに入りきらないときは、低くする（index.css の fit-1〜4。作品写真を選んだときの道具がいちばん長い。
+  // 低いノートパソコンの画面で、下のボタンが隠れないように）。道具の中身が変わったとき・窓の大きさが変わったときに測り直す
+  const navRef = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    const stage = nav?.offsetParent
+    if (!nav || !(stage instanceof HTMLElement)) return
+    const fit = () => {
+      const steps = ['fit-1', 'fit-2', 'fit-3', 'fit-4']
+      nav.classList.remove(...steps)
+      for (let i = 0; i <= steps.length; i++) {
+        if (i > 0) nav.classList.add(steps[i - 1])
+        // （台の下の端から 12px の余白。測り方の差で 1〜2px はみ出さないよう、さらに 4px の余裕）
+        if (nav.scrollHeight <= stage.clientHeight - nav.offsetTop - 16) return
+      }
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [kind, onObject, writing, snap.waiting, snap.selection?.kind, snap.editingKind, snap.photoPage, snap.zoomed, snap.spread, snap.canUndo, snap.canRedo])
   return (
-    <nav className={`palette${onObject ? ' compact' : ''}`} aria-label="道具">
+    <nav ref={navRef} className={`palette${onObject ? ' compact' : ''}`} aria-label="道具">
       {/* 低い画面では、ひとこと（span）を出さず、マウスを乗せると出す（title。index.css の「低い画面の左の道具」） */}
       <div className="p-head" title={(template && TEMPLATE_CONTEXT[kind]) || context.hint}>
         {/* 作品写真が何ページかあるときは「作品写真 2」（mockups/v38 案A） */}
@@ -616,6 +643,9 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
         </div>
       )}
       <SelectionTools editor={editor} snap={snap} template={template} />
+      {/* 元に戻す・やり直す：左の道具のいちばん下（右下の表示の帯から移した。表示の道具と並んでいて、表示を戻すつもりで原稿を戻すおそれがあった：
+          依頼者の選択 2026-10-26 mockups/v65 案B） */}
+      <UndoRedo editor={editor} snap={snap} />
     </nav>
   )
 }

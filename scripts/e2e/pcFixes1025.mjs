@@ -127,13 +127,13 @@ await withEdge(async (browser) => {
     const tab1 = { focus: await page.evaluate(() => document.activeElement?.classList.contains('overlay-editor')), editing: (await snap(page)).editingId, notice: await notice(page) }
     await page.screenshot({ path: `${OUT}/2-tab-paragraph.png` })
     check('段落で Tab を押しても、書く欄にとどまり、「1字下げは自動（Tab は押さなくて大丈夫）」と知らせる', tab1.focus && tab1.editing === 'p2' && tab1.notice.includes('Tab は押さなくて大丈夫です'), JSON.stringify(tab1))
-    // 画面の下の知らせは、右下の「元に戻す・やり直す」の帯に重ならない（帯のすぐ上。mockups/v55 ① 案A）
+    // 画面の下の知らせは、右下の表示の帯（前は「元に戻す・やり直す」もあった）に重ならない（帯のすぐ上。mockups/v55 ① 案A）
     const overBar = await page.evaluate(() => {
       const t = document.querySelector('.undo-toast')?.getBoundingClientRect()
       const b = document.querySelector('.view-bar').getBoundingClientRect()
       return t ? { overlap: t.left < b.right && b.left < t.right && t.top < b.bottom && b.top < t.bottom, gap: Math.round(b.top - t.bottom) } : null
     })
-    check('画面の下の知らせは、「元に戻す・やり直す」の帯に重ならず、そのすぐ上に出る', !!overBar && !overBar.overlap && overBar.gap >= 0 && overBar.gap <= 24, JSON.stringify(overBar))
+    check('画面の下の知らせは、右下の表示の帯に重ならず、そのすぐ上に出る', !!overBar && !overBar.overlap && overBar.gap >= 0 && overBar.gap <= 24, JSON.stringify(overBar))
     await page.keyboard.press('Tab')
     await page.keyboard.press('Enter')
     await wait(1200)
@@ -281,7 +281,7 @@ await withEdge(async (browser) => {
       return { narrow: stage.classList.contains('narrow'), paper: Math.round(paper.width), nextRight: Math.round(s.right - next.right), nextAboveBar: next.bottom <= bar.top }
     })
     await page.screenshot({ path: `${OUT}/8-narrow-1100.png` })
-    check('窓が小さい（1100×700）ときは、‹ › を右下（「元に戻す」の帯の上）に移し、紙面の幅を 400px 以上にする（前は 266px）', narrow.narrow && narrow.paper >= 400 && narrow.nextRight < 60 && narrow.nextAboveBar, JSON.stringify(narrow))
+    check('窓が小さい（1100×700）ときは、‹ › を右下（表示の帯の上）に移し、紙面の幅を 400px 以上にする（前は 266px）', narrow.narrow && narrow.paper >= 400 && narrow.nextRight < 60 && narrow.nextAboveBar, JSON.stringify(narrow))
     // 「拡大」：本文の幅を台に合わせて広げる（前は 412px → 416px で、ほとんど変わらなかった：PC の試し 2026-10-25）
     await page.evaluate(() => window.__editor.setView('zoom'))
     await wait(600)
@@ -379,7 +379,7 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
-  // ---- パソコンの「拡大」の倍率（mockups/v59 案A）：拡大しているときだけ「－ 100% ＋」。1段ずつ変わり、この端末で覚えておく ----
+  // ---- パソコンの表示の大きさ（mockups/v64 案B）：「1ページ」を 100% として「－ ＋」。1ページからでも大きくでき、「拡大」（本文の幅）からは前後の段へ ----
   {
     const { context, page, ready } = await open(browser)
     await startGuide(page, ready)
@@ -389,26 +389,37 @@ await withEdge(async (browser) => {
     await wait(500)
     await ready()
     await goTo(page, ready, 'p3')
-    const zoomInfo = () => page.evaluate(() => ({ step: document.querySelector('.zoom-step b')?.textContent ?? null, s: Number(getComputedStyle(document.querySelector('.stage')).getPropertyValue('--s')), minus: document.querySelector('.zoom-step button[aria-label="小さく"]')?.disabled ?? null, saved: localStorage.getItem('sotsugyo-seisaku-report-zoom-level') }))
-    const fitView = await zoomInfo()
-    await page.evaluate(() => [...document.querySelectorAll('.view-bar .zoom button')].find((b) => b.textContent.includes('拡大')).click())
-    await wait(600)
-    const z100 = await zoomInfo()
-    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="大きく"]').click())
-    await wait(300)
-    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="大きく"]').click())
-    await wait(600)
+    const zoomInfo = () =>
+      page.evaluate(() => ({
+        step: document.querySelector('.zoom-step b')?.textContent ?? null,
+        s: Number(getComputedStyle(document.querySelector('.stage')).getPropertyValue('--s')),
+        minus: document.querySelector('.zoom-step button[aria-label="小さく"]')?.disabled ?? null,
+        zoomed: window.__editor.getSnapshot().zoomed,
+      }))
+    const press = async (label) => {
+      await page.evaluate((label) => document.querySelector(`.zoom-step button[aria-label="${label}"]`).click(), label)
+      await wait(500)
+    }
+    const fit = await zoomInfo()
+    await press('大きく')
+    const z125 = await zoomInfo()
+    await press('大きく')
     const z150 = await zoomInfo()
     await page.screenshot({ path: `${OUT}/8b-zoom-150.png` })
-    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="小さく"]').click())
-    await wait(300)
-    await page.evaluate(() => document.querySelector('.zoom-step button[aria-label="小さく"]').click())
+    await page.evaluate(() => [...document.querySelectorAll('.view-bar .zoom button')].find((b) => b.textContent.includes('拡大')).click())
     await wait(600)
+    const text = await zoomInfo()
+    const textPct = parseInt(text.step ?? '0', 10)
+    await press('小さく')
+    const below = await zoomInfo()
+    for (let i = 0; i < 4 && (await zoomInfo()).zoomed; i++) await press('小さく')
     const back = await zoomInfo()
+    const steps = [100, 125, 150, 175, 200, 250, 300]
     check(
-      '「拡大」していないときは倍率の段は出ず、拡大すると「100%」。「大きく」2回で「150%」（紙面は1.5倍・この端末で覚える）、「小さく」で100%に戻り、それより小さくはできない',
-      fitView.step === null && z100.step === '100%' && z150.step === '150%' && Math.abs(z150.s / z100.s - 1.5) < 0.01 && z150.saved === '1.5' && back.step === '100%' && back.minus === true,
-      JSON.stringify({ fitView, z100, z150, back }),
+      '「1ページ」で「－ 100% ＋」（－ は押せない）。＋で 125%・150%（紙面は1ページの 1.25倍・1.5倍）。「拡大」は本文の幅の大きさの％、そこから － で1つ下の段。100% で1ページに戻る',
+      fit.step === '100%' && fit.minus === true && !fit.zoomed && z125.step === '125%' && Math.abs(z125.s / fit.s - 1.25) < 0.01 && z150.step === '150%' && Math.abs(z150.s / fit.s - 1.5) < 0.01 &&
+        text.zoomed && Math.abs(text.s / fit.s - textPct / 100) < 0.01 && below.step === `${steps.filter((v) => v < textPct).at(-1)}%` && back.step === '100%' && !back.zoomed && back.minus === true,
+      JSON.stringify({ fit, z125, z150, text, below, back }),
     )
     await context.close()
   }

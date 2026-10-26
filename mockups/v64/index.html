@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>v64 拡大の数え方</title>
+<style>
+  body { margin: 0; padding: 28px 32px 34px; background: #f4f1ea; font-family: 'BIZ UDPGothic', 'Yu Gothic', sans-serif; color: #222; width: 1536px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  .lead { margin: 0 0 18px; font-size: 16px; color: #555; line-height: 1.6; word-break: auto-phrase; }
+  .screens { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 26px; }
+  .screens h2 { margin: 0 0 6px; font-size: 17px; }
+  .shot { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); background: #fff; }
+  .shot img { display: block; width: 100%; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0 14px; table-layout: fixed; }
+  th { text-align: left; font-size: 15px; color: #555; font-weight: 700; padding: 0 10px; }
+  td { vertical-align: middle; padding: 0 10px; }
+  td.name, th:first-child { width: 330px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .now .tag { background: #f3d9d6; color: #a03a2c; }
+  .opt .tag { background: #dde3f5; color: #27367a; }
+  td.name b { display: block; font-size: 16px; }
+  td.name span { font-size: 13.5px; color: #666; line-height: 1.5; word-break: auto-phrase; }
+  .bar { display: block; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); background: #fff; }
+  .bar img { display: block; width: 100%; height: auto; }
+  .none { font-size: 14px; color: #a03a2c; }
+  .note { margin-top: 14px; font-size: 15px; color: #444; line-height: 1.7; word-break: auto-phrase; }
+</style>
+<h1>「1ページ」と「拡大」の間の大きさにする案</h1>
+<p class="lead">いまの「拡大」の 100% は「本文の幅を画面に合わせた大きさ」で、「1ページ」（ページ全体が入る大きさ）とは別の数え方です。どの案も、右下の帯に「－ ＋」をいつも出し、「1ページ」からでも少しずつ大きくできるようにします（下の数字は、この画面の大きさのとき）。</p>
+
+<div class="screens">
+  <div><h2>1ページ</h2><div class="shot"><img src="shots/fit-screen.png" /></div></div>
+  <div><h2>間の大きさ（新しくできる）</h2><div class="shot"><img src="shots/mid-screen.png" /></div></div>
+  <div><h2>拡大（本文の幅に合わせる）</h2><div class="shot"><img src="shots/zoom-screen.png" /></div></div>
+</div>
+
+<table>
+  <tr><th></th><th>1ページ</th><th>間の大きさ</th><th>拡大</th></tr>
+  <tr class="now">
+    <td class="name"><span class="tag">いま</span><b>拡大が 100%</b><span>「－ ＋」は拡大のときだけ。100% より小さくできない</span></td>
+    <td><span class="bar"><img src="shots/now-fit.png" /></span></td>
+    <td><span class="none">できない</span></td>
+    <td><span class="bar"><img src="shots/now-zoom.png" /></span></td>
+  </tr>
+  <tr class="opt">
+    <td class="name"><span class="tag">案A</span><b>拡大は 100% のまま、下にも段</b><span>1ページは 69%。100% が「拡大」なのは今と同じ</span></td>
+    <td><span class="bar"><img src="shots/A-fit.png" /></span></td>
+    <td><span class="bar"><img src="shots/A-mid.png" /></span></td>
+    <td><span class="bar"><img src="shots/A-zoom.png" /></span></td>
+  </tr>
+  <tr class="opt">
+    <td class="name"><span class="tag">案B（おすすめ）</span><b>1ページを 100% に</b><span>＋で 125%・150%…と大きくなる。拡大は、この画面では 146%</span></td>
+    <td><span class="bar"><img src="shots/B-fit.png" /></span></td>
+    <td><span class="bar"><img src="shots/B-mid.png" /></span></td>
+    <td><span class="bar"><img src="shots/B-zoom.png" /></span></td>
+  </tr>
+  <tr class="opt">
+    <td class="name"><span class="tag">案C</span><b>紙の実寸を 100% に（Word と同じ数え方）</b><span>1ページは 74%、拡大は 107%。画面の大きさで変わる</span></td>
+    <td><span class="bar"><img src="shots/C-fit.png" /></span></td>
+    <td><span class="bar"><img src="shots/C-mid.png" /></span></td>
+    <td><span class="bar"><img src="shots/C-zoom.png" /></span></td>
+  </tr>
+</table>
+<p class="note">「1ページ」「拡大」のボタンは、どの案でも今のまま残します（押すと、その大きさにすぐ戻る）。間の大きさのときは、拡大と同じく、ホイールで上下に動かして読み書きします。<br />案B の「拡大」の数字（146%）や、案C の数字は、窓の大きさによって変わります。</p>
+</html>

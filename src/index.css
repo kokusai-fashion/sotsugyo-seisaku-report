@@ -232,10 +232,19 @@ body.resizing .page-viewport { pointer-events: none; }
 .view-bar { position: absolute; z-index: 10; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 2px; padding: 3px; background: rgba(255, 255, 255, 0.88); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--float-shadow); }
 .view-bar, .view-bar * { box-sizing: border-box; }
 .zoom { display: flex; gap: 2px; }
-.view-bar .undo-redo { display: flex; gap: 2px; padding-right: 4px; margin-right: 2px; border-right: 1px solid var(--line); }
-.view-bar .undo-redo .tb { flex-direction: row; gap: 4px; width: auto; padding: 5px 10px 5px 7px; border-radius: 7px; font-size: 12px; letter-spacing: 0; color: var(--ink); white-space: nowrap; }
-.view-bar .undo-redo .tb svg { width: 16px; height: 16px; }
-.view-bar .undo-redo .tb:disabled { color: #b5b7bc; opacity: 1; }
+/* 元に戻す・やり直す：左の道具のいちばん下（右下の帯から移した：mockups/v65 案B）。道具が台の高さに入りきらないときは、Palette.tsx が印を足して低くする
+   （作品写真を選んだときの道具がいちばん長い）。fit-1：元に戻す・やり直すを、絵と字を横に並べた1行のボタンに。fit-2：作品写真のページの道具の見出し「ページ」を出さない。
+   fit-3：短い名前のある道具（作品写真の「写真のページを足す」「このページを消す」）を、1行の短い名前（「ページを足す」「ページを消す」。スマホと同じ）に。
+   fit-4：まとまりの間のすき間を少し狭く。
+   （前は元に戻す・やり直すを横に2つ並べたが、「やり直す」が道具の端まで詰まってはみ出して見え、つり合いも悪かった：依頼者の指摘 2026-10-26） */
+.palette.fit-1 .group.undo-redo .tb { flex-direction: row; justify-content: center; gap: 4px; padding-block: 5px; font-size: 10.5px; letter-spacing: 0; white-space: nowrap; }
+.palette.fit-1 .group.undo-redo .tb svg { width: 15px; height: 15px; }
+.palette.fit-2 .photo-pages > .ctx-label { display: none; }
+.palette.fit-3 .tb span[data-short] { font-size: 0; white-space: nowrap; }
+.palette.fit-3 .tb span[data-short] > * { display: none; }
+.palette.fit-3 .tb span[data-short]::after { content: attr(data-short); font-size: 10.5px; }
+.palette.fit-4 .group + .group, .palette.fit-4 .group.ctx + .group { margin-top: 3px; padding-top: 3px; }
+.palette.fit-4 .group.ctx { margin-top: 4px; }
 .zoom button { display: flex; align-items: center; gap: 4px; border: 0; background: none; border-radius: 7px; padding: 5px 10px 5px 7px; font-size: 12px; color: var(--muted); }
 .zoom button svg { width: 16px; height: 16px; }
 .zoom button.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }

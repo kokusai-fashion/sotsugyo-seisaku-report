@@ -999,7 +999,7 @@ export default function App() {
             <button className="arrow next" aria-label="次のページ" title="次のページ（→）" disabled={(snap.spread ? snap.page - (snap.page % 2) + 1 : snap.page) >= snap.pageCount - 1} onClick={() => editor.nextPage()}>
               {Icon.next}
             </button>
-            {/* 右下：元に戻す・やり直す と、全体／見開き／拡大（mockups/v47 案C・v35 ③ 案A） */}
+            {/* 右下：表示（1ページ／見開き／拡大・－ ％ ＋・拡大中の ‹ ›。元に戻す・やり直すは左の道具の下：mockups/v65 案B） */}
             <ViewBar editor={editor} snap={snap} />
             {/* 削除したあとの「段落を削除しました［戻す］」（紙面の台の下の真ん中。スマホは PhoneChrome の中。mockups/v32 ② 案A） */}
             <UndoBar editor={editor} notice={undoNotice.notice} onClose={undoNotice.close} className="on-stage" />

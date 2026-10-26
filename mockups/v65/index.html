@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>v65 元に戻すと表示の道具</title>
+<style>
+  body { margin: 0; padding: 28px 32px 34px; background: #f4f1ea; font-family: 'BIZ UDPGothic', 'Yu Gothic', sans-serif; color: #222; width: 1536px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  .lead { margin: 0 0 20px; font-size: 16px; color: #555; line-height: 1.6; word-break: auto-phrase; }
+  .row { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: center; margin-bottom: 22px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .now .tag { background: #f3d9d6; color: #a03a2c; }
+  .opt .tag { background: #dde3f5; color: #27367a; }
+  h2 { margin: 0 0 4px; font-size: 18px; word-break: auto-phrase; }
+  .sub { margin: 0; font-size: 14px; color: #666; line-height: 1.55; word-break: auto-phrase; }
+  .shot { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); background: #fff; }
+  .shot img { display: block; width: 100%; }
+  .pair { display: grid; grid-template-columns: 110px 1fr; gap: 16px; align-items: end; }
+  .note { margin-top: 10px; font-size: 15px; color: #444; line-height: 1.7; word-break: auto-phrase; }
+</style>
+<h1>「元に戻す」「やり直す」と、表示の道具を分ける案</h1>
+<p class="lead">右下の帯に、原稿を戻す「元に戻す」「やり直す」と、見え方を変える道具（1ページ・見開き・拡大・－ ％ ＋・‹ ›）が並んでいます。表示を戻すつもりで「元に戻す」を押すと、直前に書いた字や入れた図が消えます。下は、125% にしたときの画面の下の所です。</p>
+
+<div class="row now">
+  <div><span class="tag">いま</span><h2>1つの帯に並んでいる</h2><p class="sub">細い線で区切っているだけ</p></div>
+  <div class="shot"><img src="shots/now-bar.png" /></div>
+</div>
+<div class="row opt">
+  <div><span class="tag">案A（おすすめ）</span><h2>帯を2つに分ける</h2><p class="sub">左に「元に戻す・やり直す」、少し離して右に「表示」の帯。場所は今とほぼ同じなので、慣れた人も迷わない</p></div>
+  <div class="shot"><img src="shots/A-split-bar.png" /></div>
+</div>
+<div class="row opt">
+  <div><span class="tag">案B</span><h2>左の道具のいちばん下へ</h2><p class="sub">書く道具（大見出し・図を入れる…）と一緒に。右下は表示だけになる。低い画面（1280×586 など）では、左の道具が窮屈になる（前にこの理由で右下へ移した）</p></div>
+  <div class="pair"><div class="shot"><img src="shots/B-palette-crop.png" /></div><div class="shot"><img src="shots/B-palette-bar.png" /></div></div>
+</div>
+<div class="row opt">
+  <div><span class="tag">案C</span><h2>1つの帯のまま、「表示」の見出し</h2><p class="sub">区切りを少し太くし、表示の道具の前に「表示」。変わり方は小さい</p></div>
+  <div class="shot"><img src="shots/C-label-bar.png" /></div>
+</div>
+<p class="note">どの案も、「元に戻す」にマウスを乗せたときの説明（Ctrl+Z）は今のまま出します。</p>
+</html>

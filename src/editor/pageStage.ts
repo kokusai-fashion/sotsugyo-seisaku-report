@@ -28,24 +28,26 @@ export const SPREAD_MIN_W = 640
 /** スマホで指で広げられる大きさの上限（本文の幅を画面の幅に合わせる倍率の何倍まで。1字 30px ほど） */
 export const PINCH_MAX = 3
 /**
- * パソコンの「拡大」の倍率の段（いまの「拡大」の大きさを 100% として。依頼者の選択 2026-10-25：mockups/v59 案A）。
+ * パソコンの表示の大きさの段（「1ページ」の大きさを 100% として。依頼者の選択 2026-10-26：mockups/v64 案B。
+ * 前は「拡大」（本文の幅に合わせる大きさ）を 100% とし、それより小さくできず、「1ページ」との間の大きさにできなかった：mockups/v59 案A）。
+ * 「拡大」のボタンは、本文の幅に合わせる大きさ（窓の大きさで 130〜150% ほど）。「－ ＋」は、そこから前後の段へ。
  * 紙面が台より広くなるときは、本文の版面を台の真ん中に置き（左右の余白は切れる）、本文も入らなければ横にも動かせるようにする
  */
-export const ZOOM_LEVELS = [1, 1.25, 1.5, 1.75, 2]
+export const ZOOM_STEPS = [1, 1.25, 1.5, 1.75, 2, 2.5, 3]
 /** 指で広げた倍率が、本文の幅に合わせる倍率にこれより近ければ、本文の幅に合わせる（そろえやすく。比で） */
 const SNAP_TO_TEXT = 0.04
 
 export class PageStage {
   scale = 1
   zoomed = false
-  /** パソコンの「拡大」の倍率（ZOOM_LEVELS の1つ。スマホは 1） */
-  zoomLevel = 1
+  /** パソコンで拡大しているときの大きさ（「1ページ」の大きさの何倍か。ZOOM_STEPS の1つ）。null なら「拡大」（本文の幅に合わせる。スマホはいつも null） */
+  zoomLevel: number | null = null
   /**
    * スマホ：指で広げた・縮めた倍率（拡大しているとき。null なら、本文の幅を画面の幅に合わせる：--zoom-to-text）。
    * このときは、紙面の左の端を台の左の端に置き（紙面が台より狭ければ真ん中）、横の位置は紙面の表示枠のスクロールで決める（editor/reportEditor.ts の applyPinch）
    */
   private free: number | null = null
-  /** 1ページ全体の表示の倍率（最後に全体を表示したとき。指で縮めるときの下限） */
+  /** 1ページ全体の表示の倍率（拡大していても、1ページの表示の余白で求める。指で縮めるときの下限・「－ ＋」の 100%） */
   fitScale = 0.5
   /** 本文の幅を台の幅に合わせる倍率（スマホの拡大の基準） */
   textScale = 1
@@ -65,18 +67,27 @@ export class PageStage {
     new ResizeObserver(() => this.fit()).observe(stage)
   }
 
-  /** 拡大する・全体に戻す（どちらでも、見開きはやめる。指で広げた倍率もやめる） */
+  /** 拡大する（本文の幅に合わせる）・全体に戻す（どちらでも、見開きはやめる。指で広げた倍率・「－ ＋」で選んだ大きさもやめる） */
   setZoom(zoomed: boolean): void {
     this.zoomed = zoomed
     this.spread = false
     this.free = null
+    this.zoomLevel = null
     this.fit()
   }
 
-  /** パソコンの「拡大」の倍率を変える（拡大していないときは、次に拡大したときに使う） */
-  setZoomLevel(level: number): void {
+  /** パソコン：「1ページ」の大きさの level 倍で拡大する（「－ ＋」。ZOOM_STEPS の1つ） */
+  zoomTo(level: number): void {
+    this.zoomed = true
+    this.spread = false
+    this.free = null
     this.zoomLevel = level
     this.fit()
+  }
+
+  /** いまの大きさが「1ページ」の大きさの何倍か（「－ ＋」の間の数字。1ページ・見開きのときは 1） */
+  get relativeZoom(): number {
+    return this.zoomed && !this.spread ? this.scale / this.fitScale : 1
   }
 
   /** スマホで指で広げた・縮めた倍率の範囲（1ページ全体〜本文の幅に合わせる倍率の PINCH_MAX 倍） */
@@ -118,10 +129,29 @@ export class PageStage {
     return Number.isFinite(value) ? value : fallback
   }
 
+  /**
+   * 1ページの表示の倍率（いま拡大していても、1ページの表示の余白で求める。拡大の大きさの基準：ZOOM_STEPS）。
+   * 余白は台の印（zoomed・narrow・tight）で変わるので、いったん1ページの表示の印にして測り、元に戻す
+   */
+  private pageFitScale(w: number, h: number): number {
+    const cl = this.stage.classList
+    const saved = ['zoomed', 'spread', 'narrow', 'tight'].map((c) => [c, cl.contains(c)] as const)
+    cl.remove('zoomed', 'spread')
+    const top = this.inset('--inset-top', 18)
+    const bottom = this.inset('--inset-bottom', 18)
+    const tight = (w - ROOMY_SIDE * 2) / PAGE_W < ((h - top - bottom) / PAGE_H) * 0.9
+    cl.toggle('narrow', tight)
+    cl.toggle('tight', tight)
+    const side = this.inset('--inset-side', 180)
+    for (const [c, on] of saved) cl.toggle(c, on)
+    return Math.max(MIN_FIT, Math.min((w - side * 2) / PAGE_W, (h - top - bottom) / PAGE_H))
+  }
+
   fit(): void {
     const w = this.stage.clientWidth
     const h = this.stage.clientHeight
     if (w === 0 || h === 0) return
+    const pageFit = this.pageFitScale(w, h)
     // 台が狭くなったら（欄の幅を広げた・画面を小さくした）、見開きをやめて全体にする
     if (this.spread && !this.spreadFits) this.spread = false
     // 拡大しているか・見開きかで余白の幅を変えられるよう、先にクラスを付ける
@@ -144,17 +174,21 @@ export class PageStage {
     this.textScale = (w - side * 2) / TEXT_W
     // 指で広げた倍率（スマホ）：紙面の左の端を台の左の端に（台より狭ければ真ん中に）置き、横の位置はスクロールで決める
     const free = this.zoomed && this.free !== null ? this.clampPinch(this.free) : null
-    const level = this.zoomed && free === null ? this.zoomLevel : 1
-    let scale = free ?? (this.zoomed ? (toText ? byWidth : Math.min(MAX_ZOOM, byWidth)) * level : Math.max(MIN_FIT, Math.min(byWidth, (h - top - bottom) / PAGE_H)))
-    if (!this.zoomed && !this.spread) this.fitScale = scale
+    this.fitScale = pageFit
+    // 「拡大」の大きさ（本文の幅に合わせる）。「－ ＋」で選んだ大きさは、1ページの大きさの zoomLevel 倍
+    const base = toText ? byWidth : Math.min(MAX_ZOOM, byWidth)
+    const stepped = this.zoomed && free === null && !toText && this.zoomLevel !== null
+    let scale = free ?? (this.zoomed ? (stepped ? pageFit * this.zoomLevel! : base) : pageFit)
+    // 「拡大」より大きい（紙面の幅が台に入りきらないことがある）
+    const over = stepped && scale > base * 1.001
     let pageTop = this.zoomed ? top : top + (h - top - bottom - PAGE_H * scale) / 2
     let pageLeft = free !== null ? Math.max(0, (w - PAGE_W * scale) / 2) : toText ? side - TEXT_LEFT * scale : (w - PAGE_W * scale) / 2
     // 「拡大」の倍率を上げて紙面が台より広い：本文の版面を台の真ん中に。真ん中に入らなければ、本文の左を台の左の余白に置く。
     // それでも本文の右の端が台からはみ出すときだけ、横にも動かせるようにする（左右の余白は切れる）
-    const wideText = level > 1 && TEXT_W * scale > w - side * 2
-    if (level > 1 && !toText && PAGE_W * scale > w - side * 2) pageLeft = wideText ? side - TEXT_LEFT * scale : (w - TEXT_W * scale) / 2 - TEXT_LEFT * scale
+    const wideText = over && TEXT_W * scale > w - side * 2
+    if (over && PAGE_W * scale > w - side * 2) pageLeft = wideText ? side - TEXT_LEFT * scale : (w - TEXT_W * scale) / 2 - TEXT_LEFT * scale
     // 本文の右の端が台の右（縦のスクロールバーの分を除く）からはみ出すなら、横にも動かす（小さい窓では 125% から少し切れていた：試し 2026-10-26）
-    this.panX = (free !== null && PAGE_W * scale > w) || (level > 1 && pageLeft + (TEXT_LEFT + TEXT_W) * scale > w - 24)
+    this.panX = (free !== null && PAGE_W * scale > w) || (over && pageLeft + (TEXT_LEFT + TEXT_W) * scale > w - 24)
     this.stage.classList.toggle('pan-x', this.panX)
     const s = this.stage.style
     if (this.spread) {

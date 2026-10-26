@@ -760,7 +760,7 @@ async function studentShots(browser, config, images) {
       { n: 2, box: await tool('図を入れる'), at: 'r' },
       { n: 3, box: await tool('表を入れる'), at: 'r' },
       { n: 4, box: union(await tool('小見出し'), await tool('大見出し')), at: 'r' },
-      // 「元に戻す」は右下へ移した（mockups/v47 案C）。この絵の範囲の外なので、印は付けない
+      // 「元に戻す」は左の道具のいちばん下（mockups/v65 案B）。この絵では印は付けない（裏の画面の地図の 7）
     ])
   }
   await page.keyboard.press('Escape')
@@ -1005,7 +1005,8 @@ async function detailShots(browser, config, images) {
     { n: 4, box: await page.evaluate(rectOf, '.side .drive-chip-wrap .chip'), at: 'b' },
     { n: 5, box: await page.evaluate(rectOf, '.side .sec.check .sec-h'), at: 'l' },
     { n: 6, box: await page.evaluate(rectOf, '.side .export'), at: 'l' },
-    { n: 7, box: await page.evaluate(rectOf, '.view-bar .undo-redo'), at: 't' },
+    // 元に戻す・やり直すは、左の道具のいちばん下（mockups/v65 案B。前は右下の帯）
+    { n: 7, box: await page.evaluate(rectOf, '.palette .undo-redo'), at: 'r' },
     { n: 8, box: await page.evaluate(rectOf, '.view-bar .zoom'), at: 't' },
     { n: 9, box: await page.evaluate(rectOf, '.side .menu-btn'), at: 'b' },
   ])
@@ -1156,10 +1157,10 @@ async function detailShots(browser, config, images) {
   await sleep(400)
   await ready(page)
 
-  // ---- 元に戻す（右下） ----
+  // ---- 元に戻す（左の道具のいちばん下。mockups/v65 案B） ----
   {
-    const bar = await page.evaluate(rectOf, '.view-bar')
-    await capture(page, 'g-d-undo', pad(bar, 8), [{ n: 1, box: await page.evaluate(rectOf, '.view-bar .undo-redo .tb', '元に戻す'), at: 't' }])
+    const group = await page.evaluate(rectOf, '.palette .undo-redo')
+    await capture(page, 'g-d-undo', pad(group, 8), [{ n: 1, box: await page.evaluate(rectOf, '.palette .undo-redo .tb', '元に戻す'), at: 'r' }])
   }
 
   // ---- 紙面をなぞって選ぶ：コピー・切り取り・削除 ----

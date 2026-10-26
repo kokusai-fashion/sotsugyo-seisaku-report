@@ -96,7 +96,7 @@ describe('言葉で探す：項目を探す', () => {
   it('「見開き」で、書き方の項目（右下の「見開き」）が見つかる', () => {
     const hit = searchTopics(STUDENT_TOPICS, '見開き').hits[0]
     expect(hit?.topic.id).toBe('write')
-    expect(hit?.line.label).toBe('見開き（パソコン）')
+    expect(hit?.line.label).toBe('見開き・大きさ（パソコン）')
   })
 
   it('作品写真の「全体を入れる（切らない）」は、「全体」「切らない」「写真 切れる」で探すと、作品写真の項目が先に出る（「切れる」だけでも出る）', () => {
