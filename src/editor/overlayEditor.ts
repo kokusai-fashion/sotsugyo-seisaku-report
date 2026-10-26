@@ -1034,7 +1034,8 @@ export class OverlayEditor {
       if (!allowed.has(el.localName) || (el.localName === 'span' && el.className !== 'fig-ref')) return false
       // 組版エンジンの印・見た目の指定は外す（図表の参照の折り返さない見た目は index.css）。包んだ句読点は1文字のまとまりにする
       for (const name of [...el.getAttributeNames()]) if (name !== 'class') el.removeAttribute(name)
-      if (box === this.element && (el.localName === 'viv-ts-open' || el.localName === 'viv-ts-close' || el.localName === 'viv-ts-thin-sp')) (el as HTMLElement).contentEditable = 'false'
+      // （漢字・かなと英数字の間のすき間 viv-ts-thin-sp は、まとまりにしない。カーソルが余計に止まる：textSpacing.ts の thinSpace）
+      if (box === this.element && (el.localName === 'viv-ts-open' || el.localName === 'viv-ts-close')) (el as HTMLElement).contentEditable = 'false'
     }
     box.replaceChildren(...holder.childNodes)
     if (box === this.element) this.openCaretGaps()

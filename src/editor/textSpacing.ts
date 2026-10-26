@@ -234,7 +234,8 @@ export function unwrapSpacing(block: HTMLElement): void {
   const wrappers = block.querySelectorAll(`${OPEN}, ${CLOSE}, ${THIN}`)
   if (wrappers.length === 0) return
   for (const el of wrappers) {
-    if (el.localName === THIN) el.remove()
+    // すき間の要素は中身が空のはず。書く欄で打った字が中に入っていても消さないよう、中身は残す
+    if (el.localName === THIN) el.replaceWith(...el.childNodes)
     else el.replaceWith(...[...el.childNodes].flatMap((c) => (c.nodeType === Node.ELEMENT_NODE && (c as Element).localName === INNER ? [...c.childNodes] : [c])))
   }
   block.normalize()
@@ -360,10 +361,13 @@ function processTextSpacing(textNode: Text, prevNode: Text | null, nextNode: Tex
   return wrapped
 }
 
-function thinSpace(doc: Document, options: TypesetOptions): HTMLElement {
-  const el = doc.createElement(THIN)
-  if (options.atomic) el.contentEditable = 'false'
-  return el
+/**
+ * 漢字・かなと英数字の間のすき間の要素（中身は空。すき間は組版エンジンの CSS の ::after）。
+ * 書く欄でも1文字のまとまり（contenteditable="false"）にはしない：まとまりにすると、その前後がカーソルの別々の止まる所になり、
+ * 「幅15cm」の「1」の前・「m」の後ろで → を2回押さないと進まず、止まった所ではカーソルの大きさも変わった（Android で依頼者が気づいた。PC も同じ：2026-10-26）
+ */
+function thinSpace(doc: Document, _options: TypesetOptions): HTMLElement {
+  return doc.createElement(THIN)
 }
 
 /** node1 と node2 の間に、余白・枠・内側の余白のある要素の境目があるか（組版エンジンの checkNonZeroMarginBorderPadding と同じ） */

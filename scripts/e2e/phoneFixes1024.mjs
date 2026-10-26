@@ -389,6 +389,27 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  // ---- スマホ：漢字・かなと半角の英数字の間（「幅15cmの」）で、カーソルが余計に止まらない（Android で依頼者が気づいた 2026-10-26）----
+  {
+    const { context, page, ready } = await open(browser, { fresh: false, storage: PINCH_DONE })
+    await sample(page, ready)
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p11'), 'none'))
+    await ready()
+    const text = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'p11').content.map((n) => n.text ?? '').join(''))
+    const start = text.indexOf('幅') + 1
+    await page.evaluate((start) => window.__editor.openEditor('p11', start), start)
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p11', { timeout: 20000 })
+    await wait(800)
+    const steps = [await page.evaluate(() => window.__editor.getSnapshot().caret)]
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('ArrowRight')
+      await wait(150)
+      steps.push(await page.evaluate(() => window.__editor.getSnapshot().caret))
+    }
+    check('スマホ：「幅15cmの」で、キーボードの → を押すと1回で1字ずつ進む（「1」の前・「m」の後ろで止まらない）', steps.join() === [0, 1, 2, 3, 4, 5, 6].map((d) => start + d).join(), JSON.stringify({ start, steps }))
+    await context.close()
+  }
+
   // ---- 図を入れたあと、キーボードが出ていなければ（iPhone）、タイトルの欄を枠で囲み「ここを押して、タイトルを書きます」（mockups/v63 ③ 案A）----
   {
     const { context, page, ready } = await open(browser, { fresh: false, storage: PINCH_DONE })

@@ -1079,6 +1079,53 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  // ---- 漢字・かなと半角の英数字の間（「幅15cmの」）で、カーソルが余計に止まらない（前は「1」の前・「m」の後ろで → を2回押し、止まった所でカーソルの大きさも変わった。Android で依頼者が気づいた 2026-10-26）----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'p11')
+    const text = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'p11').content.map((n) => n.text ?? '').join(''))
+    const start = text.indexOf('幅') + 1
+    await page.evaluate((start) => window.__editor.openEditor('p11', start), start)
+    await editingWait(page, 'p11')
+    await wait(800)
+    const caret = () => page.evaluate(() => window.__editor.getSnapshot().caret)
+    const steps = [await caret()]
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('ArrowRight')
+      await wait(150)
+      steps.push(await caret())
+    }
+    const back = []
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('ArrowLeft')
+      await wait(150)
+      back.push(await caret())
+    }
+    const locked = await page.evaluate(() => [...document.querySelectorAll('.overlay-editor viv-ts-thin-sp')].filter((e) => e.getAttribute('contenteditable') === 'false').length)
+    await page.keyboard.type('X')
+    await wait(300)
+    await page.keyboard.press('Backspace')
+    await wait(200)
+    await page.keyboard.press('Backspace')
+    await wait(200)
+    await page.keyboard.press('Escape')
+    await wait(600)
+    await ready()
+    const saved = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'p11').content.map((n) => n.text ?? '').join(''))
+    check(
+      '「幅15cmの」：→ でも ← でも1回で1字ずつ進み（「1」の前・「m」の後ろで止まらない）、すき間の所で打つ・消すも1回で効く',
+      steps.join() === [0, 1, 2, 3, 4, 5, 6].map((d) => start + d).join() && back.join() === [5, 4, 3, 2, 1, 0].map((d) => start + d).join() && locked === 0 && saved === text.slice(0, start - 1) + text.slice(start),
+      JSON.stringify({ start, steps, back, locked, saved: saved.slice(start - 3, start + 6) }),
+    )
+    await context.close()
+  }
+
   // ---- 拡大しているときは、ページ送りの「‹ ›」を右下の帯の中に出し、紙面には浮かせない（200% で本文・写真に重なった。mockups/v63 ① 案A）----
   {
     const { context, page, ready } = await open(browser, { width: 1366, height: 768 })
