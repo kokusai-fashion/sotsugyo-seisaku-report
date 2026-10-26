@@ -580,6 +580,8 @@ function WordConfirm({
   const printedSubtitle = cover.subtitleInput === undefined ? undefined : course ? renderSubtitle(course, cover.subtitleInput) : cover.subtitleInput
   const subtitleOff = !!result.subtitleOffForm && !!printedSubtitle
   const idOff = !!accountStudentId && !!cover.studentId?.trim() && cover.studentId.trim().normalize('NFKC').toUpperCase() !== accountStudentId
+  // 表紙を読んだか（表紙の Word を選んだか、本文の Word の前に書いた表紙から読めた：依頼者の選択 2026-10-27）
+  const coverFromWord = !!files.cover || Object.values(result.cover).some((v) => !!v?.trim())
   const coverRows: [string, string | undefined, string?][] = [
     // コース：Word と違えば、選ぶまで赤く出す。Word にコースがなければ、いまのツールのコースのまま
     [
@@ -662,7 +664,7 @@ function WordConfirm({
         </section>
         <section>
           <h3>表紙</h3>
-          {files.cover ? (
+          {coverFromWord ? (
             <>
               <dl className="word-cover">
                 {coverRows.map(([label, value, mark]) => (
@@ -732,7 +734,7 @@ function WordConfirm({
           )}
           <Keep
             text={
-              files.cover
+              coverFromWord
                 ? `本文は Word の中身に入れ替わり、表紙の学籍番号・氏名・サブタイトル${wordCourseId && choice === 'word' ? '・コース' : ''}も Word のものになります（抄録・作品写真・引用・参考文献はそのまま）。`
                 : '本文は Word の中身に入れ替わります（表紙・抄録・作品写真・引用・参考文献はそのまま）。'
             }

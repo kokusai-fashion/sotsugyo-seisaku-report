@@ -92,6 +92,34 @@ function webpSize(b: Uint8Array): { width?: number; height?: number } {
   return {}
 }
 
+/** JPEG の向きの情報（Exif の Orientation。1 はそのまま、6 は右に90度回して見る、など）。ない・JPEG でないときは 0 */
+export function exifOrientation(b: Uint8Array): number {
+  if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return 0
+  let i = 2
+  while (i + 4 < b.length && b[i] === 0xff) {
+    const marker = b[i + 1]
+    const size = u16be(b, i + 2)
+    if (marker === 0xe1 && ascii(b, i + 4, 4) === 'Exif') {
+      const t = i + 10
+      const le = ascii(b, t, 2) === 'II'
+      const u16 = (at: number) => (le ? u16le(b, at) : u16be(b, at))
+      const u32 = (at: number) => (le ? u32le(b, at) : u32be(b, at))
+      const ifd = t + u32(t + 4)
+      const count = ifd + 2 <= b.length ? u16(ifd) : 0
+      for (let k = 0; k < count; k++) {
+        const entry = ifd + 2 + k * 12
+        if (entry + 10 > b.length) break
+        if (u16(entry) === 0x0112) return u16(entry + 8)
+      }
+      return 0
+    }
+    // 画像のデータが始まったら、それより後ろに Exif はない
+    if (marker === 0xda) return 0
+    i += 2 + size
+  }
+  return 0
+}
+
 /** ブラウザで読める形か */
 export function browserReadable(kind: ImageKind): boolean {
   return BROWSER_KINDS.includes(kind)
@@ -113,13 +141,17 @@ function clampCrop(crop: Crop | null | undefined): Crop {
  * Word の画像を、ツールの画像にする。読めない形・壊れた画像は例外になる（呼ぶ側で問題として知らせる）。
  * ブラウザで画像を描けない（画像を描く道具がない）ときは、縮めずにそのまま使う（大きさはファイルの頭から読む）
  */
-export async function prepareImage(bytes: Uint8Array, id: string, crop?: Crop | null, maxLongEdgePx = FIGURE_MAX_PX): Promise<StoredImage> {
+export async function prepareImage(bytes: Uint8Array, id: string, crop?: Crop | null, maxLongEdgePx = FIGURE_MAX_PX, rotation = 0): Promise<StoredImage> {
   const info = imageInfo(bytes)
   if (!browserReadable(info.kind)) throw new Error(`使えない画像の形（${KIND_NAMES[info.kind]}）`)
   const blob = new Blob([bytes.slice()], { type: MIME[info.kind] })
+  // Word で回した向き（依頼者の選択 2026-10-27）。ただし、写真に向きの情報（Exif）があれば回さない：Word は Exif の向きを使わずに表示するので、
+  // スマホの写真を Word で回して正しい向きにしたものは、ツールでは Exif の向きを使うだけで、Word と同じ向きになる
+  const turn = rotation && exifOrientation(bytes) <= 1 ? rotation : 0
+  const sideways = turn === 90 || turn === 270
   if (typeof createImageBitmap !== 'function' || typeof OffscreenCanvas === 'undefined') {
     if (!info.width || !info.height) throw new Error('画像の大きさが分かりません')
-    return { id, blob, widthPx: info.width, heightPx: info.height }
+    return { id, blob, widthPx: sideways ? info.height : info.width, heightPx: sideways ? info.width : info.height }
   }
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
   try {
@@ -131,15 +163,22 @@ export async function prepareImage(bytes: Uint8Array, id: string, crop?: Crop | 
     const scale = Math.min(1, maxLongEdgePx / Math.max(sw, sh))
     const width = Math.max(1, Math.round(sw * scale))
     const height = Math.max(1, Math.round(sh * scale))
-    const canvas = new OffscreenCanvas(width, height)
+    // 回すときは、横と縦を入れ替えた画用紙に、真ん中を軸に回して描く
+    const cw = sideways ? height : width
+    const ch = sideways ? width : height
+    const canvas = new OffscreenCanvas(cw, ch)
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('画像を描けません')
     // 透過 PNG（デザイン画など）は白地に置く
     ctx.fillStyle = '#fff'
-    ctx.fillRect(0, 0, width, height)
-    ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, width, height)
+    ctx.fillRect(0, 0, cw, ch)
+    if (turn) {
+      ctx.translate(cw / 2, ch / 2)
+      ctx.rotate((turn * Math.PI) / 180)
+      ctx.drawImage(bitmap, sx, sy, sw, sh, -width / 2, -height / 2, width, height)
+    } else ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, width, height)
     const out = await canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY })
-    return { id, blob: out, widthPx: width, heightPx: height }
+    return { id, blob: out, widthPx: cw, heightPx: ch }
   } finally {
     bitmap.close()
   }

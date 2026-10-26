@@ -25,6 +25,8 @@ export interface ImageRef {
   crop: Crop | null
   /** 浮かせた図の置き方（表の画像を、見えている位置のセルに入れるのに使う）。行内の図は null・なし */
   place?: Placement | null
+  /** Word で回した向き（度。90度ずつ：0・90・180・270）。回していなければ省く */
+  rotation?: number
 }
 
 /**
@@ -541,7 +543,8 @@ function readGraphic(node: Element, out: Collector, ctx: DocumentContext, anchor
     if (is(el, 'a', 'blip')) {
       const embed = attr(el, 'embed')
       const link = attr(el, 'link')
-      out.images.push({ rid: embed ?? link, linked: !embed && !!link, kind: 'image', ...anchorPosition(here, ctx.frame), crop: cropOf(el), place: anchorPlacement(here) })
+      const rotation = rotationOf(el)
+      out.images.push({ rid: embed ?? link, linked: !embed && !!link, kind: 'image', ...anchorPosition(here, ctx.frame), crop: cropOf(el), place: anchorPlacement(here), ...(rotation ? { rotation } : {}) })
       continue
     }
     if (is(el, 'v', 'imagedata')) {
@@ -561,6 +564,19 @@ function readGraphic(node: Element, out: Collector, ctx: DocumentContext, anchor
     }
     readGraphic(el, out, ctx, here)
   }
+}
+
+/**
+ * Word で回した画像の向き（pic:spPr の a:xfrm の rot。1/60000 度の単位）を、90度ずつに丸めた度（0・90・180・270）。
+ * a:blip の親（pic:blipFill）の隣の pic:spPr にある（試し 2026-10-27：スキャンした図などを Word で回すと、回す前の向きで写っていた）
+ */
+function rotationOf(blip: Element): number {
+  const pic = (blip.parentNode as Element | null)?.parentNode as Element | null
+  const spPr = pic ? elements(pic).find((e) => e.localName === 'spPr') : undefined
+  const xfrm = spPr ? elements(spPr).find((e) => is(e, 'a', 'xfrm')) : undefined
+  const degrees = Number(attr(xfrm, 'rot') ?? 0) / 60000
+  if (!Number.isFinite(degrees)) return 0
+  return (((Math.round(degrees / 90) * 90) % 360) + 360) % 360
 }
 
 /** 画像の切り抜き（a:srcRect。1/1000 % の単位）。a:blip の隣にある */

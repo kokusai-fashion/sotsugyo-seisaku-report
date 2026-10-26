@@ -1,17 +1,17 @@
 import { DOMParser } from '@xmldom/xmldom'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it } from 'vitest'
-import { br, emfHeader, floatingImage, inlineImage, makeDocx, numbered, p, png, rid, styled, tab, table, textBox } from '../../scripts/e2e/fixtures/docx.mjs'
+import { br, emfHeader, floatingImage, inlineImage, makeDocx, numbered, p, pageBreak, png, rid, styled, tab, table, textBox } from '../../scripts/e2e/fixtures/docx.mjs'
 import { currentConfig, type TemplateBlock, type YearConfig } from '../config'
 import { templateProblems } from '../config/validate'
 import { contentToText, numbering } from '../editor/reportOps'
 import { createReport } from '../model/newReport'
 import type { Chapter, FigureRowBlock, ParagraphBlock, TableBlock } from '../model/types'
 import type { WordImportResult } from './types'
-import { isPlaceholderOnly, isWriting, parseCaptionLine } from './wordImport'
+import { isPlaceholderOnly, isReferencesTitle, isWriting, parseCaptionLine } from './wordImport'
 import { headingFromText } from '../model/headingText'
 import { applyWordImport, chapterOrder, lostByImport, readWordFiles, subtitleFromWord, WordImportError } from './wordImport'
-import { imageInfo, prepareImage } from './wordImages'
+import { exifOrientation, imageInfo, prepareImage } from './wordImages'
 
 // 単体テストはブラウザの外で動くので、XML を読む道具（ブラウザの DOMParser）の代わりを置く
 ;(globalThis as { DOMParser?: unknown }).DOMParser = DOMParser
@@ -316,6 +316,168 @@ describe('学生の書き方の違い', () => {
     expect(result.body[0].title).toBe('企画・立案')
     expect(kinds(result.body[0])[0]).toBe('s:担当衣装のキャラクター')
     expect(paragraphs(result.body)).toEqual(['作った順は次のとおりである。', '1.　布を裁つ。', '2.　縫う。', '・綿の布'])
+  })
+
+  it('図の並び：Word の同じ行（同じ段落・図を並べた表の同じ行）の図だけを横に並べ、1つの並びは2枚まで。縦に積んだ図は分ける（試し 2026-10-27）', async () => {
+    const C = png(80, 80, { figure: [20, 120, 60] })
+    const result = await read(
+      makeDocx({
+        media: { 'a.png': DESIGN, 'b.png': BACK, 'c.png': C },
+        body: [
+          p('Ⅰ．企画・立案'),
+          p('工程を図1から図3に示す。'),
+          // 縦に積んだ3枚（段落ごとに1枚とタイトル）
+          p(inlineImage(rid('a.png'))),
+          p('図1　型紙'),
+          p(inlineImage(rid('b.png'))),
+          p('図2　裁断'),
+          p(inlineImage(rid('c.png'))),
+          p('図3　仮縫い'),
+          p('前と後ろを図4・図5に、細部を図6に示す。'),
+          // 1つの段落に3枚（タブで並べた）：2枚と1枚に分ける
+          p(inlineImage(rid('a.png')), tab, inlineImage(rid('b.png')), tab, inlineImage(rid('c.png'))),
+          p('図4　前', tab, '図5　後ろ', tab, '図6　細部'),
+          p('表に並べた4枚を図7から図10に示す。'),
+          // 図を並べた表（2行×2列。タイトルは画像の下のセル）
+          table([
+            [{ images: [rid('a.png')] }, { images: [rid('b.png')] }],
+            ['図7　前', '図8　後ろ'],
+            [{ images: [rid('c.png')] }, { images: [rid('a.png')] }],
+            ['図9　袖', '図10　裾'],
+          ]),
+        ].join(''),
+      }),
+    )
+    const rows = figureRows(result.body).map((r) => r.figures.map((f) => f.caption))
+    expect(rows).toEqual([['型紙'], ['裁断'], ['仮縫い'], ['前', '後ろ'], ['細部'], ['前', '後ろ'], ['袖', '裾']])
+    expect(result.problems).toEqual([])
+  })
+
+  it('目次の行（ページ番号のある行・Word の自動の目次・その下のページ番号のない小見出しの行）は写さず、知らせる（試し 2026-10-27）', async () => {
+    const result = await read(
+      makeDocx({
+        body: [
+          // 表紙から本文まで1つのファイルに書いた（はじめの3行に「目次」があると、目次のファイルと見分けるため、表紙の行を置く）
+          p('2026年度'),
+          p('卒業研究'),
+          p('卒業イベント「シンドバッド」について'),
+          p('目次'),
+          p('Ⅰ．企画・立案・・・・・・・・・・1'),
+          p('ⅰ．担当衣装のキャラクター'),
+          p('ⅱ．デザイン説明'),
+          p('Ⅱ．制作過程', tab, '3'),
+          p('ⅰ．仮縫い'),
+          p('<w:r><w:br w:type="page"/></w:r>'),
+          p('Ⅰ．企画・立案'),
+          p('ⅰ．担当衣装のキャラクター'),
+          p('筆者が担当したのは、主人公の衣装である。'),
+          p('Ⅱ．制作過程'),
+          p('ⅰ．仮縫い'),
+          p('二回の仮縫いをした。'),
+        ].join(''),
+      }),
+    )
+    // 目次の行は大見出し・小見出しにしない（章が2つずつにならない）
+    expect(result.counts).toMatchObject({ chapters: 3, subheadings: 2 })
+    expect(result.body.slice(0, 3).map((c) => c.title)).toEqual(['', '企画・立案', '制作過程'])
+    expect(result.problems.map((x) => x.message)).toEqual(['目次の行（6行）は写していません', '最初の大見出しより前に、文があります'])
+  })
+
+  it('表紙・抄録から本文まで1つのファイル：最初の大見出しより前の表紙・抄録は写さず、表紙の項目はそこから読む（表紙のファイルを選んでいれば、そちら。依頼者の選択 2026-10-27）', async () => {
+    const combined = makeDocx({
+      body: [
+        p('２０２６年度'),
+        p('卒 業 研 究'),
+        p('研究題目'),
+        p('卒業イベント「シンドバッド」について'),
+        p('―シンドバッドの衣装制作―'),
+        table([
+          ['学籍番号', '23FA012'],
+          ['氏　　名', '文化　花子'],
+        ]),
+        p(pageBreak),
+        p('2026年度　卒業研究　抄録'),
+        p('本研究報告書は、筆者が制作した衣装についてまとめたものである。'),
+        p(pageBreak),
+        p('Ⅰ．企画・立案'),
+        p('筆者が担当したのは、主人公の衣装である。'),
+      ].join(''),
+    })
+    const alone = await read(combined)
+    expect(alone.body[0].title).toBe('企画・立案')
+    expect(alone.counts).toMatchObject({ tables: 0, paragraphs: 1 })
+    expect(alone.cover).toEqual({ studentId: '23FA012', name: '文化　花子', subtitleInput: 'シンドバッド' })
+    expect(alone.problems.map((x) => [x.message, x.detail])).toEqual([
+      ['本文より前の表紙・抄録は写していません', '表紙の学籍番号・氏名・サブタイトルは、ここから読み取ります。抄録は、ツールの抄録のページに書きます（貼り付けられます）。'],
+    ])
+    // 表紙のファイルも選んだときは、表紙はそちらから読む
+    const coverFile = makeDocx({ body: table([['学籍番号', '23FA099'], ['氏　　名', '文化　次郎'], ['―船乗りの衣装制作―']]) })
+    const withCover = await read(combined, coverFile)
+    expect(withCover.cover.studentId).toBe('23FA099')
+    expect(withCover.problems[0].detail).toContain('表紙は、選んだ表紙のファイルから読み取ります。')
+  })
+
+  it('「参考文献」の行（見出しでも）から次の大見出しまでは写さず、道具の「参考文献」から入れるよう知らせる（依頼者の選択 2026-10-27）', async () => {
+    const result = await read(
+      makeDocx({
+        body: [
+          p('Ⅰ．まとめ'),
+          p('主人公の成長を一着の衣装で表すことを目標とした。'),
+          p('参考文献'),
+          p('1) 服飾造形講座、文化出版局、2009年'),
+          p('2) https://www.example.com/costume（2026年6月1日閲覧）'),
+          p('Ⅱ．謝辞'),
+          p('ご指導いただいた先生方に感謝します。'),
+        ].join(''),
+      }),
+    )
+    const byTitle = (title: string) => paragraphs(result.body, result.body.findIndex((c) => c.title === title))
+    expect(byTitle('まとめ')).toEqual(['主人公の成長を一着の衣装で表すことを目標とした。'])
+    expect(byTitle('謝辞')).toEqual(['ご指導いただいた先生方に感謝します。'])
+    expect(result.problems[0].message).toBe('参考文献（2行）は写していません')
+    expect(['参考文献', '【引用・参考文献】', '参考資料', 'Ⅳ．参考文献', '参考URL'].every((t) => isReferencesTitle(t.replace(/^Ⅳ．/, '')))).toBe(true)
+    expect(isReferencesTitle('参考にした資料')).toBe(false)
+  })
+
+  it('「2-1 仮縫い」の形の行は、見出しの形でない行として知らせる。「①」「1)」が続いた行（箇条書き）は知らせない（試し 2026-10-27）', async () => {
+    const result = await read(
+      makeDocx({
+        body: [
+          p('Ⅰ．制作過程'),
+          p('2-1 パターンと仮縫い'),
+          p('パターンを引き、仮縫いをした。'),
+          p('手順は次のとおり。'),
+          p('① 布を筒に縫う'),
+          p('② 房を付ける'),
+          p('参考にした資料は次のとおり。'),
+          p('1) 服飾造形講座、2009年'),
+          p('2) 中東の民族衣装展 図録、2018年'),
+        ].join(''),
+      }),
+    )
+    expect(result.problems.map((x) => x.message)).toEqual(['見出しの形でない行があります：「2-1 パターンと仮縫い」'])
+  })
+
+  it('Word の相互参照の「図 1」「表 1」（間に空白）も、図表へのつながりにする（「設計図 1枚」のような語はそのまま）', async () => {
+    const result = await read(
+      makeDocx({
+        media: { 'a.png': DESIGN },
+        body: [
+          p('Ⅰ．企画・立案'),
+          p('デザインを図 1に示す。素材は表 1のとおり。設計図 1枚を描いた。'),
+          p(inlineImage(rid('a.png'))),
+          p('図 1 デザイン画'),
+          p('表 1 使用素材表'),
+          table([
+            ['名称', '使用箇所'],
+            ['サテン', 'ブラウス'],
+          ]),
+        ].join(''),
+      }),
+    )
+    const para = result.body[0].blocks.find((b): b is ParagraphBlock => b.type === 'paragraph')!
+    expect(para.content.filter((n) => n.type === 'ref').length).toBe(2)
+    expect(textOf(result.body, para)).toBe('デザインを図1に示す。素材は表1のとおり。設計図 1枚を描いた。')
   })
 
   it('行内に置いた図と、段落に書いたタイトル（画像と同じ段落の改行の後ろ、次の段落）', async () => {
@@ -1011,6 +1173,32 @@ describe('画像', () => {
     const cropped = await prepareImage(png(4, 3), 'img-2', { left: 0.25, right: 0.25, top: 0, bottom: 0 })
     expect(cropped).toMatchObject({ widthPx: 1067, heightPx: 1600 })
     expect(drawn[1]).toEqual([1000, 0, 2000, 3000, 0, 0, 1067, 1600])
+  })
+
+  it('Word で回した画像（90度ずつ）は、回した向きにする。写真に Exif の向きがあれば回さない（Word は Exif の向きを使わない。試し 2026-10-27）', async () => {
+    const turns: number[] = []
+    ;(globalThis as Record<string, unknown>).createImageBitmap = async () => ({ width: 400, height: 300, close() {} })
+    ;(globalThis as Record<string, unknown>).OffscreenCanvas = class {
+      width: number
+      height: number
+      constructor(width: number, height: number) {
+        this.width = width
+        this.height = height
+      }
+      getContext() {
+        return { fillRect() {}, translate() {}, rotate: (r: number) => turns.push(Math.round((r * 180) / Math.PI)), drawImage() {}, fillStyle: '' }
+      }
+      async convertToBlob() {
+        return new Blob(['jpeg'], { type: 'image/jpeg' })
+      }
+    }
+    expect(await prepareImage(png(4, 3), 'img-r', null, undefined, 90)).toMatchObject({ widthPx: 300, heightPx: 400 })
+    expect(await prepareImage(png(4, 3), 'img-s', null, undefined, 180)).toMatchObject({ widthPx: 400, heightPx: 300 })
+    expect(turns).toEqual([90, 180])
+    // Exif の向き（6：右に90度回して見る）のある JPEG：Word で回してあっても、回さない（ツールは Exif の向きで正しく見せる）
+    const exif = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x22, ...[...'Exif'].map((c) => c.charCodeAt(0)), 0, 0, 0x4d, 0x4d, 0x00, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 0xff, 0xd9])
+    expect(exifOrientation(exif)).toBe(6)
+    expect(exifOrientation(png(4, 3))).toBe(0)
   })
 })
 

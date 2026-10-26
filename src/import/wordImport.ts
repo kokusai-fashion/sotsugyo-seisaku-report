@@ -58,6 +58,22 @@ const TEMPLATE_PHRASES = new Set(['筆者が担当したのは、', '表1に使�
 const WORD_TEMPLATE_CHAPTERS = ['企画・立案', '制作過程', 'まとめ']
 const WORD_TEMPLATE_SUBHEADINGS = ['担当衣装のキャラクター', 'デザイン説明', '使用素材']
 
+/**
+ * 目次の行（「Ⅰ．企画・立案・・・・・1」「制作過程……〇」、Word の自動の目次の「企画・立案<タブ>3」）と、目次の題（「目次」）。
+ * 表紙から本文まで1つのファイルに書いた Word で、目次の行が大見出しになり、章が2つずつになっていた（試し 2026-10-27）
+ */
+export function isTocLine(text: string): boolean {
+  const t = text.replace(/\n/g, '').trimEnd()
+  if (/^[\s　]*目[\s　]*次[\s　]*$/.test(t)) return true
+  return /[・･…‥.．_＿]{3,}[\s　]*[0-9０-９〇○]{1,3}$/.test(t) || /\S\t+[0-9０-９〇○]{1,3}$/.test(t)
+}
+
+/** 参考文献の題（「参考文献」「引用・参考文献」「参考資料」「参考URL」など。番号・記号を除いて比べる） */
+export function isReferencesTitle(text: string): boolean {
+  const t = comparable(text).replace(/^[【［\[〈《<■●◆・]+|[】］\]〉》>:：]+$/g, '')
+  return /^(引用・?参考文献|参考・?引用文献|引用文献|参考文献|参考資料|参考URL|参考サイト|参考文献・資料|参考資料・文献|文献)(一覧|リスト)?$/i.test(t)
+}
+
 /** 学生が書いた文か（仮の文字・ひな形にもとからある文だけではない） */
 export function isWriting(text: string): boolean {
   const core = coreText(text)
@@ -65,7 +81,12 @@ export function isWriting(text: string): boolean {
 }
 
 /** 参照の番号の全角数字を半角にする（「（図１）」も図へのつながりにするため） */
-const halfDigitsInRefs = (text: string) => text.replace(/([図表][\s　]*)([０-９]+)/g, (_, head: string, digits: string) => head + digits.normalize('NFKC'))
+const halfDigitsInRefs = (text: string) =>
+  text
+    // Word の「相互参照」で入れた図表の番号は「図 1」「表 1」（間に空白）。図表へのつながりにするため、空白を除く
+    // （直前が漢字の「設計図 1枚」のような語は、そのまま。試し 2026-10-27）
+    .replace(/(?<![㐀-鿿々])([図表])[\s　]+(?=[0-9０-９])/g, '$1')
+    .replace(/([図表][\s　]*)([０-９]+)/g, (_, head: string, digits: string) => head + digits.normalize('NFKC'))
 
 // ---- 見出し ----
 
@@ -79,13 +100,17 @@ function stripHeadingNumber(text: string): string {
   return t.replace(/^(第?[0-9０-９一二三四五六七八九十]+[章節]?[．.、]?|[（(][0-9０-９ⅰ-ⅻivx]+[)）]|[①-⑳])[\s　]*/, '').trim()
 }
 
+/** 行の頭の番号・記号（「1.」「1)」「(1)」「①」「a)」）。続けて並んだ行は箇条書き */
+const LIST_MARK = /^([0-9０-９]{1,2}[\s　]*[.．、)）]|[（(][0-9０-９一二三四五六七八九十]{1,2}[)）]|[①-⑳]|[A-ZＡ-Ｚa-z][.．)）]|[・●○■□◆◇])/
+
 /** 見出しの形でないが、見出しのつもりらしい行（「2. パターン」「第1章」「（1）」など） */
 function looksLikeHeading(text: string): boolean {
   const t = text.trim()
   return (
     t.length <= 30 &&
     !/[。！？]$/.test(t) &&
-    /^([0-9０-９]{1,2}[\s　]*[.．、)）]|第[0-9０-９一二三四五六七八九十]+[章節]|[（(][0-9０-９一二三四五六七八九十]{1,2}[)）]|[①-⑳]|[A-ZＡ-Ｚa-z][.．)）])[\s　]*\S/.test(t)
+    // 「2-1 パターンと仮縫い」「2.1 仮縫い」の形も（試し 2026-10-27：知らせずに段落にしていた）
+    /^([0-9０-９]{1,2}[-－‐.．][0-9０-９]{1,2}[\s　]|[0-9０-９]{1,2}[\s　]*[.．、)）]|第[0-9０-９一二三四五六七八九十]+[章節]|[（(][0-9０-９一二三四五六七八九十]{1,2}[)）]|[①-⑳]|[A-ZＡ-Ｚa-z][.．)）])[\s　]*\S/.test(t)
   )
 }
 
@@ -140,6 +165,11 @@ function boxCaptions(box: TextBox): { captions: Caption[]; others: string[] } {
 interface Group {
   images: ImageRef[]
   captions: Caption[]
+  /**
+   * 画像ごとの、Word の中の行（同じ段落・図を並べた表の同じ行なら同じ番号）。同じ行の画像だけを、ツールで横に並べる（rowsOf）。
+   * 前は、間に文のない画像を全部1つの並びにし、縦に積んだ写真が横に3枚並んでいた（試し 2026-10-27）
+   */
+  lines: Map<ImageRef, number>
 }
 
 interface DraftCell {
@@ -169,7 +199,11 @@ function hasTallRows(table: WordTable): boolean {
 }
 
 type Event =
-  | { k: 'chapter'; title: string }
+  /** at：Word の中の何番目のまとまり（段落・表）か */
+  | { k: 'chapter'; title: string; at?: number }
+  /** 「参考文献」の行（写さない）と、その下の行（写さない） */
+  | { k: 'refs' }
+  | { k: 'refsLine' }
   | { k: 'sub'; title: string }
   | { k: 'para'; text: string; headingLike: boolean }
   /** 仮の文字だけで、写さない行 */
@@ -183,6 +217,8 @@ type Event =
   | { k: 'lostTableCaption'; caption: Caption }
   /** Word の改ページ（依頼者の選択 2026-10-23 案1：Word の改ページを引き継ぐ。大見出しの前・章のはじめ・最後のものは入れない） */
   | { k: 'pageBreak' }
+  /** 目次の行（写さない：isTocLine） */
+  | { k: 'toc' }
 
 /** セルの文字：行ごとに前後の空白を除き、空の行を除く */
 function cellText(text: string): string {
@@ -290,7 +326,14 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
     pendingBreak = false
   }
 
-  const openGroup = () => (group ??= { images: [], captions: [] })
+  const openGroup = (): Group => (group ??= { images: [], captions: [], lines: new Map() })
+  /** Word の中の行の番号（段落ごと・図を並べた表の行ごとに増やす） */
+  let lineNo = 0
+  const addImage = (image: ImageRef, line: number) => {
+    const g = openGroup()
+    g.images.push(image)
+    g.lines.set(image, line)
+  }
   const closeGroup = () => {
     if (group && (group.images.length || group.captions.length)) events.push({ k: 'group', group })
     group = null
@@ -307,22 +350,32 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
     } else pendingTableCaptions.push(caption)
   }
   const addFigures = (images: ImageRef[], boxes: TextBox[]) => {
-    for (const image of images) openGroup().images.push(image)
+    const line = ++lineNo
+    for (const image of images) addImage(image, line)
     for (const box of boxes) {
       const { captions, others } = boxCaptions(box)
       captions.forEach(addCaption)
-      for (const image of box.images) openGroup().images.push(image)
+      for (const image of box.images) addImage(image, line)
       for (const text of others) events.push({ k: 'boxText', text })
     }
   }
 
-  for (const block of blocks) {
+  /** 目次の中（目次の題・ページ番号のある目次の行のあと） */
+  let inToc = false
+  /** 参考文献の中（「参考文献」の行のあと。次の大見出しまで） */
+  let inRefs = false
+  for (const [at, block] of blocks.entries()) {
     if (block.type === 'table') {
+      inToc = false
+      if (inRefs) continue
       if (isFigureTable(block)) {
         // 画像と図のタイトルを表に並べただけのもの：図にする（行ごとに左から）
-        for (const cell of block.rows.flat()) {
-          for (const line of cellText(cell.text).split('\n')) parseCaptionLine(line)?.forEach(addCaption)
-          for (const image of cell.images) openGroup().images.push(image)
+        for (const row of block.rows) {
+          const rowLine = ++lineNo
+          for (const cell of row) {
+            for (const line of cellText(cell.text).split('\n')) parseCaptionLine(line)?.forEach(addCaption)
+            for (const image of cell.images) addImage(image, rowLine)
+          }
         }
         continue
       }
@@ -337,19 +390,42 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
     }
 
     const p = block
+    // 目次の行は写さない（目次は、ツールが見出しから自動で作る）。学科の目次のひな形では、小見出しの行にはページ番号がないので、
+    // 目次の題・ページ番号のある行のあとの、見出しの形の行と空の行も、目次の行とみなす（文・図・表・改ページで目次は終わり）
+    if (!p.images.length && !p.boxes.length) {
+      const text = p.text.trim()
+      if (isTocLine(p.text) || (inToc && (!text || (!!headingFromText(text) && text.length <= 40)))) {
+        if (text) events.push({ k: 'toc' })
+        inToc = p.pageBreak !== 'after'
+        continue
+      }
+    }
+    inToc = false
     if (p.pageBreak === 'before') pendingBreak = true
     const line = p.text.replace(/[\n\t]/g, '').trim()
     const short = line.length <= 40 && !/[。！？]$/.test(line)
     const headingText = headingFromText(p.text) ?? (short && !p.headingLevel ? knownHeading(line, known) : null)
     const level = headingText?.level ?? p.headingLevel ?? (p.romanLevel && short ? p.romanLevel : null)
+    // 参考文献：「参考文献」の行（見出しでも）から、次の大見出しまでは写さない（ツールでは「参考文献」の道具で入れる。依頼者の選択 2026-10-27）
+    const title = level && line ? (headingText?.title ?? stripHeadingNumber(p.text)) : ''
+    if (isReferencesTitle(level ? title : line)) {
+      closeGroup()
+      inRefs = true
+      events.push({ k: 'refs' })
+      continue
+    }
+    if (inRefs && level !== 1) {
+      if (line) events.push({ k: 'refsLine' })
+      continue
+    }
+    inRefs = false
     if (level && line) {
       closeGroup()
       loseTableCaptions()
       awaiting = null
-      const title = headingText?.title ?? stripHeadingNumber(p.text)
       if (level === 1) pendingBreak = false
       else flushBreak()
-      events.push(level === 1 ? { k: 'chapter', title } : { k: 'sub', title })
+      events.push(level === 1 ? { k: 'chapter', title, at } : { k: 'sub', title })
       addFigures(p.images, p.boxes)
       if (p.notes) events.push({ k: 'notes', count: p.notes })
       if (p.pageBreak === 'after') pendingBreak = true
@@ -382,6 +458,12 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
   }
   closeGroup()
   loseTableCaptions()
+  // 見出しの形の行が続いている（「① 布を筒に縫う」「② 房を付ける」、参考文献の「1) 〇〇」「2) 〇〇」）：見出しではなく箇条書きなので、
+  // 「見出しの形でない行」と知らせない（試し 2026-10-27）。本当の見出しは、あいだに文の段落がある
+  const listItem = events.map((ev) => ev.k === 'para' && LIST_MARK.test(ev.text.trim()))
+  events.forEach((ev, i) => {
+    if (ev.k === 'para' && ev.headingLike && (listItem[i - 1] || listItem[i + 1])) ev.headingLike = false
+  })
   return events
 }
 
@@ -390,6 +472,8 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
 interface DraftFigure {
   image: ImageRef | null
   caption: Caption | null
+  /** Word の中の行（Group の lines）。画像のない図は省く */
+  line?: number | null
 }
 
 type DraftBlock = { t: 'para'; text: string; headingLike: boolean } | { t: 'figs'; figures: DraftFigure[] } | { t: 'table'; table: DraftTable } | { t: 'break' }
@@ -441,7 +525,12 @@ function pairGroup(group: Group): { figures: DraftFigure[]; leftover: Caption[] 
   } else {
     captions.forEach((caption, i) => (images[i] ? assigned.set(images[i], caption) : leftover.push(caption)))
   }
-  const figures = images.map((image) => ({ image, caption: assigned.get(image) ?? null }))
+  // 浮かせて横に離して並べた2枚（ドラッグで横に並べると、付いている段落が別になることがある）は、Word で横に並んで見えるので、同じ行にする。
+  // 3枚以上のときは、付いている段落のとおり（描画キャンバスの写真が、下の2枚並びと1つの並びになっていた：試し 2026-10-27）
+  const floating = images.filter((i) => i.centerX !== null)
+  const floatLine = floating.length === 2 && spreadOut(floating) ? Math.min(...floating.map((i) => group.lines.get(i) ?? 0)) : null
+  const lineOf = (image: ImageRef) => (floatLine !== null && image.centerX !== null ? floatLine : (group.lines.get(image) ?? null))
+  const figures: DraftFigure[] = images.map((image) => ({ image, caption: assigned.get(image) ?? null, line: lineOf(image) }))
   // タイトルの番号の順に並べる（タイトルのない図は、その位置のまま）
   const slots = figures.map((f, i) => (f.caption ? i : -1)).filter((i) => i >= 0)
   const sorted = slots.map((i) => figures[i]).sort((a, b) => (a.caption as Caption).number - (b.caption as Caption).number)
@@ -507,6 +596,25 @@ function buildChapters(events: Event[]): DraftChapter[] {
 }
 
 type FigureBlock = Extract<DraftBlock, { t: 'figs' }>
+
+/** ツールで1つの並びに入れられる図の数（横に2枚まで） */
+const FIGURES_PER_ROW = 2
+
+/**
+ * 図のまとまりを、ツールの図の並びに分ける：Word の中の同じ行（同じ段落・図を並べた表の同じ行・横に並べて浮かせた画像）の図だけを
+ * 横に並べ、1つの並びは2枚まで。画像のない図（タイトルだけ）は、前の並びに空きがあればそこに入れる
+ */
+export function rowsOf<F extends { line?: number | null; image: unknown }>(figures: F[]): F[][] {
+  const rows: F[][] = []
+  for (const f of figures) {
+    const row = rows.at(-1)
+    const line = row?.find((x) => x.image)?.line
+    const fits = !!row && row.length < FIGURES_PER_ROW && (!f.image || line === undefined || line === null || line === f.line)
+    if (fits) row.push(f)
+    else rows.push([f])
+  }
+  return rows
+}
 
 /**
  * 図の画像とタイトルを組にする。まず図のまとまりの中で組にし、組にならなかったタイトルは、同じ小見出しの中の
@@ -717,6 +825,11 @@ function readCover(pkg: WordPackage, config: YearConfig, courseId: string, probl
   const hasChapters = blocks.some((b) => b.type === 'paragraph' && headingFromText(b.text)?.level === 1)
   if (hasChapters && !all.includes('学籍番号') && !all.includes('氏名'))
     throw new WordImportError(`表紙に選んだ「${pkg.fileName}」は、表紙のファイルではないようです（本文や目次のファイルではありませんか）。表紙は 01_表紙.docx を選んでください（表紙を Word で書いていなければ、選ばなくてかまいません）。`)
+  return readCoverRows(rows, config, courseId, problems)
+}
+
+/** 表紙の行（coverRows）から、学籍番号・氏名・サブタイトル・コースを読む（表紙のファイルと、本文のファイルの前に書いた表紙） */
+function readCoverRows(rows: string[][], config: YearConfig, courseId: string, problems: ImportProblem[]): CoverRead {
   const template = findCourse(config, courseId)?.subtitleTemplate ?? '―{input}―'
   const cover: WordImportResult['cover'] = {}
   const studentId = findStudentId(rows)
@@ -833,8 +946,16 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
   const templateSubheadings = new Set(named([...WORD_TEMPLATE_SUBHEADINGS, ...template.flatMap((c) => c.blocks.flatMap((b) => (b.type === 'subheading' ? [b.title] : [])))]))
 
   const blocks = readDocument(bodyPkg.document, documentContext(bodyPkg.styles, bodyPkg.numbering))
-  const events = classify(blocks, { chapters: templateChapters, subheadings: templateSubheadings })
-  checkBodyFile(blocks, events, bodyPkg.fileName)
+  const allEvents = classify(blocks, { chapters: templateChapters, subheadings: templateSubheadings })
+  checkBodyFile(blocks, allEvents, bodyPkg.fileName)
+  // 表紙・抄録（・目次）から本文まで、1つのファイルに書いた：最初の大見出しより前の表紙・抄録は写さない。
+  // 表紙のファイルを選んでいなければ、表紙の学籍番号・氏名・サブタイトルは、ここから読む（依頼者の選択 2026-10-27。
+  // 前は、表紙の大きな表と抄録の文が、本文の頭の名前のない大見出しに入っていた）
+  const firstChapter = allEvents.findIndex((e) => e.k === 'chapter')
+  const front = firstChapter > 0 ? coverRows(blocks.slice(0, (allEvents[firstChapter] as { at?: number }).at ?? 0)) : []
+  const frontText = comparable(front.flat().join(''))
+  const frontMatter = ['学籍番号', '氏名', '抄録', '研究題目'].some((w) => frontText.includes(w))
+  const events = frontMatter ? [...allEvents.slice(0, firstChapter).filter((e) => e.k === 'toc'), ...allEvents.slice(firstChapter)] : allEvents
   const drafts = buildChapters(events)
 
   // 画像の中身を取り出し、使えるか・ひな形の仮の画像かを見る
@@ -891,7 +1012,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       continue
     }
     try {
-      const stored = await prepareImage(state.bytes, newId('img'), ref.crop)
+      const stored = await prepareImage(state.bytes, newId('img'), ref.crop, undefined, ref.rotation)
       images.push(stored)
       byKey.set(key, stored.id)
       imageIds.set(ref, stored.id)
@@ -957,22 +1078,25 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
           blocks.push({ type: 'paragraph', id, content: [{ type: 'text', text: '' }] })
           stats.paragraphs++
         } else if (b.t === 'figs') {
-          const figures = b.figures.map((f) => {
-            const id = newId('f')
-            const imageId = (f.image && imageIds.get(f.image)) || null
-            figureMetas.push({
-              id,
-              wordNumber: f.caption?.number ?? null,
-              caption: f.caption?.name ?? '',
-              imageId,
-              state: imageState(f.image),
-              captionMissing: !f.caption,
-              chapter: ci,
-              section: si,
+          // Word の中の同じ行の図だけを横に並べる（2枚まで：rowsOf）
+          for (const row of rowsOf(b.figures)) {
+            const figures = row.map((f) => {
+              const id = newId('f')
+              const imageId = (f.image && imageIds.get(f.image)) || null
+              figureMetas.push({
+                id,
+                wordNumber: f.caption?.number ?? null,
+                caption: f.caption?.name ?? '',
+                imageId,
+                state: imageState(f.image),
+                captionMissing: !f.caption,
+                chapter: ci,
+                section: si,
+              })
+              return { id, imageId: imageId ?? '', caption: f.caption?.name ?? '' }
             })
-            return { id, imageId: imageId ?? '', caption: f.caption?.name ?? '' }
-          })
-          blocks.push({ type: 'figureRow', id: newId('r'), figures })
+            blocks.push({ type: 'figureRow', id: newId('r'), figures })
+          }
         } else if (b.t === 'break') {
           blocks.push({ type: 'pageBreak', id: newId('pb') })
         } else {
@@ -1131,15 +1255,44 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
     problems.push(item)
     problemOrder.set(item, (placeOf.get(r.word) ?? r.word) * 10000 - 1)
   }
+  // 表紙：表紙のファイルを選んでいればそこから。選んでいなければ、本文の前に書いた表紙から
+  const coverRead = coverPkg
+    ? readCover(coverPkg, config, courseId, problems)
+    : frontMatter && (frontText.includes('学籍番号') || frontText.includes('氏名'))
+      ? readCoverRows(front, config, courseId, problems)
+      : null
+  const cover = coverRead?.cover ?? {}
+
+  // 本文の前の表紙・抄録、目次の行、参考文献（写さないもの）を、はじめに知らせる
+  const first = (item: ImportProblem, order: number) => {
+    problems.push(item)
+    problemOrder.set(item, order)
+  }
+  if (frontMatter) {
+    const abstract = frontText.includes('抄録') ? '抄録は、ツールの抄録のページに書きます（貼り付けられます）。' : ''
+    const coverNote = coverPkg ? '表紙は、選んだ表紙のファイルから読み取ります。' : Object.keys(cover).length ? '表紙の学籍番号・氏名・サブタイトルは、ここから読み取ります。' : ''
+    first({ message: `本文より前の表紙${abstract ? '・抄録' : ''}は写していません`, ...(coverNote + abstract ? { detail: coverNote + abstract } : {}) }, -3)
+  }
+  const tocLines = events.filter((e) => e.k === 'toc').length
+  if (tocLines > 0) first({ message: `目次の行（${tocLines}行）は写していません`, detail: '目次は、ツールが本文の見出しから自動で作ります（ページ番号も自動で入ります）。' }, -2)
+  const refLines = events.filter((e) => e.k === 'refsLine').length
+  if (events.some((e) => e.k === 'refs'))
+    first(
+      {
+        message: `参考文献${refLines ? `（${refLines}行）` : ''}は写していません`,
+        detail: '読み込んだあと、道具の「参考文献」から入れてください。PDF の最後に、決まった形で並びます。',
+      },
+      -1,
+    )
   if (kept.length === 0)
     problems.push({
       message: 'Word に書いた本文が見つかりませんでした',
       detail: 'ひな形のまま（「〇〇〇〇」「～～～」）のようです。読み込むと、本文はツールのひな形になります。',
     })
 
-  const coverRead = coverPkg ? readCover(coverPkg, config, courseId, problems) : null
-  const cover = coverRead?.cover ?? {}
-  problems.sort((a, b) => (problemOrder.get(a) ?? 1e9) - (problemOrder.get(b) ?? 1e9))
+  // 表紙の知らせは、本文の知らせの後ろ
+  const orderOf = (p: ImportProblem) => problemOrder.get(p) ?? (p.where === '表紙' ? 2e9 : 1e9)
+  problems.sort((a, b) => orderOf(a) - orderOf(b))
 
   const outline: OutlineItem[] = []
   for (const slot of slots) {
