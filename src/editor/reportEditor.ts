@@ -309,6 +309,10 @@ export class ReportEditor {
   private findings: ReportFinding[] = []
   /** いま書いている欄と、開いたときにその欄にあった指摘の種類（書いている間は、これだけ見せる。runChecks） */
   private openedRules: { id: string; rules: Set<string> } | null = null
+  /** 表のタイトルから Tab・Enter で入ったばかりのマス（ここで Shift+Tab を押すと、タイトルへ戻る。onTab） */
+  private enteredFromCaption: string | null = null
+  /** いま書いている欄のある表と、その表を書き始めたときマスが全部空だったか（入れたばかりの表。runChecks） */
+  private tableSession: { id: string; fresh: boolean } | null = null
   private acknowledged: ReportFinding[] = []
   private layout: LayoutInfo | null = null
   private rendering = false
@@ -476,14 +480,16 @@ export class ReportEditor {
       onTab: (id, text, backward) => {
         // 表のセル：Tab で隣のセルへ（最後のセルでは書き終わる）。表のタイトル：Tab で1つ目のマスへ（tabMoves）
         this.report = ops.setText(this.report, id, this.tidyText(id, text))
+        const fromCaption = this.enteredFromCaption
+        this.enteredFromCaption = null
         const table = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'table' && (b.id === id || b.rows.some((r) => r.cells.some((c) => c.id === id))))
         const cells = table?.type === 'table' ? this.tabCells(table) : []
-        // 表のタイトルから：空いている最初のマス（見出しの行はとばす）。なければ中身の行の1つ目（依頼者の選択 2026-10-26）
+        // 表のタイトルから：空いている最初のマス（見出しの行が埋まっていれば、とばす）。なければ中身の行の1つ目（依頼者の選択 2026-10-26・試し 2026-10-26b）
         const next = table?.id === id ? (table.type === 'table' ? (this.firstEmptyCell(table) ?? (this.template ? cells[0] : (table.rows[1]?.cells[0] ?? cells[0]))) : undefined) : cells[cells.findIndex((c) => c.id === id) + (backward ? -1 : 1)]
-        // 1つ目のマスで Shift+Tab：表のタイトルへ戻る（前は書き終えていた：PC の試し 2026-10-25）
-        // 1つ目のマス（見出しの行の1つ目か、タイトルから Tab で入る中身の行の1つ目）で Shift+Tab：表のタイトルへ戻る（前は書き終えていた：PC の試し 2026-10-25）
-        const firstBody = table?.type === 'table' && !this.template ? table.rows[1]?.cells[0]?.id : undefined
-        if (backward && table && table.id !== id && (cells[0]?.id === id || firstBody === id)) return this.continueWriting(table.id, ops.findEditable(this.report, table.id)?.text.length ?? 0)
+        // 1つ目のマス（見出しの行の1つ目か、タイトルから Tab・Enter で入ったばかりのマス）で Shift+Tab：表のタイトルへ戻る（前は書き終えていた：PC の試し 2026-10-25）。
+        // ほかのマスでは、1つ前のマスへ（前は中身の行の1つ目でいつもタイトルへ戻り、見出しの行へ戻れなかった：試し 2026-10-26b）
+        if (backward && table && table.id !== id && (cells[0]?.id === id || fromCaption === id)) return this.continueWriting(table.id, ops.findEditable(this.report, table.id)?.text.length ?? 0)
+        if (next && table?.id === id) this.enteredFromCaption = next.id
         if (next) this.continueWriting(next.id, next.text.length)
         else this.onCommitEdit(id, text, true)
       },
@@ -781,17 +787,18 @@ export class ReportEditor {
     else window.alert(text)
   }
 
-  /** 選んだ写真を縮めて、この端末に保存する（読めない・保存できないときは、わけを出して null） */
-  private async storeImage(file: File, purpose: 'figure' | 'swatch' | 'photo'): Promise<string | null> {
+  /**
+   * 選んだ写真を縮めて、この端末に保存する（読めない・保存できないときは、わけを出して null）。
+   * unreadable を渡したときは、読めなかったファイルの名前をそこに足し、知らせは出さない（まとめて選んだ写真は、あとでまとめて知らせる：alertUnreadable）
+   */
+  private async storeImage(file: File, purpose: 'figure' | 'swatch' | 'photo', unreadable?: string[]): Promise<string | null> {
     let stored: StoredImage
     try {
       stored = await importImage(file, ops.newId('img'), purpose === 'photo' ? PHOTO_MAX_PX : FIGURE_MAX_PX)
     } catch {
       // 写真として読めない（パソコンで iPhone の HEIC を選んだ、壊れたファイルなど）。黙って何もしないと、押しても動かないように見える
-      this.alert(
-        `「${file.name}」を写真として読み込めませんでした。\n` +
-          'iPhone の写真（HEIC）は、パソコンでは読めないことがあります。JPEG か PNG にしてから選んでください（iPhone の「設定」→「カメラ」→「フォーマット」で「互換性優先」にすると JPEG で撮れます）。',
-      )
+      if (unreadable) unreadable.push(file.name)
+      else this.alertUnreadable([file.name])
       return null
     }
     try {
@@ -802,6 +809,18 @@ export class ReportEditor {
     }
     this.addImages([stored])
     return stored.id
+  }
+
+  /**
+   * 写真として読めなかったファイルを知らせる（何枚かまとめて選んだときも1回で、名前を全部出す。
+   * 前は1枚ずつ知らせを出し、あとの知らせで前の知らせが消えて、名前が1つしか見えなかった：試し 2026-10-26b）
+   */
+  private alertUnreadable(names: string[]): void {
+    if (!names.length) return
+    this.alert(
+      `${names.map((n) => `「${n}」`).join('')}を写真として読み込めませんでした。\n` +
+        'iPhone の写真（HEIC）は、パソコンでは読めないことがあります。JPEG か PNG にしてから選んでください（iPhone の「設定」→「カメラ」→「フォーマット」で「互換性優先」にすると JPEG で撮れます）。',
+    )
   }
 
   // ---- 組版 ----
@@ -1106,7 +1125,20 @@ export class ReportEditor {
       this.openedRules = { id, rules: new Set(atOpen ? findings.filter((f) => f.blockId === id).map((f) => f.ruleId) : []) }
     }
     const opened = this.openedRules
-    this.findings = opened ? findings.filter((f) => f.blockId !== opened.id || !WRITING_RULES.has(f.ruleId) || opened.rules.has(f.ruleId)) : findings
+    // 入れたばかりの表（マスが全部空だった表）のタイトル・マスを書いている間は、その表の空いたマスの指摘も出さない（表から出たら出す）。
+    // 表を入れてタイトルを書き始めたとたん、「表の見出しが入力されていない」「表に空いているセルがある」が並んでいた（試し 2026-10-26b）
+    const table = id ? this.report.body.flatMap((c) => c.blocks).find((b): b is TableBlock => b.type === 'table' && (b.id === id || b.rows.some((r) => r.cells.some((c) => c.id === id)))) : undefined
+    if (!table) this.tableSession = null
+    else if (this.tableSession?.id !== table.id) {
+      const before = (this.reportBeforeEdit ?? this.report).body.flatMap((c) => c.blocks).find((b): b is TableBlock => b.type === 'table' && b.id === table.id)
+      // 書き始める前の原稿にない表は、いま入れた表
+      const cells = (before ?? table).rows.flatMap((r) => r.cells)
+      this.tableSession = { id: table.id, fresh: cells.every((c) => !c.text.trim() && !c.imageId) }
+    }
+    const freshCells = this.tableSession?.fresh && table ? new Set(table.rows.flatMap((r) => r.cells.map((c) => c.id))) : null
+    this.findings = findings.filter(
+      (f) => !WRITING_RULES.has(f.ruleId) || ((!opened || f.blockId !== opened.id || opened.rules.has(f.ruleId)) && !(freshCells && f.blockId && freshCells.has(f.blockId))),
+    )
     this.acknowledged = checked.acknowledged
     this.refreshHighlights()
   }
@@ -1264,7 +1296,14 @@ export class ReportEditor {
     if (!id) return
     const fragment = this.renderer.pageView.fragments(id).find((f) => this.renderer.pageView.pageIndexOf(f) === this.page)
     if (this.stage.zoomed) fragment?.scrollIntoView({ block: 'center' })
-    if (fragment && ops.findEditable(this.report, id)) requestAnimationFrame(() => this.openEditor(id, caret))
+    const editable = fragment && ops.findEditable(this.report, id)
+    if (!editable) return
+    requestAnimationFrame(() => {
+      this.openEditor(id, caret)
+      // スマホ：ページを送ってから欄を開くので、iPhone ではキーボードが出ない。出ていなければ、欄を押すよう案内する（showTapHint）
+      const caption = editable.kind === 'figureCaption' || editable.kind === 'tableCaption'
+      if (this.direct) window.setTimeout(() => this.showTapHint(id, caption ? 'ここを押して、タイトルを書きます' : 'ここを押して、書きます'), TAP_HINT_DELAY_MS)
+    })
   }
 
   // ---- ページ送り ----
@@ -2520,6 +2559,7 @@ export class ReportEditor {
     const cell = table ? this.firstEmptyCell(table) : null
     if (cell) {
       this.report = ops.setText(this.report, id, text)
+      this.enteredFromCaption = cell.id
       return this.continueWriting(cell.id, 0)
     }
     const titled = ops.setText(this.report, id, text)
@@ -3386,9 +3426,11 @@ export class ReportEditor {
   /**
    * スマホ（紙面で書く）：入れた図・表のタイトルの欄を開いたが、キーボードが出ていないとき、欄を枠で囲み、吹き出し「ここを押して、タイトルを書きます」を出す
    * （iPhone は、指で押した操作の中でしかキーボードを出さない。写真を選び終えたあとに欄を開くので、キーボードが出ず、欄を押すまで書けなかった：
-   * 試し 2026-10-26。依頼者の選択 mockups/v63 ③ 案A）。押す・打つ・キーボードが出る・紙面が動く・欄が閉じると消す。押すのは妨げない（pointer-events: none）
+   * 試し 2026-10-26。依頼者の選択 mockups/v63 ③ 案A）。押す・打つ・キーボードが出る・紙面が動く・欄が閉じると消す。押すのは妨げない（pointer-events: none）。
+   * セルフチェック・「PDFを書き出す」の窓の一覧から指摘の箇所へ移って開いた欄にも出す（ページを送ってから開くので、同じくキーボードが出ない：
+   * 試し 2026-10-26b。goToFinding）
    */
-  private showTapHint(id: string): void {
+  private showTapHint(id: string, text = 'ここを押して、タイトルを書きます'): void {
     const vv = window.visualViewport
     const keyboardUp = () => !!vv && vv.height < window.innerHeight * 0.85
     if (this.overlay.blockId !== id || keyboardUp() || document.querySelector('.tap-bubble')) return
@@ -3396,11 +3438,17 @@ export class ReportEditor {
     if (!field.width || !field.height) return
     const ring = document.createElement('div')
     ring.className = 'tap-ring'
-    Object.assign(ring.style, { left: `${field.left - 6}px`, top: `${field.top - 4}px`, width: `${field.width + 12}px`, height: `${field.height + 8}px` })
+    // 画面の左右の端からはみ出さない（横向きでは欄が画面の幅いっぱいで、枠の右の端が切れた）。
+    // 表のタイトルは、すぐ下の表の見出しの行に重ねない（枠が「（見出し）」を隠した：試し 2026-10-26b）
+    const left = Math.max(2, field.left - 6)
+    const right = Math.min(window.innerWidth - 2, field.right + 6)
+    const table = this.renderer.pageView.fragments(id)[0]?.closest('.data-table')?.querySelector('table')
+    const bottom = Math.min(field.bottom + 4, table ? table.getBoundingClientRect().top - 1 : Infinity)
+    Object.assign(ring.style, { left: `${left}px`, top: `${field.top - 4}px`, width: `${right - left}px`, height: `${Math.max(field.height, bottom - field.top + 4)}px` })
     const bubble = document.createElement('div')
     bubble.className = 'tap-bubble'
     bubble.setAttribute('role', 'status')
-    bubble.textContent = 'ここを押して、タイトルを書きます'
+    bubble.textContent = text
     document.body.append(ring, bubble)
     // 欄の上に出す（画面の上の端に近ければ、欄の下に。吹き出しの三角も下向き → 上向き）
     const b = bubble.getBoundingClientRect()
@@ -3463,10 +3511,15 @@ export class ReportEditor {
     return tidy
   }
 
-  /** 表の中身の行（見出しの行をとばす）で、字も画像も入っていない最初のマス（ひな形を作る画面では null：中身の行は学生が書く） */
+  /**
+   * 表の、字も画像も入っていない最初のマス（ひな形を作る画面では null：中身の行は学生が書く）。
+   * 見出しの行が埋まっていれば（素材表など）、見出しの行はとばす（依頼者の選択 2026-10-26）。
+   * 見出しの行に空いたマスがあれば、そこから（自分で入れた表は見出しが空で、とばすと、見出しのつもりで中身の行に書いていた：試し 2026-10-26b）
+   */
   private firstEmptyCell(table: TableBlock): TableCell | null {
     if (this.template) return null
-    return table.rows.slice(1).flatMap((r) => r.cells).find((c) => !c.text.trim() && !c.imageId) ?? null
+    const empty = (c: TableCell) => !c.text.trim() && !c.imageId
+    return table.rows[0]?.cells.find(empty) ?? table.rows.slice(1).flatMap((r) => r.cells).find(empty) ?? null
   }
 
   /** 表の中で Tab で移るマス（ひな形を作る画面では、見出しの行の中だけ。中身の行は学生が書く） */
@@ -3624,12 +3677,21 @@ export class ReportEditor {
     return blocks?.length ? blocks[blocks.length - 1].dataset.blockId! : (editing ?? id)
   }
 
-  /** 段落などを足す道具にマウスを重ねたとき、紙面のどこに入るかを線で示す */
-  previewInsert(on: boolean): void {
+  /** 段落などを足す道具にマウスを重ねたとき、紙面のどこに入るかを線で示す（what：改ページの道具なら 'pageBreak'。段落の頭なら、その段落の上に示す） */
+  previewInsert(on: boolean, what?: 'pageBreak'): void {
     this.marker.hidden = true
     if (!on) return
-    const id = this.insertionAnchor()
     const view = this.renderer.pageView
+    const before = what === 'pageBreak' ? this.breakBeforeParagraph() : null
+    const first = before ? view.fragments(before).find((f) => view.pageIndexOf(f) === this.page) : undefined
+    if (first) {
+      const r = ((first.closest('p') as HTMLElement | null) ?? first).getBoundingClientRect()
+      const l = this.layer.getBoundingClientRect()
+      Object.assign(this.marker.style, { left: `${r.left - l.left}px`, top: `${r.top - l.top - 4}px`, width: `${r.width}px` })
+      this.marker.hidden = false
+      return
+    }
+    const id = this.insertionAnchor()
     const fragments = id ? view.fragments(id).filter((f) => view.pageIndexOf(f) === this.page) : []
     const last = fragments[fragments.length - 1]
     if (!last) return
@@ -3685,10 +3747,24 @@ export class ReportEditor {
   /** スマホで書いている間に「追加」→「改ページ」で入れた改ページと、書いていた欄（続けて足すものを、改ページの後ろに入れる：insertionAnchor） */
   private breakAfterEditing: { id: string; pb: string } | null = null
 
-  /** 改ページを入れる（足す位置の後ろ。この後ろは次のページから始まる） */
+  /**
+   * パソコンで、字のある本文の段落の頭にカーソルを置いているとき：その段落（改ページを、その段落の前に入れる）。
+   * Word と同じく、カーソルの所から次のページになる（前は段落の後ろに入り、その段落は今のページに残った：試し 2026-10-26b）
+   */
+  private breakBeforeParagraph(): string | null {
+    const id = this.overlay.blockId
+    if (this.phone || !id || this.overlay.caret !== 0 || !this.overlay.text.trim()) return null
+    return ops.findEditable(this.report, id)?.kind === 'paragraph' ? id : null
+  }
+
+  /** 改ページを入れる（足す位置の後ろ。この後ろは次のページから始まる。段落の頭にカーソルがあれば、その段落の前：breakBeforeParagraph） */
   addPageBreak(): void {
     if (this.settlingRemoval) return
-    const after = this.insertionAnchor()
+    const before = this.breakBeforeParagraph()
+    // 段落の前：1つ前のブロックの後ろ（章の最初の段落なら、章の見出しのすぐ後ろ。insertAfter に章の id を渡すと章の先頭に入る）
+    const chapter = before ? this.report.body.find((c) => c.blocks.some((b) => b.id === before)) : undefined
+    const at = chapter ? chapter.blocks.findIndex((b) => b.id === before) : -1
+    const after = chapter ? (at > 0 ? chapter.blocks[at - 1].id : chapter.id) : this.insertionAnchor()
     const id = ops.newId('pb')
     this.marker.hidden = true
     // スマホで紙面に直接書いている間（キーボードの上の「追加」）：入れたあとも、同じ欄を同じ所から書き続ける（キーボードを閉じない）
@@ -4661,9 +4737,12 @@ export class ReportEditor {
     // 空のページにまとめて選んだ：そのページを枚数に合う並べ方にする（2枚は左右、3〜4枚は4枚。5枚からは次のページへ。mockups/v53 ① 案B）
     const empty = pagePhotoCount(this.report.workPhotos[page]) === 0 && this.report.workPhotos[page].imageIds.every((id) => !id)
     const fit = empty && files.length >= 2 ? fittingArrangement(Math.min(files.length, PHOTOS_PER_PAGE_MAX)) : null
+    // 並べ方を変えたか（自分で「2枚 左右」にしてから2枚入れたときは、「…の並べ方にしました」と言わない：試し 2026-10-26b）
+    const rearranged = !!fit && photoGrid(this.report.workPhotos[page]) !== photoGrid(fit)
     const planned = fit ? updatePhotoPage(this.report.workPhotos, page, (p) => changeArrangement(p, fit.layout, fit.columns)) : this.report.workPhotos
     const slots = photoSlots(planned, page, index, files.length, max)
     const stored: (PhotoSlot & { imageId: string })[] = []
+    const unreadable: string[] = []
     let tried = 0
     // 縮めて保存する間は、画面に「写真を取り込んでいます…（2 / 5枚）」を出す
     const total = Math.min(files.length, slots.length)
@@ -4672,12 +4751,13 @@ export class ReportEditor {
         if (stored.length >= slots.length) break
         this.callbacks.onImageWork?.({ done: tried, total })
         tried++
-        const imageId = await this.storeImage(file, 'photo')
+        const imageId = await this.storeImage(file, 'photo', unreadable)
         if (imageId) stored.push({ ...slots[stored.length], imageId })
       }
     } finally {
       this.callbacks.onImageWork?.(null)
     }
+    this.alertUnreadable(unreadable)
     if (stored.length > 0) {
       this.update((r) => {
         let pages = placePhotos(fit ? updatePhotoPage(r.workPhotos, page, (p) => changeArrangement(p, fit.layout, fit.columns)) : r.workPhotos, stored)
@@ -4690,10 +4770,11 @@ export class ReportEditor {
     const left = files.length - tried
     const notes = [
       // 1ページに入りきらない枚数のときは「7枚なので「4枚」」と言わない（選んだ枚数と合わなかった：PC の試し 2026-10-24）
-      fit && stored.length >= 2
+      fit && rearranged && stored.length >= 2
         ? `${stored.length > PHOTOS_PER_PAGE_MAX ? `${page + 1}ページ目は` : `${stored.length}枚なので`}「${photoGrid(fit).label.replace(/（.*）/, '')}${fit.layout === 2 ? ' 左右' : ''}」の並べ方にしました`
         : '',
-      added > 0 ? `作品写真のページを${added}つ足して、${stored.filter((s) => s.page >= before).length}枚入れました` : '',
+      // 入れた枚数は、足したページの分だけでなく全部（6枚選んで「3枚入れました」と出て、3枚しか入っていないように読めた：試し 2026-10-26b）
+      added > 0 ? `${stored.length}枚入れました（作品写真のページを${added}つ足しました）` : '',
       left > 0 && max !== null ? `${left}枚は入れていません（作品写真は${max}ページまでです）` : '',
     ].filter(Boolean)
     if (notes.length) this.noticeInfo(notes.join('。'))

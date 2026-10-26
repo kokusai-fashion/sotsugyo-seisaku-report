@@ -264,8 +264,13 @@ export async function templateModeAdmin(browser, check) {
   await frame.evaluate(() => window.__editor.select(null))
   await tool(frame, '改ページ')
   await ready(frame)
+  // カーソルは段落の終わり（段落の頭なら、改ページはその段落の前に入る：試し 2026-10-26b）
   await frame.evaluate((id) => window.__editor.openWhenReady(id, 0), pid)
   await sleep(400)
+  await page.keyboard.down('Control')
+  await page.keyboard.press('End')
+  await page.keyboard.up('Control')
+  await sleep(200)
   await tool(frame, '改ページ')
   await ready(frame)
   await sleep(600)

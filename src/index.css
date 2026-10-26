@@ -256,7 +256,8 @@ body.resizing .page-viewport { pointer-events: none; }
 .view-bar .zoom-step b { min-width: 42px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink); }
 /* 拡大しているときは、ページ送りの「‹ ›」を右下の帯の中に出し、紙面の右下には浮かせない（200% で本文・写真に重なった：試し 2026-10-26。mockups/v63 ① 案A） */
 .stage.zoomed > .arrow { display: none; }
-.view-bar .bar-nav { display: flex; align-items: center; gap: 1px; margin-left: 2px; padding-left: 4px; border-left: 1px solid var(--line); }
+/* 「‹ ›」は帯の左の端（帯は右に寄せてあるので、出ても「－ ％ ＋」が動かない。前は右の端で、「＋」の2回目が「›」に当たった：試し 2026-10-26b。mockups/v66 ② 案A） */
+.view-bar .bar-nav { display: flex; align-items: center; gap: 1px; margin-right: 2px; padding-right: 4px; border-right: 1px solid var(--line); }
 .view-bar .bar-arrow { width: 32px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 7px; background: none; color: var(--accent); }
 .view-bar .bar-arrow svg { width: 18px; height: 18px; }
 .view-bar .bar-arrow:hover:not(:disabled) { background: var(--accent-soft); }
@@ -658,6 +659,11 @@ body.resizing .page-viewport { pointer-events: none; }
 .login-btn:disabled { opacity: 0.5; cursor: default; }
 .login-g { width: 20px; height: 20px; flex: none; }
 .login-small { font-size: 11.5px; color: var(--muted); line-height: 1.7; margin: 12px 0 0; }
+/* スマホ・タブレット：Classroom・LINE などのアプリの中の画面からの切り替え方（DriveUi の inAppNote。mockups/v66 ① 案B） */
+.login-inapp { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; background: #eef1f8; color: #2f3a56; font-size: 12.5px; line-height: 1.75; }
+.login-inapp b { display: block; font-size: 13px; margin-bottom: 2px; }
+.login-inapp span { display: block; }
+.login-inapp svg { width: 15px; height: 15px; vertical-align: -3px; margin-right: 4px; }
 .login-err { background: var(--error-soft); color: var(--error); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.7; margin: 0 0 14px; }
 .login-err small { display: block; color: #8b4a4a; font-size: 11.5px; }
 .login-warn { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.7; margin: 0 0 14px; }
@@ -2016,7 +2022,7 @@ p.busy-line { display: flex; }
 /* スマホ：紙面で直接書くとき、はじめて1回だけの「字を大きくするには」（app/Phone.tsx の PinchTip。mockups/v48 A） */
 .pinch-tip { position: fixed; z-index: 35; left: 12px; right: 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 6px 11px 14px; border-radius: 12px; background: var(--accent); color: #fff; font-size: 14px; line-height: 1.5; box-shadow: 0 8px 24px rgba(30, 25, 20, 0.25); word-break: auto-phrase; }
 /* スマホ：入れた図・表のタイトルの欄を開いたが、キーボードが出ていないとき（iPhone）の枠と吹き出し（reportEditor の showTapHint。mockups/v63 ③ 案A） */
-.tap-ring { position: fixed; z-index: 40; border: 3px solid #d99a00; border-radius: 8px; box-shadow: 0 0 0 6px rgba(217, 154, 0, 0.22); pointer-events: none; }
+.tap-ring { position: fixed; z-index: 40; box-sizing: border-box; border: 3px solid #d99a00; border-radius: 8px; box-shadow: 0 0 0 6px rgba(217, 154, 0, 0.22); pointer-events: none; }
 .tap-bubble { position: fixed; z-index: 41; padding: 9px 14px; border-radius: 12px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; line-height: 1.4; white-space: nowrap; box-shadow: 0 6px 18px rgba(20, 30, 80, 0.3); pointer-events: none; }
 .tap-bubble::after { content: ''; position: absolute; left: 50%; bottom: -7px; translate: -50% 0; border: 8px solid transparent; border-bottom: 0; border-top-color: var(--accent); }
 .tap-bubble.below::after { bottom: auto; top: -7px; border: 8px solid transparent; border-top: 0; border-bottom-color: var(--accent); }

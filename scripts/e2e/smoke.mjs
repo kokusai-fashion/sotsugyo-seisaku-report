@@ -1210,25 +1210,32 @@ await withEdge(async (browser) => {
   check('「表を入れる」で、書いている位置に（表n）が入り、表のタイトルを書く欄が開く（書いている間は、空のタイトルのエラーを出さない）', !!tableBlock && s.report.body.flatMap((c) => c.blocks).find((b) => b.id === firstParagraph).content.some((n) => n.type === 'ref' && n.targetId === tableBlock.id) && !s.findings.some((x) => x.ruleId === 'required-text' && x.blockId === tableBlock.id), tableBlock?.id)
   await page.keyboard.type('使用した生地')
   await page.keyboard.press('Enter')
-  // 表のタイトルで Enter：空いている最初のマス（見出しの行はとばす。依頼者の選択 2026-10-26）
+  // 表のタイトルで Enter：空いている最初のマス。入れたばかりの表は見出しの行が空なので、見出しの行の1つ目
+  // （見出しが埋まっていれば見出しの行はとばす：依頼者の選択 2026-10-26。見出しが空でもとばすと、見出しのつもりで中身の行に書いていた：試し 2026-10-26b）
   await waitEditing(() => window.__editor.getSnapshot().editingKind === 'tableCell')
   await ready()
   s = await snap()
   const filled = s.report.body.flatMap((c) => c.blocks).find((b) => b.id === tableBlock.id)
-  check('表のタイトルで Enter を押すと、空いている最初のマス（見出しの行の次）へ進む', s.editingId === filled.rows[1].cells[0].id && filled.caption === '使用した生地', JSON.stringify({ editing: s.editingId, caption: filled.caption }))
-  // マスを埋めて、Shift+Tab でタイトルへ戻る。空いているマスがなければ、Enter で表の後ろに新しい段落
-  const [cellA, cellB] = filled.rows[1].cells.map((c) => c.id)
-  await page.keyboard.type('ウール')
-  await page.keyboard.press('Tab')
-  await waitEditing((id) => window.__editor.getSnapshot().editingId === id, cellB)
-  await page.keyboard.type('本体')
+  check('表のタイトルで Enter を押すと、空いている最初のマス（入れたばかりの表は、見出しの行の1つ目）へ進む', s.editingId === filled.rows[0].cells[0].id && filled.caption === '使用した生地', JSON.stringify({ editing: s.editingId, caption: filled.caption }))
+  // マスを埋めて（Tab で次のマスへ）、Shift+Tab でタイトルへ戻る。空いているマスがなければ、Enter で表の後ろに新しい段落
+  const cellIds = filled.rows.flatMap((r) => r.cells.map((c) => c.id))
+  const words = ['素材', '使った所', 'ウール', '本体']
+  for (let k = 0; k < cellIds.length; k++) {
+    if (k) {
+      await page.keyboard.press('Tab')
+      await waitEditing((id) => window.__editor.getSnapshot().editingId === id, cellIds[k])
+    }
+    await page.keyboard.type(words[k])
+  }
   const shiftTab = async () => {
     await page.keyboard.down('Shift')
     await page.keyboard.press('Tab')
     await page.keyboard.up('Shift')
   }
-  await shiftTab()
-  await waitEditing((id) => window.__editor.getSnapshot().editingId === id, cellA)
+  for (let k = cellIds.length - 2; k >= 0; k--) {
+    await shiftTab()
+    await waitEditing((id) => window.__editor.getSnapshot().editingId === id, cellIds[k])
+  }
   await shiftTab()
   await waitEditing(() => window.__editor.getSnapshot().editingKind === 'tableCaption')
   await page.keyboard.press('End')

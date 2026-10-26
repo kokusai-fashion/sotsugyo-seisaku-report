@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STUDENT_TOPICS, TEACHER_TOPICS, type HelpTopic } from './helpTopics'
-import { highlightParts, searchTopics, termsOf } from './search'
+import { highlightParts, phraseTerms, searchTopics, termsOf } from './search'
 
 // 画面の写真があるかを確かめるため（ブラウザ用の型だけを使う設定なので、wordImport.test.ts と同じく、型を書いて読み込む）
 const fs: { existsSync(p: string): boolean } = await import(/* @vite-ignore */ `node:${'fs'}`)
@@ -187,5 +187,32 @@ describe('目次（mockups/v41：目次は本文の見出しから自動で作�
       expect(hits[0]?.topic.id, q).toBe('write')
     }
     expect(searchTopics(STUDENT_TOPICS, '目次').hits[0].line.text).toContain('目次は見出しから自動で作ります（行を押すと、その見出しへ）')
+  })
+})
+
+describe('試し 2026-10-26b で見つからなかった言葉・関係のない項目', () => {
+  it('「表の見出し」：「表」が「表示」「表紙」には当たらず、表の項目だけが出る', () => {
+    const { hits } = searchTopics(STUDENT_TOPICS, '表の見出し')
+    // 前は「表示」「表紙」にも当たって5件。いまは、表と見出しのある2つと、動画「表・作品写真」のある作品写真の項目
+    expect(ids(hits)).toEqual(['figure', 'write', 'photos'])
+    expect(marked(highlightParts('表示の大きさ・表紙・素材表・表の見出し', ['表']))).toEqual(['表'])
+  })
+
+  it('「クラスルーム」「くらするーむ」（ひらがなのまま）でも、Classroom から開いたときの切り替え方の行が出る', () => {
+    for (const q of ['クラスルーム', 'くらするーむ', 'Classroom', 'ｸﾗｽﾙｰﾑ']) {
+      const hit = searchTopics(STUDENT_TOPICS, q).hits.find((h) => h.topic.id === 'login')
+      expect(hit?.line.label, q).toContain('Classroom')
+    }
+  })
+
+  it('「もどす」「取り消し」「間違えて消した」は元に戻す、「パーセント」「ページ送り」「カーソル」「半角」は書き方の項目', () => {
+    for (const q of ['もどす', '取り消し', '間違えて消した']) expect(ids(searchTopics(STUDENT_TOPICS, q).hits), q).toContain('undo')
+    for (const q of ['パーセント', 'ページ送り', 'カーソル', '半角']) expect(ids(searchTopics(STUDENT_TOPICS, q).hits), q).toContain('write')
+  })
+
+  it('ひらがな・カタカナの違いをそろえても、言葉の区切り（助詞）は、カタカナの中では区切らない', () => {
+    expect(phraseTerms('ニットの写真')).toEqual(['にっと', '写真'])
+    expect(phraseTerms('ページを足す')).toEqual(['ぺーじ', '足す'])
+    expect(marked(highlightParts('ページを足す', ['ぺーじ']))).toEqual(['ページ'])
   })
 })

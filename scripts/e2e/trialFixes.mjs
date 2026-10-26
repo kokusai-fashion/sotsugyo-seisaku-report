@@ -277,15 +277,16 @@ export async function trialFixesPc(browser, check) {
   const arrow = await page.evaluate(() => {
     const p = document.querySelector('.palette').getBoundingClientRect()
     const a = document.querySelector('.view-bar .bar-arrow.prev').getBoundingClientRect()
-    return { overlap: a.left < p.right && a.right > p.left && a.top < p.bottom && a.bottom > p.top, rightSide: a.left > innerWidth / 2 }
+    // 「‹ ›」は右下の帯の左の端（mockups/v66 ② 案A。前は帯の右の端）。窓の下の側にあり、左の道具に重ならない
+    return { overlap: a.left < p.right && a.right > p.left && a.top < p.bottom && a.bottom > p.top, bottom: a.top > innerHeight / 2 }
   })
   await page.evaluate(() => window.__editor.finishEditing())
   await page.evaluate(() => window.__editor.select({ kind: 'table', id: 't1' }))
   await wait(400)
   const selectedSlot = await imgSlot()
   check(
-    'パソコン（1280×586・拡大）：ページ送りの「‹」は右下（右下の帯の中）で、左の道具に重ならない。表を選ぶと「画像を入れる」は薄く同じ所に出て、下の「行を足す」の位置がずれない',
-    !arrow.overlap && arrow.rightSide && editingSlot.has && !editingSlot.disabled && selectedSlot.has && selectedSlot.disabled === true && selectedSlot.rowsTop === editingSlot.rowsTop,
+    'パソコン（1280×586・拡大）：ページ送りの「‹」は右下の帯の中（下の側）で、左の道具に重ならない。表を選ぶと「画像を入れる」は薄く同じ所に出て、下の「行を足す」の位置がずれない',
+    !arrow.overlap && arrow.bottom && editingSlot.has && !editingSlot.disabled && selectedSlot.has && selectedSlot.disabled === true && selectedSlot.rowsTop === editingSlot.rowsTop,
     JSON.stringify({ arrow, editingSlot, selectedSlot }),
   )
   // 高い画面（1440×900）では、道具のひとことを出す

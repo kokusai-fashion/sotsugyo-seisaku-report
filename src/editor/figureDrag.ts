@@ -358,6 +358,8 @@ export class FigureDrag {
       const right = gx + drag.ghost.offsetWidth + 10
       const toLeft = left || right + el.offsetWidth > window.innerWidth - 8
       el.style.left = `${toLeft ? Math.max(8, gx - 10 - el.offsetWidth) : right}px`
+      // 窓の下に入りきらないときは、矢印の上に出す（拡大中の右下の帯の「‹ ›」の上で、吹き出しが窓の下で切れた：試し 2026-10-26b）
+      if (y + 22 + el.offsetHeight > window.innerHeight - 8) el.style.top = `${Math.max(8, y - 16 - el.offsetHeight)}px`
     }
     // 元の所（見えていれば）
     const own = this.boxesOf(drag.plan.rowId)

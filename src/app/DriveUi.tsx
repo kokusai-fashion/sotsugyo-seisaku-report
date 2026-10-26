@@ -33,6 +33,25 @@ const googleMark = (
   </svg>
 )
 
+/**
+ * スマホ・タブレット：Classroom・LINE などのアプリの中の画面で開いたときの、Safari・Chrome への切り替え方（mockups/v66 ① 案B）。
+ * アプリの中の画面ではログインできない・原稿が Safari と別に保存されることがあり、前はログインしたあとのヘルプにしかなかった（試し 2026-10-26b）
+ */
+const inAppNote = (
+  <div className="login-inapp">
+    <b>Classroom・LINE などから開いたとき</b>
+    Safari・Chrome に切り替えてから、ログインします。
+    <span>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth={1.8} />
+        <path d="M15.5 8.5 13 13l-4.5 2.5L11 11z" fill="currentColor" />
+      </svg>
+      iPhone：右下の方位磁針のボタン
+    </span>
+    <span>⋮ Android：右上の「⋮」→「Chrome で開く」</span>
+  </div>
+)
+
 /** 時刻（今日なら「13:44」、ほかの日なら「10/6 13:44」） */
 function formatTime(at: Date): string {
   const time = at.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
@@ -85,6 +104,8 @@ export function LoginGate({
   const online = useOnline()
   const cardRef = useRef<HTMLDivElement>(null)
   useDialogFocus(cardRef)
+  // 指で操作する端末（スマホ・タブレット）だけ、アプリの中の画面からの切り替え方を出す（inAppNote）
+  const [touch] = useState(() => matchMedia('(pointer: coarse)').matches)
   const brand = (
     <div className="login-brand">
       <span className="login-mark">卒</span>
@@ -166,6 +187,7 @@ export function LoginGate({
               <p className="login-lead">大学の Google アカウントでログインしてください。原稿は、あなたの Google ドライブ（「卒業制作報告書」フォルダ）に自動で保存されます。</p>
             )}
             {previous || button(gate.kind === 'error' ? 'もう一度ログインする' : '大学のアカウントでログイン')}
+            {touch && inAppNote}
             <SlowNote busy={signing} className="login-small" />
             {previous ? null : online ? note : <p className="login-small">原稿はドライブに保存するため、ログインしてから書きます。</p>}
           </>

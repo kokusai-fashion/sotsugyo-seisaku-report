@@ -194,6 +194,19 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
 export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot }) {
   return (
     <div className="view-bar">
+      {/* 拡大しているときは、ページ送りの「‹ ›」もこの帯の中に出す（紙面の右下に浮かせていると、200% で本文・写真に重なった：
+          試し 2026-10-26。依頼者の選択 mockups/v63 ① 案A。紙面の「‹ ›」は index.css で隠す）。
+          帯の左の端に置く（右の端だと、出たときに「＋」が左へずれ、同じ所の2回目で「›」に当たった：試し 2026-10-26b。mockups/v66 ② 案A） */}
+      {snap.zoomed && (
+        <div className="bar-nav" role="group" aria-label="ページ送り">
+          <button className="bar-arrow prev" aria-label="前のページ" title="前のページ（←）" disabled={snap.page <= 0} onClick={() => editor.prevPage()}>
+            {Icon.prev}
+          </button>
+          <button className="bar-arrow next" aria-label="次のページ" title="次のページ（→）" disabled={snap.page >= snap.pageCount - 1} onClick={() => editor.nextPage()}>
+            {Icon.next}
+          </button>
+        </div>
+      )}
       <div className="zoom" role="group" aria-label="表示の大きさ">
         <button className={!snap.zoomed && !snap.spread ? 'on' : ''} aria-pressed={!snap.zoomed && !snap.spread} title="1ページずつ、ページ全体を表示" onClick={() => editor.setView('fit')}>
           {/* 前は「全体」。見開きもページ全体が見えるので、何ページ見えるかの名前にした（依頼者の選択 2026-10-24） */}
@@ -218,18 +231,6 @@ export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSn
           <b aria-live="polite">{Math.round(snap.zoomLevel * 100)}%</b>
           <button title="大きく（1段上げる）" aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01} onClick={() => editor.zoomStep(1)}>
             ＋
-          </button>
-        </div>
-      )}
-      {/* 拡大しているときは、ページ送りの「‹ ›」もこの帯の中に出す（紙面の右下に浮かせていると、200% で本文・写真に重なった：
-          試し 2026-10-26。依頼者の選択 mockups/v63 ① 案A。紙面の「‹ ›」は index.css で隠す） */}
-      {snap.zoomed && (
-        <div className="bar-nav" role="group" aria-label="ページ送り">
-          <button className="bar-arrow prev" aria-label="前のページ" title="前のページ（←）" disabled={snap.page <= 0} onClick={() => editor.prevPage()}>
-            {Icon.prev}
-          </button>
-          <button className="bar-arrow next" aria-label="次のページ" title="次のページ（→）" disabled={snap.page >= snap.pageCount - 1} onClick={() => editor.nextPage()}>
-            {Icon.next}
           </button>
         </div>
       )}
@@ -611,7 +612,7 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
             {/* 大きい順（大見出し → 小見出し）に並べる（依頼者の判断 2026-10-21） */}
             <Tool label="大見出し" icon={Icon.heading1} title="大見出し（Ⅰ．）を足す" onPreview={preview} onClick={() => editor.addChapter()} />
             <Tool label="小見出し" icon={Icon.heading2} title="小見出し（ⅰ．）を足す" onPreview={preview} onClick={() => editor.addSubheading()} />
-            <Tool label="改ページ" icon={Icon.pageBreak} title="ここで改ページする（この後ろは次のページから始まります）" onPreview={preview} onClick={() => editor.addPageBreak()} />
+            <Tool label="改ページ" icon={Icon.pageBreak} title="ここで改ページする（この後ろは次のページから始まります）" onPreview={(on) => editor.previewInsert(on, 'pageBreak')} onClick={() => editor.addPageBreak()} />
           </div>
           <div className="group">
             <Tool

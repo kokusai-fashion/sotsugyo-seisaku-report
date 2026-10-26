@@ -153,8 +153,8 @@ export async function photoPagesPc(browser, check) {
   await pause(500)
   const auto = { photos: (await photosOf(page)).map((p) => [p.layout, p.imageIds.filter(Boolean).length]), toast: await page.evaluate(() => document.querySelector('.undo-toast')?.textContent ?? '') }
   check(
-    '空いている枠（1つ）より多く写真を選ぶ（3枚）と、最後のページと同じ並べ方（4枚）のページを足して全部入れ、「作品写真のページを1つ足して、2枚入れました」と出す（上限なしのときは、入れない写真はない）',
-    JSON.stringify(auto.photos) === '[[4,4],[4,4],[4,2]]' && auto.toast.includes('作品写真のページを1つ足して、2枚入れました') && !auto.toast.includes('入れていません'),
+    '空いている枠（1つ）より多く写真を選ぶ（3枚）と、最後のページと同じ並べ方（4枚）のページを足して全部入れ、「3枚入れました（作品写真のページを1つ足しました）」と出す（足したページの分だけでなく全部の枚数）（上限なしのときは、入れない写真はない）',
+    JSON.stringify(auto.photos) === '[[4,4],[4,4],[4,2]]' && auto.toast.includes("3枚入れました（作品写真のページを1つ足しました）") && !auto.toast.includes('入れていません'),
     JSON.stringify(auto),
   )
   // このあとの確かめのために、1ページ目は4枚・2〜4ページ目は1枚ずつにしておく（前の確かめと同じ形）

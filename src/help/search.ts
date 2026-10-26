@@ -4,11 +4,19 @@ import { HELP_VIDEOS } from './videos'
 /**
  * 使い方の「言葉で探す」。入れた言葉（空白で区切る）が、項目の題・文・よく使われる言い方（words）に
  * そのまま入っているかを数えるだけ（AI ではない。どこにも送らない）。
- * 全角・半角と、英字の大文字・小文字の違いだけはそろえる（ＰＤＦ → pdf）
+ * 全角・半角、英字の大文字・小文字、ひらがな・カタカナの違いだけはそろえる（ＰＤＦ → pdf、くらするーむ → クラスルーム）
  */
 
-/** 比べるための形にそろえる（全角の英数字・空白を半角に、英字を小文字に） */
-export const normalize = (s: string): string => s.normalize('NFKC').toLowerCase()
+/** 全角の英数字・空白を半角に、英字を小文字に */
+const widthCase = (s: string): string => s.normalize('NFKC').toLowerCase()
+/**
+ * カタカナをひらがなに（スマホで変換せずに打った「くらするーむ」でも「クラスルーム」が見つかるように：試し 2026-10-26b）。
+ * 1字は1字のまま（highlightParts は、そろえた形の何文字目が元の文の何文字目かを覚えておく）
+ */
+const hiragana = (s: string): string => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+
+/** 比べるための形にそろえる（全角の英数字・空白を半角に、英字を小文字に、カタカナをひらがなに） */
+export const normalize = (s: string): string => hiragana(widthCase(s))
 
 /** 入れた言葉を、空白・読点・中黒で区切る（同じ言葉は1つに） */
 export function termsOf(query: string): string[] {
@@ -47,6 +55,23 @@ export interface HelpHit {
 
 const lineText = (l: HelpLine) => normalize(`${l.label ?? ''} ${l.text}`)
 
+const HAN = /\p{Script=Han}/u
+/**
+ * 文（そろえた形）の中で、言葉が入っている所（何文字目から）。
+ * 漢字1字の言葉（図・表・章）は、ほかの漢字と続いている所（「表示」「表紙」「文章」）では見つけない
+ * （「表の見出し」で探すと「表」が「表示」「表紙」にも当たり、関係のない項目まで出ていた：試し 2026-10-26b）
+ */
+function positions(text: string, t: string): number[] {
+  const single = t.length === 1 && HAN.test(t)
+  const out: number[] = []
+  for (let i = text.indexOf(t); i >= 0; i = text.indexOf(t, i + t.length)) {
+    if (single && (HAN.test(text[i - 1] ?? '') || HAN.test(text[i + 1] ?? ''))) continue
+    out.push(i)
+  }
+  return out
+}
+const has = (text: string, t: string) => positions(text, t).length > 0
+
 /**
  * 項目を探す。1つの項目につき1件。
  * 並べ方：入れた言葉のうち、いくつが入っているか（多い順）→ 題に入っている数 → 一覧の順。
@@ -57,7 +82,12 @@ const lineText = (l: HelpLine) => normalize(`${l.label ?? ''} ${l.text}`)
  * 空白で区切らずに打った言い方で1件も見つからないとき、こちらで探し直す（先生の試し 2026-10-21：「先生を追加」は0件、「先生 追加」は4件だった）
  */
 export function phraseTerms(query: string): string[] {
-  return [...new Set(termsOf(query).flatMap((t) => t.split(/[をにでがはへとの]/)).filter((t) => t.length >= 2 || /^\p{Script=Han}$/u.test(t)))]
+  // 助詞で区切るのは、カタカナをひらがなにする前（「ニット」「データ」の「ニ」「デ」で区切らない）
+  const parts = widthCase(query)
+    .split(/[\s、,・]+/)
+    .flatMap((t) => t.split(/[をにでがはへとの]/))
+    .map(hiragana)
+  return [...new Set(parts.filter((t) => t.length >= 2 || /^\p{Script=Han}$/u.test(t)))]
 }
 
 export function searchTopics(topics: HelpTopic[], query: string): { terms: string[]; hits: HelpHit[] } {
@@ -74,18 +104,18 @@ function searchWith(topics: HelpTopic[], terms: string[]): { terms: string[]; hi
     const lines = linesOf(topic)
     const title = normalize(topic.title)
     const all = normalize([topic.title, ...lines.map((l) => `${l.label ?? ''} ${l.text}`), topic.words ?? '', topic.videos?.length ? VIDEO_WORDS : ''].join(' '))
-    const found = terms.filter((t) => all.includes(t))
+    const found = terms.filter((t) => has(all, t))
     if (!found.length) return
-    const inTitle = found.filter((t) => title.includes(t))
+    const inTitle = found.filter((t) => has(title, t))
     let line: HelpLine = lines[0] ?? { text: '' }
     let best = -1
     for (const l of lines) {
-      const has = found.filter((t) => lineText(l).includes(t))
-      const n = has.filter((t) => !inTitle.includes(t)).length * 2 + has.filter((t) => inTitle.includes(t)).length
+      const inLine = found.filter((t) => has(lineText(l), t))
+      const n = inLine.filter((t) => !inTitle.includes(t)).length * 2 + inLine.filter((t) => inTitle.includes(t)).length
       if (n > best) [line, best] = [l, n]
     }
     const seen = `${title} ${lineText(line)}`
-    const hidden = found.filter((t) => !seen.includes(t))
+    const hidden = found.filter((t) => !has(seen, t))
     scored.push({ topic, found, line, hidden, score: found.length * 100 + inTitle.length * 10, order })
   })
   scored.sort((a, b) => b.score - a.score || a.order - b.order)
@@ -109,11 +139,10 @@ export function highlightParts(text: string, terms: string[]): { text: string; h
   })
   // 印を付ける範囲（元の文の何文字目から何文字目まで）。重なる範囲はまとめる
   const marked = new Array<boolean>(chars.length).fill(false)
-  for (const t of terms) {
-    let i = norm.indexOf(t)
-    while (i >= 0) {
+  // 言葉もそろえた形にする（探した結果の言葉は、そろえた形。何度そろえても同じ）
+  for (const t of terms.map(normalize)) {
+    for (const i of positions(norm, t)) {
       for (let k = from[i]; k <= from[i + t.length - 1]; k++) marked[k] = true
-      i = norm.indexOf(t, i + t.length)
     }
   }
   const parts: { text: string; hit: boolean }[] = []

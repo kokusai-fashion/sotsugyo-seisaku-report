@@ -40,10 +40,23 @@ const paper = () => {
   const p = [...document.querySelectorAll(`${CUR} p[data-block-id]`)].find(visible)
   return p ? [p] : first(CUR)()
 }
+/**
+ * スマホの紙面：字のある最初の段落（なければ、章の見出しと、その下の空の段落。どちらもなければページ全体）。
+ * スマホは空の段落の「（…を入力）」を紙面に出さないので、空の段落だけだと、何も書いていない白い帯に光を当て、
+ * 上の章の見出しを半分隠していた（試し 2026-10-26b）
+ */
+const phonePaper = () => {
+  const paras = [...document.querySelectorAll(`${CUR} p[data-block-id]`)].filter(visible)
+  const p = paras.find((e) => !!e.textContent?.trim())
+  if (p) return [p]
+  const heading = [...document.querySelectorAll(`${CUR} h1, ${CUR} h2`)].find(visible)
+  return heading ? [heading, ...paras.slice(0, 1)] : first(CUR)()
+}
 
 const PC_STEPS = (drive: boolean): Step[] => [
   { title: '紙面', text: '文をクリックすると、その場で書けます。', targets: paper, sides: ['below', 'above', 'right'] },
-  { title: '道具', text: '図・表は、文中をクリックしてから、ここで入れます。', targets: first('.palette'), sides: ['right'] },
+  // いちばん下の「元に戻す」も紹介する（右下の帯から移した。試し 2026-10-26b。mockups/v66 ③ 案A）
+  { title: '道具', text: '図・表は、文中をクリックしてから、ここで入れます。いちばん下の「元に戻す」で、ひとつ前に戻せます。', targets: first('.palette'), sides: ['right'] },
   { title: 'ページの一覧', text: '押すと、そのページへ。赤い点は、エラーのあるページです。', targets: first('.thumbs-col'), sides: ['right'] },
   {
     title: '保存のようす',
@@ -69,7 +82,7 @@ const PC_STEPS = (drive: boolean): Step[] => [
 ]
 const PHONE_STEPS = (drive: boolean, direct: boolean): Step[] => [
   // 紙面で直接書く（スマホのふつう）。予備の ?direct=0 の端末では、下から書く欄が出る（app/phoneDirect.ts）
-  { title: '紙面', text: direct ? '文をタップすると、大きくなって、その場で書けます。「完了」で、ページ全体に戻ります。' : '文をタップすると、書く欄が出ます。', targets: paper, sides: ['below', 'above'] },
+  { title: '紙面', text: direct ? '文をタップすると、大きくなって、その場で書けます。「完了」で、ページ全体に戻ります。' : '文をタップすると、書く欄が出ます。', targets: phonePaper, sides: ['below', 'above'] },
   {
     title: 'チェックと PDF',
     text: '進み具合・直すところと、PDF の書き出しは、ここです。',

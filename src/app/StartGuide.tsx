@@ -108,7 +108,20 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
           (e) => e.getBoundingClientRect().width > 0 && !!e.closest('[data-vivliostyle-page-container]')?.classList.contains('is-current'),
         )
       }
-      const r = el?.getBoundingClientRect()
+      // 紙面の行の中の欄（「（コースを選ぶ）コース」「―（サブタイトル）の衣装制作―」など）は、その行の字の全体に光を当てる。
+      // 欄だけだと、光の枠が隣の字を半分に切っていた（「コ」が「ニ」に見えた：試し 2026-10-26b）
+      let r = el?.getBoundingClientRect()
+      if (el && r && !el.classList.contains('overlay-editor') && getComputedStyle(el).display === 'inline' && el.parentElement) {
+        const line = document.createRange()
+        line.selectNodeContents(el.parentElement)
+        // 空の欄の「（コースを選ぶ）」などは字ではない（::before）ので、欄の枠とあわせた範囲にする
+        const lr = line.getBoundingClientRect()
+        if (lr.width > 0 && lr.height > 0) {
+          const left = Math.min(r.left, lr.left)
+          const top = Math.min(r.top, lr.top)
+          r = new DOMRect(left, top, Math.max(r.right, lr.right) - left, Math.max(r.bottom, lr.bottom) - top)
+        }
+      }
       const next = r && r.width > 0 ? r : null
       const key = next ? [next.left, next.top, next.width, next.height].map(Math.round).join() : ''
       if (key !== last) {

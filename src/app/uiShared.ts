@@ -165,12 +165,17 @@ export function useWheelPaging(target: React.RefObject<HTMLElement | null>, scro
   }, [target, scroller, editor, enabled])
 }
 
+/** 置いてから動き始めるまでが、これより長い指は、はらいとみなさない（長押し。図を選ぶ長押しは約 0.5 秒） */
+const SWIPE_HOLD_MS = 400
+
 /**
  * 紙面を指で左右・上下にはらうと、ページをめくる（スマホ。上下は、拡大していないときだけ）。
- * 2本の指で紙面を広げる・縮めるときは、めくらない（指を離すまで。広げ終えた直後も：editor/pinchZoom.ts）
+ * 2本の指で紙面を広げる・縮めるときは、めくらない（指を離すまで。広げ終えた直後も：editor/pinchZoom.ts）。
+ * 長く押してから動かした指（図を長押しで選んでから、そのまま動かした など）も、めくらない（SWIPE_HOLD_MS）
  */
 export function useSwipe(target: React.RefObject<HTMLElement | null>, editor: ReportEditor | null, enabled: boolean): void {
-  const start = useRef<{ x: number; y: number } | null>(null)
+  // t：置いた時刻。movedAt：動き始めた（10px 動いた）時刻
+  const start = useRef<{ x: number; y: number; t: number; movedAt?: number } | null>(null)
   useEffect(() => {
     const el = target.current
     if (!el || !editor || !enabled) return
@@ -181,7 +186,11 @@ export function useSwipe(target: React.RefObject<HTMLElement | null>, editor: Re
     const down = (e: PointerEvent) => {
       if (e.pointerType !== 'mouse') fingers.add(e.pointerId)
       if (fingers.size >= 2) multi = true
-      start.current = e.pointerType === 'mouse' || multi || (e.target as HTMLElement).closest?.('[data-photo-slot].is-selected:not(.whole) img, .data-table img.crop.is-selected') ? null : { x: e.clientX, y: e.clientY }
+      start.current = e.pointerType === 'mouse' || multi || (e.target as HTMLElement).closest?.('[data-photo-slot].is-selected:not(.whole) img, .data-table img.crop.is-selected') ? null : { x: e.clientX, y: e.clientY, t: e.timeStamp }
+    }
+    const move = (e: PointerEvent) => {
+      const s = start.current
+      if (s && s.movedAt === undefined && Math.hypot(e.clientX - s.x, e.clientY - s.y) >= 10) s.movedAt = e.timeStamp
     }
     const release = (e: PointerEvent) => {
       fingers.delete(e.pointerId)
@@ -193,6 +202,8 @@ export function useSwipe(target: React.RefObject<HTMLElement | null>, editor: Re
       const s = start.current
       start.current = null
       if (release(e) || !s || editor.pinching) return
+      // 長く押してから動かした：はらいではない（Android で図を長押しで選び、そのまま指を動かすと、前のページへめくれていた：試し 2026-10-26b）
+      if ((s.movedAt ?? e.timeStamp) - s.t > SWIPE_HOLD_MS) return
       const dx = e.clientX - s.x
       const dy = e.clientY - s.y
       const snap = editor.getSnapshot()
@@ -212,10 +223,12 @@ export function useSwipe(target: React.RefObject<HTMLElement | null>, editor: Re
       release(e)
     }
     el.addEventListener('pointerdown', down)
+    el.addEventListener('pointermove', move)
     el.addEventListener('pointerup', up)
     el.addEventListener('pointercancel', cancel)
     return () => {
       el.removeEventListener('pointerdown', down)
+      el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointercancel', cancel)
     }
