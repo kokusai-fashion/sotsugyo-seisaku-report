@@ -226,7 +226,7 @@ export class FigureDrag {
     this.layer?.remove()
     this.layer = null
     document.body.classList.remove('fd-dragging')
-    document.querySelectorAll('.arrow.fd-arrow-on').forEach((a) => a.classList.remove('fd-arrow-on'))
+    document.querySelectorAll('.fd-arrow-on').forEach((a) => a.classList.remove('fd-arrow-on'))
   }
 
   /** 拡大して紙面を上下に送れるとき、台の上・下の端に近づいたら、自動で送り続ける */
@@ -364,7 +364,7 @@ export class FigureDrag {
     for (const b of own) add('fd-dim', { left: `${b.left - 4}px`, top: `${b.top - 4}px`, width: `${b.right - b.left + 8}px`, height: `${b.bottom - b.top + 8}px` })
     if (drag.turning) return
     // 「‹ ›」の上：少し待つと、めくる
-    document.querySelectorAll('.arrow.fd-arrow-on').forEach((a) => a !== arrow?.el && a.classList.remove('fd-arrow-on'))
+    document.querySelectorAll('.fd-arrow-on').forEach((a) => a !== arrow?.el && a.classList.remove('fd-arrow-on'))
     if (arrow) {
       arrow.el.classList.add('fd-arrow-on')
       tip('fd-tip hint', arrow.dir > 0 ? 'ここで少し待つと、次のページへ' : 'ここで少し待つと、前のページへ', arrow.dir > 0)
@@ -435,11 +435,13 @@ export class FigureDrag {
 
   /** 矢印の下の「‹」「›」（押せるもの） */
   private arrowAt(x: number, y: number): { el: HTMLElement; dir: 1 | -1 } | null {
-    for (const [sel, dir] of [['.stage .arrow.next', 1], ['.stage .arrow.prev', -1]] as const) {
-      const el = document.querySelector<HTMLButtonElement>(sel)
-      if (!el || el.disabled) continue
-      const r = el.getBoundingClientRect()
-      if (r.width && x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 12 && y <= r.bottom + 12) return { el, dir }
+    // 紙面の「‹ ›」と、拡大しているときの右下の帯の「‹ ›」（紙面の方は隠している：mockups/v63 ① 案A）。見えているものだけ
+    for (const [sel, dir] of [['.stage .arrow.next, .stage .bar-arrow.next', 1], ['.stage .arrow.prev, .stage .bar-arrow.prev', -1]] as const) {
+      for (const el of document.querySelectorAll<HTMLButtonElement>(sel)) {
+        if (el.disabled) continue
+        const r = el.getBoundingClientRect()
+        if (r.width && x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 12 && y <= r.bottom + 12) return { el, dir }
+      }
     }
     return null
   }

@@ -65,6 +65,29 @@ export function useBandSide(): boolean {
   return side
 }
 
+/**
+ * 指で操作する端末（スマホ・タブレット）を横向きに持っているか。キーボードで画面の見える所が変わっても変わらないよう、
+ * 画面の縦横の比ではなく、端末の向き（screen.orientation）で見る。パソコンの狭い窓では false
+ */
+export function useTouchLandscape(): boolean {
+  const read = () => {
+    if (!matchMedia('(pointer: coarse)').matches) return false
+    const type = screen.orientation?.type
+    return type ? type.startsWith('landscape') : matchMedia('(orientation: landscape)').matches
+  }
+  const [land, setLand] = useState(read)
+  useEffect(() => {
+    const onChange = () => setLand(read())
+    screen.orientation?.addEventListener('change', onChange)
+    window.addEventListener('orientationchange', onChange)
+    return () => {
+      screen.orientation?.removeEventListener('change', onChange)
+      window.removeEventListener('orientationchange', onChange)
+    }
+  }, [])
+  return land
+}
+
 /** スマホのキーボードの高さを CSS 変数 --kb に入れる（書く欄をキーボードのすぐ上に置くため） */
 export function useKeyboardInset(): void {
   useEffect(() => {

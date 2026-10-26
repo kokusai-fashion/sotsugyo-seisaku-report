@@ -197,6 +197,8 @@ const FIGURE_MAX_MM = 80
 const ENTER_CREATES_PARAGRAPH = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
 /** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」）。書いている欄では、書き終えるまで出さない（runChecks） */
 const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty'])
+/** スマホ：入れた図・表のタイトルの欄を開いてから、キーボードが出ていないかを見るまでの時間（showTapHint） */
+const TAP_HINT_DELAY_MS = 900
 /** 元に戻した所を光らせておく時間（mockups/v32 ② 案A） */
 const UNDO_FLASH_MS = 1500
 /** 目次の行から移った見出しを光らせておく時間（mockups/v41 案C。光り方は index.css の「v41」） */
@@ -3369,7 +3371,55 @@ export class ReportEditor {
     if (this.overlay.blockId !== waiting.id) {
       const page = this.pageOfBlock(waiting.id)
       if (page >= 0 && page !== this.page) window.setTimeout(() => void this.goToPage(page, 'none'), 0)
+    } else if (this.direct) {
+      // スマホ：タイトルの欄を開いたのに、キーボードが出ていなければ、欄を押すよう案内する（showTapHint）
+      window.setTimeout(() => this.showTapHint(waiting.id), TAP_HINT_DELAY_MS)
     }
+  }
+
+  /**
+   * スマホ（紙面で書く）：入れた図・表のタイトルの欄を開いたが、キーボードが出ていないとき、欄を枠で囲み、吹き出し「ここを押して、タイトルを書きます」を出す
+   * （iPhone は、指で押した操作の中でしかキーボードを出さない。写真を選び終えたあとに欄を開くので、キーボードが出ず、欄を押すまで書けなかった：
+   * 試し 2026-10-26。依頼者の選択 mockups/v63 ③ 案A）。押す・打つ・キーボードが出る・紙面が動く・欄が閉じると消す。押すのは妨げない（pointer-events: none）
+   */
+  private showTapHint(id: string): void {
+    const vv = window.visualViewport
+    const keyboardUp = () => !!vv && vv.height < window.innerHeight * 0.85
+    if (this.overlay.blockId !== id || keyboardUp() || document.querySelector('.tap-bubble')) return
+    const field = this.overlay.element.getBoundingClientRect()
+    if (!field.width || !field.height) return
+    const ring = document.createElement('div')
+    ring.className = 'tap-ring'
+    Object.assign(ring.style, { left: `${field.left - 6}px`, top: `${field.top - 4}px`, width: `${field.width + 12}px`, height: `${field.height + 8}px` })
+    const bubble = document.createElement('div')
+    bubble.className = 'tap-bubble'
+    bubble.setAttribute('role', 'status')
+    bubble.textContent = 'ここを押して、タイトルを書きます'
+    document.body.append(ring, bubble)
+    // 欄の上に出す（画面の上の端に近ければ、欄の下に。吹き出しの三角も下向き → 上向き）
+    const b = bubble.getBoundingClientRect()
+    const above = field.top - b.height - 14 > 56
+    bubble.classList.toggle('below', !above)
+    Object.assign(bubble.style, {
+      left: `${Math.max(8, Math.min(window.innerWidth - b.width - 8, field.left + field.width / 2 - b.width / 2))}px`,
+      top: `${above ? field.top - b.height - 12 : field.bottom + 12}px`,
+    })
+    const off = () => {
+      ring.remove()
+      bubble.remove()
+      window.removeEventListener('pointerdown', off, true)
+      window.removeEventListener('scroll', off, true)
+      this.overlay.element.removeEventListener('input', off)
+      vv?.removeEventListener('resize', onResize)
+      window.clearInterval(watch)
+    }
+    const onResize = () => keyboardUp() && off()
+    // 欄が閉じた・ほかの欄へ移った（「完了」・元に戻すなど）
+    const watch = window.setInterval(() => this.overlay.blockId !== id && off(), 400)
+    window.addEventListener('pointerdown', off, true)
+    window.addEventListener('scroll', off, true)
+    this.overlay.element.addEventListener('input', off)
+    vv?.addEventListener('resize', onResize)
   }
 
   /** Enter で「。」を自動で付けたことを、開いている間に1回だけ知らせる（すぐ Backspace で取り消せることも） */

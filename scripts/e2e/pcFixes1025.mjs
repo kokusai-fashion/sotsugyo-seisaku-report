@@ -1078,6 +1078,40 @@ await withEdge(async (browser) => {
     await page.screenshot({ path: `${OUT}/10-figure-grow.png` })
     await context.close()
   }
+
+  // ---- 拡大しているときは、ページ送りの「‹ ›」を右下の帯の中に出し、紙面には浮かせない（200% で本文・写真に重なった。mockups/v63 ① 案A）----
+  {
+    const { context, page, ready } = await open(browser, { width: 1366, height: 768 })
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    await goTo(page, ready, 'p8')
+    const arrows = () =>
+      page.evaluate(() => ({
+        floating: [...document.querySelectorAll('.stage > .arrow')].map((a) => getComputedStyle(a).display !== 'none' && a.getBoundingClientRect().width > 0),
+        bar: [...document.querySelectorAll('.view-bar .bar-arrow')].map((b) => b.getAttribute('aria-label')),
+        page: window.__editor.getSnapshot().page,
+      }))
+    const fit = await arrows()
+    await page.evaluate(() => [...document.querySelectorAll('.view-bar .zoom button')].find((b) => b.textContent.includes('拡大')).click())
+    await wait(800)
+    await ready()
+    const zoomed = await arrows()
+    await page.click('.view-bar .bar-arrow.next')
+    await wait(600)
+    await ready()
+    const turned = await arrows()
+    await page.screenshot({ path: `${OUT}/11-zoom-bar-arrows.png` })
+    check(
+      '拡大すると、紙面の「‹ ›」は隠れ、右下の帯（倍率の右）に「‹ ›」が出て、そこでページを送れる。1ページの表示では今までどおり紙面の横',
+      fit.floating.every(Boolean) && fit.bar.length === 0 && zoomed.floating.every((v) => !v) && zoomed.bar.join() === '前のページ,次のページ' && turned.page === zoomed.page + 1,
+      JSON.stringify({ fit, zoomed, turned }),
+    )
+    await context.close()
+  }
 })
 
 console.log(`${results.filter(Boolean).length}/${results.length} 件 合格`)

@@ -7,7 +7,7 @@
  */
 
 /** ことばの切れ目で折り返す所（index.css の「@supports not (word-break: auto-phrase)」と同じ） */
-const UI_PHRASE = '.modal, .sheet, .help, .notice, .undo-toast, .login-over, .guide, .tour, .word-todo, .pinch-tip, .page-band, .side, .course-notice, .direct-bar, .tpl-panel, .tpl-wait'
+const UI_PHRASE = '.modal, .sheet, .help, .notice, .undo-toast, .login-over, .guide, .tour, .word-todo, .pinch-tip, .land-tip, .page-band, .side, .course-notice, .direct-bar, .tpl-panel, .tpl-wait'
 /** 字を変えない所（紙面・書く欄・入力欄） */
 const SKIP = '.page-viewport, .overlay-clip, .edit-sheet .sheet-input, input, textarea, select, [contenteditable], script, style, code, pre'
 const ZWSP = '​'

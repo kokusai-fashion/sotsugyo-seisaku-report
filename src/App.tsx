@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { currentConfig, findCourse, type YearConfig } from './config'
 import { loadYearConfig, sameConfig, startConfigLoad, type ConfigSource } from './config/remote'
 import { ReportEditor, type EditorSnapshot } from './editor/reportEditor'
@@ -27,7 +27,7 @@ import { PhoneChrome } from './app/Phone'
 import { readPhoneDirect, useNoFocusZoom } from './app/phoneDirect'
 import { UndoBar } from './app/UndoBar'
 import { useUndoNotice } from './app/useUndoNotice'
-import { useKeyboardInset, useNarrow, useSwipe, useWheelPaging } from './app/uiShared'
+import { useKeyboardInset, useNarrow, useSwipe, useTouchLandscape, useWheelPaging } from './app/uiShared'
 import { topicsForTouch } from './app/bandText'
 import { SidePanel, PageColumn } from './app/SidePanel'
 import { StartGuide, type GuideStep } from './app/StartGuide'
@@ -272,6 +272,18 @@ export default function App() {
   const phoneDirect = narrow && direct
   // 紙面に直接書く間、iPhone で書き始めるたびに画面が勝手に拡大されないようにする
   useNoFocusZoom(phoneDirect)
+  // スマホを横向きにして紙面に書いている間は、上の帯を隠して紙面を上まで広げる（キーボードが出ると、紙面がほとんど見えなかった：
+  // 試し 2026-10-26。依頼者の選択 mockups/v63 ② 案B。縦向きの案内は Phone.tsx の LandTip）
+  const touchLandscape = useTouchLandscape()
+  const writingLand = phoneDirect && touchLandscape && !!snap?.editingId
+  const wasWritingLand = useRef(false)
+  useLayoutEffect(() => {
+    if (wasWritingLand.current === writingLand) return
+    wasWritingLand.current = writingLand
+    // 帯の高さ（index.css の .app.phone の 48px）の分だけ紙面を送り、書いている行が画面の上で動かないようにする
+    const scroller = scrollerRef.current
+    if (scroller) scroller.scrollTop += writingLand ? -48 : 48
+  }, [writingLand])
   const panels = usePanelWidths()
   const hasLayout = !!snap?.layout
   useKeyboardInset()
@@ -951,7 +963,7 @@ export default function App() {
     ) : null
 
   return (
-    <div className={`app${narrow ? ' phone' : ''}${phoneDirect ? ' phone-direct' : ''}${trialMode ? ' trial' : ''}`} style={narrow ? undefined : panels.style}>
+    <div className={`app${narrow ? ' phone' : ''}${phoneDirect ? ' phone-direct' : ''}${writingLand ? ' writing-land' : ''}${trialMode ? ' trial' : ''}`} style={narrow ? undefined : panels.style}>
       {/* お試し：画面の上の帯（お試し中であることと「見本に戻す」。依頼者の選択 2026-10-22 案1）。画面はその下に置く（index.css の .app.trial） */}
       {trialMode && <TrialBanner onReset={ready ? () => void resetTrial() : undefined} />}
       {/* 新しい版が公開されたら、画面の上に知らせる（依頼者の選択 2026-10-23。app/newVersion.tsx） */}

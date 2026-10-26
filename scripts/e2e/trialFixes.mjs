@@ -258,7 +258,7 @@ export async function trialFixesPc(browser, check) {
     !photoPal.scrolls && photoPal.hidden.length === 0 && photoPal.hint === 'none' && photoPal.undoInBar && !photoPal.undoInPalette,
     JSON.stringify(photoPal),
   )
-  // 拡大で表のマスを書く：ページ送りの「‹」は右下で、左の道具に重ならない。表を選ぶと「画像を入れる」は薄く、同じ所にある
+  // 拡大で表のマスを書く：ページ送りの「‹」は右下（拡大しているときは右下の帯の中。mockups/v63 ① 案A）で、左の道具に重ならない。表を選ぶと「画像を入れる」は薄く、同じ所にある
   await page.evaluate(() => window.__editor.finishEditing())
   await page.evaluate(() => { const ed = window.__editor; const t = ed.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 't1'); ed.goToPage(ed.pageOfBlock(t.rows[1].cells[0].id), 'none') })
   await ready()
@@ -276,7 +276,7 @@ export async function trialFixesPc(browser, check) {
   const editingSlot = await imgSlot()
   const arrow = await page.evaluate(() => {
     const p = document.querySelector('.palette').getBoundingClientRect()
-    const a = document.querySelector('.arrow.prev').getBoundingClientRect()
+    const a = document.querySelector('.view-bar .bar-arrow.prev').getBoundingClientRect()
     return { overlap: a.left < p.right && a.right > p.left && a.top < p.bottom && a.bottom > p.top, rightSide: a.left > innerWidth / 2 }
   })
   await page.evaluate(() => window.__editor.finishEditing())
@@ -284,7 +284,7 @@ export async function trialFixesPc(browser, check) {
   await wait(400)
   const selectedSlot = await imgSlot()
   check(
-    'パソコン（1280×586・拡大）：ページ送りの「‹」は右下で、左の道具に重ならない。表を選ぶと「画像を入れる」は薄く同じ所に出て、下の「行を足す」の位置がずれない',
+    'パソコン（1280×586・拡大）：ページ送りの「‹」は右下（右下の帯の中）で、左の道具に重ならない。表を選ぶと「画像を入れる」は薄く同じ所に出て、下の「行を足す」の位置がずれない',
     !arrow.overlap && arrow.rightSide && editingSlot.has && !editingSlot.disabled && selectedSlot.has && selectedSlot.disabled === true && selectedSlot.rowsTop === editingSlot.rowsTop,
     JSON.stringify({ arrow, editingSlot, selectedSlot }),
   )

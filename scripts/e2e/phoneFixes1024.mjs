@@ -22,14 +22,16 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? '✓' : '✗'} ${name}${detail ? `  (${detail})` : ''}`)
 }
 
-async function open(browser, { width = 390, height = 844, fresh = true } = {}) {
+async function open(browser, { width = 390, height = 844, fresh = true, landscape = false, storage = {} } = {}) {
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
   if (!fresh) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done') } catch {} })
+  // ほかに覚えておくこと（「字を大きくするには」を見た、など）
+  await page.evaluateOnNewDocument((storage) => { try { for (const [k, v] of Object.entries(storage)) localStorage.setItem(k, v) } catch {} }, storage)
   await stubConfig(page)
   await page.setUserAgent(IPHONE)
-  await page.setViewport({ width, height, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+  await page.setViewport({ width, height, deviceScaleFactor: 2, isMobile: true, hasTouch: true, isLandscape: landscape })
   await page.goto(`${APP}/?nodrive`, { waitUntil: 'networkidle0', timeout: 90000 })
   const ready = () => page.waitForFunction(() => { const s = window.__editor?.getSnapshot(); return s?.layout && !s.rendering && !s.turning && !document.querySelector('.loading') }, { timeout: 120000 })
   await ready()
@@ -332,6 +334,96 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  /** はじめての案内でコースを選び、「あとで入力する」で閉じて、見本の原稿にする */
+  const sample = async (page, ready) => {
+    await page.waitForSelector('.guide.step-course .g-opts button', { timeout: 60000 })
+    await page.evaluate(() => document.querySelector('.g-opts button').click())
+    await page.waitForSelector('.guide.step-word .g-word-opt.no')
+    await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
+    await page.waitForSelector('.guide .g-later')
+    await page.evaluate(() => document.querySelector('.guide .g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(600)
+    await ready()
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p2'), 'none'))
+    await ready()
+  }
+  const PINCH_DONE = { 'sotsugyo-seisaku-report-pinch-tip': 'done' }
+
+  // ---- 横向き（844×390）で紙面に書いている間は、上の帯を隠して紙面を上まで広げ、はじめて1回だけ「縦向きにすると…」（mockups/v63 ② 案B）----
+  {
+    const { context, page, ready } = await open(browser, { width: 844, height: 390, fresh: false, landscape: true, storage: PINCH_DONE })
+    await sample(page, ready)
+    const look = () =>
+      page.evaluate(() => ({
+        land: document.querySelector('.app').classList.contains('writing-land'),
+        top: getComputedStyle(document.querySelector('.p-top')).display,
+        stageTop: Math.round(document.querySelector('.stage').getBoundingClientRect().top),
+        tip: document.querySelector('.land-tip')?.textContent ?? '',
+      }))
+    const before = await look()
+    await tapBlock(page, 'p2')
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p2', { timeout: 20000 })
+    await wait(400)
+    const during = await look()
+    await page.screenshot({ path: `${OUT}/11-landscape-writing.png` })
+    check(
+      '横向きで紙面に書き始めると、上の帯を隠して紙面を上まで広げ、はじめて1回だけ「縦向きにすると、紙面を広く見ながら書けます」',
+      !before.land && before.top !== 'none' && during.land && during.top === 'none' && during.stageTop <= 1 && during.tip.includes('縦向きにすると'),
+      JSON.stringify({ before, during }),
+    )
+    await wait(5300)
+    const later = await look()
+    await page.evaluate(() => document.querySelector('.direct-bar .db-done').click())
+    await page.waitForFunction(() => !window.__editor.getSnapshot().editingId, { timeout: 20000 })
+    await wait(300)
+    const done = await look()
+    check('縦向きの案内は5秒ほどで消え、「完了」で書き終えると、上の帯が戻る', later.land && !later.tip && !done.land && done.top !== 'none', JSON.stringify({ later, done }))
+    await ready()
+    await tapBlock(page, 'p2')
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p2', { timeout: 20000 })
+    await wait(400)
+    const again = await look()
+    check('次に横向きで書くときは、上の帯は隠すが、縦向きの案内はもう出さない', again.land && !again.tip, JSON.stringify(again))
+    await context.close()
+  }
+
+  // ---- 図を入れたあと、キーボードが出ていなければ（iPhone）、タイトルの欄を枠で囲み「ここを押して、タイトルを書きます」（mockups/v63 ③ 案A）----
+  {
+    const { context, page, ready } = await open(browser, { fresh: false, storage: PINCH_DONE })
+    await sample(page, ready)
+    const insert = async (image) => {
+      await tapBlock(page, 'p2')
+      await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p2', { timeout: 20000 })
+      await wait(300)
+      const [chooser] = await Promise.all([page.waitForFileChooser(), page.evaluate(() => void window.__editor.addFigure())])
+      await chooser.accept([`${process.cwd()}/docs/guide-images/sample/${image}`])
+      await page.waitForFunction(() => window.__editor.getSnapshot().editingKind === 'figureCaption' && !document.querySelector('.overlay-clip.waiting'), { timeout: 30000 })
+      await ready()
+      await wait(1500)
+    }
+    const hint = () => page.evaluate(() => ({ bubble: document.querySelector('.tap-bubble')?.textContent ?? '', ring: !!document.querySelector('.tap-ring'), through: document.querySelector('.tap-bubble') ? getComputedStyle(document.querySelector('.tap-bubble')).pointerEvents : '' }))
+    await insert('process.jpg')
+    const shown = await hint()
+    await page.screenshot({ path: `${OUT}/12-tap-hint.png` })
+    check('写真を選んだあと、キーボードが出ていなければ、タイトルの欄を枠で囲み「ここを押して、タイトルを書きます」（押すのは妨げない）', shown.bubble === 'ここを押して、タイトルを書きます' && shown.ring && shown.through === 'none', JSON.stringify(shown))
+    // 欄を押すと消える（書く欄は開いたまま）
+    const field = await page.evaluate(() => { const r = document.querySelector('.overlay-editor').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+    await page.touchscreen.tap(field.x, field.y)
+    await wait(400)
+    const tapped = { ...(await hint()), kind: await page.evaluate(() => window.__editor.getSnapshot().editingKind) }
+    check('タイトルの欄を押すと、枠と吹き出しは消え、そのままタイトルを書ける', !tapped.bubble && !tapped.ring && tapped.kind === 'figureCaption', JSON.stringify(tapped))
+    await page.evaluate(() => document.querySelector('.direct-bar .db-done').click())
+    await page.waitForFunction(() => !window.__editor.getSnapshot().editingId, { timeout: 20000 })
+    await ready()
+    // キーボードが出ていれば（Android など）、出さない
+    await page.evaluate(() => Object.defineProperty(window.visualViewport, 'height', { configurable: true, get: () => window.innerHeight - 300 }))
+    await insert('moodboard.jpg')
+    const withKeyboard = await hint()
+    check('キーボードが出ていれば、枠と吹き出しは出さない', !withKeyboard.bubble && !withKeyboard.ring, JSON.stringify(withKeyboard))
+    await context.close()
+  }
 })
 console.log(`${results.filter(Boolean).length}/${results.length} 件 合格`)
 if (!results.every(Boolean)) process.exitCode = 1

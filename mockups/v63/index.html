@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>v63 試しで残した3つ</title>
+<style>
+  body { margin: 0; padding: 28px 32px 34px; background: #f4f1ea; font-family: 'BIZ UDPGothic', 'Yu Gothic', sans-serif; color: #222; width: 1536px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  .lead { margin: 0 0 18px; font-size: 16px; color: #555; line-height: 1.6; word-break: auto-phrase; }
+  section { margin: 0 0 34px; }
+  h2 { margin: 0 0 4px; font-size: 21px; }
+  .why { margin: 0 0 12px; font-size: 14.5px; color: #555; line-height: 1.6; word-break: auto-phrase; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px 26px; align-items: start; }
+  .row.tall { grid-template-columns: repeat(3, 330px); justify-content: start; }
+  h3 { margin: 0 0 4px; font-size: 17px; word-break: auto-phrase; }
+  .sub { margin: 0 0 8px; font-size: 13.5px; color: #666; line-height: 1.5; word-break: auto-phrase; min-height: 40px; }
+  .shot { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); background: #fff; }
+  .shot img { display: block; width: 100%; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .now .tag { background: #f3d9d6; color: #a03a2c; }
+  .opt .tag { background: #dde3f5; color: #27367a; }
+</style>
+<h1>試しで残した3つの、直し方の案</h1>
+<p class="lead">どれも見た目が変わるので、案を見て選んでください。②③のキーボードは絵です（本物のキーボードは、自動の操作では出せません）。</p>
+
+<section>
+  <h2>① パソコンで 200% に拡大すると、「‹ ›」が本文や写真に重なる</h2>
+  <p class="why">拡大しているときは、ページを送る「‹ ›」を紙面の右下に浮かせています。200% では紙面が画面いっぱいになるので、書いている行や写真の上に重なります。</p>
+  <div class="row">
+    <div class="now"><span class="tag">いま</span><h3>紙面の右下に浮いている</h3><p class="sub">写真の右下に「‹ ›」が重なる</p><div class="shot"><img src="shots/1-now.png" /></div></div>
+    <div class="opt"><span class="tag">案A（おすすめ）</span><h3>右下の帯の中に入れる</h3><p class="sub">拡大しているときだけ、「200%」の右に「‹ ›」。紙面には何も重ならない</p><div class="shot"><img src="shots/1-A-bar.png" /></div></div>
+    <div class="opt"><span class="tag">案B</span><h3>小さく薄くする</h3><p class="sub">場所は今のまま。重なるが、下の字や写真が透けて見える</p><div class="shot"><img src="shots/1-B-faint.png" /></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>② スマホを横向きにして書くと、紙面がほとんど見えない</h2>
+  <p class="why">横向きでキーボードが出ると、画面の半分がキーボードになります。上の帯（卒業制作報告書・保存・≡）と下の道具を除くと、紙面は細い帯だけです。図を入れた直後も、図の下の端とタイトルしか見えません。</p>
+  <div class="row">
+    <div class="now"><span class="tag">いま</span><h3>上の帯がそのまま</h3><p class="sub">図の上の方は帯の下に隠れる</p><div class="shot"><img src="shots/2-now.png" /></div></div>
+    <div class="opt"><span class="tag">案A</span><h3>横向きで書いている間は、上の帯を隠す</h3><p class="sub">紙面が上まで広がる（書き終えると帯は戻る）</p><div class="shot"><img src="shots/2-A-notop.png" /></div></div>
+    <div class="opt"><span class="tag">案B（おすすめ）</span><h3>案A＋縦向きの案内を1回だけ</h3><p class="sub">はじめて横向きで書いたとき、上に「縦向きにすると、紙面を広く見ながら書けます」（数秒で消える。次からは出さない）</p><div class="shot"><img src="shots/2-B-tip.png" /></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>③ iPhone で写真を選んだあと、キーボードが出ない</h2>
+  <p class="why">iPhone は、指で押した操作の中でしかキーボードを出しません。写真を選び終えたあとにタイトルの欄を開いても、キーボードは出ず、欄を自分で押すまで書けません（Android は、たいてい出ます）。下は、キーボードが出ていないときの画面です。</p>
+  <div class="row tall">
+    <div class="now"><span class="tag">いま</span><h3>欄は開いているが、何も言わない</h3><p class="sub">押せば書けることに気づきにくい</p><div class="shot"><img src="shots/3-now.png" /></div></div>
+    <div class="opt"><span class="tag">案A（おすすめ）</span><h3>欄に吹き出し「ここを押して、タイトルを書きます」</h3><p class="sub">キーボードが出ていないときだけ。押すと消えて、キーボードが出る</p><div class="shot"><img src="shots/3-A-bubble.png" /></div></div>
+    <div class="opt"><span class="tag">案B</span><h3>欄を枠で囲み、下に一言</h3><p class="sub">道具の上に「タイトルの欄を押すと、キーボードが出ます」</p><div class="shot"><img src="shots/3-B-note.png" /></div></div>
+  </div>
+</section>
+</html>

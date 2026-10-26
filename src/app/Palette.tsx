@@ -216,6 +216,18 @@ export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSn
           </button>
         </div>
       )}
+      {/* 拡大しているときは、ページ送りの「‹ ›」もこの帯の中に出す（紙面の右下に浮かせていると、200% で本文・写真に重なった：
+          試し 2026-10-26。依頼者の選択 mockups/v63 ① 案A。紙面の「‹ ›」は index.css で隠す） */}
+      {snap.zoomed && (
+        <div className="bar-nav" role="group" aria-label="ページ送り">
+          <button className="bar-arrow prev" aria-label="前のページ" title="前のページ（←）" disabled={snap.page <= 0} onClick={() => editor.prevPage()}>
+            {Icon.prev}
+          </button>
+          <button className="bar-arrow next" aria-label="次のページ" title="次のページ（→）" disabled={snap.page >= snap.pageCount - 1} onClick={() => editor.nextPage()}>
+            {Icon.next}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

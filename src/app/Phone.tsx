@@ -15,7 +15,7 @@ import { BackupLabel } from './dialogs'
 import { Spinner } from './Busy'
 import { CheckBody, CourseNotice, DeadlineChip, DriveStoppedNote, ExportNote, HelpButton, PageThumbs, SaveChip, SourceNotice, Tally } from './SidePanel'
 import { checkSummary } from './checkSummary'
-import { keepFocus, PAGE_CONTEXT, pageName, useBandSide } from './uiShared'
+import { keepFocus, PAGE_CONTEXT, pageName, useBandSide, useTouchLandscape } from './uiShared'
 import { DriveChip, DriveMenu, type DriveControls } from './DriveUi'
 import type { SaveState } from './useAutosave'
 import { useDialogFocus } from './useDialogFocus'
@@ -309,6 +309,42 @@ function PinchTip({ hidden }: { hidden: boolean }) {
   )
 }
 
+/** 横向きで紙面に書くとき、縦向きの方が紙面を広く見られることを、はじめて1回だけ知らせる（mockups/v63 ② 案B） */
+const LAND_TIP_KEY = 'sotsugyo-seisaku-report-land-tip'
+const LAND_TIP_MS = 5000
+
+/**
+ * 「縦向きにすると、紙面を広く見ながら書けます」（画面の上。横向きで書いている間は上の帯を隠しているので、その所に出す）。
+ * 5秒で消え、次からは出さない。字を大きくする案内（PinchTip）が出ている間は出さない（次に横向きで書いたときに出す）
+ */
+function LandTip({ hidden }: { hidden: boolean }) {
+  const landscape = useTouchLandscape()
+  const [done, setDone] = useState(() => {
+    try {
+      return localStorage.getItem(LAND_TIP_KEY) === 'done'
+    } catch {
+      return true
+    }
+  })
+  const visible = landscape && !done && !hidden
+  useEffect(() => {
+    if (!visible) return
+    try {
+      localStorage.setItem(LAND_TIP_KEY, 'done')
+    } catch {
+      // 覚えられなくても動く（次も出る）
+    }
+    const timer = window.setTimeout(() => setDone(true), LAND_TIP_MS)
+    return () => window.clearTimeout(timer)
+  }, [visible])
+  if (!visible) return null
+  return (
+    <div className="land-tip" role="status">
+      縦向きにすると、紙面を広く見ながら書けます
+    </div>
+  )
+}
+
 function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: EditorSnapshot; guiding: boolean }) {
   const ask = useAsk()
   const id = snap.editingId
@@ -344,6 +380,7 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
   return (
     <>
       <PinchTip hidden={guiding} />
+      <LandTip hidden={guiding || !pinchTipDone()} />
       <div className="direct-bar" role="toolbar" aria-label="書く道具">
         {hint && (
           <p className="db-hint">

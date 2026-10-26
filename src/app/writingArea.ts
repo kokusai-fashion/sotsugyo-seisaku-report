@@ -13,7 +13,7 @@ import type { ReportEditor } from '../editor/reportEditor'
  */
 const BOTTOM_COVERS = '.edit-sheet.open, .undo-toast, .page-band, .pager, .unzoom, .sel-bar > *, .direct-bar'
 /** 上に出していることがあるもの（はじめての案内。書く欄を出している間は、画面の上） */
-const TOP_COVERS = '.guide .g-tip, .pinch-tip'
+const TOP_COVERS = '.guide .g-tip, .pinch-tip, .land-tip'
 
 /** 欄と横に重なって見えているものの位置 */
 function coversOf(selector: string, field: DOMRect): DOMRect[] {
