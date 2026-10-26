@@ -90,7 +90,9 @@
   .phone-row h4 { margin-top: 2.2mm; font-size: 11pt; }
   .home { display: grid; grid-template-columns: auto 1fr; gap: 1mm 3mm; margin: 1mm 0 0; font-size: 10.5pt; line-height: 1.45; }
   .home dt { font-weight: 700; }
-  .home svg { width: 4mm; height: 4mm; vertical-align: -0.7mm; }
+  .home svg, .phone-row .switch svg { width: 4mm; height: 4mm; vertical-align: -0.7mm; }
+  /* Classroom のアプリから開いたときの切り替え（アプリの中の画面は Safari・Chrome と保存場所が別で、ホーム画面にも追加できない） */
+  .phone-row .switch { font-weight: 700; }
   .end { margin-top: auto; padding: 3mm 0 7mm; display: flex; align-items: center; gap: 2.4mm; font-size: 10.5pt; }
   .end .q { display: inline-grid; place-items: center; width: 6.5mm; height: 6.5mm; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 700; }
 </style>
@@ -214,6 +216,7 @@
     <div>
       <h3>スマホで書くとき</h3>
       <p>タップして書き、<span class="btn">完了</span>。図・表・見出しはキーボードの上。</p>
+      <p class="switch">Classroom から開いたら、Safari・Chrome に切り替える（iPhone は右下の <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="方位磁針"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>、Android は「⋮」→「Chrome で開く」）。</p>
       <h4>ホーム画面に追加</h4>
       <dl class="home">
         <dt>iPhone（Safari）</dt>

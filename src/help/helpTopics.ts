@@ -55,10 +55,12 @@ export const STUDENT_TOPICS: HelpTopic[] = [
     items: [
       { h: 'ログインできないとき', t: 'LINE・Instagram などのアプリの中では開けません。Safari・Chrome で開き直します。' },
       { h: 'ログインの窓が出ないとき', t: 'ブラウザのポップアップを許可します。' },
+      // Classroom のアプリから開くと、アプリの中の画面で開く（iPhone の学生の画面：2026-10-26。依頼者の要望で、切り替えの案内を入れる）
+      { h: 'Classroom から開いたとき', t: 'アプリの中の画面で開きます。iPhone は右下の方位磁針のボタン、Android は右上の「⋮」→「Chrome で開く」で、Safari・Chrome に切り替えてからログインします。' },
     ],
     shot: { file: 'login.jpg', caption: 'ログインの窓' },
     videos: [1],
-    words: 'はじめて 開けない アカウント サインイン',
+    words: 'はじめて 開けない アカウント サインイン クラスルーム Classroom 方位磁針 コンパス 切り替え Safari Chrome アプリの中',
   },
   {
     id: 'home',
@@ -72,7 +74,7 @@ export const STUDENT_TOPICS: HelpTopic[] = [
     items: [
       { h: '共有のボタンがないとき（iPhone）', t: '画面の下の「…」を押すと出てきます。' },
       { h: '書いた原稿は？', t: 'アイコンから開いても、いつものブラウザで開くので、続きから書けます。' },
-      { h: '追加のメニューがないとき', t: 'LINE・Instagram などのアプリの中では追加できません。Safari・Chrome で開き直します。' },
+      { h: '追加のメニューがないとき', t: 'Classroom・LINE などのアプリの中の画面では追加できません。Safari・Chrome に切り替えてから追加します（ログインの項目の「Classroom から開いたとき」）。' },
     ],
     words: 'ホーム画面 アイコン ショートカット 追加 ブックマーク すぐ開く アプリ インストール',
   },

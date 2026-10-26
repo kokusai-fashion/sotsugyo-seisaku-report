@@ -5,7 +5,7 @@
 //   2. ツールの URL の QR コードを作る（docs/guide-images/qr-guide.svg）
 //      手引きで使っていない画像も撮っている（前の版の手引きで使っていたもの。デザイン案 mockups/v26・v27 が読む）
 //   3. 手引きの HTML（docs/手引き_学生用.html・手引き_先生用.html・手引き_管理者用.html。文は HTML に手で書く）を Edge で PDF にする。
-//      ページ数（学生用は両面の2ページ、ほかは1ページ）・用紙からのはみ出し・文字の大きさ（本文 10.5pt 以上）・1ページの文字数（350字まで）・1字だけの行・書体・画像を確かめ、
+//      ページ数（学生用は両面の2ページ、ほかは1ページ）・用紙からのはみ出し・文字の大きさ（本文 10.5pt 以上）・1ページの文字数（目安 400字まで）・1字だけの行・書体・画像を確かめ、
 //      外れていたら失敗にする
 //   4. PDF を public/guides/（student-guide.pdf・teacher-guide.pdf（先生用）・admin-guide.pdf（管理者用））に写す（GitHub Pages で公開される）
 // 使い方: node scripts/make-guides.mjs            … 画面を撮り直して PDF を作る（開発サーバーが http://localhost:5173 で動いていること）
@@ -54,7 +54,8 @@ const DRAFTS = []
 const MIN_PT = 10.5
 const MIN_EXEMPT = '.folio, .edge, .hero-top, .kick2, .year, .shot .mk, .lh .k'
 /** 1ページの文字数の上限（学生は長い文を読まないため）。数えるのは、ひらがな・カタカナ・漢字と全角の記号（英数字・URL は数えない） */
-const MAX_CHARS = 350
+// 1ページの字数の目安（依頼者の決まりではなく、軽く読める量の目安。少し超えるのはよい：依頼者 2026-10-26）
+const MAX_CHARS = 400
 const JP = /[\u3000-\u30ff\u4e00-\u9fff\uff00-\uffef]/g
 const pdfOnly = process.argv.includes('--pdf-only')
 /** --draft：試作の手引き（DRAFTS）だけを PDF にする（ふだんの手引きは作らない） */
