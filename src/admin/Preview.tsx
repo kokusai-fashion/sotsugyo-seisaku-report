@@ -6,9 +6,12 @@ import { documentCss } from '../layout/documentCss'
 import { reportCss } from '../layout/reportCss'
 import { bodyFromTemplate } from '../model/template'
 import { DATA_FORMAT_VERSION, type Report } from '../model/types'
+import { Icon } from '../app/icons'
+import { usePhone } from './usePhone'
 
 /**
  * 表紙・抄録と、本文のひな形の見本（mockups 案A：依頼者の選択 2026-10-22）。見開き（2ページずつ）で、下の「‹ ›」で送る。
+ * 「1ページ」「見開き」を切り替えられる（学生の書く画面と同じ。スマホははじめから1ページ：依頼者の要望 2026-10-27）。
  * 1枚目は表紙と抄録、2枚目からは本文のひな形のページ（目次・作品写真のページは出さない）。
  * 学生用ツールと同じ組版の部品（document.ts・documentCss・bodyHtml.ts・reportCss）で作る。年度設定から入る部分を黄色、学生が入力する部分を灰色で示す。
  * 本文は、ブラウザの段組み（CSS の multi-column）でページに分ける。大見出し・改ページで次のページへ。ページの切れ目は学生のツール（組版エンジン）とほぼ同じだが、
@@ -76,24 +79,37 @@ ${TEMPLATE_CONTENT_CSS}
 export function Preview({ config, courseId, template, startAtBody = false }: { config: YearConfig; courseId: string; template: TemplateBlock[]; startAtBody?: boolean }) {
   const wrap = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLIFrameElement>(null)
-  const [scale, setScale] = useState(0.5)
+  const phone = usePhone()
+  /** 1ページずつ見せるか（見開きでないか）。この端末で覚える。はじめは、スマホは1ページ・パソコンは見開き */
+  const [single, setSingleState] = useState(() => readView() ?? phone)
+  const setSingle = (on: boolean) => {
+    setSingleState(on)
+    saveView(on)
+  }
+  const [box, setBox] = useState({ width: 0, height: 0 })
   /** 本文のひな形のページ数（組んでから数える） */
   const [bodyPages, setBodyPages] = useState(0)
-  /** 見開きの番号（0：表紙と抄録、1〜：本文） */
-  const [spread, setSpread] = useState(startAtBody ? 1 : 0)
+  /** 見せているページ（0：表紙、1：抄録、2〜：本文）。見開きのときは、そのページを含む見開きを見せる */
+  const [page, setPage] = useState(startAtBody ? 2 : 0)
+  const pages = 2 + bodyPages
   const spreads = 1 + Math.ceil(bodyPages / 2)
-  const shown = Math.min(spread, Math.max(0, spreads - 1))
+  const at = Math.min(page, Math.max(0, pages - 1))
+  /** 見開きの番号（0：表紙と抄録、1〜：本文） */
+  const shown = Math.min(at < 2 ? 0 : Math.floor((at - 2) / 2) + 1, Math.max(0, spreads - 1))
+  const spreadFirst = (n: number) => (n === 0 ? 0 : 2 + (n - 1) * 2)
 
   useEffect(() => {
     const el = wrap.current
     if (!el) return
-    const observer = new ResizeObserver(() => {
-      // 2ページと余白が横に収まる倍率
-      setScale(Math.min(0.75, Math.max(0.3, (el.clientWidth - 8) / (PITCH * 2 - GAP + PAD * 2))))
-    })
+    const observer = new ResizeObserver(() => setBox({ width: el.clientWidth, height: el.clientHeight }))
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
+  // 見せるページ（1ページか2ページ）と余白が横に収まる倍率（スマホの幅でも収まるよう、0.2 まで小さくする。前は 0.3 までで、2ページ目が切れていた）。
+  // 1ページのときは、下の「‹ ›」と切り替えまで縦にも収まる倍率（パソコンでは、ページが縦に長くなり、送りのボタンが下に隠れたため）
+  const byWidth = (box.width - 20) / (PITCH * (single ? 1 : 2) - GAP + PAD * 2)
+  const byHeight = single && box.height > 0 ? (box.height - 110) / (PAGE_H + PAD * 2) : Infinity
+  const scale = box.width ? Math.min(0.75, Math.max(0.2, Math.min(byWidth, byHeight))) : 0.5
 
   const srcDoc = useMemo(() => {
     const report = sampleReport(config, courseId)
@@ -128,29 +144,63 @@ export function Preview({ config, courseId, template, startAtBody = false }: { c
     const rail = doc?.querySelector<HTMLElement>('.rail')
     if (!strip || !rail) return
     strip.style.transform = `scale(${scale})`
-    rail.style.transform = `translateX(${-shown * PITCH * 2}px)`
+    const stripWidth = PITCH * (single ? 1 : 2) - GAP
+    strip.style.width = `${stripWidth}px`
+    // 真ん中に置く（1ページのとき、左に寄っていた）
+    strip.style.marginLeft = `${Math.max(PAD * scale, (box.width - stripWidth * scale) / 2)}px`
+    rail.style.transform = `translateX(${-(single ? at : shown * 2) * PITCH}px)`
   })
 
-  const label = shown === 0 ? '表紙・抄録' : bodyPageLabel(shown, bodyPages)
+  const label = single ? (at === 0 ? '表紙' : at === 1 ? '抄録' : `本文 ${at - 1} ページ`) : shown === 0 ? '表紙・抄録' : bodyPageLabel(shown, bodyPages)
+  const unit = single ? 'ページ' : '見開き'
+  const first = single ? at === 0 : shown === 0
+  const last = single ? at >= pages - 1 : shown >= spreads - 1
   return (
     <div className="preview paged" ref={wrap}>
       <iframe ref={frame} title="表紙・抄録と本文のひな形の見本" srcDoc={srcDoc} onLoad={onLoad} style={{ height: Math.ceil((PAGE_H + PAD * 2) * scale) }} />
       <div className="pv-nav">
-        <button type="button" className="pv-turn" aria-label="前の見開き" disabled={shown === 0} onClick={() => setSpread(shown - 1)}>
+        <button type="button" className="pv-turn" aria-label={`前の${unit}`} disabled={first} onClick={() => setPage(single ? at - 1 : spreadFirst(shown - 1))}>
           ‹
         </button>
         <span className="pv-label" aria-live="polite">
           {label}
           <small>
-            {shown + 1} / {spreads}
+            {single ? at + 1 : shown + 1} / {single ? pages : spreads}
           </small>
         </span>
-        <button type="button" className="pv-turn" aria-label="次の見開き" disabled={shown >= spreads - 1} onClick={() => setSpread(shown + 1)}>
+        <button type="button" className="pv-turn" aria-label={`次の${unit}`} disabled={last} onClick={() => setPage(single ? at + 1 : spreadFirst(shown + 1))}>
           ›
         </button>
+        {/* 1ページ・見開きの切り替え（学生の書く画面の右下と同じ形） */}
+        <div className="pv-view" role="group" aria-label="見本の見せ方">
+          <button type="button" className={single ? 'on' : ''} aria-pressed={single} onClick={() => setSingle(true)}>
+            {Icon.fit}1ページ
+          </button>
+          <button type="button" className={single ? '' : 'on'} aria-pressed={!single} onClick={() => setSingle(false)}>
+            {Icon.spread}見開き
+          </button>
+        </div>
       </div>
     </div>
   )
+}
+
+const VIEW_KEY = 'sotsugyo-admin-preview-view'
+/** この端末で選んだ見本の見せ方（1ページなら true。選んでいなければ null） */
+function readView(): boolean | null {
+  try {
+    const v = localStorage.getItem(VIEW_KEY)
+    return v === 'single' ? true : v === 'spread' ? false : null
+  } catch {
+    return null
+  }
+}
+function saveView(single: boolean): void {
+  try {
+    localStorage.setItem(VIEW_KEY, single ? 'single' : 'spread')
+  } catch {
+    // 覚えられなくても、見せ方はそのまま
+  }
 }
 
 /** 本文の見開きの名前（例：本文 1–2 ページ。最後が1ページだけなら「本文 5 ページ」） */

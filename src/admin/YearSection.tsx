@@ -3,6 +3,7 @@ import type { YearConfig } from '../config'
 import { AdminIcon } from './adminIcons'
 import type { NewYearStep } from './newYearSteps'
 import { Row, SectionHead, TextInput } from './ui'
+import { usePhone } from './usePhone'
 import { Waiting } from './Wait'
 
 /**
@@ -49,9 +50,11 @@ export function YearSection({
   notices?: ReactNode
 }) {
   const next = steps?.findIndex((s) => !s.done) ?? -1
+  // スマホは見本が右になく、「見本を見る」で開く（mockups/v68 案C）
+  const phone = usePhone()
   return (
     <>
-      <SectionHead title="年度の設定" lead={`${draft.fiscalYear}年度の、毎年変わる項目です。表紙と抄録に入ります（右の見本）。`} />
+      <SectionHead title="年度の設定" lead={`${draft.fiscalYear}年度の、毎年変わる項目です。表紙と抄録に入ります（${phone ? '見本' : '右の見本'}）。`} />
       {steps && (
         <div className="card steps-card">
           <h2 className="card-h">

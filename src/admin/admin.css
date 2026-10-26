@@ -110,7 +110,13 @@ button:disabled { opacity: 0.45; cursor: default; }
 /* 見開きで送る見本（Preview.tsx。依頼者の選択 2026-10-22 案A）：見本の絵の下に「‹ 表紙・抄録 1 / 4 ›」 */
 .preview.paged { display: flex; flex-direction: column; overflow: auto; }
 .preview.paged iframe { flex: none; }
-.pv-nav { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 4px 0 14px; }
+.pv-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; padding: 4px 8px 14px; }
+/* 見本の「1ページ」「見開き」（学生の書く画面の右下と同じ形。依頼者の要望 2026-10-27） */
+.pv-view { display: inline-flex; gap: 2px; padding: 3px; background: #fff; border: 1px solid #d6dbe3; border-radius: 10px; }
+.pv-view button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 13.5px; white-space: nowrap; }
+.pv-view button svg { width: 17px; height: 17px; flex: none; }
+.pv-view button:hover:not(.on) { background: #f4f6fa; }
+.pv-view button.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 .pv-turn { display: grid; place-items: center; width: 36px; height: 32px; padding: 0; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; color: var(--ink); font-size: 20px; line-height: 1; }
 .pv-turn:hover:not(:disabled) { background: var(--accent-soft); }
 .pv-turn:disabled { opacity: 0.35; cursor: default; }
@@ -473,3 +479,81 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .trial-open { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .trial-open .btn svg { width: 17px; height: 17px; }
 .trial-state { color: var(--muted); font-size: 14px; word-break: auto-phrase; }
+
+/* ---- スマホ（mockups/v68 案C）：はじめに区切りの一覧。押すと中身になり、「‹ 管理ページの一覧」で戻る（AdminApp.tsx の phone-list・usePhone）。
+   中身は1列（ラベルの下に欄）。見本は「見本を見る」で画面いっぱいに開く。保存のボタンは画面の下（変更があれば、画面の下の帯）。
+   パソコンの見た目は変えない（前は、パソコンの3列のままで、画面の2〜3倍の幅に広がり、横にはみ出していた：依頼者の指摘 2026-10-27） ---- */
+.save-group { display: contents; }
+.phone-back, .pv-show, .pv-close { display: none; }
+@media (max-width: 760px) {
+  html, body, #root { height: auto; }
+  .admin { height: auto; min-height: 100vh; display: block; }
+  .admin-header { position: sticky; top: 0; z-index: 30; height: auto; flex-wrap: wrap; white-space: normal; padding: 10px 14px; gap: 8px 10px; }
+  .admin-header .title { flex: 1 1 auto; font-size: 15.5px; }
+  .admin-header .spacer { display: none; }
+  .admin-header .sel { order: 3; flex: 1 1 auto; min-width: 0; }
+  .admin-header .badge { order: 4; }
+  .admin-header #publish-btn { order: 5; flex: 1 1 100%; }
+  .admin-main { display: block; }
+  .admin.help-on .admin-main, .admin.help-on .dirty-bar { margin-right: 0; }
+
+  /* 区切りの一覧（いまの左の見出しを、画面の幅いっぱいに。押すと中身へ） */
+  .side-nav { overflow: visible; border-right: 0; padding: 12px 10px 120px; }
+  .admin:not(.phone-list) .side-nav { display: none; }
+  .admin.phone-list .work { display: none; }
+  .side-nav button { padding: 12px 14px; }
+  .side-nav button::after { content: '›'; margin-left: auto; align-self: center; color: #9aa1ad; font-size: 22px; line-height: 1; }
+  .side-nav button.on { background: none; }
+  .side-nav button.on::before { display: none; }
+  .side-nav button.on > svg, .side-nav button.on .nt b { color: inherit; }
+  .side-nav .nt b { font-size: 16px; }
+  .side-nav .nt small { font-size: 13.5px; }
+  .side-nav .me { margin-top: 28px; }
+
+  /* 区切りの中身（1列。上から「‹ 管理ページの一覧」・見出し・説明・「見本を見る」・中身） */
+  .work, .work.wide { display: block; }
+  .content { overflow: visible; padding: 12px 14px 120px; border-right: 0; }
+  .content > .phone-back { order: -4; display: inline-flex; align-items: center; gap: 4px; justify-self: start; margin: 0 0 -6px; padding: 4px 0; border: 0; background: none; color: var(--accent); font-size: 15px; }
+  .phone-back span, .pv-close span { font-size: 24px; line-height: 1; margin-top: -3px; }
+  .content > .sec-h { order: -3; }
+  .content > .sec-lead { order: -2; }
+  .content > .pv-show { order: -1; display: flex; width: 100%; }
+  .grid { grid-template-columns: minmax(0, 1fr); gap: 4px 0; }
+  .grid > .lb { padding-top: 10px; }
+  .card { padding: 14px 14px 16px; }
+  .form-resize { display: none; }
+
+  /* 見本：「見本を見る」で画面いっぱいに開く（上に「‹ 見本を閉じる」） */
+  .stage { display: none; }
+  .work.pv-open .stage { display: grid; position: fixed; inset: 0; z-index: 70; grid-template-rows: auto auto minmax(0, 1fr); }
+  .work.pv-open .pv-close { display: inline-flex; align-items: center; gap: 4px; justify-self: start; padding: 12px 14px 0; border: 0; background: none; color: var(--accent); font-size: 15px; }
+
+  /* 保存：変更がなければ、画面の下に「変更はありません」と保存のボタン（押せない）。変更があれば、画面の下の帯（DirtyBar） */
+  .admin-header .save-group { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; align-items: center; gap: 10px; padding: 10px 14px 14px; background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(20, 25, 40, 0.06); }
+  .admin-header .save-group > :first-child { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.5; }
+  .admin.has-bar .admin-header .save-group { display: none; }
+  .dirty-bar { position: fixed; left: 0; right: 0; bottom: 0; flex-wrap: wrap; gap: 8px 10px; padding: 10px 14px 14px; }
+  .dirty-bar .tx { flex: 1 1 calc(100% - 48px); }
+  .dirty-bar .tx b { font-size: 15px; white-space: normal; }
+  .dirty-bar .btn { flex: 1 1 0; }
+}
+@media (max-width: 760px) {
+  /* 中身の下まで同じ地の色（一覧は白） */
+  .admin { background: var(--content-bg); }
+  .admin.phone-list { background: var(--panel); }
+  /* 書き方のチェックの表：説明の列は出さず、語の列を幅に合わせる（重さの印が右にはみ出していた） */
+  .wtable .wh, .wtable .wrow { grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr) auto; padding: 0 12px; }
+  .wtable .wh > :nth-child(n + 5), .wtable .wrow > :nth-child(n + 5) { display: none; }
+  .wedit .g3 { grid-template-columns: minmax(0, 1fr); }
+  /* 先生の登録：アドレスを1行に、その下に権限と「外す」。登録の欄は幅いっぱいに、その下に権限と「登録する」 */
+  .member-list li { flex-wrap: wrap; gap: 6px 10px; }
+  .member-list .who { flex: 1 1 100%; overflow-wrap: anywhere; }
+  .member-add { grid-template-columns: minmax(0, 1fr) auto; }
+  .member-add textarea.in { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  /* 見本の説明の行は折り返す（右で切れていた） */
+  .stage .caption > * { white-space: normal; }
+  /* 使い方は、画面の上から（見出しが2段になり、年度の欄に重なっていた） */
+  .admin .help-dock { top: 0; z-index: 50; width: 100%; border-left: 0; }
+}

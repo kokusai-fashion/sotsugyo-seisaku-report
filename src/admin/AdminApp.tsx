@@ -27,6 +27,7 @@ import { ProblemsContext } from './problemsContext'
 import { ProblemLine } from './ui'
 import { useFormWidth } from './useFormWidth'
 import { useLeaveGuard } from './useLeaveGuard'
+import { usePhone } from './usePhone'
 import { useDone, useSlow } from './useWait'
 import { DoneNote, PageLoading, SlowNote, Waiting } from './Wait'
 import { WordsSection } from './WordsSection'
@@ -326,15 +327,18 @@ function HeaderBar({
       </select>
       <span className={`badge ${isPublished ? 'pub' : row.status === '準備中' ? 'draft' : 'old'}`}>{row.status}</span>
       <span className="spacer" />
-      {slow ? <SlowNote show /> : doneText ? <DoneNote text={doneText} /> : <span className={`save-state${dirty ? ' dirty' : ''}`}>{dirty ? `保存していない変更 ${changes.length}か所` : '変更はありません'}</span>}
-      <button
-        className={`btn ${dirty ? (isPublished || teacher || !onPublish ? 'primary' : '') : 'quiet'}${busy === 'save' ? ' busy' : ''}`}
-        disabled={!!busy || !dirty}
-        aria-busy={busy === 'save'}
-        onClick={onSave}
-      >
-        {busy === 'save' ? <Waiting text={WAIT_TEXT.save} /> : saveButtonLabel(row.status)}
-      </button>
+      {/* 保存の状態とボタン（パソコンは見出しの中。スマホは画面の下：admin.css の save-group） */}
+      <span className="save-group">
+        {slow ? <SlowNote show /> : doneText ? <DoneNote text={doneText} /> : <span className={`save-state${dirty ? ' dirty' : ''}`}>{dirty ? `保存していない変更 ${changes.length}か所` : '変更はありません'}</span>}
+        <button
+          className={`btn ${dirty ? (isPublished || teacher || !onPublish ? 'primary' : '') : 'quiet'}${busy === 'save' ? ' busy' : ''}`}
+          disabled={!!busy || !dirty}
+          aria-busy={busy === 'save'}
+          onClick={onSave}
+        >
+          {busy === 'save' ? <Waiting text={WAIT_TEXT.save} /> : saveButtonLabel(row.status)}
+        </button>
+      </span>
       {!isPublished && onPublish && (
         <button id="publish-btn" className={`btn primary${busy === 'publish' ? ' busy' : ''}`} disabled={!!busy} aria-busy={busy === 'publish'} onClick={onPublish}>
           {busy === 'publish' ? <Waiting text={WAIT_TEXT.publish} /> : 'この年度を学生に公開'}
@@ -448,15 +452,33 @@ function DirtyBar({ changes, row, teacher, busy, onSave, onShow }: { changes: st
  * 区切りの中身と見本を並べる所。見本のある区切りは、中身と見本の境目をつかんで中身の幅を変えられる（useFormWidth.ts）。
  * 保存などでサーバーを待つ間は、中身を触れなくする（終わると、サーバーから返った内容に置き換わり、その間に書いた分が消えるため）
  */
-function Work({ content, stage, locked, formWidth }: { content: ReactNode; stage: ReactNode | null; locked: boolean; formWidth: ReturnType<typeof useFormWidth> }) {
+function Work({ content, stage, locked, formWidth, onBack }: { content: ReactNode; stage: ReactNode | null; locked: boolean; formWidth: ReturnType<typeof useFormWidth>; onBack?: () => void }) {
+  // スマホ：見本は「見本を見る」で、画面いっぱいに開く（mockups/v68 案C）
+  const [preview, setPreview] = useState(false)
   return (
-    <div className={`work${stage ? '' : ' wide'}`} style={stage ? formWidth.style : undefined}>
+    <div className={`work${stage ? '' : ' wide'}${preview ? ' pv-open' : ''}`} style={stage ? formWidth.style : undefined}>
       <section className="content" inert={locked} aria-busy={locked}>
+        {/* スマホ：区切りの一覧へ戻る・見本を見る（並ぶ位置は admin.css。見出しと説明の下に「見本を見る」） */}
+        {onBack && (
+          <button className="phone-back" onClick={onBack}>
+            <span aria-hidden="true">‹</span>管理ページの一覧
+          </button>
+        )}
+        {onBack && stage && (
+          <button className="btn sub pv-show" onClick={() => setPreview(true)}>
+            {AdminIcon.eye}見本を見る（表紙・抄録・ひな形）
+          </button>
+        )}
         {content}
       </section>
       {stage && (
         <>
           <section className="stage" tabIndex={-1}>
+            {onBack && (
+              <button className="pv-close" onClick={() => setPreview(false)}>
+                <span aria-hidden="true">‹</span>見本を閉じる
+              </button>
+            )}
             {stage}
           </section>
           {/* 中身と見本の境目：つかんで動かすと中身の幅が変わる。ダブルクリックで元の幅。選んで ←・→ でも変わる */}
@@ -555,6 +577,9 @@ export function AdminApp() {
   const [historyData, setHistoryData] = useState<{ key: string; rows: HistoryRow[] | null } | null>(null)
   // 中身の幅（中身と見本の境目をつかんで変える）
   const formWidth = useFormWidth()
+  // スマホ：はじめに区切りの一覧を出し、押すと中身。「‹ 管理ページの一覧」で一覧へ戻る（mockups/v68 案C）
+  const phone = usePhone()
+  const [phoneList, setPhoneList] = useState(true)
   // 最初の読み込み（年度の設定の一覧）が長くかかっている
   const loadingSlow = useSlow(!state && !message)
   const focusLater = useFocusLater()
@@ -682,6 +707,17 @@ export function AdminApp() {
     setSectionState(s)
     saveSection(s)
     return true
+  }
+
+  /** スマホ：一覧で区切りを押した：その区切りを開いて、中身を出す（保存していない入力の確かめで、やめたら一覧のまま） */
+  const openSection = async (s: Section) => {
+    if (!(await go(s))) return
+    setPhoneList(false)
+    window.scrollTo(0, 0)
+  }
+  const backToList = () => {
+    setPhoneList(true)
+    window.scrollTo(0, 0)
   }
   /** 年度を切り替える（保存していない変更・まだ反映していない入力があれば確かめる） */
   const switchYear = async (s: AdminState, y: number) => {
@@ -939,7 +975,7 @@ export function AdminApp() {
   else content = <DetailsSection draft={draft} set={set} changed={changed} notices={notices} />
 
   return (
-    <div className={`admin${help ? ' help-on' : ''}${dirty ? ' has-bar' : ''}`}>
+    <div className={`admin${help ? ' help-on' : ''}${dirty ? ' has-bar' : ''}${phone && phoneList ? ' phone-list' : ''}`}>
       <HeaderBar
         state={state}
         row={row}
@@ -956,10 +992,11 @@ export function AdminApp() {
       />
       <ProblemsContext.Provider value={problemsValue}>
       <main className="admin-main">
-        <SideNav items={navItems} active={section} onSelect={go} user={state.user} teacher={false} />
+        <SideNav items={navItems} active={section} onSelect={phone ? (s) => void openSection(s) : go} user={state.user} teacher={false} />
         <Work
           formWidth={formWidth}
           locked={busy !== null}
+          onBack={phone ? backToList : undefined}
           content={content}
           stage={WITH_PREVIEW.includes(section) ? <CoverStage config={draft} course={shownCourse} /> : null}
         />
@@ -1106,6 +1143,9 @@ function TeacherView({
   /** 「？ 使い方」の欄を開いている */
   const [help, setHelp] = useState(false)
   const formWidth = useFormWidth()
+  // スマホ：はじめに区切りの一覧を出し、押すと中身。「‹ 管理ページの一覧」で一覧へ戻る（mockups/v68 案C）
+  const phone = usePhone()
+  const [phoneList, setPhoneList] = useState(true)
   const labels = changes.map((c) => c.label)
   const dirty = changes.length > 0
   const counts = countBySection(changes)
@@ -1115,10 +1155,22 @@ function TeacherView({
 
   const ask = useConfirm()
   const go = async (s: Section) => {
-    if (s === section) return
-    if (!(await confirmLeave())) return
+    if (s === section) return true
+    if (!(await confirmLeave())) return false
     setSectionState(s)
     saveSection(s)
+    return true
+  }
+
+  /** スマホ：一覧で区切りを押した：その区切りを開いて、中身を出す（保存していない入力の確かめで、やめたら一覧のまま） */
+  const openSection = async (s: Section) => {
+    if (!(await go(s))) return
+    setPhoneList(false)
+    window.scrollTo(0, 0)
+  }
+  const backToList = () => {
+    setPhoneList(true)
+    window.scrollTo(0, 0)
   }
   const save = async () => {
     const templates: TemplateSet = {}
@@ -1149,7 +1201,7 @@ function TeacherView({
   ]
   const editingCourse = editing !== null ? draft.courses[editing] : undefined
   return (
-    <div className={`admin${help ? ' help-on' : ''}${dirty ? ' has-bar' : ''}`}>
+    <div className={`admin${help ? ' help-on' : ''}${dirty ? ' has-bar' : ''}${phone && phoneList ? ' phone-list' : ''}`}>
       <HeaderBar
         state={state}
         row={row}
@@ -1164,10 +1216,11 @@ function TeacherView({
         onSave={save}
       />
       <main className="admin-main">
-        <SideNav items={navItems} active={section} onSelect={go} user={state.user} teacher />
+        <SideNav items={navItems} active={section} onSelect={phone ? (s) => void openSection(s) : go} user={state.user} teacher />
         <Work
           formWidth={formWidth}
           locked={busy !== null}
+          onBack={phone ? backToList : undefined}
           content={
             section === 'course' ? (
                 <CourseSection

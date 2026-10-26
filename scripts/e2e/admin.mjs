@@ -239,7 +239,8 @@ await withEdge(async (browser) => {
       }
     })
   /** 見出しの並び（字。字のない部品は class の名前） */
-  const headerItems = (p = page) => p.evaluate(() => [...document.querySelectorAll('.admin-header > *')].map((e) => e.textContent.trim() || e.className).join('|'))
+  // 保存の状態とボタンは、スマホで画面の下に出すためのまとまり（save-group）の中。パソコンでは見出しの中に並ぶ（mockups/v68）
+  const headerItems = (p = page) => p.evaluate(() => [...document.querySelectorAll('.admin-header > :not(.save-group), .admin-header > .save-group > *')].map((e) => e.textContent.trim() || e.className).join('|'))
   /** 左の見出し（区切りの名前／下の字） */
   const navItems = (p = page) => p.evaluate(() => [...document.querySelectorAll('.side-nav button')].map((b) => `${b.querySelector('.nt b').firstChild.textContent.trim()}／${b.querySelector('.nt small').textContent}${b.getAttribute('aria-current') ? '＊' : ''}`).join('|'))
 

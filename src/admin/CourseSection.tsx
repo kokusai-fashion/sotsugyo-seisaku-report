@@ -5,6 +5,7 @@ import { courseChanged, courseName } from './changes'
 import { endsWithCourse, joinSubtitle, splitSubtitle, subtitleExample } from './subtitleText'
 import { templateSummary } from './templateText'
 import { Chip, FieldProblems, Row, SectionHead } from './ui'
+import { usePhone } from './usePhone'
 import { useReorder } from './useReorder'
 
 /**
@@ -122,6 +123,8 @@ function CourseItem({
 }) {
   const bodyId = useId()
   const changed = (key?: string) => courseChanged(base, draft, course.id, key)
+  // スマホは見本が右になく、「見本を見る」で開く（mockups/v68 案C）
+  const phone = usePhone()
   const advisors = course.advisors.filter((a) => a.trim())
   return (
     <div className={`course${open ? ' open' : ''}${course.hidden ? ' hidden-course' : ''}${dragging ? ' dragging' : ''}`} data-course-id={course.id} onFocus={onFocus} onClick={onFocus}>
@@ -177,7 +180,7 @@ function CourseItem({
               {/* 書いてから消したときは「お知らせなし」に戻す（空の文字のまま残すと、保存していない変更があるように見えるため） */}
               <textarea id={`c-${course.id}-notice`} className="in notice" rows={teacher ? 3 : 2} value={course.notice ?? ''} placeholder={NOTICE_EXAMPLE} onChange={(e) => onChange({ ...course, notice: e.target.value || undefined })} />
             </Row>
-            <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? '組み立ては右の見本のとおりです' : undefined}>
+            <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined}>
               <div className={`tpl-line${course.template?.length ? '' : ' default'}`}>
                 {/* 要約は「・」の切れ目で折り返す（「図の枠」と数を別の行に分けない） */}
                 <b>
