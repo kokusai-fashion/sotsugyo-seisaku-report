@@ -116,8 +116,8 @@ export async function photoPagesPc(browser, check) {
   await pause(500)
   const added = { photos: await photosOf(page), palette: await palette(), row: await photoRow('.side')(page), count: await page.evaluate(() => document.querySelector('.thumbs-col .pcount')?.textContent) }
   check(
-    '「＋ 写真のページを足す」：1ページ目と同じ並べ方（4枚）の空のページが後ろにでき、そのページが出る。一覧と道具の上は「作品写真 1」「作品写真 2」、ページの数は 10',
-    added.photos.length === 2 && added.photos[1].layout === 4 && added.photos[1].imageIds.length === 0 && added.palette.head === '作品写真 2' && added.palette.thumbs.join() === '作品写真 1,作品写真 2' && added.palette.tools.join() === '写真のページを足す:false,このページを消す:false' && added.count?.includes('/ 10'),
+    '「＋ 写真のページを足す」：1ページ目と同じ並べ方（4枚）の空のページが後ろにでき、そのページが出る。一覧と道具の上は「作品写真 1」「作品写真 2」、ページの数は 11',
+    added.photos.length === 2 && added.photos[1].layout === 4 && added.photos[1].imageIds.length === 0 && added.palette.head === '作品写真 2' && added.palette.thumbs.join() === '作品写真 1,作品写真 2' && added.palette.tools.join() === '写真のページを足す:false,このページを消す:false' && added.count?.includes('/ 11'),
     JSON.stringify(added),
   )
   check('足したまま空のページは、セルフチェックの「まだのところ」に「2ページ目が空です」（赤くしない）', added.row === '2ページ目が空です', added.row)
@@ -228,7 +228,7 @@ export async function photoPagesPc(browser, check) {
   await page.click('.modal .pdf-start')
   await page.waitForSelector('.modal .pdf-open', { timeout: 120000 })
   const saved = await savedPdf(`${title}.pdf`)
-  check('PDF には作品写真の2ページが入り、写真のない3ページ目は入らない（紙面 11ページ → PDF 10ページ）', pageCount === 11 && saved.pages === 10, JSON.stringify({ pageCount, saved }))
+  check('PDF には作品写真の2ページが入り、写真のない3ページ目は入らない（紙面 12ページ → PDF 11ページ）', pageCount === 12 && saved.pages === 11, JSON.stringify({ pageCount, saved }))
   await page.click('.modal .close')
   await pause(300)
 
@@ -264,7 +264,8 @@ const savedPdf = async (name) => {
   return { pages: (text.match(/\/Type\s*\/Page[^s]/g) ?? []).length, head: text.slice(0, 5) }
 }
 
-/** スマホ（390×844）：下の道具の並べ方（4つ）の横に「ページを足す」「ページを消す」。ページ送りは「作品写真 2 10 / 10」 */
+// 見本の本文は6ページ（入りきらない図を、次の小見出しを越えて送らなくなり、1ページ増えた：依頼者の選択 2026-10-26）
+/** スマホ（390×844）：下の道具の並べ方（4つ）の横に「ページを足す」「ページを消す」。ページ送りは「作品写真 2 11 / 11」 */
 export async function photoPagesPhone(browser, check) {
   const { context, page, ready } = await openSample(browser, { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, workPhotos: [{ layout: 4, imageIds: ['g-photo1', 'g-design', 'g-mood', 'g-process'] }] })))
@@ -289,7 +290,7 @@ export async function photoPagesPhone(browser, check) {
   await ready()
   await pause(500)
   const two = await bar()
-  check('スマホ：「ページを足す」で2ページ目ができて出る。ページ送りは「作品写真 2 10 / 10」', two.pager === '作品写真 2 10 / 10' && two.tools.join() === 'ページを足す:false,ページを消す:false', JSON.stringify(two))
+  check('スマホ：「ページを足す」で2ページ目ができて出る。ページ送りは「作品写真 2 11 / 11」', two.pager === '作品写真 2 11 / 11' && two.tools.join() === 'ページを足す:false,ページを消す:false', JSON.stringify(two))
   // 写しの画面：2ページ目（2枚・上下）
   await page.evaluate(() =>
     window.__editor.update((r) => ({ ...r, workPhotos: [r.workPhotos[0], { layout: 2, columns: 1, imageIds: ['g-satin', 'g-chiffon'] }] })),

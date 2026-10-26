@@ -18,9 +18,10 @@ export interface LayoutMemory {
   /**
    * subtitle.line は、表紙のサブタイトルの1行の要約（documentHash。文字そのものは入れない）。
    * tables：表の ID → 測った行の高さ・左端の列の幅（layout/tableFit.ts。前の版で覚えたものにはない。読むときに形を確かめる：readTableFits）。
-   * 部分ごとの文書（parts の hash）は、この寸法を書いた HTML のものなので、同じ寸法から組み始めれば、表のある章も覚えたときと同じ文書になる
+   * 部分ごとの文書（parts の hash）は、この寸法を書いた HTML のものなので、同じ寸法から組み始めれば、表のある章も覚えたときと同じ文書になる。
+   * grow：改ページ・章の終わりの直前で大きくした図のまとまり（layout/figureGrow.ts。前の版で覚えたものにはない。読むときに形を確かめる：readFigureGrow）
    */
-  state: { toc: Record<string, number>; deferred: string[]; subtitle: { line: string; pt: number }; split: boolean; tables?: Record<string, TableFit> }
+  state: { toc: Record<string, number>; deferred: string[]; subtitle: { line: string; pt: number }; split: boolean; tables?: Record<string, TableFit>; grow?: Record<string, { scale: number; page: number }> }
   /** 部分ごとの文書の要約と、その部分のページの種類（ページ数＝種類の数） */
   parts: { hash: string; kinds: PageKind[] }[]
   layout: LayoutInfo

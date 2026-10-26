@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>v61 改ページの前の図の大きさ</title>
+<style>
+  body { margin: 0; padding: 28px 32px 34px; background: #f4f1ea; font-family: 'BIZ UDPGothic', 'Yu Gothic', sans-serif; color: #222; width: 1536px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  .lead { margin: 0 0 22px; font-size: 16px; color: #555; line-height: 1.6; word-break: auto-phrase; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px 30px; align-items: start; }
+  h2 { margin: 0 0 4px; font-size: 19px; word-break: auto-phrase; }
+  .sub { margin: 0 0 10px; font-size: 14px; color: #666; line-height: 1.5; word-break: auto-phrase; min-height: 63px; }
+  .shot { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); background: #fff; position: relative; }
+  .shot img { display: block; width: 100%; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .now .tag { background: #f3d9d6; color: #a03a2c; }
+  .opt .tag { background: #dde3f5; color: #27367a; }
+  .pair { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: start; }
+  .tools { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); background: #fff; }
+  .tools img { width: 100%; }
+  .note { margin-top: 22px; font-size: 15px; color: #444; line-height: 1.7; word-break: auto-phrase; }
+</style>
+<h1>改ページの前の図の下に、空きが残るとき</h1>
+<p class="lead">図の大きさは、いまは自動です（長い辺が8cm）。ふつうのページは、後ろの文が流れ込んで下まで埋まります。空きが残るのは、図のすぐ後ろが改ページや章の終わりで、文が流れ込めない所だけです。</p>
+<div class="row">
+  <div class="now">
+    <span class="tag">いま（案A）</span>
+    <h2>図は自動の大きさのまま</h2>
+    <p class="sub">改ページの前は、下に空きが残ります</p>
+    <div class="shot"><img src="shots/A-now.png" /></div>
+  </div>
+  <div class="opt">
+    <span class="tag">案B（おすすめ）</span>
+    <h2>改ページの前の図だけ、自動で大きく</h2>
+    <p class="sub">空いた分だけ大きくします（いちばん大きくて1.5倍。長い辺が12cm）。学生は何もしません</p>
+    <div class="shot"><img src="shots/B-auto.png" /></div>
+  </div>
+  <div class="opt">
+    <span class="tag">案C</span>
+    <h2>図ごとに「標準／大きく」を選ぶ</h2>
+    <p class="sub">図を押すと、左の道具で選べます。ふつうのページで大きくすると、後ろの文が次のページへ押し出されます</p>
+    <div class="pair"><div class="tools"><img src="shots/C-tools.png" /></div><div class="shot"><img src="shots/B-auto.png" /></div></div>
+  </div>
+</div>
+<p class="note">案B は、図のすぐ後ろが改ページか章の終わりで、下に空きがあるときだけ大きくします。ほかの所の図は今までどおりです。<br />文を書き足して空きが減れば、図も元の大きさに近づきます。2枚並びの図も同じです（本文の幅まで）。<br />案C は、スマホの図の道具の帯がいっぱいのため、「大きさ」は別の所に置くことになります。</p>
+</html>

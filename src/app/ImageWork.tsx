@@ -16,6 +16,8 @@ import type { ImageWork, ImageWorkState } from './imageWorkStore'
 export function ImageWorkToast({ work, editor }: { work: ImageWork; editor: ReportEditor }) {
   const state = useSyncExternalStore(work.subscribe, work.get)
   const rendering = useSyncExternalStore(editor.subscribe, () => editor.getSnapshot().rendering)
+  // 入れた図が紙面に出るのを待っている間は、画面の下の「図を入れています…」だけにする（2つ同時に出て、スマホの横向きでは重なっていた：試し 2026-10-26）
+  const waiting = useSyncExternalStore(editor.subscribe, () => editor.getSnapshot().waiting)
   // 保存し終えたあと、紙面を組み直し終えるまで（描く途中で合わせる。React の「前の値と比べて state を変える」書き方）
   const [tail, setTail] = useState(false)
   const [last, setLast] = useState<ImageWorkState>(null)
@@ -24,7 +26,7 @@ export function ImageWorkToast({ work, editor }: { work: ImageWork; editor: Repo
     if (!state && last) setTail(true)
   }
   if (tail && !state && !rendering) setTail(false)
-  if (!state && !tail) return null
+  if (!state && (!tail || waiting)) return null
   const text = state && state.total > 1 ? `写真を取り込んでいます…（${Math.min(state.done + 1, state.total)} / ${state.total}枚）` : '写真を取り込んでいます…'
   return <WaitToast className="on-stage" text={text} />
 }

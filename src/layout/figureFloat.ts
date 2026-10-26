@@ -14,6 +14,8 @@ import { LINE_PITCH_PT } from './reportCss'
  * - 1ページに収まらない高さのまとまり
  * - 送ると、後ろの表がページをまたいで、図が表の途中（次のページの上）に入ってしまうとき（表が図の前後に分かれる。PDF でも）。
  *   このときは送らずに段落のすぐ下に置く（図は次のページの上に回り、表はその後ろから始まる。今のページの下に空白が残る）
+ * - 送ると、後ろの文章と一緒に次の小見出しが今のページに上がり、図が次の小見出しより後ろに出てしまうとき（図が別の小見出しの所に入る。
+ *   スマホで「下へ」を押すと、段落だけが前のページへ消えたように見えた。依頼者の選択 2026-10-26：小見出しを越えては送らない）
  */
 
 const PAGE_HEIGHT_MM = 297
@@ -142,11 +144,15 @@ export function decideDeferredGroups(layout: FloatLayout, chapters: Chapter[], d
       const first = group[0]
       // この図より後ろの、同じ章の表（送った図が、表の途中に入らないか確かめる）
       const tablesAfter = chapter.blocks.slice(index + 1).flatMap((b) => (b.type === 'table' ? [b.id] : []))
+      // この図より後ろの、同じ章の次の小見出し（送った図が、小見出しより後ろに出ないか確かめる）
+      const nextSub = chapter.blocks.slice(index + 1).find((b) => b.type === 'subheading')
+      const sub = nextSub ? layout.block(nextSub.id)[0] : undefined
 
       if (deferred.has(block.id)) {
         // 送った図：段落の次のページの上に出ていればよい。段落と同じページなら（もう入りきる）送るのをやめる
         if (first.page === anchor.page) continue
-        if (first.page !== anchor.page + 1 || !layout.continuesChapter(first.page) || landsInTable(layout, tablesAfter, first.page)) {
+        const beforeSub = !!sub && (sub.page < first.page || (sub.page === first.page && sub.top < first.top))
+        if (first.page !== anchor.page + 1 || !layout.continuesChapter(first.page) || landsInTable(layout, tablesAfter, first.page) || beforeSub) {
           blocked.add(block.id)
           continue
         }
@@ -171,6 +177,8 @@ export function decideDeferredGroups(layout: FloatLayout, chapters: Chapter[], d
       if (!layout.continuesChapter(first.page + 1) && rest < gap + LINE_MM) continue
       // 送ると、後ろの表が今のページと次のページにまたがり、図が表の途中に入ってしまう（組んでから確かめて送るのをやめると、組み直しが増えるので、先に見積もる）
       if (wouldSplitTable(layout, tablesAfter, first, gap)) continue
+      // 送ると、次の小見出しが今のページの空白に上がる（図の下端から小見出しまでが空白より短い）なら送らない（先に見積もる。外れたら上で確かめる）
+      if (sub && sub.page === first.page && sub.top - first.bottom < gap) continue
       next.add(block.id)
     }
   }

@@ -202,6 +202,8 @@ body.resizing .page-viewport { pointer-events: none; }
 .palette .group.ctx + .group { margin-top: 6px; }
 .palette .group.ctx .tb:hover:not(:disabled) { background: rgba(255, 255, 255, 0.75); }
 .ctx-label { font-size: 10px; text-align: center; color: var(--accent); font-weight: 700; letter-spacing: 0.08em; padding: 3px 0 1px; }
+/* 道具のまとまりの名前は1行（360px のスマホで「並べ／方」と1字だけ次の行に出た：スマホの試し 2026-10-26） */
+.sel-bar .ctx-label { white-space: nowrap; }
 .layouts { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 4px; }
 .lay { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 1px solid transparent; background: #fff; border-radius: 6px; font-size: 10.5px; line-height: 1.25; padding: 5px 0 4px; color: var(--ink); white-space: nowrap; }
 .lay-grid { margin-bottom: 2px; }
@@ -2080,20 +2082,28 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
 .fd-ring { position: fixed; z-index: 61; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; }
 .fd-ring circle { fill: none; stroke: #d99a00; stroke-width: 4; stroke-dasharray: 126; stroke-dashoffset: 126; transform: rotate(-90deg); transform-origin: 50% 50%; animation: fd-ring 0.33s linear forwards; }
 @keyframes fd-ring { to { stroke-dashoffset: 0; } }
-.fd-ghost { position: fixed; border-radius: 6px; background: #fff; box-shadow: 0 14px 34px rgba(20, 24, 50, 0.32); transform: scale(1.04) rotate(-1deg); opacity: 0.93; overflow: hidden; }
-.fd-ghost img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.fd-ghost.empty { background: repeating-linear-gradient(45deg, #eef0f6, #eef0f6 8px, #f8f9fc 8px, #f8f9fc 16px); border: 2px dashed #8a93b8; }
+.fd-ghost { position: fixed; display: flex; gap: 4px; transform: scale(1.04) rotate(-1deg); opacity: 0.93; }
+.fd-pic { height: 100%; flex: none; border-radius: 6px; background: #fff; box-shadow: 0 14px 34px rgba(20, 24, 50, 0.32); overflow: hidden; }
+.fd-pic img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.fd-pic.empty { background: repeating-linear-gradient(45deg, #eef0f6, #eef0f6 8px, #f8f9fc 8px, #f8f9fc 16px); border: 2px dashed #8a93b8; }
+/* 2枚並びをつかんだとき：「2枚いっしょに動きます」（1枚だけ運べるように見えていた：試し 2026-10-26） */
+.fd-ghost-note { position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%) rotate(1deg); padding: 2px 9px; border-radius: 6px; background: var(--accent); color: #fff; font: 700 12px/1.5 'BIZ UDPGothic', sans-serif; white-space: nowrap; }
 .fd-dim { position: fixed; border: 2px dashed #8a93b8; border-radius: 6px; background: rgba(244, 241, 234, 0.72); }
 /* 置ける所：ふだんは本文の左の余白に短い印。いちばん近い所だけ、本文の幅いっぱいの金色の線（段落の間に線を引くと、字の取り消し線に見えるため） */
 .fd-tick { position: fixed; width: 18px; height: 0; margin-top: -2px; border-top: 4px solid rgba(39, 54, 122, 0.55); border-radius: 2px; }
 .fd-line { position: fixed; height: 0; margin-top: -2px; border-top: 4px solid #d99a00; }
 .fd-vline { position: fixed; width: 0; border-left: 2px dashed rgba(39, 54, 122, 0.45); }
 .fd-vline.on { border-left: 4px solid #d99a00; margin-left: -1px; }
-.fd-label { position: absolute; right: 0; top: -28px; padding: 2px 9px; border-radius: 6px; background: #d99a00; color: #fff; font: 700 12.5px/1.5 'BIZ UDPGothic', sans-serif; white-space: nowrap; }
-.fd-vline .fd-label { right: auto; left: 8px; top: 0; }
-.fd-tip { position: fixed; padding: 6px 11px; border-radius: 8px; background: #2b2e36; color: #fff; font: 13px/1.5 'BIZ UDPGothic', sans-serif; white-space: nowrap; box-shadow: 0 6px 16px rgba(20, 20, 30, 0.25); }
+.fd-label { position: absolute; left: calc(100% + 8px); top: -11px; padding: 2px 9px; border-radius: 6px; background: #d99a00; color: #fff; font: 700 12.5px/1.5 'BIZ UDPGothic', sans-serif; white-space: nowrap; }
+.fd-vline .fd-label { left: 8px; top: 0; }
+.fd-tip { position: fixed; max-width: 320px; padding: 6px 11px; border-radius: 8px; background: #2b2e36; color: #fff; font: 13px/1.5 'BIZ UDPGothic', sans-serif; word-break: auto-phrase; box-shadow: 0 6px 16px rgba(20, 20, 30, 0.25); }
 .fd-tip.hint { background: #d99a00; }
-.fd-tip.left { transform: translateX(-100%); }
 .stage .arrow.fd-arrow-on { box-shadow: 0 0 0 4px #d99a00, 0 0 0 10px rgba(217, 154, 0, 0.25); background: #fff7e0; }
+/* 図の写真の上では、つかめることが分かるよう「つかむ手」の矢印に（パソコン。依頼者の選択 2026-10-26） */
+.page-viewport figure > :is(img, .figure-slot) { cursor: grab; }
+.app.phone .page-viewport figure > :is(img, .figure-slot) { cursor: default; }
 /* 置いた図：少しの間、金色の枠で光らせる */
 .page-viewport figure.drop-flash { outline: 3px solid #d99a00; outline-offset: 5px; box-shadow: 0 0 0 10px rgba(217, 154, 0, 0.2); border-radius: 4px; }
+
+/* スマホ：紙面の写真の長押しで、スマホの画像のメニュー（保存・共有）を出さない（試し 2026-10-26。reportEditor の contextmenu も） */
+.app.phone .page-viewport img, .app.phone .page-viewport [data-photo-slot] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }

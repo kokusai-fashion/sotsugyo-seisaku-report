@@ -2,6 +2,7 @@ import { colWidthsOf, equalColumnWidths } from '../model/table'
 import type { BodyBlock, Chapter, Figure, TableBlock, TableCell } from '../model/types'
 import { FONT_SIZE_PT, LETTER_SPACING_PT, reportCss } from './reportCss'
 import { equalRows, fitsLabel, ptText, type TableFits } from './tableFit'
+import type { FigureGrow } from './figureGrow'
 
 const CHAPTER_NUMERALS = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ', 'Ⅸ', 'Ⅹ']
 const SUBHEADING_NUMERALS = ['ⅰ', 'ⅱ', 'ⅲ', 'ⅳ', 'ⅴ', 'ⅵ', 'ⅶ', 'ⅷ', 'ⅸ', 'ⅹ']
@@ -35,6 +36,8 @@ export interface BodyRenderOptions {
   deferredGroups?: ReadonlySet<string>
   /** 表の行の高さ・左端の列の幅（行の高さを「そろえる」・左端の列を「中身に合わせる」表だけ。組んだ紙面で測ったもの：tableFit.ts） */
   tableFits?: TableFits
+  /** 改ページ・章の終わりの直前で、下の空きに合わせて大きくする図のまとまりと倍率（組んだ紙面で決めたもの：figureGrow.ts） */
+  figureGrow?: FigureGrow
 }
 
 /** 図・表の番号を本文の出現順に振る。参照（図n）の解決にも使う */
@@ -105,6 +108,9 @@ function renderBlock(block: BodyBlock, numbers: Map<string, number>, tableIds: S
           sizes = [{ widthMm: Math.round(sizes[0].widthMm * k * 10) / 10, heightMm: previousHeight }]
         }
         previousHeight = Math.min(...sizes.map((s) => s.heightMm))
+        // 改ページ・章の終わりの直前の図：まとまりの図をすべて同じ倍率で大きくする（figureGrow.ts）
+        const grow = options.figureGrow?.[block.id]?.scale
+        if (grow) sizes = sizes.map((s) => ({ widthMm: Math.round(s.widthMm * grow * 10) / 10, heightMm: Math.round(s.heightMm * grow * 10) / 10 }))
         return `<div class="figure-row">${row.map((f, k) => renderFigure(f, sizes[k], numbers.get(f.id)!, options)).join('')}</div>`
       })
       const deferred = options.deferredGroups?.has(block.id) ? ' deferred' : ''

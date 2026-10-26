@@ -275,6 +275,24 @@ export async function rangeSelectPc(browser, check) {
 
   // ---- 大見出しをまたぐ：大見出しは残し、前の章と後ろの章の残りはつながない ----
   await page.evaluate(() => window.__editor.setView('spread'))
+  // 2章の終わり（p13）と3章の初め（p14）が同じ見開き（0–1、2–3…ページ）に入らないときは（見本の組み方が変わったとき）、
+  // 2章までのどこかに改ページを1つ入れて、見開きの組をずらす。入れた改ページは、この確かめのあとで元に戻す
+  const samePair = () => page.evaluate(() => { const a = window.__editor.pageOfBlock('p13'); const b = window.__editor.pageOfBlock('p14'); return b === a + 1 && Math.floor(a / 2) === Math.floor(b / 2) })
+  let pairBreak = false
+  if (!(await samePair())) {
+    const candidates = await page.evaluate(() => window.__editor.getSnapshot().report.body.slice(0, 2).flatMap((c) => c.blocks.slice(1).map((b) => b.id)))
+    for (const id of candidates) {
+      await page.evaluate((id) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.flatMap((b) => (b.id === id ? [{ type: 'pageBreak', id: 'pb-pair' }, b] : [b])) })) })), id)
+      await ready()
+      if (await samePair()) {
+        pairBreak = true
+        break
+      }
+      await ctrl(page, 'z')
+      await ready()
+    }
+  }
+  const beforeChapter = pairBreak ? (await state(page)).body : original.body
   await showBlock(page, ready, 'p14')
   const sp = await page.evaluate(() => ({ spread: window.__editor.getSnapshot().spread, page: window.__editor.getSnapshot().page, p13: window.__editor.pageOfBlock('p13'), p14: window.__editor.pageOfBlock('p14') }))
   // 「本制作では、」の「は」まで（5字目の「、」の上で離すと、「、」まで選ぶため。periodSelectPc）
@@ -301,7 +319,11 @@ export async function rangeSelectPc(browser, check) {
   await ready()
   await ctrl(page, 'z')
   await ready()
-  check('段落を選ぶ：大見出しをまたいだ切り取りも、元に戻す1回で戻る', (await state(page)).body === original.body)
+  check('段落を選ぶ：大見出しをまたいだ切り取りも、元に戻す1回で戻る', (await state(page)).body === beforeChapter)
+  if (pairBreak) {
+    await ctrl(page, 'z')
+    await ready()
+  }
 
   // ---- 拡大の表示でも、なぞって選べる ----
   await page.evaluate(() => window.__editor.setView('zoom'))
@@ -341,9 +363,14 @@ export async function rangeSelectPc(browser, check) {
 
   // ---- キーボード：書く欄の最後の行で Shift+↓ を押すと、次の段落へ選ぶ範囲を広げる ----
   await page.evaluate(() => window.__editor.openEditor('p14', 3))
+  // 書く欄が開いてから押す（まとめて流すと、開く前に押したキーが紙面に届いていた）
+  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p14' && document.activeElement?.classList.contains('overlay-editor'), { timeout: 20000 })
   await wait(300)
   await page.keyboard.down('Shift')
-  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown')
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press('ArrowDown')
+    await wait(80)
+  }
   await page.keyboard.up('Shift')
   await wait(200)
   st = await state(page)
@@ -719,11 +746,11 @@ export async function periodSelectPc(browser, check) {
   await ready()
   check('文の終わりの「。」：見開き（点で離す）・拡大（「。」から前へなぞる）でも、「。」まで選ぶ', spread.endsWith('。') && spread.length === 7 && zoom.endsWith('。') && zoom.length === 7, JSON.stringify({ spread, zoom }))
 
-  // ---- 次のページへ続く段落の、続きの部分でも ----
+  // ---- 次のページへ続く段落の、続きの部分でも（どこにある段落でも次のページへ続くよう、ページの半分より長く書き足す）----
   await page.evaluate(() =>
     window.__editor.update((r) => ({
       ...r,
-      body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p5' ? { ...b, content: [...b.content, { type: 'text', text: '試作では、袖の形を三つ比べた。布の厚さによって、揺れ方が変わった。'.repeat(8) }] } : b)) })),
+      body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p5' ? { ...b, content: [...b.content, { type: 'text', text: '試作では、袖の形を三つ比べた。布の厚さによって、揺れ方が変わった。'.repeat(30) }] } : b)) })),
     })),
   )
   await wait(300)

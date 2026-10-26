@@ -1185,6 +1185,8 @@ await withEdge(async (browser) => {
       const m = document.querySelector('.palette .table-menu')
       return m && { title: m.querySelector('.side-menu-title')?.textContent, cells: m.querySelectorAll('.tgrid button').length, on: m.querySelectorAll('.tgrid button.on').length, head: m.querySelectorAll('.tgrid button.on.h').length, label: m.querySelector('.tgrid-label')?.textContent, more: [...m.querySelectorAll(':scope > button')].map((b) => b.textContent).join(), editing: window.__editor.getSnapshot().editingId, caret: window.__editor.getSnapshot().caret }
     })
+  // カーソルの位置（End のあと）が落ち着いてから測る（すぐ測ると、2字ずれた位置を読むことがあった）
+  await pause(400)
   const menu0 = await menuInfo()
   check('「表を入れる」のメニューに、表の大きさを選ぶます目（6列×10行。はじめは 2列×2行）と、その下に素材表のボタンが出る', menu0?.title === '表の大きさを選ぶ' && menu0.cells === 60 && menu0.on === 4 && menu0.head === 2 && menu0.label === '2列×2行1行目は見出し' && menu0.more === '素材表名称・使用箇所・生地見本', JSON.stringify(menu0))
   // マウスを 3列×4行のます目に乗せると、そこまで色が付く（1行目は濃い色＝見出し）
@@ -1197,22 +1199,47 @@ await withEdge(async (browser) => {
   // キーボード：矢印キーで選び直し（書く欄のカーソルは動かない）、Enter で入れる
   for (const key of ['ArrowLeft', 'ArrowUp', 'ArrowUp', 'ArrowUp']) await page.keyboard.press(key)
   const menuKey = await menuInfo()
-  check('矢印キーで大きさを選び直せる（2列×2行より小さい行にはならない。書く欄のカーソルは動かない）', menuKey?.label === '2列×2行1行目は見出し' && menuKey.on === 4 && menuKey.caret === menu0.caret && menuKey.editing === menu0.editing, JSON.stringify(menuKey))
+  check('矢印キーで大きさを選び直せる（2列×2行より小さい行にはならない。書く欄のカーソルは動かない）', menuKey?.label === '2列×2行1行目は見出し' && menuKey.on === 4 && menuKey.caret === menu0.caret && menuKey.editing === menu0.editing, JSON.stringify({ menuKey, caret0: menu0.caret, editing0: menu0.editing }))
   await page.keyboard.press('Enter')
   await waitEditing(() => window.__editor.getSnapshot().editingKind === 'tableCaption')
   await ready()
   s = await snap()
   const tableBlock = s.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'table' && b.id === s.editingId)
   check('Enter で、選んだ大きさ（2列×2行）の表が入る', JSON.stringify(tableBlock?.rows.map((r) => r.cells.length)) === '[2,2]', JSON.stringify(tableBlock?.rows.map((r) => r.cells.length)))
-  check('「表を入れる」で、書いている位置に（表n）が入り、表のタイトルを書く欄が開く（タイトルが空ならエラー）', !!tableBlock && s.report.body.flatMap((c) => c.blocks).find((b) => b.id === firstParagraph).content.some((n) => n.type === 'ref' && n.targetId === tableBlock.id) && s.findings.some((x) => x.ruleId === 'required-text' && x.blockId === tableBlock.id), tableBlock?.id)
+  // 空のタイトルのエラーは、書いている間は出さない（書き終えるまで。依頼者の選択 2026-10-26）
+  check('「表を入れる」で、書いている位置に（表n）が入り、表のタイトルを書く欄が開く（書いている間は、空のタイトルのエラーを出さない）', !!tableBlock && s.report.body.flatMap((c) => c.blocks).find((b) => b.id === firstParagraph).content.some((n) => n.type === 'ref' && n.targetId === tableBlock.id) && !s.findings.some((x) => x.ruleId === 'required-text' && x.blockId === tableBlock.id), tableBlock?.id)
   await page.keyboard.type('使用した生地')
   await page.keyboard.press('Enter')
+  // 表のタイトルで Enter：空いている最初のマス（見出しの行はとばす。依頼者の選択 2026-10-26）
+  await waitEditing(() => window.__editor.getSnapshot().editingKind === 'tableCell')
+  await ready()
+  s = await snap()
+  const filled = s.report.body.flatMap((c) => c.blocks).find((b) => b.id === tableBlock.id)
+  check('表のタイトルで Enter を押すと、空いている最初のマス（見出しの行の次）へ進む', s.editingId === filled.rows[1].cells[0].id && filled.caption === '使用した生地', JSON.stringify({ editing: s.editingId, caption: filled.caption }))
+  // マスを埋めて、Shift+Tab でタイトルへ戻る。空いているマスがなければ、Enter で表の後ろに新しい段落
+  const [cellA, cellB] = filled.rows[1].cells.map((c) => c.id)
+  await page.keyboard.type('ウール')
+  await page.keyboard.press('Tab')
+  await waitEditing((id) => window.__editor.getSnapshot().editingId === id, cellB)
+  await page.keyboard.type('本体')
+  const shiftTab = async () => {
+    await page.keyboard.down('Shift')
+    await page.keyboard.press('Tab')
+    await page.keyboard.up('Shift')
+  }
+  await shiftTab()
+  await waitEditing((id) => window.__editor.getSnapshot().editingId === id, cellA)
+  await shiftTab()
+  await waitEditing(() => window.__editor.getSnapshot().editingKind === 'tableCaption')
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  // （マスから Shift+Tab で戻ったタイトルでも、Enter で段落を作る。前は書き終えていた）
   await waitEditing(() => window.__editor.getSnapshot().editingKind === 'paragraph')
   await ready()
   s = await snap()
   const tableFlat = s.report.body.flatMap((c) => c.blocks)
   const afterTable = tableFlat[tableFlat.findIndex((b) => b.id === tableBlock.id) + 1]
-  check('表のタイトルで Enter を押すと、表の後ろに新しい段落ができて、そこで書ける', afterTable?.type === 'paragraph' && s.editingId === afterTable.id && tableFlat.find((b) => b.id === tableBlock.id).caption === '使用した生地', JSON.stringify({ editing: s.editingId, after: afterTable?.id }))
+  check('マスが埋まっていれば、表のタイトルで Enter を押すと、表の後ろに新しい段落ができて、そこで書ける', afterTable?.type === 'paragraph' && s.editingId === afterTable.id && tableFlat.find((b) => b.id === tableBlock.id).caption === '使用した生地', JSON.stringify({ editing: s.editingId, after: afterTable?.id }))
   await page.keyboard.press('Escape')
   await ready()
   await page.evaluate(() => window.__editor.undo())
@@ -1324,6 +1351,10 @@ await withEdge(async (browser) => {
   // 表の操作：セルを書き、行・列を足し、列の幅を切り替え、セルに画像を入れる
   const tableNow = () => snap().then((x) => x.report.body.flatMap((c) => c.blocks).find((b) => b.id === tableBlock.id))
   await clickBlock((await tableNow()).rows[1].cells[0].id)
+  // （マスには、表のタイトルの Enter の確かめで書いた「ウール」がある。全部選んで書き換える）
+  await page.keyboard.down('Control')
+  await page.keyboard.press('a')
+  await page.keyboard.up('Control')
   await page.keyboard.type('サテン')
   await clickPaletteButton('行を足す')
   await waitEditing(() => window.__editor.getSnapshot().editingKind === 'tableCell')

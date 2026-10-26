@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { ZOOM_LEVELS } from '../editor/pageStage'
-import { figurePairing, figurePlacement, type FigureMoveBlock } from '../editor/reportOps'
+import { figurePairing, figurePlacement, numbering, type FigureMoveBlock } from '../editor/reportOps'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
 import { SELECTION_TEXTS } from '../editor/selectionBar'
@@ -116,10 +116,11 @@ function TableMenu({ editor, disabled, template }: { editor: ReportEditor; disab
 
 /** 「元に戻す」「やり直す」のキーボードでの押し方（マウスを乗せると出す。mockups/v35 ④ 案A） */
 /** 図を「上へ」「下へ」動かせないわけの説明（reportOps の figurePlacement が返すわけごと） */
-const FIGURE_MOVE_WHY: Record<FigureMoveBlock, (dir: 'up' | 'down') => string> = {
-  chapter: (dir) => `図は、大見出しの${dir === 'up' ? '初めより上' : '終わりより下'}には動かせません`,
+// 番号は実際の番号で書く（「（図n）」の n が記号に見えた。「大見出し」も伝わりにくかった：スマホの試し 2026-10-26）
+const FIGURE_MOVE_WHY: Record<FigureMoveBlock, (dir: 'up' | 'down', n?: number) => string> = {
+  chapter: (dir) => `図は、この章の${dir === 'up' ? '初めより上' : '終わりより下'}には動かせません`,
   subheading: () => '図は、小見出しの外には動かせません',
-  ref: () => '図は、本文の「（図n）」がある段落より上には動かせません',
+  ref: (_dir, n) => `図は、本文の「（図${n ?? 'n'}）」がある段落より上には動かせません`,
   refLater: () => 'この図が本文に出てくるのは後ろの章なので、上へは動かせません',
   order: (dir) => `${dir === 'up' ? '上' : '下'}の図を越えると、図の順番が本文で出てくる順と入れ替わるので、動かせません`,
 }
@@ -375,6 +376,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
   if (figureId) {
     const place = figurePlacement(report, figureId)
     const pairing = figurePairing(report, figureId)
+    const n = numbering(report).numbers.get(figureId)
     return (
       <div className="group ctx">
         <div className="ctx-label">この図</div>
@@ -382,8 +384,8 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         {!template && <Tool label="差し替え" icon={Icon.replace} title="写真を差し替える" onClick={() => void editor.replaceFigureImage(figureId)} />}
         {!template && <Tool label="もう1枚" icon={Icon.beside} title="この図のすぐ後ろにもう1枚入れる（本文の参照の後ろにも「（図n）」が入ります）" onClick={() => void editor.addFigureBeside(figureId)} />}
         {/* 1つ上へ・1つ下へ（段落・表を1つずつ越える。小見出しの中だけ。上は本文の（図n）の段落まで。依頼者の選択 2026-10-23・24） */}
-        <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up') : place.upJoin ? 'この図を、上の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />
-        <Tool label="下へ" className="tb-move" icon={Icon.moveDown} title={place.downBlock ? FIGURE_MOVE_WHY[place.downBlock]('down') : place.downJoin ? 'この図を、下の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ下（次の段落などの下）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.down} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'down')} />
+        <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up', n) : place.upJoin ? 'この図を、上の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />
+        <Tool label="下へ" className="tb-move" icon={Icon.moveDown} title={place.downBlock ? FIGURE_MOVE_WHY[place.downBlock]('down', n) : place.downJoin ? 'この図を、下の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ下（次の段落などの下）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.down} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'down')} />
         {/* 図の置き場所（依頼者の選択 2026-10-22 案A）：小見出しのまとまりのいちばん下へ。そこにあれば、参照している段落の下へ戻す。
             スマホの帯は、1列に入る5つ（差し替え・もう1枚・上へ・下へ・削除。依頼者の選択 2026-10-23 の見本）にするので出さない */}
         {phone ? null : place.toSectionEnd ? (
@@ -411,6 +413,14 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
             editor.removeSelected()
           }}
         />
+        {/* パソコン：図をつかんで運べること（使い方のページにしか書いていなかった。依頼者の選択 2026-10-26） */}
+        {!phone && (
+          <div className="ctx-note fig-drag-note">
+            長押しで
+            <br />
+            運べます
+          </div>
+        )}
       </div>
     )
   }

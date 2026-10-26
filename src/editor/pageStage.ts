@@ -153,7 +153,8 @@ export class PageStage {
     // それでも本文の右の端が台からはみ出すときだけ、横にも動かせるようにする（左右の余白は切れる）
     const wideText = level > 1 && TEXT_W * scale > w - side * 2
     if (level > 1 && !toText && PAGE_W * scale > w - side * 2) pageLeft = wideText ? side - TEXT_LEFT * scale : (w - TEXT_W * scale) / 2 - TEXT_LEFT * scale
-    this.panX = (free !== null && PAGE_W * scale > w) || (wideText && side + TEXT_W * scale > w - 16)
+    // 本文の右の端が台の右（縦のスクロールバーの分を除く）からはみ出すなら、横にも動かす（小さい窓では 125% から少し切れていた：試し 2026-10-26）
+    this.panX = (free !== null && PAGE_W * scale > w) || (level > 1 && pageLeft + (TEXT_LEFT + TEXT_W) * scale > w - 24)
     this.stage.classList.toggle('pan-x', this.panX)
     const s = this.stage.style
     if (this.spread) {

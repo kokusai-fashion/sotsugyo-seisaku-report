@@ -148,7 +148,8 @@ await withEdge(async (browser) => {
 
     // 表のタイトル：Tab で1つ目のマスへ。打った字はマスに入る
     await goTo(page, ready, 't1')
-    const firstCell = await page.evaluate(() => { const t = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 't1'); return { id: t.rows[0].cells[0].id, text: t.rows[0].cells[0].text } })
+    // 見本の表は中身のマスが埋まっているので、Tab は中身の行の1つ目へ（見出しの行はとばす。空いたマスがあれば、そこへ：依頼者の選択 2026-10-26）
+    const firstCell = await page.evaluate(() => { const t = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 't1'); return { id: t.rows[1].cells[0].id, text: t.rows[1].cells[0].text } })
     await clickAt(page, '.page-viewport.front .table-caption')
     await editingWait(page, 't1')
     await selectAll(page)
@@ -163,7 +164,7 @@ await withEdge(async (browser) => {
     const tableNow = await page.evaluate((cellId) => { const t = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 't1'); return { caption: t.caption, cell: t.rows.flatMap((r) => r.cells).find((c) => c.id === cellId)?.text } }, firstCell.id)
     await page.screenshot({ path: `${OUT}/3-tab-table-caption.png` })
     check(
-      '表のタイトルで Tab を押すと、1つ目のマスへ進み、続けて打った字はマスに入る（タイトルに続けて入らない）',
+      '表のタイトルで Tab を押すと、中身の行の1つ目のマスへ進み（見出しの行はとばす）、続けて打った字はマスに入る（タイトルに続けて入らない）',
       toCell === firstCell.id && tableNow.caption === '使った材料' && tableNow.cell === `${firstCell.text}名`,
       JSON.stringify({ toCell, firstCell, tableNow }),
     )
@@ -351,7 +352,7 @@ await withEdge(async (browser) => {
     await page.keyboard.up('Shift')
     await wait(400)
     const back = (await snap(page)).editingId
-    check('表の1つ目のマスで Shift+Tab を押すと、表のタイトルへ戻る（前は書き終えていた）', inCell === 't1:h0' && back === 't1', JSON.stringify({ inCell, back }))
+    check('表のタイトルから Tab で入った中身の行の1つ目のマスで Shift+Tab を押すと、表のタイトルへ戻る（前は書き終えていた）', inCell === 'm1:name' && back === 't1', JSON.stringify({ inCell, back }))
     await page.keyboard.press('Escape')
     await wait(500)
 
@@ -567,6 +568,148 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  // ---- 3回目の試し（2026-10-26）の直し：つかんで運ぶ（ゆっくり押す・紙面の外・Esc・「動かしました［戻す］」）・表のタイトルから空いたマスへ・書いている欄の指摘・わけの番号 ----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    const CUR = '.page-viewport.front [data-vivliostyle-page-container].is-current'
+    const rectOf = (sel) => page.evaluate((sel) => { const r = [...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect()).find((x) => x.width > 0); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null }, sel)
+    const order = () => page.evaluate(() => JSON.stringify(window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks.map((b) => b.id))))
+    await goTo(page, ready, 'p8')
+    const before = await order()
+    // ゆっくり押して（0.65秒）、動かさずに離す（写真の下の方）→ 動かない
+    let img = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    await page.mouse.move(img.x, img.bottom - 12)
+    await page.mouse.down()
+    await wait(650)
+    await page.mouse.move(img.x + 4, img.bottom - 6, { steps: 2 })
+    await wait(100)
+    const slowLine = await page.evaluate(() => document.querySelector('.fd-line .fd-label')?.textContent ?? null)
+    await page.mouse.up()
+    await wait(600)
+    await ready()
+    const slow = { same: (await order()) === before, slowLine }
+    // つかんで右の欄まで運んで離す → 動かない（「ここで離すと、やめます」）
+    img = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    const side = await rectOf('.side')
+    await page.mouse.move(img.x, img.y)
+    await page.mouse.down()
+    await wait(600)
+    await page.mouse.move(side.x, img.y, { steps: 10 })
+    await wait(150)
+    const outTip = await page.evaluate(() => document.querySelector('.fd-tip')?.textContent ?? '')
+    await page.mouse.up()
+    await wait(600)
+    await ready()
+    const outside = { same: (await order()) === before, outTip }
+    // つかんで段落の上へ運び、Esc でやめてから離す → 段落は書く状態にならない
+    img = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    const p9 = await rectOf(`${CUR} [data-block-id="p9"]`)
+    await page.mouse.move(img.x, img.y)
+    await page.mouse.down()
+    await wait(600)
+    await page.mouse.move(p9.x, p9.y, { steps: 8 })
+    await wait(100)
+    await page.keyboard.press('Escape')
+    await wait(100)
+    await page.mouse.up()
+    await wait(500)
+    const esc = { editing: await page.evaluate(() => window.__editor.getSnapshot().editingId), same: (await order()) === before }
+    // 運んで離すと「図を動かしました［戻す］」
+    img = await rectOf(`${CUR} figure[data-figure-id="f3"] img`)
+    const p10 = await rectOf(`${CUR} [data-block-id="p10"]`)
+    await page.mouse.move(img.x, img.y)
+    await page.mouse.down()
+    await wait(600)
+    await page.mouse.move(img.x, p10.bottom + 4, { steps: 10 })
+    await wait(150)
+    await page.mouse.up()
+    await wait(700)
+    await ready()
+    const moved = { changed: (await order()) !== before, toast: await notice(page) }
+    check(
+      'つかんで運ぶ：ゆっくり押して離しても、図の上なら動かない（「元の所」）。紙面の外で離すと「ここで離すと、やめます」で動かない。Esc でやめて離しても段落は開かない。運ぶと「図を動かしました［戻す］」',
+      slow.same && slow.slowLine === '元の所' && outside.same && outside.outTip.includes('ここで離すと、やめます') && esc.editing === null && esc.same && moved.changed && moved.toast.includes('図を動かしました') && moved.toast.includes('戻す'),
+      JSON.stringify({ slow, outside, esc, moved }),
+    )
+    // 素材表：仮のタイトルは選んだ状態で開く（打つと置き換わる）。Enter で、空いている最初のマス（見出しの行はとばす）へ
+    await goTo(page, ready, 'p2')
+    await clickAt(page, `${CUR} [data-block-id="p2"]`, 40)
+    await editingWait(page, 'p2')
+    await page.evaluate(() => window.__editor.addTable('material'))
+    await page.waitForFunction(() => /^t-/.test(window.__editor.getSnapshot().editingId ?? '') || window.__editor.getSnapshot().editingKind === 'tableCaption', { timeout: 20000 })
+    await wait(600)
+    const tableId = await page.evaluate(() => window.__editor.getSnapshot().editingId)
+    await page.keyboard.type('主要素材')
+    await page.keyboard.press('Enter')
+    await wait(600)
+    const tbl = await page.evaluate((tableId) => {
+      const s = window.__editor.getSnapshot()
+      const t = s.report.body.flatMap((c) => c.blocks).find((b) => b.id === tableId)
+      return { caption: t?.caption, editing: s.editingId, firstBody: t?.rows[1]?.cells[0]?.id, kind: s.editingKind }
+    }, tableId)
+    check('素材表を入れてすぐ打つと仮のタイトルが置き換わり（「主要素材」）、Enter で空いている最初のマス（見出しの行の次）へ進む', tbl.caption === '主要素材' && tbl.kind === 'tableCell' && tbl.editing === tbl.firstBody, JSON.stringify(tbl))
+    await page.keyboard.press('Escape')
+    await wait(400)
+    await ready()
+    // 書いている欄の指摘は、書き終えるまで出さない（入れたばかりの空の図のタイトル）
+    await goTo(page, ready, 'p8')
+    await clickAt(page, `${CUR} [data-block-id="p8"]`, 40)
+    await editingWait(page, 'p8')
+    const btn = await page.evaluate(() => { const r = [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.includes('図を入れる')).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+    void btn
+    const [chooser] = await Promise.all([page.waitForFileChooser(), page.evaluate(() => void window.__editor.addFigure())])
+    await chooser.accept([join(process.cwd(), 'docs', 'guide-images', 'sample', 'design.jpg')])
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId?.startsWith('f-') && !document.querySelector('.overlay-clip.waiting'), { timeout: 30000 })
+    await ready()
+    await wait(300)
+    const newFig = await page.evaluate(() => window.__editor.getSnapshot().editingId)
+    const whileEditing = await page.evaluate((id) => window.__editor.getSnapshot().findings.filter((f) => f.blockId === id).map((f) => f.ruleId), newFig)
+    await page.keyboard.press('Escape')
+    await wait(500)
+    await ready()
+    const afterEditing = await page.evaluate((id) => window.__editor.getSnapshot().findings.filter((f) => f.blockId === id).map((f) => f.ruleId), newFig)
+    check('入れたばかりの図のタイトルを書いている間は、その欄の指摘（タイトルが入力されていない）を出さず、書き終えると出る', whileEditing.length === 0 && afterEditing.includes('required-text'), JSON.stringify({ whileEditing, afterEditing }))
+    // 「。」で終わる段落の終わりに打ち足す：書いている間は「文末に「。」」を出さず、書き終えると出る
+    await goTo(page, ready, 'p7')
+    await clickAt(page, `${CUR} [data-block-id="p7"]`, 40)
+    await editingWait(page, 'p7')
+    await page.keyboard.down('Control')
+    await page.keyboard.press('End')
+    await page.keyboard.up('Control')
+    await page.keyboard.type('さらに')
+    await wait(500)
+    const endWhile = await page.evaluate(() => window.__editor.getSnapshot().findings.filter((f) => f.blockId === 'p7').map((f) => f.ruleId))
+    await page.keyboard.press('Escape')
+    await wait(500)
+    await ready()
+    const endAfter = await page.evaluate(() => window.__editor.getSnapshot().findings.filter((f) => f.blockId === 'p7').map((f) => f.ruleId))
+    check('「。」で終わる段落に打ち足している間は「文末に「。」」を出さず、書き終えると出る', !endWhile.includes('sentence-end') && endAfter.includes('sentence-end'), JSON.stringify({ endWhile, endAfter }))
+    // もとからある指摘は、書いている間も出す（直しに来たとき、右の一覧で目立つ）
+    await clickAt(page, `${CUR} [data-block-id="p7"]`, 40)
+    await editingWait(page, 'p7')
+    await wait(400)
+    const endReopen = await page.evaluate(() => window.__editor.getSnapshot().findings.filter((f) => f.blockId === 'p7').map((f) => f.ruleId))
+    check('もとから「文末に「。」」がない段落を開くと、書いている間もその指摘を出す', endReopen.includes('sentence-end'), JSON.stringify(endReopen))
+    await page.keyboard.press('Escape')
+    await wait(400)
+    await page.evaluate(() => window.__editor.undo())
+    await ready()
+    // 「上へ」が押せないわけは、実際の番号で（図1 のすぐ上は（図1）の段落）
+    await goTo(page, ready, 'f1')
+    await clickAt(page, `${CUR} figure[data-figure-id="f1"] img`)
+    await page.waitForFunction(() => window.__editor.getSnapshot().selection?.id === 'f1', { timeout: 10000 })
+    const upTitle = await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.includes('上へ'))?.title ?? '')
+    const hint = await page.evaluate(() => document.querySelector('.palette .fig-drag-note')?.textContent ?? '')
+    check('図の「上へ」が押せないわけは「（図1）」と実際の番号で書き、図の道具に「長押しで運べます」', upTitle.includes('（図1）') && hint.includes('長押しで') && hint.includes('運べます'), JSON.stringify({ upTitle, hint }))
+    await context.close()
+  }
+
   // ---- パソコン：「（図1）。」の「）」と「。」の間に、右・左のキーで止まれる（前は「）」の前から右で「。」の後ろへ飛んだ：依頼者の指摘 2026-10-25）----
   {
     const { context, page, ready } = await open(browser)
@@ -679,7 +822,7 @@ await withEdge(async (browser) => {
           // 左の道具が、図の道具（差し替え・上へ・下へ…）に替わっているか
           figureTools: !!document.querySelector('.palette.compact'),
           // 「図・表は、入れたい所をクリックしてから押します」の一言（写真を取り込む間も出さない）
-          hint: !!document.querySelector('.palette .ctx-note'),
+          hint: !!document.querySelector('.palette .ctx-note:not(.fig-drag-note)'),
         })
         if (window.__waitLog.length < 900) requestAnimationFrame(tick)
       }
@@ -862,6 +1005,77 @@ await withEdge(async (browser) => {
       dialog.text.includes('Word の表紙の学籍番号') && !dialog.notMine && fixedId === '00ZZ901',
       JSON.stringify({ dialog, fixedId }),
     )
+    await context.close()
+  }
+
+  // ---- 改ページ・章の終わりの直前の図は、下の空きに合わせて自動で大きくする（mockups/v61・v62 案B。依頼者の選択 2026-10-26）----
+  {
+    const { context, page, ready } = await open(browser)
+    await startGuide(page, ready)
+    await page.evaluate(() => document.querySelector('.g-later').click())
+    await ready()
+    await page.evaluate(setupWriting)
+    await wait(500)
+    await ready()
+    // 依頼者の画面と同じ形：小見出し・段落・段落（図1を指す）・図・改ページ（mockups/v61 と同じ文）
+    const body = (figures, extra = '') => {
+      const t = (text) => ({ type: 'text', text })
+      const ref = (targetId) => ({ type: 'ref', targetId, withParens: true })
+      const p = (id, ...content) => ({ type: 'paragraph', id, content: content.map((c) => (typeof c === 'string' ? t(c) : c)) })
+      return [
+        {
+          id: 'c1',
+          title: '企画・立案',
+          blocks: [
+            { type: 'subheading', id: 's1', title: '担当衣装のキャラクター' },
+            p('p1', '筆者が担当したのは、物語の主人公である船乗りシンドバッドの衣装である。シンドバッドは七つの航海を経て成長していく人物であり、場面ごとに異なる表情を見せる。本制作では、旅立ちの場面の若々しさと、帰還の場面の頼もしさの両方を、一着の衣装で表すことを目標とした。'),
+            { type: 'subheading', id: 's2', title: 'デザイン説明' },
+            p('p3', '中東の伝統的な装いをもとに、航海の力強さと冒険心を表すデザインを考えた', ref('f1'), ...(figures.length > 1 ? ['。完成した姿は', ref('f2'), 'のとおりである'] : []), `。キーワードは自由、勇気、海である。袖は風をはらむように大きく膨らませ、腰には幅の広い帯を巻いた。配色は海の青と砂の金を軸とし、ズボンには生成りを合わせて全体を軽く見せた。${extra}`),
+            { type: 'figureRow', id: 'r1', figures: figures.map(([id, imageId, caption]) => ({ id, imageId, caption })) },
+            { type: 'pageBreak', id: 'pb1' },
+            { type: 'subheading', id: 's3', title: '使用素材' },
+            p('p5', '使用した素材は、次の表のとおりである。'),
+          ],
+        },
+        { id: 'c2', title: '制作過程', blocks: [p('p6', 'デザイン画をもとにパターンを引き、シーチングで仮縫いをした。')] },
+      ]
+    }
+    // 図の大きさ（mm）・図のまとまりのページと下端・段落 p3 の終わりのページ
+    const figs = () =>
+      page.evaluate(() => {
+        const ed = window.__editor
+        const imgs = [...document.querySelectorAll('.page-viewport.front figure[data-figure-id] img')].filter((i) => i.closest('[data-group-id="r1"]'))
+        const group = document.querySelector('.page-viewport.front [data-group-id="r1"]')
+        const pageEl = group?.closest('[data-vivliostyle-page-container]')
+        const pr = pageEl?.getBoundingClientRect()
+        return {
+          sizes: imgs.map((i) => [parseFloat(i.style.width), parseFloat(i.style.height)]),
+          groupPage: ed.pageOfBlock('f1'),
+          textPage: ed.pageOfBlock('p3'),
+          bottom: pr ? Math.round(((group.getBoundingClientRect().bottom - pr.top) / pr.height) * 297) : null,
+        }
+      })
+    const setBody = async (b) => {
+      await page.evaluate((b) => window.__editor.update((r) => ({ ...r, body: b })), b)
+      await wait(800)
+      await ready()
+      await goTo(page, ready, 'p3')
+    }
+    await setBody(body([['f1', 'g-design', 'デザイン画']]))
+    const tall = await figs()
+    check('改ページの直前の縦長の図（ふだんは 6×8cm）は、下の空きに合わせて縦12cm（1.5倍）まで大きくなる', tall.sizes.length === 1 && tall.sizes[0][1] === 120 && tall.sizes[0][0] === 90 && tall.groupPage === tall.textPage, JSON.stringify(tall))
+    // 上に文を書き足すと、空いた分まで小さくなる（ふだんの大きさより小さくはならない）。図は同じページのまま
+    await setBody(body([['f1', 'g-design', 'デザイン画']], 'シルエットは、上半身に大きな量感を持たせ、足元に向かって細くなる形とした。両腕を広げた姿が、客席から大きく見えるようにするためである。袖には波の模様を金の糸で刺繍し、照明の下で光るようにした。帯の端には房を付け、歩くたびに揺れるようにした。帯の結び目は大きくしすぎないよう、何度も結び直して形を決めた。ズボンの裾にはゴムを入れ、動きやすさを保った。仮縫いでは、演者に実際に動いてもらい、袖の膨らみが動きの邪魔にならないかを確かめた。腕を大きく振っても肩が引きつれないよう、袖山の高さを少しずつ下げて調整した。最後に、照明の下で色の見え方を確かめ、帯の金の色味を少し落ち着かせた。'))
+    const shrunk = await figs()
+    check('図の上に文を書き足すと、空いた分まで小さくなり（8cm〜12cm）、同じページで改ページの前に収まる', shrunk.sizes[0][1] >= 80 && shrunk.sizes[0][1] < 120 && shrunk.groupPage === shrunk.textPage && shrunk.bottom <= 272, JSON.stringify(shrunk))
+    // 横長の図1枚は、本文の幅（15cm）まで。横長の図2枚は、もう本文の幅いっぱいなので大きくならない
+    await setBody(body([['f1', 'g-mood', 'イメージボード']]))
+    const wide = await figs()
+    check('横長の図1枚（ふだんは 8×6cm）は、横が本文の幅（15cm）いっぱいまで大きくなる', wide.sizes[0][0] > 140 && wide.sizes[0][0] <= 150 && wide.bottom <= 272, JSON.stringify(wide))
+    await setBody(body([['f1', 'g-mood', 'イメージボード'], ['f2', 'g-process', '制作の様子']]))
+    const pair = await figs()
+    check('横長の図が2枚並ぶと、もう本文の幅いっぱいなので大きくならない（ふだんの 7.1×5.3cm のまま）', pair.sizes.length === 2 && pair.sizes.every(([w, h]) => w === 71 && h === 53.3), JSON.stringify(pair))
+    await page.screenshot({ path: `${OUT}/10-figure-grow.png` })
     await context.close()
   }
 })

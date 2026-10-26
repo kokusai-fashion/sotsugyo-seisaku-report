@@ -1199,7 +1199,7 @@ export class OverlayEditor {
    * 組み直したら、呼び出し側が settle と moveTo で正しい位置・書体に合わせる。
    * ghost：分けた前の段落の文字。組み直すまで入力欄のあった位置に仮に表示し、入力欄はそのすぐ下へずらす
    */
-  continueIn(next: { blockId: string; kind: OverlayKind; text: string; caret: number; styleSource?: HTMLElement; refs?: OverlayTarget['refs']; page?: HTMLElement[] }, ghost?: string): void {
+  continueIn(next: { blockId: string; kind: OverlayKind; text: string; caret: number; styleSource?: HTMLElement; refs?: OverlayTarget['refs']; page?: HTMLElement[]; enterCreatesParagraph?: boolean }, ghost?: string): void {
     if (!this.target) return
     this.unpark()
     // 図表のタイトルで Enter：続きの段落には番号を出さない（前のタイトルの仮の表示には、番号を付ける）
@@ -1227,7 +1227,8 @@ export class OverlayEditor {
     const kindChanged = next.kind !== this.target.kind
     // スマホ：前の段落の、紙面の上の写しはやめる（移った先の欄で、見せるかを決め直す）
     if (next.blockId !== this.target.blockId) this.setLive(false)
-    this.target = { ...this.target, blockId: next.blockId, kind: next.kind, text: next.text, caret: next.caret, enterCreatesParagraph: false, refs: next.refs }
+    // 見出し・図表のタイトルへ移った（表のマスから Shift+Tab でタイトルへ戻った、など）：Enter で後ろに段落を作る（前は書き終えていた：2026-10-26）
+    this.target = { ...this.target, blockId: next.blockId, kind: next.kind, text: next.text, caret: next.caret, enterCreatesParagraph: next.enterCreatesParagraph ?? false, refs: next.refs }
     this.element.dataset.kind = next.kind
     this.setTypeset(!this.sheetHost && next.kind === 'paragraph')
     this.model = next.text
@@ -1470,6 +1471,11 @@ export class OverlayEditor {
     this.setWaiting(false)
     this.clip.hidden = true
     this.sheetHost?.closest('.edit-sheet')?.classList.remove('open')
+  }
+
+  /** 書く欄の字を全部選ぶ（打つと置き換わる。素材表の仮のタイトル「使用素材表」など） */
+  selectAllText(): void {
+    this.select(0, this.text.length)
   }
 
   setCaret(offset: number): void {
@@ -1715,6 +1721,14 @@ export class OverlayEditor {
     if (!sel?.rangeCount || !this.element.contains(sel.anchorNode)) return null
     const r = this.caretBox()
     return r ? { top: r.top + this.clip.scrollTop, bottom: r.bottom + this.clip.scrollTop } : null
+  }
+
+  /** PC：書いているカーソルの左右の位置（画面座標）。拡大して紙面が台より広いとき、横に送ってカーソルを見せるのに使う */
+  caretX(): number | null {
+    if (!this.target || this.sheetHost || this.clip.hidden) return null
+    const sel = getSelection()
+    if (!sel?.rangeCount || !this.element.contains(sel.anchorNode)) return null
+    return this.caretBox()?.left ?? null
   }
 
   /**

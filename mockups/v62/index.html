@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>v62 横並び・横長の図</title>
+<style>
+  body { margin: 0; padding: 28px 32px 34px; background: #f4f1ea; font-family: 'BIZ UDPGothic', 'Yu Gothic', sans-serif; color: #222; width: 1536px; box-sizing: border-box; }
+  h1 { margin: 0 0 6px; font-size: 26px; }
+  .lead { margin: 0 0 20px; font-size: 16px; color: #555; line-height: 1.6; word-break: auto-phrase; }
+  .grid { display: grid; grid-template-columns: 90px repeat(3, 1fr); gap: 14px 26px; align-items: start; }
+  .colh h2 { margin: 0 0 2px; font-size: 19px; }
+  .colh p { margin: 0; font-size: 14px; color: #666; line-height: 1.5; word-break: auto-phrase; min-height: 42px; }
+  .rowh { padding-top: 10px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 700; }
+  .now { background: #f3d9d6; color: #a03a2c; }
+  .opt { background: #dde3f5; color: #27367a; }
+  .shot { border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); background: #fff; }
+  .shot img { display: block; width: 100%; }
+  .res { margin: 8px 0 0; font-size: 14px; color: #333; line-height: 1.5; word-break: auto-phrase; }
+  .note { margin-top: 22px; font-size: 15px; color: #444; line-height: 1.7; word-break: auto-phrase; }
+</style>
+<h1>案B で、図が横並びの2枚・横長のとき</h1>
+<p class="lead">並んだ図は、同じ倍率でそろえて大きくします。大きくできるのは、下の空き（1行分は残す）・横は本文の幅（15cm）まで・縦は12cmまでの、いちばん小さい所までです。</p>
+<div class="grid">
+  <div></div>
+  <div class="colh"><h2>縦長の図が2枚</h2><p>デザイン画と完成した衣装</p></div>
+  <div class="colh"><h2>横長の図が1枚</h2><p>イメージボード</p></div>
+  <div class="colh"><h2>横長の図が2枚</h2><p>イメージボードと制作の様子</p></div>
+
+  <div class="rowh"><span class="tag now">いま</span></div>
+  <div class="shot"><img src="shots/pair-tall-now.png" /></div>
+  <div class="shot"><img src="shots/one-wide-now.png" /></div>
+  <div class="shot"><img src="shots/pair-wide-now.png" /></div>
+
+  <div class="rowh"><span class="tag opt">案B</span></div>
+  <div><div class="shot"><img src="shots/pair-tall-B.png" /></div><p class="res">約1.3倍（1枚が約7×9.5cm）。2枚で本文の幅いっぱいになるまで</p></div>
+  <div><div class="shot"><img src="shots/one-wide-B.png" /></div><p class="res">約1.9倍（15×11cm）。本文の幅いっぱいになるまで</p></div>
+  <div><div class="shot"><img src="shots/pair-wide-B.png" /></div><p class="res">大きくなりません。いまでも本文の幅いっぱいです</p></div>
+</div>
+<p class="note">縦長の図1枚（前の見本）は、縦12cm まで（1.5倍）です。図が3枚・4枚（2枚＋1枚、2枚×2段）のときも、まとまり全体を同じ倍率で大きくします。<br />どの場合も、大きくするのは下の空きの中だけなので、図が次のページへ押し出されることはありません。</p>
+</html>
