@@ -4,6 +4,7 @@ import { COVER_SUBTITLE, OVERFLOW_RATIO, yearDigits } from '../layout/document'
 import type { LayoutInfo } from '../layout/measure'
 import type { HeadingText } from '../model/headingText'
 import type { Report, TableBlock, TableRow } from '../model/types'
+import { nameWithoutSpace, untidyNameGap } from '../model/personName'
 import { pagePhotoCount } from '../model/photos'
 import { swatchColumn, unusedRows } from '../model/table'
 import { charCount, checkText, DEFAULT_WORD_CHECKS, EMOJI_TITLE, findEmoji, type TextFinding } from './textRules'
@@ -259,13 +260,17 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   if (!findCourse(config, basicInfo.courseId)) {
     findings.push(guide('required-field', 'error', 'コースが選ばれていない', 'cover', { blockId: 'basic:course' }))
   }
-  // 姓と名の間は全角の空白（はじめての案内でも、そう伝えている）。半角の空白なら、全角に直せる
-  const halfSpace = basicInfo.name.search(/(?<=\S) +(?=\S)/)
-  if (halfSpace >= 0) {
-    const end = basicInfo.name.slice(halfSpace).search(/[^ ]/) + halfSpace
+  // 姓と名の間は全角の空白1つ（model/personName.ts。書き終えたとき・Word から読み込んだときに、ツールがそろえる。
+  // ここに出るのは、そろえる前に書いた原稿と、提出前チェックで読んだ Word）。英字の名前のとなりの空白は見ない
+  const gap = untidyNameGap(basicInfo.name)
+  if (gap) {
     findings.push(
-      guide('name-space', 'warning', '姓と名の間は全角の空白にする', 'cover', { blockId: 'basic:name', start: halfSpace, end, detail: '半角の空白 → 全角の空白（例：文化　花子）' }),
+      guide('name-space', 'warning', '姓と名の間は全角の空白にする', 'cover', { blockId: 'basic:name', start: gap.start, end: gap.end, detail: gap.half ? '半角の空白 → 全角の空白（例：文化　花子）' : '空白は1つにする（例：文化　花子）' }),
     )
+  }
+  // 姓と名の間に空白がない（どこで分けるかはツールに分からないので、学生に入れてもらう。依頼者の選択 2026-10-28 案1）
+  if (nameWithoutSpace(basicInfo.name)) {
+    findings.push(guide('name-no-space', 'warning', '姓と名の間に全角の空白を入れる', 'cover', { blockId: 'basic:name', detail: '表紙と抄録の氏名は、姓と名の間を全角の空白1つにそろえます（例：文化　花子）' }))
   }
   // 氏名に数字や「学籍番号」：学籍番号の欄の文までいっしょに入っている（2行ぶんを氏名の欄に貼り付けたなど）。表紙とファイル名がおかしくなる
   const nameText = basicInfo.name.normalize('NFKC')

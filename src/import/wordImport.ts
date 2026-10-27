@@ -1,6 +1,7 @@
 import { courseIdInText, findCourse, type YearConfig } from '../config'
 import { newId, normalizeParagraph, numbering, setCourse, textToContent, type Numbering } from '../editor/reportOps'
 import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
+import { tidyName } from '../model/personName'
 import type { StoredImage } from '../model/storage'
 import { abstractEmpty, abstractHint, bodyFromTemplate, courseTemplate, emptyParagraph } from '../model/template'
 import { headingFromText, type HeadingText } from '../model/headingText'
@@ -1359,6 +1360,8 @@ export async function readCoverFile(file: File, context: { config: YearConfig; c
  */
 export function applyWordImport(report: Report, result: WordImportResult, course?: { courseId: string; config: YearConfig }): Report {
   const cover = Object.fromEntries(Object.entries(result.cover).filter(([, v]) => typeof v === 'string' && v.trim() !== ''))
+  // 氏名は、ツールで書いたときと同じく、姓と名の間を全角の空白1つにそろえる（提出前チェックは、Word に打ったままを見て知らせるので、読むときにはそろえない）
+  if (cover.name) cover.name = tidyName(cover.name)
   const imported: Report = { ...report, body: result.body, basicInfo: { ...report.basicInfo, ...cover } }
   if (!course || course.courseId === report.basicInfo.courseId) return imported
   const renamed = setCourse(imported, course.courseId)

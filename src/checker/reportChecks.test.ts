@@ -109,6 +109,17 @@ describe('checkReport', () => {
     const f = checkReport(r, currentConfig, layout()).find((x) => x.ruleId === 'name-space')
     expect(f).toMatchObject({ blockId: 'basic:name', start: 2, end: 3, detail: '半角の空白 → 全角の空白（例：文化　花子）' })
     expect(ids({ ...r, basicInfo: { ...r.basicInfo, name: '文化　花子' } }, layout())).not.toContain('name-space')
+    // 全角の空白が2つ続いた・英字の名前（半角の空白のまま）
+    expect(checkReport({ ...r, basicInfo: { ...r.basicInfo, name: '文化　　花子' } }, currentConfig, layout()).find((x) => x.ruleId === 'name-space')).toMatchObject({ start: 2, end: 4, detail: '空白は1つにする（例：文化　花子）' })
+    expect(ids({ ...r, basicInfo: { ...r.basicInfo, name: 'Emma Smith' } }, layout())).not.toContain('name-space')
+  })
+
+  it('氏名の姓と名の間に空白がなければ、全角の空白を入れるように知らせる（英字・空の欄には出さない）', () => {
+    const withName = (name: string) => ({ ...cleanReport(), basicInfo: { ...cleanReport().basicInfo, name } })
+    expect(checkReport(withName('文化花子'), currentConfig, layout()).find((x) => x.ruleId === 'name-no-space')).toMatchObject({ severity: 'warning', blockId: 'basic:name', title: '姓と名の間に全角の空白を入れる' })
+    expect(ids(withName('文化　花子'), layout())).not.toContain('name-no-space')
+    expect(ids(withName('EmmaSmith'), layout())).not.toContain('name-no-space')
+    expect(ids(withName(''), layout())).not.toContain('name-no-space')
   })
 
   it('抄録の字数・行数・ページ数を判定する', () => {

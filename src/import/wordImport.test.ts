@@ -1047,6 +1047,12 @@ describe('表紙', () => {
     expect(applyWordImport(report, result).basicInfo.name).toBe('文化　花子')
   })
 
+  it('表紙の氏名の半角の空白は、読むときはそのまま（提出前チェックで知らせる）、原稿に写すときは全角の空白1つにそろえる', async () => {
+    const result = await read(templateLikeBody(), cover('00ZZ0123', '文化 花子', '―シンドバッドの衣装制作―'))
+    expect(result.cover.name).toBe('文化 花子')
+    expect(applyWordImport(createReport(currentConfig, COURSE), result).basicInfo.name).toBe('文化　花子')
+  })
+
   it('表紙に本文のファイルを選んだら知らせる', async () => {
     await expect(read(templateLikeBody(), templateLikeBody())).rejects.toThrow('表紙に選んだ「01_表紙.docx」は、表紙のファイルではないようです')
   })

@@ -5,6 +5,7 @@ import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
 import { listItemLine, typedHeading, type HeadingText } from '../model/headingText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
+import { tidyName } from '../model/personName'
 import { putImage, type StoredImage } from '../model/storage'
 import { skippedPages } from '../pdf/exportPages'
 import { applyCourseTemplate, bodyWritten } from '../model/template'
@@ -196,11 +197,11 @@ const RENDER_DELAY_MS = 600
 const FIGURE_MAX_MM = 80
 /** Enter で、後ろに新しい段落を作って書き続ける欄（見出し・図表のタイトル。ほかの1行の欄は書き終える） */
 const ENTER_CREATES_PARAGRAPH = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
-/** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」）。書いている欄では、書き終えるまで出さない（runChecks） */
-const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty'])
+/** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」・氏名の空白〔書き終えたときにそろえる〕）。書いている欄では、書き終えるまで出さない（runChecks） */
+const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty', 'name-space', 'name-no-space'])
 /** スマホ：入れた図・表のタイトルの欄を開いてから、キーボードが出ていないかを見るまでの時間（showTapHint） */
 const TAP_HINT_DELAY_MS = 900
-/** 元に戻した所を光らせておく時間（mockups/v32 ② 案A） */
+/** 元に戻した所を光らせておく時間（mockups/v32 ② 案A。光り方は index.css：0.2秒そのままにして、1.3秒で消える。mockups/v72 案A） */
 const UNDO_FLASH_MS = 1500
 /** 目次の行から移った見出しを光らせておく時間（mockups/v41 案C。光り方は index.css の「v41」） */
 const TOC_ARRIVE_MS = 1600
@@ -3505,6 +3506,8 @@ export class ReportEditor {
    * 図・表のタイトルは、頭に打った番号（「図1 」）を外して、画面の下に知らせる（どちらも、紙面で二重にならないように）
    */
   private tidyText(id: string, text: string): string {
+    // 氏名：姓と名の間の空白を、全角の空白1つにそろえる（model/personName.ts）
+    if (id === FIELD_IDS.name) return tidyName(text)
     if (id === FIELD_IDS.subtitleInput) {
       const course = findCourse(this.config, this.report.basicInfo.courseId)
       return course ? subtitleInputOnly(course, text) : text
