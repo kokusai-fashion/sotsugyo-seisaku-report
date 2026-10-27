@@ -19,8 +19,7 @@
     "maxLines": 23
   },
   "body": {
-    "minPages": 5,
-    "imagesPerPageGuide": 2
+    "minPages": 5
   },
   "workPhotos": {
     "maxPages": null

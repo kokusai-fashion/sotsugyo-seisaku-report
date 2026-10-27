@@ -37,7 +37,6 @@ const DETAIL_LABELS: [string, string][] = [
   ['abstract.minLines', '抄録の行数'],
   ['abstract.maxLines', '抄録の行数'],
   ['body.minPages', '本文の最低ページ数'],
-  ['body.imagesPerPageGuide', '1ページあたりの画像の目安'],
   ['workPhotos.maxPages', '作品写真のページ数の上限'],
   ['studentIdPattern', '学籍番号の形式'],
   ['fiscalYear', '年度'],
@@ -172,7 +171,6 @@ const TOP_TARGETS: Record<string, string> = {
   'abstract.minLines': 'd-minLines',
   'abstract.maxLines': 'd-minLines',
   'body.minPages': 'd-minPages',
-  'body.imagesPerPageGuide': 'd-images',
   'workPhotos.maxPages': 'd-photoPages',
   studentIdPattern: 'd-studentId',
 }

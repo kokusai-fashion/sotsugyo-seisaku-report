@@ -161,7 +161,7 @@ describe('Word のチェック（学生用ツールのセルフチェックと�
     expect(by(findings, 'swatch-image').map((f) => f.detail)).toEqual(['表1：「綿ブロード」の行、「生地見本」の列', '表1：「サテン」の行、「生地見本」の列', '表1：「麻」の行、「生地見本」の列'])
     expect(by(findings, 'template-margins')).toEqual([expect.objectContaining({ part: 'toc', detail: expect.stringContaining('左 30mm') })])
     expect(by(findings, 'toc-headings')).toEqual([expect.objectContaining({ part: 'toc', severity: 'warning', detail: '目次にだけある：「まとめ」' })])
-    expect(covered).toEqual(new Set(['body-pages', 'figures-per-page', 'abstract-one-page']))
+    expect(covered).toEqual(new Set(['body-pages', 'abstract-one-page']))
   })
 
   it('ツールの中でしか意味のない指摘は出さない（抄録はまだ書いていない・作品写真・コース・「直す」でつなげる）', async () => {

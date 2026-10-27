@@ -349,17 +349,7 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
       }),
     )
   }
-  if (layout) {
-    const figures = num.figureByNumber.size
-    const guideMax = layout.bodyPages * config.body.imagesPerPageGuide
-    if (figures > guideMax) {
-      findings.push(
-        guide('figures-per-page', 'warning', `画像は1ページあたり${config.body.imagesPerPageGuide}枚程度にする`, 'body', {
-          detail: `図 ${figures}枚・本文 ${layout.bodyPages}ページ（目安は${guideMax}枚まで）`,
-        }),
-      )
-    }
-  }
+  // 画像の枚数（1ページあたりの目安）は確かめない（依頼者の判断 2026-10-27：実際には決まりにしていない。管理ページの「画像の目安」ごと外した）
   for (const e of list) {
     if (!e.text.trim() && ['chapter', 'subheading', 'figureCaption', 'tableCaption'].includes(e.kind)) {
       const what = { chapter: '大見出し', subheading: '小見出し', figureCaption: '図のタイトル', tableCaption: '表のタイトル' }[e.kind as string]

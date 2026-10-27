@@ -23,7 +23,8 @@ export default defineConfig(({ mode }) => {
   const toolUrl = process.env.VITE_TOOL_URL || loadEnv(mode, process.cwd(), 'VITE_').VITE_TOOL_URL || DEFAULT_TOOL_URL
   return {
     plugins: [react(), viteSingleFile(), adminCsp(new URL(toolUrl).origin)],
-    define: { 'import.meta.env.VITE_TOOL_URL': JSON.stringify(toolUrl) },
+    // __BUILD_ID__：管理ページの版の印（scripts/build-gas.mjs が ADMIN_BUILD_ID で渡し、Code.js にも同じものを入れる。なければ 'dev'＝調べない）
+    define: { 'import.meta.env.VITE_TOOL_URL': JSON.stringify(toolUrl), __BUILD_ID__: JSON.stringify(process.env.ADMIN_BUILD_ID || 'dev') },
     build: {
       outDir: 'gas-dist/admin-build',
       emptyOutDir: true,

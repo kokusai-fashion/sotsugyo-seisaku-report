@@ -228,11 +228,11 @@ export function wordFindings(reading: WordReading, config: YearConfig, pdf: PdfL
         }
       : null
   const covered = new Set<string>()
-  if (has.body && pdf.bodyPages !== undefined) covered.add('body-pages').add('figures-per-page')
+  if (has.body && pdf.bodyPages !== undefined) covered.add('body-pages')
   if (has.abstract && pdf.abstractPages !== undefined) covered.add('abstract-one-page')
   // PDF がないと分からないもの（ページの数）は、その PDF があるときだけ
   const needsPdf = (f: ReportFinding) =>
-    ((f.ruleId === 'body-pages' || f.ruleId === 'figures-per-page') && pdf.bodyPages === undefined) ||
+    (f.ruleId === 'body-pages' && pdf.bodyPages === undefined) ||
     ((f.ruleId === 'abstract-one-page' || f.ruleId === 'abstract-lines') && pdf.abstractPages === undefined) ||
     (f.ruleId === 'abstract-lines' && (pdf.abstractLines === null || pdf.abstractLines === undefined))
 

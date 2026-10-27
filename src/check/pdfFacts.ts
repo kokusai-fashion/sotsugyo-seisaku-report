@@ -260,12 +260,6 @@ export function pdfFindings(pdfs: Partial<Record<PartId, PdfFacts>>, config: Yea
       if (missing.length) add({ ruleId: 'page-number-missing', part, severity: 'warning', title: '本文の各ページにページ番号を付ける', detail: `ページ番号が見つからないページ：${pageList(missing)}`, page: missing[0] })
       if (!covered.has('body-pages') && count < config.body.minPages)
         add({ ruleId: 'body-pages', part, severity: 'error', title: `本文はA4で${config.body.minPages}ページ以上にする`, detail: `現在 ${count}ページ（PDF のページの数${count < facts.pages.length ? '。引用・参考文献のページは数えない' : ''}）` })
-      if (!covered.has('figures-per-page')) {
-        const images = facts.pages.slice(0, count).reduce((n, p) => n + p.images, 0)
-        const max = count * config.body.imagesPerPageGuide
-        if (count > 0 && images > max)
-          add({ ruleId: 'figures-per-page', part, severity: 'warning', title: `画像は1ページあたり${config.body.imagesPerPageGuide}枚程度にする`, detail: `画像 ${images}枚・本文 ${count}ページ（目安は${max}枚まで）` })
-      }
     } else {
       const numbered = facts.pages.flatMap((p, i) => (p.pageNumber ? [i + 1] : []))
       if (numbered.length) add({ ruleId: 'page-number-extra', part, severity: 'warning', title: `${PART_NAMES[part]}にはページ番号を付けない`, detail: `ページ番号があるページ：${pageList(numbered)}`, page: numbered[0] })

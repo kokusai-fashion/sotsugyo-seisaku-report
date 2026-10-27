@@ -1,3 +1,4 @@
+import { BUILD_ID } from '../app/newVersion'
 import { currentConfig, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
 import type { AdminServer, AdminState, HistoryRow, Member, YearRow } from './server'
@@ -11,6 +12,8 @@ import { applyNotices, applyTemplates, changedMessage, checkConfig, cleanWords }
  */
 
 const KEY = 'sotsugyo-admin-mock'
+/** 試験用サーバーの「公開中の版の印」（なければ、この画面と同じ） */
+const MOCK_VERSION_KEY = 'sotsugyo-admin-mock-version'
 const ADMIN = 'admin@example.ac.jp'
 const TEACHER = 'sensei@example.ac.jp'
 const USER = new URLSearchParams(location.search).get('as') === 'teacher' ? TEACHER : ADMIN
@@ -260,6 +263,17 @@ export function createMockServer(): AdminServer {
         if (local) return local
       }
       return clone(DEV_TRIAL_SAMPLE)
+    },
+    async getVersion() {
+      await wait()
+      // 公開中の版は、この画面と同じ。自動テスト（scripts/e2e/adminVersion.mjs）は sotsugyo-admin-mock-version で、新しい版が出たことにする
+      let id = BUILD_ID
+      try {
+        id = localStorage.getItem(MOCK_VERSION_KEY) ?? BUILD_ID
+      } catch {
+        // 読めなければ、同じ版
+      }
+      return { id, url: location.href }
     },
   }
 }

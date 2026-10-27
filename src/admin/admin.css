@@ -554,6 +554,23 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 @media (max-width: 760px) {
   /* 見本の説明の行は折り返す（右で切れていた） */
   .stage .caption > * { white-space: normal; }
+  /* コース名は途中で折り返さず、まとめて次の行へ（収まらないほど長いときだけ、中で折り返す） */
+  .stage .caption .nb { display: inline-block; }
   /* 使い方は、画面の上から（見出しが2段になり、年度の欄に重なっていた） */
   .admin .help-dock { top: 0; z-index: 50; width: 100%; border-left: 0; }
+}
+
+/* 新しい版の知らせ（依頼者の判断 2026-10-27。学生のツールと同じ形：index.css の .new-version）。見出しの下の真ん中に */
+.new-version { position: fixed; z-index: 60; top: calc(var(--head-h, 61px) + 10px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 24px); box-sizing: border-box; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 13.5px; box-shadow: 0 8px 24px rgba(30, 25, 20, 0.25); white-space: nowrap; }
+.new-version .nv-reload { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: #fff; color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer; }
+.new-version .nv-reload:disabled { cursor: default; opacity: 0.85; }
+.new-version .nv-reload svg { width: 16px; height: 16px; }
+.new-version .nv-close { width: 34px; height: 34px; border: 0; background: none; color: #fff; font-size: 18px; cursor: pointer; }
+/* スマホ：見出しは2段で高さが変わるので、画面の下（保存のボタンの帯の上）に */
+@media (max-width: 760px) {
+  .new-version { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
+}
+@media (max-width: 760px) {
+  /* 変更があるときは、画面の下の帯（変更を見る・保存）が高いので、その上に */
+  body:has(.dirty-bar) .new-version { bottom: calc(env(safe-area-inset-bottom, 0px) + 132px); }
 }

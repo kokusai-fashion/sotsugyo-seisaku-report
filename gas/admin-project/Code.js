@@ -35,6 +35,8 @@ const LIMITS = { blocks: 100, name: 100, hint: 300, abstractExample: 500, notice
 const INITIAL_CONFIG = /*INITIAL_CONFIG*/ null
 // お試しの見本の原稿（scripts/build-gas.mjs が、git に入れないファイル gas/trial-sample.private.json から入れる。なければ null）
 const TRIAL_SAMPLE = /*TRIAL_SAMPLE*/ null
+// 管理ページの版の印（scripts/build-gas.mjs が、管理ページの画面に入れたものと同じ印を入れる。なければ ''）
+const BUILD_ID = /*BUILD_ID*/ ''
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('admin')
@@ -483,6 +485,14 @@ function publishedYears_() {
  * お試し（学生の画面を試す）の見本の原稿（登録された先生と管理者だけ。学生には渡さない）。
  * 中身は scripts/build-gas.mjs が、git に入れないファイル gas/trial-sample.private.json から入れる（公開しているソースコードには入れない）
  */
+/**
+ * 公開中の管理ページの版の印と場所（依頼者の判断 2026-10-27：管理ページにも「新しい版があります」を出す）。
+ * 開いたままの画面が、自分の印と比べる。違えば、新しく公開された版がある。だれでも呼べる（印と場所のほかは返さない）
+ */
+function getVersion() {
+  return { id: BUILD_ID, url: ScriptApp.getService().getUrl() }
+}
+
 function getTrialSample() {
   requireTeacher_()
   if (!TRIAL_SAMPLE) throw new Error('見本の原稿が入っていません（管理者にお知らせください）')

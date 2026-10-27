@@ -27,14 +27,17 @@ export async function publishedBuildId(): Promise<string | null> {
   }
 }
 
-/** 新しい版が公開されているか（見つけたら true のまま） */
-export function useNewVersion(): boolean {
+/**
+ * 新しい版が公開されているか（見つけたら true のまま）。
+ * published：公開中の版の印を読む（学生のツールは version.json。管理ページは Apps Script の getVersion：admin/AdminNewVersion.tsx）。いつも同じ関数を渡す
+ */
+export function useNewVersion(published: () => Promise<string | null> = publishedBuildId): boolean {
   const [newer, setNewer] = useState(false)
   useEffect(() => {
     if (BUILD_ID === 'dev') return
     let stopped = false
     const check = async () => {
-      const id = await publishedBuildId()
+      const id = await published()
       if (!stopped && id && id !== BUILD_ID) setNewer(true)
     }
     void check()
@@ -48,12 +51,15 @@ export function useNewVersion(): boolean {
       document.removeEventListener('visibilitychange', onVisible)
       window.clearInterval(timer)
     }
-  }, [])
+  }, [published])
   return newer
 }
 
-/** 画面の上の知らせ（「新しくする」で、書いたものを保存してから読み込み直す。× で、この画面では出さない） */
-export function NewVersionBanner({ onReload, onClose }: { onReload: () => void; onClose: () => void }) {
+/**
+ * 画面の上の知らせ（「新しくする」で、書いたものを保存してから読み込み直す。× で、この画面では出さない）。
+ * onReload が false を返したら（確かめてやめたとき）、ボタンを元に戻す。busyText：押したあとのボタンの言葉
+ */
+export function NewVersionBanner({ onReload, onClose, busyText = '保存しています…' }: { onReload: () => void | Promise<boolean | void>; onClose: () => void; busyText?: string }) {
   const [busy, setBusy] = useState(false)
   return (
     <div className="new-version" role="status">
@@ -63,11 +69,13 @@ export function NewVersionBanner({ onReload, onClose }: { onReload: () => void; 
         disabled={busy}
         onClick={() => {
           setBusy(true)
-          onReload()
+          void Promise.resolve(onReload()).then((ok) => {
+            if (ok === false) setBusy(false)
+          })
         }}
       >
         {Icon.reload}
-        {busy ? '保存しています…' : '新しくする'}
+        {busy ? busyText : '新しくする'}
       </button>
       <button className="nv-close" aria-label="閉じる（新しくしない）" onClick={onClose}>
         ×

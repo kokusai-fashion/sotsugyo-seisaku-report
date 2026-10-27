@@ -88,12 +88,6 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
               ページ以上
             </span>
           </Row>
-          <Row label="画像の目安" htmlFor="d-images" changed={changed('body.imagesPerPageGuide')}>
-            <span className="range">
-              1ページに
-              <NumberInput id="d-images" label="1ページあたりの画像の目安" value={draft.body.imagesPerPageGuide} onChange={(v) => set({ body: { ...draft.body, imagesPerPageGuide: v } })} />枚
-            </span>
-          </Row>
           <Row label="作品写真" htmlFor="d-photoPages" hint="空なら上限なし（1ページに写真4枚まで）" changed={changed('workPhotos.maxPages')}>
             <span className="range">
               <OptionalNumberInput id="d-photoPages" value={draft.workPhotos?.maxPages ?? null} placeholder="なし" onChange={(v) => set({ workPhotos: { maxPages: v } })} />

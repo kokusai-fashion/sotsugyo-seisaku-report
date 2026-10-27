@@ -183,8 +183,8 @@ describe('checkReport', () => {
     expect(ids(book('R3'), layout())).toContain('reference-year')
   })
 
-  it('画像が1ページあたりの目安より多いと警告する', () => {
-    expect(ids(cleanReport(), layout({ bodyPages: 0 }))).toContain('figures-per-page')
+  it('画像の枚数（1ページあたりの目安）は確かめない（依頼者の判断 2026-10-27）', () => {
+    expect(ids(cleanReport(), layout({ bodyPages: 0 }))).not.toContain('figures-per-page')
   })
 })
 

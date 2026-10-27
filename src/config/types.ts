@@ -43,8 +43,6 @@ export interface YearConfig {
   body: {
     /** 本文の最低ページ数（引用・参考文献のページは含めない） */
     minPages: number
-    /** 1ページあたりの画像枚数の目安 */
-    imagesPerPageGuide: number
   }
   workPhotos: {
     /**

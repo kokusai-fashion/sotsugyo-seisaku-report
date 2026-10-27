@@ -125,7 +125,7 @@ describe('本文のページの数と、PDF から分かる指摘', () => {
     const middle = { pages: [fakePage(['Ⅰ．企画']), fakePage(['まとめの文。', 'Ⅳ．参考文献', '・浜松'])] }
     expect(bodyPages(middle)).toEqual({ count: 2, referencesFrom: 2 })
   })
-  it('用紙・ページ番号・本文のページの数・抄録のページの数・画像の数・作品写真', () => {
+  it('用紙・ページ番号・本文のページの数・抄録のページの数・作品写真（画像の数は確かめない）', () => {
     const body = { pages: [fakePage(['a'], { pageNumber: '1', images: 3 }), fakePage(['b'], { pageNumber: null, images: 4 }), fakePage(['c'], { widthPt: 612, heightPt: 792, pageNumber: '3' })] }
     const cover = { pages: [fakePage(['表紙'], { pageNumber: '1' })] }
     const abstract = { pages: [fakePage(['抄録']), fakePage(['つづき'])] }
@@ -136,7 +136,7 @@ describe('本文のページの数と、PDF から分かる指摘', () => {
     expect(by('body', 'page-number-missing')).toMatchObject({ severity: 'warning', page: 2 })
     expect(by('cover', 'page-number-extra')).toMatchObject({ severity: 'warning', title: '表紙にはページ番号を付けない' })
     expect(by('body', 'body-pages')).toMatchObject({ severity: 'error', title: '本文はA4で5ページ以上にする', detail: '現在 3ページ（PDF のページの数）' })
-    expect(by('body', 'figures-per-page')).toMatchObject({ severity: 'warning', detail: '画像 7枚・本文 3ページ（目安は6枚まで）' })
+    expect(by('body', 'figures-per-page')).toBeUndefined()
     expect(by('abstract', 'abstract-one-page')).toMatchObject({ severity: 'error', detail: '現在 2ページ' })
     // 作品写真は何ページでもよい（年度の設定のページ数の上限がなければ、何も言わない。mockups/v38）
     expect(list.filter((f) => f.part === 'photo')).toEqual([])
@@ -148,7 +148,7 @@ describe('本文のページの数と、PDF から分かる指摘', () => {
     const merged = pdfFindings({ cover: { pages: [fakePage(['表紙']), fakePage(['抄録']), fakePage(['目次'])] } }, config)
     expect(merged.find((x) => x.ruleId === 'cover-one-page')).toMatchObject({ severity: 'error', detail: '今 3ページ。1つにまとめた PDF ではなく、表紙だけの PDF を入れる' })
     // Word のチェックで出した指摘（ページの数）は、ここでは出さない
-    const covered = pdfFindings({ body, abstract }, config, new Set(['body-pages', 'figures-per-page', 'abstract-one-page']))
+    const covered = pdfFindings({ body, abstract }, config, new Set(['body-pages', 'abstract-one-page']))
     expect(covered.map((f) => f.ruleId).sort()).toEqual(['page-number-missing', 'pdf-a4'])
   })
   it('PDF だけのとき：そろっていることの一覧', () => {

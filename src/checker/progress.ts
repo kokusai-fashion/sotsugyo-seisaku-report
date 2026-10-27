@@ -124,7 +124,7 @@ const COVER_FIELDS: Record<string, string> = { 'basic:studentId': '学籍番号'
 
 /**
  * まだのところの行（表紙・本文のページ・本文の段落・（空いている所があれば）図・表・作品写真・抄録）。
- * 図の枚数の行は出さない（依頼者の判断。2026-10-19。多すぎるときは、直すところの「画像は1ページあたり…」で知らせる）。
+ * 図の枚数の行は出さない（依頼者の判断。2026-10-19。画像の枚数は確かめない：依頼者の判断 2026-10-27）。
  * findings はツールの指摘（セルフチェック）、pending は紙面を組み終えていない（ページ数のチェックをまだしていない）とき
  */
 export function progressRows(findings: ReportFinding[], ctx: ProgressContext, pending = false): ProgressRow[] {

@@ -9,7 +9,15 @@ import { loadEnv } from 'vite'
 // 学生のツールの場所（管理ページの「ひな形を作る画面を開く」で、上に重ねて開く。mockups/v44 案A）。
 // 環境変数か .env の VITE_TOOL_URL。なければ GitHub Pages（src/template/toolUrl.ts）。管理ページの CSP の frame-src も、この場所だけにする（vite.admin.config.ts）
 const toolUrl = process.env.VITE_TOOL_URL || loadEnv('production', process.cwd(), 'VITE_').VITE_TOOL_URL || ''
-execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--config', 'vite.admin.config.ts'], { stdio: 'inherit', env: { ...process.env, ...(toolUrl ? { VITE_TOOL_URL: toolUrl } : {}) } })
+// 管理ページの版の印（画面と Code.js に同じものを入れる。開いたままの画面が、公開中の印と比べて「新しい版があります」を出す：src/admin/adminVersion.ts）
+let commit = ''
+try {
+  commit = execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { encoding: 'utf8' }).trim()
+} catch {
+  // git がないところでまとめたときは、時刻だけ
+}
+const buildId = [commit, Date.now().toString(36)].filter(Boolean).join('-')
+execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--config', 'vite.admin.config.ts'], { stdio: 'inherit', env: { ...process.env, ADMIN_BUILD_ID: buildId, ...(toolUrl ? { VITE_TOOL_URL: toolUrl } : {}) } })
 
 for (const project of ['admin-project', 'api-project']) {
   const out = `gas-dist/${project}`
@@ -28,7 +36,11 @@ const trialSample = existsSync('gas/trial-sample.private.json') ? JSON.stringify
 const adminCode = readFileSync('gas/admin-project/Code.js', 'utf8')
 if (!adminCode.includes('/*TRIAL_SAMPLE*/ null')) throw new Error('gas/admin-project/Code.js に /*TRIAL_SAMPLE*/ null がありません')
 // 置き換える文字の中の「$」を、置き換えの印として読ませない（関数で渡す）
-const code = adminCode.replace('/*INITIAL_CONFIG*/ null', () => initial).replace('/*TRIAL_SAMPLE*/ null', () => trialSample)
+if (!adminCode.includes("/*BUILD_ID*/ ''")) throw new Error("gas/admin-project/Code.js に /*BUILD_ID*/ '' がありません")
+const code = adminCode
+  .replace('/*INITIAL_CONFIG*/ null', () => initial)
+  .replace('/*TRIAL_SAMPLE*/ null', () => trialSample)
+  .replace("/*BUILD_ID*/ ''", () => JSON.stringify(buildId))
 writeFileSync('gas-dist/admin-project/Code.js', code)
 console.log(`\nお試しの見本の原稿：${trialSample === 'null' ? 'なし（gas/trial-sample.private.json がない。管理ページの「学生の画面を試す」は開けない）' : `あり（${Math.round(trialSample.length / 1024)}KB）`}`)
 // 配信用のプロジェクトに、管理用スプレッドシートの ID を入れる（clasp で作ったときの .clasp.json の parentId）
@@ -58,6 +70,7 @@ rmSync('gas-dist/admin-build', { recursive: true, force: true })
 const csp = /<meta http-equiv="Content-Security-Policy" content="frame-src ([^"]+)"/.exec(readFileSync('gas-dist/admin-project/admin.html', 'utf8'))
 if (!csp) throw new Error('管理ページに CSP（frame-src）が入っていません（vite.admin.config.ts）')
 console.log(`\nひな形を作る画面：学生のツールの場所 ${csp[1]}（管理ページの CSP の frame-src）`)
+console.log(`管理ページの版の印：${buildId}`)
 
 const size = (f) => `${Math.round(statSync(f).size / 1024)}KB`
 console.log(`\ngas-dist/admin-project: Code.js ${size('gas-dist/admin-project/Code.js')}, admin.html ${size('gas-dist/admin-project/admin.html')}`)

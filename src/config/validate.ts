@@ -287,6 +287,11 @@ export function repairConfig(config: YearConfig): YearConfig {
   const words: unknown = config.wordChecks
   const wordChecks = words === undefined || words === null ? undefined : Array.isArray(words) ? (words.slice(0, LIMITS.words).filter((w) => !wordShapeProblem(w)) as WordCheck[]) : undefined
   const repaired: YearConfig = { ...config, courses }
+  // 本文：前の版の設定の画像の目安（imagesPerPageGuide）は使わない（依頼者の判断 2026-10-27。管理ページの「画像の目安」ごと外した）
+  if (isObject(config.body) && 'imagesPerPageGuide' in config.body) {
+    const { imagesPerPageGuide: _dropped, ...body } = config.body as YearConfig['body'] & { imagesPerPageGuide?: unknown }
+    repaired.body = body
+  }
   // 作品写真：前の版の設定の枚数の上限（maxImages）は使わない。ページ数の上限がない・崩れているときは、上限なし（mockups/v38：依頼者の判断）
   const maxPages: unknown = isObject(config.workPhotos) ? config.workPhotos.maxPages : undefined
   repaired.workPhotos = { maxPages: isNumber(maxPages) && Number.isInteger(maxPages) && maxPages > 0 ? maxPages : null }

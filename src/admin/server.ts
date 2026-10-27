@@ -81,6 +81,11 @@ export interface AdminServer {
    * 形は src/trial/protocol.ts の TrialSample（学生のツールが受け取るときに確かめる）
    */
   getTrialSample(): Promise<unknown>
+  /**
+   * 公開中の管理ページの版の印と場所（「新しい版があります」：AdminNewVersion.tsx）。
+   * 前の版のサーバー（getVersion がない）では失敗する
+   */
+  getVersion(): Promise<{ id: string; url: string }>
 }
 
 interface ScriptRun {
@@ -119,6 +124,7 @@ function appsScriptServer(): AdminServer {
     addMembers: (entries, role) => call('addMembers', entries, role),
     removeMember: (email) => call('removeMember', email),
     getTrialSample: () => call('getTrialSample'),
+    getVersion: () => call('getVersion'),
   }
 }
 

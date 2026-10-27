@@ -10,6 +10,7 @@ import { ADMIN_GUIDE_URL, TEACHER_GUIDE_URL, TEACHER_HELP_IMAGES } from '../help
 import { halfDigits } from '../layout/document'
 import { DEFAULT_TEMPLATE } from '../model/template'
 import { AdminIcon } from './adminIcons'
+import { AdminNewVersion } from './AdminNewVersion'
 import { courseName, fieldChanged, listChanges, mergeEdits, sameConfig, shortChanges, describeChanges, type Change, type ChangeSection } from './changes'
 import { useConfirm } from './confirm'
 import { CourseSection } from './CourseSection'
@@ -495,7 +496,10 @@ function CoverStage({ config, course }: { config: YearConfig; course: Course | u
     <>
       <div className="caption">
         <b>見本</b>
-        <span>表紙・抄録と本文のひな形（{course ? `${courseName(course)} コース` : 'コースなし'}）</span>
+        {/* コース名は途中で折り返さない（スマホで「映画・舞台／衣装デザイナー」と切れていた） */}
+        <span>
+          表紙・抄録と本文のひな形<span className="nb">（{course ? `${courseName(course)} コース` : 'コースなし'}）</span>
+        </span>
         <span className="spacer" />
         <span className="legend">
           <span>
@@ -635,7 +639,9 @@ export function AdminApp() {
     }
   }, [historyKey])
 
-  useLeaveGuard(dirty)
+  /** 新しい版にするため、開き直している（タブを離れるときの確認を、もう一度出さない） */
+  const [leaving, setLeaving] = useState(false)
+  useLeaveGuard(dirty && !leaving)
 
   /**
    * 保存・公開が断られたとき：この画面を開いたあとに、別のタブ（またはほかの人）がこの年度を保存していたなら、
@@ -728,6 +734,9 @@ export function AdminApp() {
     select(s, y)
   }
 
+  // 新しい版が公開されたら、画面の上に知らせる（依頼者の判断 2026-10-27。学生のツールと同じ形：AdminNewVersion.tsx）
+  const versionBanner = <AdminNewVersion dirty={dirty} onLeave={() => setLeaving(true)} />
+
   // 最初の読み込み：画面の真ん中に、回る印と「読み込んでいます…」（長くかかるときは「数秒〜十数秒かかることがあります」も）
   if (!state) return message ? <div className="admin-loading">{message.text}</div> : <PageLoading slow={loadingSlow} />
   const role = roleOf(state)
@@ -745,28 +754,31 @@ export function AdminApp() {
   if (!draft || !row) return <div className="admin-loading">年度設定がありません。</div>
   if (role === 'teacher')
     return (
-      <TeacherView
-        state={state}
-        row={row}
-        draft={draft}
-        setDraft={setDraft}
-        changes={changes}
-        busy={busy}
-        slow={slow}
-        doneText={doneText}
-        message={message}
-        onMessage={setMessage}
-        onSelectYear={(y) => switchYear(state, y)}
-        confirmLeave={confirmLeave}
-        onPending={setPending}
-        onSave={(templates, words, notices) =>
-          // ひな形・お知らせ・書き間違えやすい語を、まとめて1回で保存する（途中で失敗して一部だけ保存されないように）
-          // 画面を開いたときの更新日時も送る（そのあとにほかの先生などが保存していたら、その変更を消さないよう保存しない）
-          void run('save', savedMessage(row.status, 'teacher'), () => server.saveTeacherEdits(row.year, { templates, notices, ...(words ? { words } : {}) }, row.updatedAt), {
-            recover: { verb: '保存', button: saveButtonLabel(row.status) },
-          })
-        }
-      />
+      <>
+        {versionBanner}
+        <TeacherView
+          state={state}
+          row={row}
+          draft={draft}
+          setDraft={setDraft}
+          changes={changes}
+          busy={busy}
+          slow={slow}
+          doneText={doneText}
+          message={message}
+          onMessage={setMessage}
+          onSelectYear={(y) => switchYear(state, y)}
+          confirmLeave={confirmLeave}
+          onPending={setPending}
+          onSave={(templates, words, notices) =>
+            // ひな形・お知らせ・書き間違えやすい語を、まとめて1回で保存する（途中で失敗して一部だけ保存されないように）
+            // 画面を開いたときの更新日時も送る（そのあとにほかの先生などが保存していたら、その変更を消さないよう保存しない）
+            void run('save', savedMessage(row.status, 'teacher'), () => server.saveTeacherEdits(row.year, { templates, notices, ...(words ? { words } : {}) }, row.updatedAt), {
+              recover: { verb: '保存', button: saveButtonLabel(row.status) },
+            })
+          }
+        />
+      </>
     )
 
   const set = (patch: Partial<YearConfig>) => setDraft({ ...draft, ...patch })
@@ -976,6 +988,7 @@ export function AdminApp() {
 
   return (
     <div className={`admin${help ? ' help-on' : ''}${dirty ? ' has-bar' : ''}${phone && phoneList ? ' phone-list' : ''}`}>
+      {versionBanner}
       <HeaderBar
         state={state}
         row={row}
@@ -1249,7 +1262,9 @@ function TeacherView({
               <>
                 <div className="caption">
                   <b>見本</b>
-                  <span>学生が最初に見る本文（{courseName(shownCourse)} コース）</span>
+                  <span>
+                    学生が最初に見る本文<span className="nb">（{courseName(shownCourse)} コース）</span>
+                  </span>
                 </div>
                 <Preview config={draft} courseId={shownCourse.id} template={shownCourse.template?.length ? shownCourse.template : DEFAULT_TEMPLATE} startAtBody />
               </>

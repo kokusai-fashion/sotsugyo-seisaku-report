@@ -163,6 +163,7 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => (k === 'SHEET_ID' ? 'sheet-id' : (props[k] ?? null)) }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (text: string) => ({ text, setMimeType() { return this } }) },
     HtmlService: { createHtmlOutputFromFile: () => ({ setTitle() { return this }, addMetaTag() { return this } }) },
+    ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/admin/exec' }) },
     UrlFetchApp: {
       fetch: (url: string) => {
         fetched.push(url)
@@ -231,6 +232,13 @@ describe('管理ページ（admin-project）', () => {
     expect(() => gas.getTrialSample()).toThrow(/登録された先生だけ/)
     user = 'kato@example.ac.jp'
     expect(() => load('admin-project').getTrialSample()).toThrow(/見本の原稿が入っていません/)
+  })
+
+  it('公開中の管理ページの版の印と場所を返す（開いたままの画面の「新しい版があります」。だれでも呼べる）', () => {
+    user = 'someone@example.ac.jp'
+    expect(load('admin-project', { values: { BUILD_ID: 'abc1234-x' } }).getVersion()).toEqual({ id: 'abc1234-x', url: 'https://script.google.com/macros/s/admin/exec' })
+    // まとめずに送ったとき（印がない）は空。画面は知らせを出さない
+    expect(load('admin-project').getVersion().id).toBe('')
   })
 
   it('管理者でない人には年度設定を見せず、保存もさせない', () => {
