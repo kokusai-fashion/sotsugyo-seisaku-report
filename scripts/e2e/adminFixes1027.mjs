@@ -389,6 +389,8 @@ await withEdge(async (browser) => {
     await page.waitForSelector('#y-commonTitle')
     await typeInto(page, '#y-commonTitle', ' ')
     await page.keyboard.press('Backspace')
+    // 書き終えてから（書いている間は、下の帯を隠す：mockups/v71 ③）
+    await page.evaluate(() => document.activeElement.blur())
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
     await wait(300)
     await headSave(page)
@@ -400,6 +402,112 @@ await withEdge(async (browser) => {
       return m ? { top: Math.round(m.top), headBottom: Math.round(head.bottom), bottom: Math.round(m.bottom), h: innerHeight } : null
     })
     check('スマホ：下の方で保存を押して断られたら、その知らせが見出しの裏に隠れずに見える', !!seen && seen.top >= seen.headBottom && seen.bottom <= seen.h, JSON.stringify(seen))
+
+    // 押す所の高さ・書いている間は下の帯を隠す（mockups/v71 ③）
+    await nav(page, 'コース')
+    await wait(400)
+    const backHeight = await page.evaluate(() => Math.round([...document.querySelectorAll('.phone-back')].find((b) => b.offsetParent)?.getBoundingClientRect().height ?? 0))
+    await nav(page, '年度の設定')
+    await page.waitForSelector('#y-commonTitle')
+    await typeInto(page, '#y-commonTitle', '書いている間の題目')
+    const barWhileTyping = await page.evaluate(() => getComputedStyle(document.querySelector('.dirty-bar')).display)
+    await page.evaluate(() => document.activeElement.blur())
+    await wait(200)
+    const barAfter = await page.evaluate(() => getComputedStyle(document.querySelector('.dirty-bar')).display)
+    check('スマホ：「‹ 管理ページの一覧」は高さ44px。書いている間は下の帯を隠し、書き終えると出す', backHeight >= 44 && barWhileTyping === 'none' && barAfter !== 'none', `${backHeight} / ${barWhileTyping} → ${barAfter}`)
+    await context.close()
+  }
+
+  // ---- スマホの横向き：パソコンの3列にしない（mockups/v71 ③）
+  {
+    const context = await browser.createBrowserContext()
+    const page = await context.newPage()
+    await page.emulate({ viewport: { width: 844, height: 390, deviceScaleFactor: 2, isMobile: true, hasTouch: true, isLandscape: true }, userAgent: IPHONE })
+    await page.goto(`${APP}/admin.html`, { waitUntil: 'networkidle0' })
+    await page.waitForSelector('.side-nav')
+    const land = await page.evaluate(() => ({ list: !!document.querySelector('.admin.phone-list'), over: document.documentElement.scrollWidth - innerWidth, sticky: getComputedStyle(document.querySelector('.admin-header')).position }))
+    check('スマホを横にしても、はじめに区切りの一覧（パソコンの3列にしない・横にはみ出さない・見出しは上に留めない）', land.list && land.over <= 1 && land.sticky === 'static', JSON.stringify(land))
+    await context.close()
+  }
+
+  // ---- 終了した年度：白いボタン「この年度に戻す…」と赤い確認。保存の確認に、前と後の値と、確かめていない確認（mockups/v71 ①② 案A）
+  {
+    const context = await browser.createBrowserContext()
+    const page = await open(context, { reset: true })
+    await nav(page, '年度の設定')
+    await page.waitForSelector('#y-deadline')
+    await page.evaluate(() => {
+      const el = document.querySelector('#y-deadline')
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '2721-04-20')
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await wait(300)
+    await headSave(page)
+    const asked = await confirmText(page)
+    const warnBox = await page.evaluate(() => document.querySelector('.confirm-modal .confirm-warn')?.innerText ?? '')
+    check(
+      '保存の確認に、前と後の値（最終締切：… → 2721年4月20日）と、まだ確かめていない確認（黄色の枠）',
+      (asked ?? '').includes('最終締切：2027年1月20日（水） → 2721年4月20日') && warnBox.includes('まだ確かめていない確認があります') && warnBox.includes('2721年4月20日'),
+      `${(asked ?? '').match(/・最終締切[^\n]*/)?.[0]} / ${warnBox.replace(/\s+/g, ' ').slice(0, 60)}`,
+    )
+    await answer(page, false)
+    // 2027年度を公開中、2026年度を終了にして、2026年度を開く
+    await page.evaluate((key) => {
+      const s = JSON.parse(localStorage.getItem(key))
+      const y26 = s.years[0]
+      y26.status = '終了'
+      s.years.push({ ...y26, year: 2027, status: '公開中', config: { ...y26.config, fiscalYear: 2027, deadline: '2028-01-20' } })
+      localStorage.setItem(key, JSON.stringify(s))
+      localStorage.setItem('sotsugyo-admin-year', '2026')
+    }, KEY)
+    await page.reload({ waitUntil: 'networkidle0' })
+    await page.waitForSelector('.side-nav')
+    await page.select('select[aria-label="年度"]', '2026')
+    await wait(500)
+    const btn = await page.$eval('#publish-btn', (b) => ({ text: b.textContent.trim(), primary: b.classList.contains('primary') }))
+    await page.click('#publish-btn')
+    const revert = await confirmText(page)
+    const okBtn = await page.$eval('.confirm-modal [data-confirm="ok"]', (b) => ({ text: b.textContent.trim(), danger: b.classList.contains('danger-fill') }))
+    check(
+      '終了した年度は、白いボタン「この年度に戻す…」。押すと、何が起きるかを書いた赤い確認（「2026年度に戻す」）',
+      btn.text === 'この年度に戻す…' && !btn.primary && (revert ?? '').includes('新しい年度を間違えて公開したときに使います') && (revert ?? '').includes('いま公開中の2027年度は「終了」になります') && okBtn.text === '2026年度に戻す' && okBtn.danger,
+      JSON.stringify({ btn, okBtn }),
+    )
+    await answer(page, true)
+    await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key)).years.find((y) => y.year === 2026).status === '公開中', { timeout: 10000 }, KEY).catch(() => {})
+    await idle(page)
+    const after = await store(page)
+    check('「2026年度に戻す」で、2026年度が公開中に、2027年度が終了になる', after.years.find((y) => y.year === 2026).status === '公開中' && after.years.find((y) => y.year === 2027).status === '終了' && (await messageText(page)).includes('2026年度に戻しました'), (await messageText(page)).slice(0, 40))
+
+    // ひな形を作る画面：「閉じる」→ 窓は「書き続ける」「消して閉じる」（mockups/v71 ④）
+    await page.reload({ waitUntil: 'networkidle0' })
+    await page.waitForSelector('.side-nav')
+    await nav(page, 'コース')
+    await page.waitForSelector('.course.open .tpl-open')
+    await page.evaluate(() => document.querySelector('.course.open .tpl-open').click())
+    await page.waitForSelector('.tpl-overlay iframe')
+    await page.waitForFunction(() => !document.querySelector('.tpl-opening'), { timeout: 60000 })
+    const frame = page.frames().find((f) => f.url().includes('template=1') && f.parentFrame() === page.mainFrame())
+    await frame.waitForFunction(() => { const s = window.__editor?.getSnapshot(); return s?.layout && !s.rendering && !s.turning && s.page === window.__editor.pageOfArea('body') }, { timeout: 90000 })
+    await frame.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c, i) => (i === 0 ? { ...c, title: `${c.title}（直した）` } : c)) })))
+    await wait(1200)
+    // 段落の左の札は、紙の外まで出し、左の道具に重ならない（mockups/v71 ④ 案C）
+    const tags = await frame.evaluate(() => {
+      const s = parseFloat(getComputedStyle(document.querySelector('.stage')).getPropertyValue('--s'))
+      const palette = document.querySelector('.palette').getBoundingClientRect().right
+      const bleed = getComputedStyle(document.querySelector('.page-viewport.front [data-vivliostyle-bleed-box]')).overflow
+      const lefts = [...document.querySelectorAll('.page-viewport.front section.body p[data-block-id]:not(:empty)')].map((p) => {
+        const w = parseFloat(getComputedStyle(p, '::before').width) + 2 * parseFloat(getComputedStyle(p, '::before').paddingLeft)
+        return Math.round(p.getBoundingClientRect().left - 8 - w * s)
+      })
+      return { palette: Math.round(palette), bleed, lefts }
+    })
+    check('ひな形を作る画面：段落の左の札は紙の外まで出し（ページの枠で切らない）、左の道具に重ならない', tags.bleed === 'visible' && tags.lefts.filter(Number.isFinite).length > 0 && tags.lefts.filter(Number.isFinite).every((l) => l > tags.palette), JSON.stringify(tags))
+    const foot = await frame.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].map((b) => b.textContent.trim()).join('|'))
+    await frame.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent.trim() === '閉じる').click())
+    await page.waitForSelector('.confirm-modal', { timeout: 10000 }).catch(() => {})
+    const buttons = await page.evaluate(() => [...document.querySelectorAll('.confirm-modal .row-buttons .btn')].map((b) => b.textContent.trim()).join('|'))
+    check('ひな形を作る画面のボタンは「閉じる」。直してから押すと、窓のボタンは「書き続ける」「消して閉じる」', foot.includes('|閉じる|') && buttons === '書き続ける|消して閉じる', `${foot} / ${buttons}`)
     await context.close()
   }
 })

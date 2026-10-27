@@ -85,6 +85,8 @@ await withEdge(async (browser) => {
     const ta = await page.$('textarea.in.notice')
     await ta.tap()
     await page.keyboard.type('中間発表には下書きを持ってきてください')
+    // 書き終えてから（書いている間は、下の帯を隠す：mockups/v71 ③）
+    await page.evaluate(() => document.activeElement.blur())
     await wait(600)
     const bar = await page.evaluate(() => { const b = document.querySelector('.dirty-bar'); const r = b?.getBoundingClientRect(); return { bar: !!b && Math.round(innerHeight - r.bottom) === 0, group: getComputedStyle(document.querySelector('.admin-header .save-group')).display, over: document.documentElement.scrollWidth - document.documentElement.clientWidth } })
     check('スマホ：変更があると、画面の下の帯（変更を見る・保存）が出て、見出しの保存のボタンは隠れる', bar.bar && bar.group === 'none' && bar.over <= 0, JSON.stringify(bar))

@@ -12,7 +12,7 @@ import { Waiting } from './Wait'
  * 窓の中の iframe に学生のツールを ?template=1 で開き、ひな形を postMessage で渡す・受け取る（やり取りの決まりは src/template/protocol.ts）。
  * - 受け取るのは、ツールの場所（toolOrigin）の、この iframe から来た、開くたびに作る合言葉（nonce）の付いた知らせだけ
  * - 「管理ページに戻して反映」：受け取ったひな形を確かめてから、今の「反映する」と同じく、まだ保存していない変更にする（onApply）
- * - 「やめる」・「×」：ツールで直していたら、確かめてから閉じる
+ * - 「閉じる」・「×」：ツールで直していたら、確かめてから閉じる
  * 開けない（ツールの場所につながらないなど）ときは、前の作り方の窓（TemplateEditor.tsx）で直せる
  */
 
@@ -70,7 +70,7 @@ export function TemplateOverlay({ course, config, status, onApply, onClose, onFa
   /** 確認の窓（画面の中に出す：confirm.tsx） */
   const ask = useConfirm()
   const close = useCallback(async () => {
-    if (dirty && !(await ask('ひな形を作る画面で直した内容は、反映されずに消えます。閉じますか？', { ok: '消して閉じる', danger: true }))) return
+    if (dirty && !(await ask('ひな形を作る画面で直した内容は、反映されずに消えます。閉じますか？', { ok: '消して閉じる', cancel: '書き続ける', danger: true }))) return
     onClose()
   }, [dirty, onClose, ask])
   // 知らせを受け取る関数からは、いつも新しい関数を呼ぶ

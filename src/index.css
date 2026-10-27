@@ -1835,6 +1835,11 @@ p.busy-line { display: flex; }
   .tpl-mode .page-viewport section.body p[data-block-id][data-prefilled]:not(:empty)::before { content: '本文に入る文'; border-color: #a9bce6; background: #e3eafa; color: #23408e; }
   .tpl-mode .page-viewport section.body p[data-block-id][data-prefilled]:empty::before { content: '（クリックして、本文に入る文を入力）'; }
   .tpl-mode .stage.tpl-text-editing :is(.overlay-editor, .overlay-ghost)[data-kind='paragraph'] { color: #000 !important; }
+  /* 札は紙の外まで出す（前は、紙の外にはみ出した所をページの枠が切り、「に書くこと」と欠けた）。
+     左の道具とページを戻す矢印は、そのぶん左へ（拡大・見開き・狭い画面の置き方は変えない：mockups/v71 ④ 案C） */
+  .tpl-mode :is([data-vivliostyle-bleed-box], [data-vivliostyle-outer-zoom-box]) { overflow: visible; }
+  .tpl-mode .stage:not(.zoomed):not(.spread):not(.narrow) .palette { left: calc(50% - var(--page-w) / 2 - 134px); }
+  .tpl-mode .stage:not(.zoomed):not(.spread):not(.narrow) .arrow.prev { left: calc(50% - var(--page-w) / 2 - 168px); }
   /* 図の枠・表の中身の行は、学生が入れる所 */
   .tpl-mode .page-viewport .figure-slot { cursor: default; }
   .tpl-mode .page-viewport .figure-slot::before { content: '（学生が写真を入れる枠）'; color: #8a90a0; }

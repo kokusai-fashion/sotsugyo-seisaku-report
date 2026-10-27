@@ -14,6 +14,10 @@ export interface ConfirmOptions {
   ok?: string
   /** 入力が消える・削除するなど、取り消せないこと（はじめは「やめる」を選んでおく） */
   danger?: boolean
+  /** 進めないボタンの名前（なければ「やめる」。ひな形を作る画面を閉じるときは「書き続ける」：mockups/v71 ④） */
+  cancel?: string
+  /** まだ確かめていない確認（黄色の枠に並べる。保存・公開の前：mockups/v71 ② 案A） */
+  warnings?: string[]
 }
 
 /** 確かめる（進めるなら true、やめるなら false） */
@@ -100,11 +104,19 @@ function ConfirmDialog({ request, onAnswer }: { request: Request; onAnswer: (ok:
                 <p key={i}>{p}</p>
               ),
             )}
+          {!!request.options.warnings?.length && (
+            <div className="confirm-warn">
+              <b>まだ確かめていない確認があります</b>
+              {request.options.warnings.map((w) => (
+                <span key={w}>{w}</span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="row-buttons">
           <span className="spacer" />
-          <button className="btn" data-autofocus={danger || undefined} onClick={() => onAnswer(false)}>
-            やめる
+          <button className="btn" data-autofocus={danger || undefined} data-confirm="cancel" onClick={() => onAnswer(false)}>
+            {request.options.cancel ?? 'やめる'}
           </button>
           <button className={`btn ${danger ? 'danger-fill' : 'primary'}`} data-autofocus={!danger || undefined} data-confirm="ok" onClick={() => onAnswer(true)}>
             {request.options.ok ?? 'OK'}

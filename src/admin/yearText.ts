@@ -23,6 +23,30 @@ export function formatDate(ymd: string): string {
   return `${Number(m[1])}年${Number(m[2])}月${Number(m[3])}日（${WEEK[date.getUTCDay()]}）`
 }
 
+/**
+ * 保存の確認の1行：短い項目は、前と後の値も（例：「最終締切：2027年1月20日（水） → 2721年4月20日（日）」。
+ * 前は「・最終締切」だけで、打ち間違えた日付のまま保存できた：管理ページの試し 2026-10-27・mockups/v71 ② 案A）
+ */
+export function changeLine(change: { label: string; before?: string; after?: string }): string {
+  if (change.before === undefined || change.after === undefined) return change.label
+  return `${change.label}：${formatDate(change.before)} → ${formatDate(change.after)}`
+}
+
+/**
+ * 終了した年度に戻す前の確認の言葉（新しい年度を間違えて公開したとき。mockups/v71 ① 案A）。
+ * 前は「この年度を学生に公開」のふつうの確認だけで、古い年度に戻ることが分かりにくかった
+ */
+export function revertConfirmText(year: number, currentYear: number | null, unsaved: boolean): string {
+  const lines = ['新しい年度を間違えて公開したときに使います。', '']
+  if (currentYear !== null) lines.push(`・いま公開中の${currentYear}年度は「終了」になります。`)
+  lines.push(`・まだ書き始めていない学生は、${year}年度の設定（題目・締切・ひな形など）で書き始めます。`, '・すでに書き始めた学生は、書き始めた年度の設定のままです。')
+  if (unsaved) lines.push('・保存していない変更は、保存してから戻します。')
+  return lines.join('\n')
+}
+
+/** 見出しの欄の公開のボタンの名前（終了した年度は「この年度に戻す…」：mockups/v71 ① 案A） */
+export const publishButtonLabel = (status: YearStatus) => (status === '終了' ? 'この年度に戻す…' : 'この年度を学生に公開')
+
 /** 見出しの欄の保存のボタンの名前 */
 export const saveButtonLabel = (status: YearStatus) => (status === '公開中' ? '保存して学生に反映' : '保存')
 

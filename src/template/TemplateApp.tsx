@@ -89,7 +89,7 @@ export function TemplateApp() {
             <span>画面の広いパソコンで、管理ページから開いてください。</span>
           </p>
           <button className="tpl-sub" onClick={() => sendToAdmin({ type: 'cancel' })}>
-            やめる
+            閉じる
           </button>
         </div>
       ) : (
@@ -170,7 +170,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
       config,
       report,
       {
-        // 保存はしない。開いたときから直したかだけを、管理ページに知らせる（「やめる」「×」で確かめるため）
+        // 保存はしない。開いたときから直したかだけを、管理ページに知らせる（「閉じる」「×」で確かめるため）
         onChange: (r) => {
           const result = templateFromReport(r)
           const now = resultKey(result) !== startKey.current
@@ -262,7 +262,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
     // 管理ページがふつうは窓を閉じる。閉じなかったとき（受け取れなかった）は、もう一度押せるように戻す
     window.setTimeout(() => setSent(false), 4000)
   }
-  /** 「やめる」：書いている欄を確かめてから（直したかを正しく知らせて）、管理ページに閉じてもらう（直していれば、管理ページが確かめる） */
+  /** 「閉じる」：書いている欄を確かめてから（直したかを正しく知らせて）、管理ページに閉じてもらう（直していれば、管理ページが確かめる） */
   const cancel = () => {
     editor?.commitEditing()
     sendToAdmin({ type: 'cancel' })
@@ -385,8 +385,9 @@ function TemplateScreen({ init }: { init: InitPayload }) {
               {sent ? <Spinner /> : Icon.back}
               {sent ? '管理ページに戻しています…' : '管理ページに戻して反映'}
             </button>
+            {/* 閉じる（前は「やめる」で、確認の窓の「やめる」＝閉じない、と逆の意味になった：mockups/v71 ④） */}
             <button className="tpl-sub" onClick={cancel}>
-              やめる
+              閉じる
             </button>
             <p className="tpl-note">
               <span>{l1}</span>

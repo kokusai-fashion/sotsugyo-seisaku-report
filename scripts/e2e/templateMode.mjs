@@ -1,7 +1,7 @@
 // 下書きのひな形を、学生と同じ紙面で作る画面（mockups/v44 案A・管理ページの上に重ねて開く）を確かめる（admin.mjs から呼ぶ。試験用サーバーで）。
 // - コースのカードの「ひな形を作る画面を開く」で、管理ページの上の窓の iframe に、学生のツールが ?template=1 で開く（開発中は同じ開発サーバー）
 // - 紙面で「ここに書くこと」を直し、小見出し・表（見出しの行）・改ページを足し、抄録の書き出し例も直して「管理ページに戻して反映」→ 下書きに入る（変更あり・帯・知らせ）
-// - 直していれば「やめる」「×」で確かめる。間違った場所・合言葉の知らせは受け取らない。ツールは、決まった場所からの init だけを受け取る
+// - 直していれば「閉じる」「×」で確かめる（窓のボタンは「書き続ける」「消して閉じる」：mockups/v71 ④）。間違った場所・合言葉の知らせは受け取らない。ツールは、決まった場所からの init だけを受け取る
 // - ひな形を作る画面は、この端末の保存（localStorage・sessionStorage・IndexedDB）に書かず、ドライブなどの外にもつながない
 // 画面の写真は poc-output/template-mode/ に置く
 import { mkdirSync } from 'node:fs'
@@ -186,12 +186,12 @@ export async function templateModeAdmin(browser, check) {
   }))
   await shot('1-admin-overlay-open')
   check(
-    'ひな形を作る画面：いちばん上の帯・右の欄（このコースのひな形・5行・戻すボタン・やめる・標準に戻す）。ログイン・セルフチェック・PDF はない',
+    'ひな形を作る画面：いちばん上の帯・右の欄（このコースのひな形・5行・戻すボタン・閉じる・標準に戻す）。ログイン・セルフチェック・PDF はない',
     screen.banner === 'ひな形を作っています：映画・舞台衣装デザイナー コース（学生の画面ではありません）' &&
       screen.title === 'このコースのひな形' &&
       screen.points ===
         '学生と同じように、紙面に書きます|「ここに書くこと」は、学生には薄い字で出ます|「本文に入る文」は、そのまま学生の本文に入ります|書いている段落の左の道具で、切り替えられます|表紙・作品写真は、ひな形に入りません' &&
-      screen.buttons === '管理ページに戻して反映|やめる|標準のひな形に戻す' &&
+      screen.buttons === '管理ページに戻して反映|閉じる|標準のひな形に戻す' &&
       screen.note === '学生に届くのは、管理ページで「保存して学生に反映」を押してから' &&
       !screen.gate &&
       !screen.selfCheck &&
@@ -445,15 +445,15 @@ export async function templateModeAdmin(browser, check) {
     JSON.stringify(saved.template).slice(0, 300),
   )
 
-  // ---- 開き直すと、保存した（下書きの）ひな形で開く。直してから「やめる」・「×」は確かめる ----
+  // ---- 開き直すと、保存した（下書きの）ひな形で開く。直してから「閉じる」・「×」は確かめる ----
   const again = await openScreen()
   const reopened = await templateOf(again)
   check('開き直すと、いまのひな形（改ページ・表を含む）で開く', JSON.stringify(reopened.template) === JSON.stringify(saved.template), JSON.stringify(reopened.template).slice(0, 200))
-  // 直していなければ、「やめる」ですぐ閉じる
+  // 直していなければ、「閉じる」ですぐ閉じる
   let count = dialogs.count()
-  await again.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === 'やめる').click())
+  await again.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === '閉じる').click())
   await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 5000 }).catch(() => {})
-  check('直していなければ「やめる」で、確かめずに閉じる', !(await page.$('.tpl-overlay')) && dialogs.count() === count)
+  check('直していなければ「閉じる」で、確かめずに閉じる', !(await page.$('.tpl-overlay')) && dialogs.count() === count)
   const edited = await openScreen()
   const p2 = (await bodyBlocks(edited)).flatMap((c) => c.blocks).find((b) => b.type === 'paragraph').id
   await edited.evaluate((id) => window.__editor.openWhenReady(id, 0), p2)
@@ -475,7 +475,7 @@ export async function templateModeAdmin(browser, check) {
   )
   count = dialogs.count()
   dialogs.answer(false)
-  await edited.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === 'やめる').click())
+  await edited.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === '閉じる').click())
   await sleep(500)
   const asked = dialogs.last()
   const keptOpen = !!(await page.$('.tpl-overlay'))
@@ -487,7 +487,7 @@ export async function templateModeAdmin(browser, check) {
   await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 5000 }).catch(() => {})
   const summaryAfter = await page.evaluate(() => document.querySelector('.course.open .tpl-line b').textContent)
   check(
-    '直してから「やめる」・「×」を押すと確かめ、キャンセルなら閉じない。OK なら閉じ、下書きは変わらない',
+    '直してから「閉じる」・「×」を押すと確かめ（窓のボタンは「書き続ける」「消して閉じる」）、書き続けるなら閉じない。消して閉じるなら閉じ、下書きは変わらない',
     asked === 'ひな形を作る画面で直した内容は、反映されずに消えます。閉じますか？' && keptOpen && askedX && !(await page.$('.tpl-overlay')) && summaryAfter === back.summary && !(await page.$('.dirty-bar')),
     JSON.stringify({ asked, keptOpen, askedX, summaryAfter }),
   )
@@ -562,7 +562,7 @@ export async function templateModeAdmin(browser, check) {
   await shot('7-narrow-screen')
   await narrow.evaluate(() => document.querySelector('.tpl-phone .tpl-sub').click())
   await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 5000 }).catch(() => {})
-  check('狭い画面では「ひな形を作る画面は、パソコンで使います」と出し、「やめる」で閉じる', phone.includes('ひな形を作る画面は、パソコンで使います') && !(await page.$('.tpl-overlay')), phone)
+  check('狭い画面では「ひな形を作る画面は、パソコンで使います」と出し、「閉じる」で閉じる', phone.includes('ひな形を作る画面は、パソコンで使います') && !(await page.$('.tpl-overlay')), phone)
   await page.setViewport({ width: 1366, height: 768 })
   await context.close()
 

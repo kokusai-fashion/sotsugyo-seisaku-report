@@ -619,7 +619,7 @@ await withEdge(async (browser) => {
   await clickButton('保存して学生に反映')
   await page.waitForFunction(() => document.querySelector('.message.ok'))
   const mergedConfirm = dialogs.last()
-  check('入れ直した内容は、もう一度押すと保存できる（確認には管理者の変更だけが出る）', mergedConfirm.includes('・共通の題目\n\n') && (await savedYear(2026)).config.commonTitle === '卒業イベント「試験」について（古い画面）', mergedConfirm.replace(/\n/g, '⏎'))
+  check('入れ直した内容は、もう一度押すと保存できる（確認には管理者の変更だけが出る）', /・共通の題目：[^\n]* → 卒業イベント「試験」について（古い画面）\n\n/.test(mergedConfirm) && !mergedConfirm.includes('お知らせ') && (await savedYear(2026)).config.commonTitle === '卒業イベント「試験」について（古い画面）', mergedConfirm.replace(/\n/g, '⏎'))
   await page.reload({ waitUntil: 'networkidle0' })
   await page.waitForSelector('.admin .content')
   const savedConfig = (await savedYear(2026)).config

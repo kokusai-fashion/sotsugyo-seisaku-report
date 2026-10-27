@@ -35,7 +35,7 @@ import { DoneNote, PageLoading, SlowNote, Waiting } from './Wait'
 import { WordsSection } from './WordsSection'
 import { isUnappliedWords, UNAPPLIED_WORDS_TEXT, wordSummary } from './wordsText'
 import { YearSection } from './YearSection'
-import { deleteConfirmText, deletedMessage, deliveryNote, newYearNotice, publishConfirmText, saveButtonLabel, saveConfirmText, savedMessage, templateFootNote, type NoticeItem } from './yearText'
+import { changeLine, deleteConfirmText, deletedMessage, deliveryNote, newYearNotice, publishButtonLabel, publishConfirmText, revertConfirmText, saveButtonLabel, saveConfirmText, savedMessage, templateFootNote, type NoticeItem } from './yearText'
 
 /**
  * 管理ページ（mockups/v43 案B 左の見出し）。左に区切りの一覧（年度の設定・コース・書き方のチェック・先生の登録・変更履歴・詳細設定）、
@@ -362,8 +362,9 @@ function HeaderBar({
         </button>
       </span>
       {!isPublished && onPublish && (
-        <button id="publish-btn" className={`btn primary${busy === 'publish' ? ' busy' : ''}`} disabled={!!busy} aria-busy={busy === 'publish'} onClick={onPublish}>
-          {busy === 'publish' ? <Waiting text={WAIT_TEXT.publish} /> : 'この年度を学生に公開'}
+        // 終了した年度は、目立たない白いボタン「この年度に戻す…」（前は、いちばん目立つ青いボタンだった：mockups/v71 ① 案A）
+        <button id="publish-btn" className={`btn${row.status === '終了' ? '' : ' primary'}${busy === 'publish' ? ' busy' : ''}`} disabled={!!busy} aria-busy={busy === 'publish'} onClick={onPublish}>
+          {busy === 'publish' ? <Waiting text={row.status === '終了' ? '戻しています…' : WAIT_TEXT.publish} /> : publishButtonLabel(row.status)}
         </button>
       )}
     </header>
@@ -854,8 +855,8 @@ export function AdminApp() {
     if (row.status !== '準備中' && errors.length)
       return setMessage({ kind: 'ng', text: isPublished ? '公開中の年度は、エラーを直してから保存してください' : '終了した年度も、この年度に書き始めた学生が使っているため、エラーを直してから保存してください' })
     if (!(await confirmUnappliedWords('保存'))) return
-    const text = saveConfirmText(row.status, row.year, labels)
-    if (text && !(await ask(text, { title: `${saveLabel}しますか？`, ok: saveLabel }))) return
+    const text = saveConfirmText(row.status, row.year, changes.map(changeLine))
+    if (text && !(await ask(text, { title: `${saveLabel}しますか？`, ok: saveLabel, warnings: unackedWarnings() }))) return
     void run('save', savedMessage(row.status, 'admin'), () => server.saveYear(draft, row.updatedAt), { recover: { verb: '保存', button: saveLabel } })
   }
   const publish = async () => {
@@ -865,17 +866,24 @@ export function AdminApp() {
     // 新年度の準備で、まだのところがあれば、公開の確かめの前に並べる（前は確かめに出ず、前の年度の言葉が残ったまま公開できた：先生の試し 2026-10-21）
     const pending = (steps ?? []).filter((x) => !x.done)
     const before = pending.length ? `新年度の準備で、まだのところがあります。\n${pending.map((x) => `・${x.name}（${x.text}）`).join('\n')}\n\n` : ''
-    if (!(await ask(before + publishConfirmText(draft, current?.year ?? null, dirty), { ok: '公開する' }))) return
+    // 終了した年度は「この年度に戻す」（新しい年度を間違えて公開したとき）。何が起きるかを書いて、赤いボタンで確かめる（mockups/v71 ① 案A）
+    const reverting = row.status === '終了'
+    const asked = reverting
+      ? await ask(revertConfirmText(draft.fiscalYear, current?.year ?? null, dirty), { title: `${draft.fiscalYear}年度に戻しますか？`, ok: `${draft.fiscalYear}年度に戻す`, danger: true, warnings: unackedWarnings() })
+      : await ask(before + publishConfirmText(draft, current?.year ?? null, dirty), { ok: '公開する', warnings: unackedWarnings() })
+    if (!asked) return
     // 画面を開いたあとにほかの人が保存していたら、見ていない内容を公開しないよう、公開せずに知らせる
     void run(
       'publish',
-      `${draft.fiscalYear}年度を学生に公開しました。まだ書き始めていない学生は、この年度の設定で書き始めます（学生がツールを開き直すと、1分ほどで届きます）`,
+      reverting
+        ? `${draft.fiscalYear}年度に戻しました。まだ書き始めていない学生は、この年度の設定で書き始めます（学生がツールを開き直すと、1分ほどで届きます）`
+        : `${draft.fiscalYear}年度を学生に公開しました。まだ書き始めていない学生は、この年度の設定で書き始めます（学生がツールを開き直すと、1分ほどで届きます）`,
       async () => {
         let updatedAt = row.updatedAt
         if (dirty) updatedAt = (await server.saveYear(draft, row.updatedAt)).years.find((y) => y.year === draft.fiscalYear)?.updatedAt ?? updatedAt
         return server.publishYear(draft.fiscalYear, updatedAt)
       },
-      { recover: { verb: '公開', button: 'この年度を学生に公開' } },
+      { recover: { verb: '公開', button: publishButtonLabel(row.status) } },
     )
   }
 
@@ -926,6 +934,8 @@ export function AdminApp() {
       return next
     })
   const problemsValue = { list: problems, isAcked, ack }
+  /** まだ「確かめた」にしていない確認（保存・公開の確認の窓の黄色の枠に出す：mockups/v71 ② 案A） */
+  const unackedWarnings = () => problems.filter((p) => p.severity === 'warning' && !isAcked(p)).map((p) => p.message)
   const steps = row.status === '準備中' ? newYearSteps(draft, prevRow?.config, problems, isAcked) : null
   /** 手順を押した：直す所へ移る */
   const onStep = async (step: NewYearStep) => {
@@ -1277,7 +1287,7 @@ function TeacherView({
     const long = draft.courses.find((c) => c.id in notices && notices[c.id].length > LIMITS.notice)
     if (long) return onMessage({ kind: 'ng', text: `「${long.name}」のお知らせ${tooLong(LIMITS.notice, notices[long.id].length)}` })
     // 学生に届く年度（公開中・終了）は、何が変わるかを示して確かめる
-    const text = saveConfirmText(row.status, row.year, labels)
+    const text = saveConfirmText(row.status, row.year, changes.map(changeLine))
     if (text && !(await ask(text, { title: `${saveButtonLabel(row.status)}しますか？`, ok: saveButtonLabel(row.status) }))) return
     onSave(templates, words, notices)
   }
