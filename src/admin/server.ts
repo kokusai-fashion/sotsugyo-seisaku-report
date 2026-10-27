@@ -72,7 +72,8 @@ export interface AdminServer {
    */
   saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[] }, expectedUpdatedAt?: string): Promise<AdminState>
   getMembers(): Promise<Member[]>
-  addMember(email: string, role: Member['role'], memo: string): Promise<Member[]>
+  /** mustExist：一覧の役割を変えるとき（登録されていない人は書き足さない） */
+  addMember(email: string, role: Member['role'], memo: string, mustExist?: boolean): Promise<Member[]>
   /** まとめて登録する（すでに登録されている人は、そのまま） */
   addMembers(entries: { email: string; memo: string }[], role: Member['role']): Promise<Member[]>
   removeMember(email: string): Promise<Member[]>
@@ -120,7 +121,7 @@ function appsScriptServer(): AdminServer {
     saveNotices: (year, notices) => call('saveNotices', year, notices),
     saveTeacherEdits: (year, edits, expectedUpdatedAt) => call('saveTeacherEdits', year, edits, expectedUpdatedAt ?? null),
     getMembers: () => call('getMembers'),
-    addMember: (email, role, memo) => call('addMember', email, role, memo),
+    addMember: (email, role, memo, mustExist) => call('addMember', email, role, memo, !!mustExist),
     addMembers: (entries, role) => call('addMembers', entries, role),
     removeMember: (email) => call('removeMember', email),
     getTrialSample: () => call('getTrialSample'),

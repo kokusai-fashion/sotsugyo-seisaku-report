@@ -519,8 +519,10 @@ await withEdge(async (browser) => {
   await pagesInput.press('Backspace')
   await pagesInput.type('0')
   await sleep(200)
-  const zeroProblem = await page.evaluate(() => document.querySelector('.problems')?.textContent ?? '')
-  check('「0」はエラー（1以上の整数か、空）', zeroProblem.includes('作品写真のページ数の上限は、1以上の整数にしてください（空にすると上限なし）'), zeroProblem)
+  // 誤りは、欄のすぐ下に出す（区切りの上の枠には出さない：管理ページの試し 2026-10-27）
+  const zeroProblem = await page.evaluate(() => document.querySelector('#d-photoPages').closest('.ctl')?.querySelector('.field-problems')?.textContent ?? '')
+  const zeroTop = await page.evaluate(() => document.querySelector('.problems')?.textContent ?? '')
+  check('「0」はエラー（1以上の整数か、空）。欄のすぐ下に出す', zeroProblem.includes('作品写真のページ数の上限は、1以上の整数にしてください（空にすると上限なし）') && !zeroTop.includes('作品写真'), zeroProblem)
   await pagesInput.evaluate((el) => el.select())
   await pagesInput.press('Backspace')
   await sleep(200)

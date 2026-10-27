@@ -13,6 +13,13 @@ describe('メーリングリストの宛先から、名前とアドレスを読�
     ])
   })
 
+  it('引用符の中のカンマでは分けない（"Suzuki, Ichiro" の名前を「Ichiro」だけにしない）', () => {
+    expect(parseAddresses('"Suzuki, Ichiro" <i-suzuki@bunka-wu.ac.jp>, "山田、花子" <h-yamada@bunka-wu.ac.jp>')).toEqual([
+      { name: 'Suzuki Ichiro', email: 'i-suzuki@bunka-wu.ac.jp' },
+      { name: '山田 花子', email: 'h-yamada@bunka-wu.ac.jp' },
+    ])
+  })
+
   it('全角の記号で書かれたアドレスも読む。アドレスがなければ空', () => {
     expect(parseAddresses('文化　太郎＜t-bunka＠bunka-wu.ac.jp＞')).toEqual([{ name: '文化 太郎', email: 't-bunka@bunka-wu.ac.jp' }])
     expect(parseAddresses('よろしくお願いします')).toEqual([])

@@ -2,7 +2,7 @@ import { BUILD_ID } from '../app/newVersion'
 import { currentConfig, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
 import type { AdminServer, AdminState, HistoryRow, Member, YearRow } from './server'
-import { applyNotices, applyTemplates, changedMessage, checkConfig, cleanWords } from './serverRules'
+import { applyNotices, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, removedMemberMessage } from './serverRules'
 
 /**
  * 開発用の試験サーバー（ブラウザ内だけで動く）。本番の gas/admin-project/Code.js と同じ振る舞いをまねる
@@ -116,6 +116,8 @@ export function createMockServer(): AdminServer {
       checkConfig(config)
       const row = store.years.find((y) => y.year === config.fiscalYear)
       if (row) checkNotChanged(row, expectedUpdatedAt)
+      // 画面を開いたときにはあった年度が、別のタブで削除されていたら、黙って作り直さない（本番の saveYear と同じ）
+      if (!row && expectedUpdatedAt) throw new Error(deletedMessage(config.fiscalYear))
       if (row) Object.assign(row, { config, updatedAt: new Date().toISOString(), updatedBy: USER })
       else store.years.push({ year: config.fiscalYear, status: '準備中', config, updatedAt: new Date().toISOString(), updatedBy: USER })
       record(store, config.fiscalYear, '保存', config)
@@ -128,9 +130,11 @@ export function createMockServer(): AdminServer {
       requireAdmin(store)
       const target = findYear(store, year)
       checkNotChanged(target, expectedUpdatedAt)
+      // 公開した年度と終了にした年度は、更新日時も変える（本番の publishYear と同じ。前から開いていた別のタブの保存を止めるため）
+      const now = new Date().toISOString()
       for (const row of store.years) {
-        if (row.year === year) row.status = '公開中'
-        else if (row.status === '公開中') row.status = '終了'
+        if (row.year === year) Object.assign(row, { status: '公開中', updatedAt: now, updatedBy: USER })
+        else if (row.status === '公開中') Object.assign(row, { status: '終了', updatedAt: now, updatedBy: USER })
       }
       record(store, year, '公開', target.config)
       save(store)
@@ -140,7 +144,7 @@ export function createMockServer(): AdminServer {
       await wait()
       const store = load()
       requireAdmin(store)
-      if (!/^[1-9]\d{3}$/.test(String(newYear).trim())) throw new Error('新しい年度は、西暦4桁の数字で入力してください')
+      if (!/^[1-9]\d{3}$/.test(String(newYear).trim()) || Number(newYear) < 2000 || Number(newYear) > 2100) throw new Error('新しい年度は、2000〜2100 の西暦4桁の数字で入力してください')
       const year = Number(newYear)
       if (store.years.some((y) => y.year === year)) throw new Error(`${year}年度はすでにあります`)
       const from = findYear(store, fromYear)
@@ -215,13 +219,14 @@ export function createMockServer(): AdminServer {
       requireAdmin(store)
       return clone(members(store))
     },
-    async addMember(email, role, memo) {
+    async addMember(email, role, memo, mustExist) {
       await wait()
       const store = load()
       requireAdmin(store)
       const list = clone(members(store))
       const found = list.find((m) => m.email.toLowerCase() === email.trim().toLowerCase())
       if (found && found.email.toLowerCase() === USER && role !== '管理者') throw new Error('自分を管理者から外すことはできません')
+      if (!found && mustExist) throw new Error(removedMemberMessage(email.trim()))
       if (found) Object.assign(found, { role, memo: memo || found.memo })
       else list.push({ email: email.trim(), role, memo })
       keepAdmin(list)

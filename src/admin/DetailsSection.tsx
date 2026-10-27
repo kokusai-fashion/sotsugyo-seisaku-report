@@ -48,28 +48,28 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
       <div className="card">
         <h2 className="card-h">表紙と抄録の言葉</h2>
         <div className="grid">
-          <Row label="報告書の名前" htmlFor="d-reportName" changed={changed('reportName')}>
+          <Row label="報告書の名前" htmlFor="d-reportName" changed={changed('reportName')} field="reportName">
             <TextInput id="d-reportName" value={draft.reportName} onChange={(v) => set({ reportName: v })} />
           </Row>
-          <Row label="表紙の見出し" htmlFor="d-coverHeading" changed={changed('cover.heading')}>
+          <Row label="表紙の見出し" htmlFor="d-coverHeading" changed={changed('cover.heading')} field="cover.heading">
             <TextInput id="d-coverHeading" value={draft.cover.heading} onChange={(v) => set({ cover: { ...draft.cover, heading: v } })} />
           </Row>
-          <Row label="題目の見出し" sub="表紙" htmlFor="d-titleLabel" changed={changed('cover.titleLabel')}>
+          <Row label="題目の見出し" sub="表紙" htmlFor="d-titleLabel" changed={changed('cover.titleLabel')} field="cover.titleLabel">
             <TextInput id="d-titleLabel" value={draft.cover.titleLabel} onChange={(v) => set({ cover: { ...draft.cover, titleLabel: v } })} />
           </Row>
-          <Row label="抄録の見出し" htmlFor="d-abstractHeading" changed={changed('abstract.heading')}>
+          <Row label="抄録の見出し" htmlFor="d-abstractHeading" changed={changed('abstract.heading')} field="abstract.heading">
             <TextInput id="d-abstractHeading" value={draft.abstract.heading} onChange={(v) => set({ abstract: { ...draft.abstract, heading: v } })} />
           </Row>
           <Row label="書き出しの例（共通）" sub="抄録" htmlFor="d-openingExample" hint="コースで決めていないときに、学生の抄録の欄に薄く出します（コースの書き出し例は、コースの「ひな形」で決めます）" changed={changed('abstract.openingExample')}>
             <TextInput id="d-openingExample" value={draft.abstract.openingExample} onChange={(v) => set({ abstract: { ...draft.abstract, openingExample: v } })} />
           </Row>
-          <Row label="大学名" htmlFor="d-university" changed={changed('university')}>
+          <Row label="大学名" htmlFor="d-university" changed={changed('university')} field="university">
             <TextInput id="d-university" value={draft.university} onChange={(v) => set({ university: v })} />
           </Row>
-          <Row label="学部名" htmlFor="d-faculty" changed={changed('faculty')}>
+          <Row label="学部名" htmlFor="d-faculty" changed={changed('faculty')} field="faculty">
             <TextInput id="d-faculty" value={draft.faculty} onChange={(v) => set({ faculty: v })} />
           </Row>
-          <Row label="学科名" htmlFor="d-department" changed={changed('department')}>
+          <Row label="学科名" htmlFor="d-department" changed={changed('department')} field="department">
             <TextInput id="d-department" value={draft.department} onChange={(v) => set({ department: v })} />
           </Row>
         </div>
@@ -95,25 +95,25 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
       <div className="card">
         <h2 className="card-h">分量の決まり</h2>
         <div className="grid">
-          <Row label="抄録の字数" htmlFor="d-minChars" changed={changed('abstract.minChars') || changed('abstract.maxChars')}>
+          <Row label="抄録の字数" htmlFor="d-minChars" changed={changed('abstract.minChars') || changed('abstract.maxChars')} field="abstract.chars">
             <span className="range">
               <NumberInput id="d-minChars" label="抄録の字数（最少）" value={draft.abstract.minChars} onChange={(v) => set({ abstract: { ...draft.abstract, minChars: v } })} />〜
               <NumberInput label="抄録の字数（最多）" value={draft.abstract.maxChars} onChange={(v) => set({ abstract: { ...draft.abstract, maxChars: v } })} />字
             </span>
           </Row>
-          <Row label="抄録の行数" htmlFor="d-minLines" changed={changed('abstract.minLines') || changed('abstract.maxLines')}>
+          <Row label="抄録の行数" htmlFor="d-minLines" changed={changed('abstract.minLines') || changed('abstract.maxLines')} field="abstract.lines">
             <span className="range">
               <NumberInput id="d-minLines" label="抄録の行数（最少）" value={draft.abstract.minLines} onChange={(v) => set({ abstract: { ...draft.abstract, minLines: v } })} />〜
               <NumberInput label="抄録の行数（最多）" value={draft.abstract.maxLines} onChange={(v) => set({ abstract: { ...draft.abstract, maxLines: v } })} />行
             </span>
           </Row>
-          <Row label="本文" htmlFor="d-minPages" changed={changed('body.minPages')}>
+          <Row label="本文" htmlFor="d-minPages" changed={changed('body.minPages')} field="body.minPages">
             <span className="range">
               <NumberInput id="d-minPages" label="本文の最低ページ数" value={draft.body.minPages} onChange={(v) => set({ body: { ...draft.body, minPages: v } })} />
               ページ以上
             </span>
           </Row>
-          <Row label="作品写真" htmlFor="d-photoPages" hint="空なら上限なし（1ページに写真4枚まで）" changed={changed('workPhotos.maxPages')}>
+          <Row label="作品写真" htmlFor="d-photoPages" hint="空なら上限なし（1ページに写真4枚まで）" changed={changed('workPhotos.maxPages')} field="workPhotos.maxPages">
             <span className="range">
               <OptionalNumberInput id="d-photoPages" value={draft.workPhotos?.maxPages ?? null} placeholder="なし" onChange={(v) => set({ workPhotos: { maxPages: v } })} />
               ページまで
@@ -124,7 +124,7 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
       <div className="card">
         <h2 className="card-h">学籍番号</h2>
         <div className="grid">
-          <Row label="形式" sub="正規表現" htmlFor="d-studentId" hint={STUDENT_ID_HINT} changed={changed('studentIdPattern')}>
+          <Row label="形式" sub="正規表現" htmlFor="d-studentId" hint={STUDENT_ID_HINT} changed={changed('studentIdPattern')} field="studentIdPattern">
             <TextInput id="d-studentId" value={draft.studentIdPattern ?? ''} onChange={(v) => set({ studentIdPattern: v.trim() ? v : null })} placeholder="例：^\d{2}FA[A-Z]?\d{3,4}$" />
           </Row>
         </div>

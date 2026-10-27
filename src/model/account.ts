@@ -47,13 +47,15 @@ export const isUniversityAddress = (email: string) => email.toLowerCase().endsWi
  */
 export function parseAddresses(text: string): { name: string; email: string }[] {
   const found = new Map<string, { name: string; email: string }>()
-  for (const segment of text.normalize('NFKC').split(/[,;、\n]+/)) {
+  // 引用符の中の区切り（"Suzuki, Ichiro" <…>）では分けない（前は名前が「Ichiro」だけになった：管理ページの試し 2026-10-27）
+  const unquoted = text.normalize('NFKC').replace(/["“][^"”\n]*["”]/g, (q) => q.replace(/[,;、]/g, ' '))
+  for (const segment of unquoted.split(/[,;、\n]+/)) {
     const emails = [...segment.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)]
     emails.forEach((m, i) => {
       const email = m[0].toLowerCase()
       const before = segment.slice(0, m.index)
       // 名前は「名前 <アドレス>」の形のときだけ（区切りの中の、最初のアドレスの前）
-      const name = i === 0 && before.includes('<') ? before.replace(/[<>"'“”「」]/g, '').trim() : ''
+      const name = i === 0 && before.includes('<') ? before.replace(/[<>"'“”「」]/g, '').replace(/\s+/g, ' ').trim() : ''
       if (!found.has(email)) found.set(email, { name, email })
     })
   }

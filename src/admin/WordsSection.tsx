@@ -5,7 +5,7 @@ import { AdminIcon } from './adminIcons'
 import { SectionHead } from './ui'
 import { useConfirm } from './confirm'
 import { useLeaveGuard } from './useLeaveGuard'
-import { cleanWords, wordRowProblem } from './wordsText'
+import { cleanWords, UNSAVED_WORDS as UNSAVED, wordRowProblem } from './wordsText'
 
 /**
  * 「書き方のチェック」の区切り：書き間違えやすい語の一覧（mockups/v43 案B。前の版の窓の代わりに、画面の中に出す）。
@@ -17,7 +17,6 @@ const TRIAL = '前見頃と後ろ身頃を縫い合わせ、記事を選んだ�
 /** 直している行（index：一覧の何行目か。足すときは一覧の長さ） */
 type Edit = { index: number; row: WordCheck; isNew: boolean }
 const same = (a: WordCheck, b: WordCheck | undefined) => !!b && a.wrong === b.wrong && a.right === b.right && (a.note ?? '') === (b.note ?? '') && a.severity === b.severity
-const UNSAVED = '直している語は、まだ反映していません。反映せずに閉じますか？'
 
 export function WordsSection({ words, onChange, onPending, notices }: { words: WordCheck[]; onChange: (words: WordCheck[]) => void; onPending: (message: string | null) => void; notices?: ReactNode }) {
   const [edit, setEdit] = useState<Edit | null>(null)
@@ -176,7 +175,7 @@ export function WordsSection({ words, onChange, onPending, notices }: { words: W
             <dt>
               <span className="sev e">エラー</span>
             </dt>
-            <dd>PDF の書き出しを止めます。学生は消せません。</dd>
+            <dd>学生は消せません。提出の前に直すものです。</dd>
             <dt>
               <span className="sev w">要確認</span>
             </dt>

@@ -31,7 +31,15 @@ interface Request {
   text: string
   options: ConfirmOptions
   resolve: (ok: boolean) => void
+  /** 窓を出した時刻（performance.now()） */
+  at: number
 }
+
+/**
+ * 窓を出してすぐの、窓の外の暗い所の押し下げは、窓を閉じない（ボタンをダブルクリックすると、2回目が暗い所に当たり、
+ * 窓が開いてすぐ閉じていた：管理ページの試し 2026-10-27）
+ */
+export const IGNORE_OUTSIDE_MS = 600
 
 /** 確認の窓を出せるようにする（管理ページ全体を包む）。窓は1つずつ（開いているときに次を頼まれたら、前のものは「やめる」にする） */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
@@ -41,7 +49,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     (text, options = {}) =>
       new Promise<boolean>((resolve) => {
         current.current?.resolve(false)
-        const next = { text, options, resolve }
+        const next = { text, options, resolve, at: performance.now() }
         current.current = next
         setRequest(next)
       }),
@@ -68,7 +76,7 @@ function ConfirmDialog({ request, onAnswer }: { request: Request; onAnswer: (ok:
   const title = request.options.title ?? asked
   const danger = request.options.danger === true
   return (
-    <div className="modal-backdrop confirm-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onAnswer(false)}>
+    <div className="modal-backdrop confirm-backdrop" onMouseDown={(e) => e.target === e.currentTarget && performance.now() - request.at > IGNORE_OUTSIDE_MS && onAnswer(false)}>
       {/* data-text：確認の言葉そのまま（確かめのスクリプトが読む：scripts/e2e/confirmUi.mjs） */}
       <div className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body" data-text={request.text} ref={ref}>
         <header>

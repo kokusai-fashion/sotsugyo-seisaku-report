@@ -95,7 +95,7 @@ export function TrialSection({ config }: { config: YearConfig }) {
       <div className="card">
         <ul className="trial-points">
           <li>書く・図や表を入れる・セルフチェック・PDF を作る、などを自由に試せます。</li>
-          <li>試した内容は、このパソコンのブラウザにだけ残ります。学生やほかの先生には見えず、提出やドライブにも届きません。</li>
+          <li>試した内容は、このブラウザにだけ残ります。学生やほかの先生には見えず、提出やドライブにも届きません。</li>
           <li>「見本に戻す」で、いつでも最初の状態に戻せます。</li>
         </ul>
         <div className="trial-open">

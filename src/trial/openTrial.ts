@@ -8,13 +8,16 @@ import { FROM_TRIAL, isTrialMessage, readTrialPayload, sampleReport, type TrialA
 /**
  * お試し（?trial=1）のツールの側（やり取りの決まりは protocol.ts）。
  * 管理ページから受け取った年度の設定と見本の原稿を、このブラウザのお試しの入れ物（src/model/scope.ts）に置き、そこから開く。
- * 2回目から（読み込み直した・あとで開いた）は、置いてあるもので、すぐ開く（管理ページを待たない）
+ * 2回目から（読み込み直した・あとで開いた）は、置いてあるもので開く。ただし、管理ページから開いた（開いた窓がある）ときは、
+ * 管理ページが送る今の設定を少し待ち、届けばそちらで開く（前は置いてある前の設定のまま開き、保存したお知らせが出なかった：管理ページの試し 2026-10-27）
  */
 
 /** 受け取ったものを置く名前（原稿の入れ物の中。原稿とは別の名前） */
 const TRIAL_KEY = 'trial'
 /** はじめて開いたとき、管理ページから受け取るのを待つ時間 */
 const WAIT_MS = 30000
+/** 置いてあるものがあるとき、管理ページから今の設定が届くのを待つ時間（管理ページは、返事があるまで 0.5 秒ごとに送り直す） */
+const FRESH_WAIT_MS = 2000
 
 let received: TrialPayload | null = null
 const listeners = new Set<(payload: TrialPayload) => void>()
@@ -44,10 +47,11 @@ export function startTrialBridge(dev: boolean): void {
   })
 }
 
-/** 管理ページから受け取るのを待つ（管理ページから開いていない・待つ時間を過ぎたら null） */
+/** 管理ページから受け取るのを待つ（管理ページから開いていない・管理ページを閉じた・待つ時間を過ぎたら null） */
 function waitForPayload(ms: number): Promise<TrialPayload | null> {
   if (received) return Promise.resolve(received)
-  if (!window.opener) return Promise.resolve(null)
+  const opener = window.opener as Window | null
+  if (!opener || opener.closed) return Promise.resolve(null)
   return new Promise((resolve) => {
     const done = (payload: TrialPayload | null) => {
       clearTimeout(timer)
@@ -80,9 +84,9 @@ export async function openTrial(): Promise<{ cached: YearConfig; remote: Promise
   const stored = readTrialPayload(await loadValue(TRIAL_KEY))
   // あとから届いたもの（管理ページから開き直した）は、次に開くときと「見本に戻す」のために置いておく
   listeners.add((payload) => void saveValue(TRIAL_KEY, payload))
-  const payload = stored ?? (await waitForPayload(WAIT_MS))
+  const payload = (await waitForPayload(stored ? FRESH_WAIT_MS : WAIT_MS)) ?? stored
   if (!payload) throw new TrialMissingError()
-  if (!stored) await saveValue(TRIAL_KEY, payload)
+  if (payload !== stored) await saveValue(TRIAL_KEY, payload)
   await storeImages(payload.sample.images)
   if (!(await loadReport())) await saveReport(sampleReport(payload))
   return { cached: payload.config, remote: Promise.resolve(payload.config) }

@@ -308,8 +308,11 @@ function getMembers() {
   return readMembers_()
 }
 
-/** 管理者・先生を登録する（管理者だけ）。すでに登録されていれば、役割とメモを書き換える */
-function addMember(email, role, memo) {
+/**
+ * 管理者・先生を登録する（管理者だけ）。すでに登録されていれば、役割とメモを書き換える。
+ * mustExist（一覧の役割を変えるとき）なら、登録されていない人は書き足さない（別のタブで外した人が、古い一覧から登録し直されないように）
+ */
+function addMember(email, role, memo, mustExist) {
   return withLock_(() => {
     const user = requireAdmin_()
     const address = String(email || '').trim()
@@ -329,6 +332,7 @@ function addMember(email, role, memo) {
         return readMembers_()
       }
     }
+    if (mustExist) throw new Error(removedMemberMessage_(address))
     appendRow_(sheet, [address, String(memo || ''), role])
     appendMemberHistory_(user, '登録：' + address + '（' + role + '）')
     return readMembers_()
@@ -397,6 +401,9 @@ function saveYear(config, expectedUpdatedAt) {
     if (rowIndex > 0) {
       checkNotChanged_(sheet, rowIndex, expectedUpdatedAt)
       setRow_(sheet, rowIndex, 3, [JSON.stringify(config), new Date(), user])
+    } else if (expectedUpdatedAt) {
+      // 画面を開いたときにはあった年度が、別のタブ・ほかの人に削除されていた（黙って作り直さない）
+      throw new Error(deletedMessage_(config.fiscalYear))
     } else {
       appendRow_(sheet, [config.fiscalYear, STATUS_DRAFT, JSON.stringify(config), new Date(), user])
     }
@@ -407,7 +414,8 @@ function saveYear(config, expectedUpdatedAt) {
 
 /**
  * 年度を学生に公開する（管理者だけ。今公開中の年度は「終了」になる）。
- * expectedUpdatedAt は、画面を開いたときの更新日時（そのあとにほかの人が保存していたら、見ていない内容を公開しないよう、公開せずに知らせる）
+ * expectedUpdatedAt は、画面を開いたときの更新日時（そのあとにほかの人が保存していたら、見ていない内容を公開しないよう、公開せずに知らせる）。
+ * 公開した年度と終了にした年度は、更新日時も変える（公開の前から開いていた別のタブの保存が、黙って学生に届かないように）
  */
 function publishYear(year, expectedUpdatedAt) {
   return withLock_(() => {
@@ -418,9 +426,12 @@ function publishYear(year, expectedUpdatedAt) {
     checkNotChanged_(sheet, rowIndex, expectedUpdatedAt)
     const config = parseConfig_(sheet.getRange(rowIndex, 3).getValue(), year)
     const values = sheet.getDataRange().getValues()
+    const now = new Date()
     for (let i = 1; i < values.length; i++) {
-      if (Number(values[i][0]) === Number(year)) sheet.getRange(i + 1, 2).setValue(STATUS_PUBLISHED)
-      else if (values[i][1] === STATUS_PUBLISHED) sheet.getRange(i + 1, 2).setValue(STATUS_ENDED)
+      if (Number(values[i][0]) === Number(year)) setRow_(sheet, i + 1, 2, [STATUS_PUBLISHED])
+      else if (values[i][1] === STATUS_PUBLISHED) setRow_(sheet, i + 1, 2, [STATUS_ENDED])
+      else continue
+      setRow_(sheet, i + 1, 4, [now, user])
     }
     appendHistory_(user, year, '公開', config)
     return getState()
@@ -430,8 +441,8 @@ function publishYear(year, expectedUpdatedAt) {
 function createYear(fromYear, newYear) {
   return withLock_(() => {
     const user = requireAdmin_()
-    // 年度は、西暦4桁の整数だけ（スプレッドシートに数式などが入らないように）
-    if (!/^[1-9]\d{3}$/.test(String(newYear).trim())) throw new Error('新しい年度は、西暦4桁の数字で入力してください')
+    // 年度は、西暦4桁の整数だけ（スプレッドシートに数式などが入らないように）。年度の設定の確かめ（validate.ts）と同じく 2000〜2100（2207 などの打ち間違いで作らない）
+    if (!/^[1-9]\d{3}$/.test(String(newYear).trim()) || Number(newYear) < 2000 || Number(newYear) > 2100) throw new Error('新しい年度は、2000〜2100 の西暦4桁の数字で入力してください')
     const year = Number(newYear)
     if (findYearRow_(year) > 0) throw new Error(year + '年度はすでにあります')
     const fromIndex = findYearRow_(fromYear)
@@ -598,6 +609,16 @@ function checkNotChanged_(sheet, rowIndex, expectedUpdatedAt) {
   if (!expectedUpdatedAt) return
   const [updatedAt, updatedBy] = sheet.getRange(rowIndex, 4, 1, 2).getValues()[0]
   if (isoOf_(updatedAt) !== expectedUpdatedAt) throw new Error(changedMessage_(updatedBy, Session.getActiveUser().getEmail()))
+}
+
+/** 役割を変えようとした人の登録が、画面を開いたあとに外されていたときの説明（試験用サーバーと同じ言葉） */
+function removedMemberMessage_(email) {
+  return email + ' の登録は、この画面を開いたあとに外されています。役割は変えませんでした。ページを読み込み直してください'
+}
+
+/** 画面を開いたあとに、年度が削除されていたときの説明（試験用サーバーと同じ言葉） */
+function deletedMessage_(year) {
+  return Number(year) + '年度は、この画面を開いたあとに削除されています。保存しませんでした。ページを読み込み直してください'
 }
 
 /** 画面を開いたあとに保存されていたときの説明。保存したのが自分なら、別のタブ・ウィンドウで保存したと伝える（試験用サーバーと同じ言葉） */

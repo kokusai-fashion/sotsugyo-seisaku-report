@@ -89,7 +89,7 @@ export function YearSection({
             {/* max を付けると、年の欄に5桁以上を打てなくなる（「2028」と打つと月の欄に移る。付けないと「202801」のような年になる） */}
             <TextInput id="y-deadline" className="date" type="date" max="9999-12-31" value={draft.deadline} onChange={(v) => set({ deadline: v })} />
           </Row>
-          <Row label="手順書のリンク" sub="任意" htmlFor="y-handbook" hint="学生のツールの上に「手順書」ボタンで出ます" changed={changed('handbookUrl')}>
+          <Row label="手順書のリンク" sub="任意" htmlFor="y-handbook" hint="学生のツールの上に「手順書」ボタンで出ます" changed={changed('handbookUrl')} field="handbookUrl">
             <TextInput id="y-handbook" value={draft.handbookUrl ?? ''} onChange={(v) => set({ handbookUrl: v })} placeholder="https://drive.google.com/…" />
           </Row>
         </div>

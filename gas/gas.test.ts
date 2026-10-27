@@ -325,6 +325,36 @@ describe('管理ページ（admin-project）', () => {
     expect(gas.saveYear({ ...fresh.config, deadline: '2027-01-21' }, fresh.updatedAt).years[0].config.deadline).toBe('2027-01-21')
   })
 
+  it('別のタブで公開・削除・登録を外したあとの、古い画面からの操作は断る（管理ページの試し 2026-10-27）', () => {
+    const gas = load('admin-project')
+    gas.setup()
+    gas.createYear(2026, 2027)
+    // 2027年度を、少し前に開いていた（そのときの更新日時）
+    const years = sheetRows('年度設定')
+    const row2027 = years.findIndex((r) => Number(r[0]) === 2027)
+    years[row2027][3] = new Date('2026-10-01T00:00:00.000Z')
+    const opened = gas.getState().years.find((y: { year: number }) => y.year === 2027)
+    // 別のタブで公開した：公開した年度と、終了にした年度の更新日時が変わる
+    const published = gas.publishYear(2027, opened.updatedAt)
+    expect(published.years.find((y: { year: number }) => y.year === 2027).updatedAt).not.toBe(opened.updatedAt)
+    // 公開の前から開いていた画面の保存は、学生に届けずに断る
+    expect(() => gas.saveYear({ ...opened.config, commonTitle: '下書きの題目' }, opened.updatedAt)).toThrow(/この画面を開いたあとに/)
+    expect(gas.getState().years.find((y: { year: number }) => y.year === 2027).config.commonTitle).toBe(opened.config.commonTitle)
+    // 削除された年度は、古い画面から保存しても作り直さない（はじめての保存＝更新日時なしは、今までどおり作る）
+    gas.createYear(2027, 2028)
+    const draft = gas.getState().years.find((y: { year: number }) => y.year === 2028)
+    gas.deleteYear(2028, draft.updatedAt)
+    expect(() => gas.saveYear(draft.config, draft.updatedAt)).toThrow(/2028年度は、この画面を開いたあとに削除されています/)
+    expect(gas.getState().years.map((y: { year: number }) => y.year)).toEqual([2027, 2026])
+    // 外した人の役割を、古い一覧から変えても登録し直さない（一覧の外からの登録は、今までどおり）
+    gas.addMember('tanaka@example.ac.jp', '先生')
+    gas.removeMember('tanaka@example.ac.jp')
+    expect(() => gas.addMember('tanaka@example.ac.jp', '管理者', '', true)).toThrow(/外されています/)
+    expect(gas.getMembers().map((m: { email: string }) => m.email)).toEqual(['kato@example.ac.jp'])
+    gas.addMember('sato@example.ac.jp', '先生')
+    expect(gas.addMember('sato@example.ac.jp', '管理者', '', true).find((m: { email: string }) => m.email === 'sato@example.ac.jp').role).toBe('管理者')
+  })
+
   it('先生もコースのお知らせを保存できる（指定したコースだけ書き換える）', () => {
     const gas = load('admin-project')
     gas.setup()
@@ -778,6 +808,8 @@ describe('管理ページ（admin-project）', () => {
     }
     expect(rules.changedMessage('Kato@example.ac.jp', 'kato@example.ac.jp')).toBe(gas.changedMessage_('Kato@example.ac.jp', 'kato@example.ac.jp'))
     expect(rules.changedMessage('sensei@example.ac.jp', 'kato@example.ac.jp')).toBe(gas.changedMessage_('sensei@example.ac.jp', 'kato@example.ac.jp'))
+    expect(rules.deletedMessage(2028)).toBe(gas.deletedMessage_(2028))
+    expect(rules.removedMemberMessage('tanaka@example.ac.jp')).toBe(gas.removedMemberMessage_('tanaka@example.ac.jp'))
   })
 })
 

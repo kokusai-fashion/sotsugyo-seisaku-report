@@ -103,12 +103,13 @@ export function MembersSection({
     if (adminsAfter(after) === 1) lines.push('', ONE_ADMIN)
     // 「やめる」なら何もしない（選ぶ欄は、元の役割に戻る）
     if (!(await ask(lines.join('\n'), { ok: `「${next}」にする` }))) return
-    void run({ kind: 'role', email: m.email }, () => server.addMember(m.email, next, m.memo), `${m.email} を「${next}」にしました（その人が管理ページを開き直すと、${next}の画面になります）`)
+    void run({ kind: 'role', email: m.email }, () => server.addMember(m.email, next, m.memo, true), `${m.email} を「${next}」にしました（その人が管理ページを開き直すと、${next}の画面になります）`)
   }
   const remove = async (m: Member) => {
     if (!members) return
     const lines = [`${m.email} の登録を外しますか？`]
-    if (adminsAfter(members.filter((x) => x.email !== m.email)) === 1) lines.push('', ONE_ADMIN)
+    // 管理者を外して1人になるときだけ（先生を外しても、管理者の数は変わらない）
+    if (m.role === '管理者' && adminsAfter(members.filter((x) => x.email !== m.email)) === 1) lines.push('', ONE_ADMIN)
     if (!(await ask(lines.join('\n'), { ok: '登録を外す', danger: true }))) return
     void run({ kind: 'remove', email: m.email }, () => server.removeMember(m.email), `${m.email} の登録を外しました`)
   }
@@ -207,6 +208,8 @@ export function MembersSection({
                 )
                 setText('')
                 setUnchecked(new Set())
+                // 次に貼り付ける人が、知らないうちに管理者にならないよう、役割は「先生」に戻す
+                setRole('先生')
                 return list
               })
             }

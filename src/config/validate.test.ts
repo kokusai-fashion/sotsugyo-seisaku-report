@@ -137,6 +137,17 @@ describe('崩れた設定（管理ページのサーバーを通らずに書か�
     expect(repairConfig(currentConfig)).toEqual(currentConfig)
   })
 
+  it('手順書のリンクは https:// で始まるものだけ（管理ページではエラー、学生のツールでは出さない）', () => {
+    for (const bad of ['drive.google.com/file/d/x', 'http://example.com/a', 'javascript:alert(1)', 'https://']) {
+      expect(errors({ ...currentConfig, handbookUrl: bad }), bad).toEqual(['handbookUrl'])
+      expect(repairConfig({ ...currentConfig, handbookUrl: bad }).handbookUrl, bad).toBeUndefined()
+    }
+    const good = { ...currentConfig, handbookUrl: ' https://drive.google.com/file/d/x/view ' }
+    expect(errors(good)).toEqual([])
+    expect(repairConfig(good).handbookUrl).toBe(good.handbookUrl)
+    expect(errors({ ...currentConfig, handbookUrl: '' })).toEqual([])
+  })
+
   it('崩れたひな形でも、本文を作るときに止まらない（段落の説明がない・知らない種類の部品）', () => {
     expect(courseTemplate(withTemplate([{ type: 'chapter', title: '概要' }, { type: 'paragraph' }]), course0.id)).toBe(DEFAULT_TEMPLATE)
     expect(courseTemplate(withTemplate('x'), course0.id)).toBe(DEFAULT_TEMPLATE)

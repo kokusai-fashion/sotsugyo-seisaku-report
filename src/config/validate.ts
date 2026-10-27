@@ -29,6 +29,8 @@ const BLOCK_TYPES = new Set<unknown>(Object.keys(BLOCK_LABELS))
 const isText = (v: unknown): v is string => typeof v === 'string'
 /** 文字で、空白だけでない */
 const filled = (v: unknown): v is string => isText(v) && v.trim() !== ''
+/** https:// で始まるアドレスか（手順書のリンク。「drive.google.com/…」だけだと、学生のツールの中のないページが開いた：管理ページの試し 2026-10-27） */
+const isHttpsUrl = (v: unknown): boolean => isText(v) && /^https:\/\/\S+$/i.test(v.trim())
 const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 
@@ -194,11 +196,11 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
     return problems
   }
 
-  if (!Number.isInteger(config.fiscalYear) || config.fiscalYear < 2000 || config.fiscalYear > 2100) error('fiscalYear', '年度は西暦4桁で入力してください')
+  if (!Number.isInteger(config.fiscalYear) || config.fiscalYear < 2000 || config.fiscalYear > 2100) error('fiscalYear', '年度は、2000〜2100 の西暦4桁で入力してください')
   if (!filled(config.commonTitle)) error('commonTitle', '共通の題目を入力してください')
   else if (textUnits(config.commonTitle) > COVER_TITLE_UNITS)
     // 字数からの見積もり（かな・かっこは漢字より少し細いので、目安をこえても入ることがある。見本で確かめてもらう）
-    warning('commonTitle', `共通の題目が長いため、表紙の1行に収まらないおそれがあります（表紙の題目は1行で、全角18字ほどまで。今は${Math.ceil(textUnits(config.commonTitle))}字分）。右の見本の表紙で、はみ出していないか確かめてください`)
+    warning('commonTitle', `共通の題目が長いため、表紙の1行に収まらないおそれがあります（表紙の題目は1行で、全角18字ほどまで。今は${Math.ceil(textUnits(config.commonTitle))}字分）。見本の表紙で、はみ出していないか確かめてください`)
   const fiscalYear = Number.isInteger(config.fiscalYear) ? config.fiscalYear : null
   if (!filled(config.deadline)) error('deadline', '最終締切の日付を入力してください')
   else if (!isRealDate(config.deadline)) error('deadline', `最終締切の日付が正しくありません（例：${fiscalYear ? fiscalYear + 1 : 2028}/01/20）`)
@@ -206,6 +208,7 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
     // 前の年度からコピーした日付のままのことがあるので、年度の期間（4月1日〜翌年3月31日）の外なら確かめてもらう
     warning('deadline', `最終締切（${japaneseDate(config.deadline)}）が、${fiscalYear}年度（${fiscalYear}年4月1日〜${fiscalYear + 1}年3月31日）の外です。前の年度の日付のままでないか確かめてください`)
   else if (options.today && config.deadline < options.today) warning('deadline', `最終締切（${japaneseDate(config.deadline)}）が、今日より前です`)
+  if (filled(config.handbookUrl) && !isHttpsUrl(config.handbookUrl)) error('handbookUrl', '手順書のリンクは、https:// で始まるアドレスを入れてください（ブラウザの上のアドレスの欄から写します）')
   for (const [field, label] of [
     ['reportName', '報告書の名前'],
     ['university', '大学名'],
@@ -302,6 +305,7 @@ function courseProblems(course: Course): string[] {
  *   - 抄録の書き出し例・お知らせが崩れていたら、出さない
  *   - 書き間違えやすい語は、形の崩れた行だけを外す（一覧そのものが崩れていたら、ツールに入っている一覧を使う）
  *   - 作品写真のページ数の上限がない（前の版の設定。枚数の上限 maxImages は使わない）・崩れていたら、上限なし
+ *   - 手順書のリンクが https:// で始まらなければ、出さない
  * それ以外の問題（題目がないなど）は直さない（validateConfig でエラーになり、前に読み込んだ設定か初期値を使う）
  */
 export function repairConfig(config: YearConfig): YearConfig {
@@ -329,6 +333,8 @@ export function repairConfig(config: YearConfig): YearConfig {
   repaired.workPhotos = { maxPages: isNumber(maxPages) && Number.isInteger(maxPages) && maxPages > 0 ? maxPages : null }
   // ページの余白：崩れている・範囲の外なら、はじめの値（上下 25mm・左右 30mm）で組む
   if (marginsProblem(config.margins, isObject(config.abstract) ? config.abstract.maxLines : undefined)) delete repaired.margins
+  // 手順書のリンク：https:// で始まらないものは出さない（「手順書」ボタンを出さない）
+  if (filled(config.handbookUrl) && !isHttpsUrl(config.handbookUrl)) delete repaired.handbookUrl
   if (wordChecks) repaired.wordChecks = wordChecks
   else delete repaired.wordChecks
   return repaired

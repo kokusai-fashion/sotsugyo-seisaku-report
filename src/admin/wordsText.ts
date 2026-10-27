@@ -32,3 +32,12 @@ export function wordSummary(words: WordCheck[]): string {
   const errors = words.filter((w) => w.severity === 'error').length
   return `言葉 ${words.length}語（エラー${errors}）`
 }
+
+/** 直している語を反映しないまま、ほかの行・区切りに移る・閉じるときの確かめ */
+export const UNSAVED_WORDS = '直している語は、まだ反映していません。反映せずに閉じますか？'
+/** 直している語を「反映する」前に、保存・公開を押したときの確かめ（管理者・先生の画面。前は語が入らないまま「保存しました」と出た：管理ページの試し 2026-10-27） */
+export const UNAPPLIED_WORDS_TEXT = (verb: string) =>
+  `書き方のチェックで直している語は、まだ「反映する」を押していません。このまま${verb}すると、その語は入りません。\n\n語も入れるときは、「やめる」を押し、語の「反映する」を押してから、もう一度${verb}してください。`
+
+/** 直している語があるか（区切りの中のまだ反映していない入力が、この区切りのものか） */
+export const isUnappliedWords = (pending: string | null) => pending === UNSAVED_WORDS

@@ -153,6 +153,16 @@ export function checkConfig(config: unknown): void {
   if (JSON.stringify(config).length > 45000) throw new Error('設定が大きすぎます')
 }
 
+/** 画面を開いたあとに、年度が削除されていたときの説明（Code.js の deletedMessage_） */
+export function deletedMessage(year: number): string {
+  return Number(year) + '年度は、この画面を開いたあとに削除されています。保存しませんでした。ページを読み込み直してください'
+}
+
+/** 役割を変えようとした人の登録が、画面を開いたあとに外されていたときの説明（Code.js の addMember と同じ言葉） */
+export function removedMemberMessage(email: string): string {
+  return email + ' の登録は、この画面を開いたあとに外されています。役割は変えませんでした。ページを読み込み直してください'
+}
+
 /** 画面を開いたあとに保存されていたときの説明（Code.js の changedMessage_。保存したのが自分なら、別のタブ・ウィンドウで保存したと伝える） */
 export function changedMessage(updatedBy: string, user: string): string {
   const who = String(updatedBy || '').toLowerCase() === String(user || '').toLowerCase() ? '別のタブかウィンドウで（' + updatedBy + ' で）' : 'ほかの人（' + updatedBy + '）が'

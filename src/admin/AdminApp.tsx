@@ -12,7 +12,7 @@ import { DEFAULT_TEMPLATE } from '../model/template'
 import { AdminIcon } from './adminIcons'
 import { AdminNewVersion } from './AdminNewVersion'
 import { courseName, fieldChanged, listChanges, mergeEdits, sameConfig, shortChanges, describeChanges, type Change, type ChangeSection } from './changes'
-import { useConfirm } from './confirm'
+import { IGNORE_OUTSIDE_MS, useConfirm } from './confirm'
 import { CourseSection } from './CourseSection'
 import { DetailsSection } from './DetailsSection'
 import { HistorySection } from './HistorySection'
@@ -29,10 +29,11 @@ import { ProblemLine } from './ui'
 import { useFormWidth } from './useFormWidth'
 import { useLeaveGuard } from './useLeaveGuard'
 import { usePhone } from './usePhone'
+import { usePhoneList } from './usePhoneList'
 import { useDone, useSlow } from './useWait'
 import { DoneNote, PageLoading, SlowNote, Waiting } from './Wait'
 import { WordsSection } from './WordsSection'
-import { wordSummary } from './wordsText'
+import { isUnappliedWords, UNAPPLIED_WORDS_TEXT, wordSummary } from './wordsText'
 import { YearSection } from './YearSection'
 import { deleteConfirmText, deletedMessage, deliveryNote, newYearNotice, publishConfirmText, saveButtonLabel, saveConfirmText, savedMessage, templateFootNote, type NoticeItem } from './yearText'
 
@@ -145,6 +146,18 @@ function MessageBox({ message }: { message: Notice }) {
   )
 }
 
+/** 詳細設定の欄の誤りの名前（validate.ts の field） */
+const DETAILS_FIELDS = ['reportName', 'university', 'faculty', 'department', 'cover.heading', 'cover.titleLabel', 'abstract.heading', 'abstract.chars', 'abstract.lines', 'body.minPages', 'workPhotos.maxPages', 'studentIdPattern', 'margins']
+const SECTION_TITLES = { year: '年度の設定', course: 'コース', words: '書き方のチェック', details: '詳細設定' } as const
+
+/** その誤り（field）を直す区切り（分からなければ null） */
+function sectionOfField(field: string): keyof typeof SECTION_TITLES | null {
+  if (['fiscalYear', 'commonTitle', 'deadline', 'handbookUrl'].includes(field)) return 'year'
+  if (field.startsWith('courses')) return 'course'
+  if (field.startsWith('wordChecks')) return 'words'
+  return DETAILS_FIELDS.includes(field) ? 'details' : null
+}
+
 /** 入力の誤り・確かめてほしいこと（区切りのいちばん上） */
 function Problems({ problems }: { problems: ReturnType<typeof validateConfig> }) {
   if (!problems.length) return null
@@ -226,11 +239,19 @@ function AdminHelp({ onClose, admin = false }: { onClose: () => void; admin?: bo
   )
 }
 
+/** 新年度の欄の年度が使えるか（西暦4桁・2000〜2100。サーバーの createYear と同じ。全角の数字も受け付ける） */
+function newYearOk(text: string): boolean {
+  const n = halfDigits(text)
+  return /^\d{4}$/.test(n) && Number(n) >= 2000 && Number(n) <= 2100
+}
+
 function Modal({ title, children, onClose, className = '' }: { title: string; children: ReactNode; onClose: () => void; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useDialogFocus(ref, onClose)
+  // 開いてすぐの、外の暗い所の押し下げでは閉じない（ボタンのダブルクリックの2回目で、開いてすぐ閉じないように：confirm.tsx と同じ）
+  const [openedAt] = useState(() => performance.now())
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && performance.now() - openedAt > IGNORE_OUTSIDE_MS && onClose()}>
       <div className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
         <header>
           <h2>{title}</h2>
@@ -330,7 +351,7 @@ function HeaderBar({
       <span className="spacer" />
       {/* 保存の状態とボタン（パソコンは見出しの中。スマホは画面の下：admin.css の save-group） */}
       <span className="save-group">
-        {slow ? <SlowNote show /> : doneText ? <DoneNote text={doneText} /> : <span className={`save-state${dirty ? ' dirty' : ''}`}>{dirty ? `保存していない変更 ${changes.length}か所` : '変更はありません'}</span>}
+        {slow ? <SlowNote show /> : doneText && !dirty ? <DoneNote text={doneText} /> : <span className={`save-state${dirty ? ' dirty' : ''}`}>{dirty ? `保存していない変更 ${changes.length}か所` : '変更はありません'}</span>}
         <button
           className={`btn ${dirty ? (isPublished || teacher || !onPublish ? 'primary' : '') : 'quiet'}${busy === 'save' ? ' busy' : ''}`}
           disabled={!!busy || !dirty}
@@ -456,6 +477,8 @@ function DirtyBar({ changes, row, teacher, busy, onSave, onShow }: { changes: st
 function Work({ content, stage, locked, formWidth, onBack }: { content: ReactNode; stage: ReactNode | null; locked: boolean; formWidth: ReturnType<typeof useFormWidth>; onBack?: () => void }) {
   // スマホ：見本は「見本を見る」で、画面いっぱいに開く（mockups/v68 案C）
   const [preview, setPreview] = useState(false)
+  /** 見本を開く前に見ていた位置（閉じたら戻す。前はページのいちばん上に戻り、余白の欄などを探し直した：管理ページの試し 2026-10-27） */
+  const scrollBack = useRef(0)
   return (
     <div className={`work${stage ? '' : ' wide'}${preview ? ' pv-open' : ''}`} style={stage ? formWidth.style : undefined}>
       <section className="content" inert={locked} aria-busy={locked}>
@@ -466,7 +489,13 @@ function Work({ content, stage, locked, formWidth, onBack }: { content: ReactNod
           </button>
         )}
         {onBack && stage && (
-          <button className="btn sub pv-show" onClick={() => setPreview(true)}>
+          <button
+            className="btn sub pv-show"
+            onClick={() => {
+              scrollBack.current = window.scrollY
+              setPreview(true)
+            }}
+          >
             {AdminIcon.eye}見本を見る（表紙・抄録・ひな形）
           </button>
         )}
@@ -476,7 +505,13 @@ function Work({ content, stage, locked, formWidth, onBack }: { content: ReactNod
         <>
           <section className="stage" tabIndex={-1}>
             {onBack && (
-              <button className="pv-close" onClick={() => setPreview(false)}>
+              <button
+                className="pv-close"
+                onClick={() => {
+                  setPreview(false)
+                  requestAnimationFrame(() => window.scrollTo(0, scrollBack.current))
+                }}
+              >
                 <span aria-hidden="true">‹</span>見本を閉じる
               </button>
             )}
@@ -556,6 +591,11 @@ export function AdminApp() {
   }, [])
   /** 確認の窓（画面の中に出す：confirm.tsx） */
   const ask = useConfirm()
+  /** 書き方のチェックで直している語を反映しないまま、保存・公開してよいか（直していなければ、確かめずに true） */
+  const confirmUnappliedWords = useCallback(
+    async (verb: '保存' | '公開') => !isUnappliedWords(pending.current) || ask(UNAPPLIED_WORDS_TEXT(verb), { title: '反映していない語があります', ok: `反映せずに${verb}する`, danger: true }),
+    [ask],
+  )
   /** ほかの区切り・年度に移ってよいか（まだ反映していない入力があれば確かめる） */
   const confirmLeave = useCallback(async () => {
     if (pending.current && !(await ask(pending.current, { ok: '移る', danger: true }))) return false
@@ -583,7 +623,7 @@ export function AdminApp() {
   const formWidth = useFormWidth()
   // スマホ：はじめに区切りの一覧を出し、押すと中身。「‹ 管理ページの一覧」で一覧へ戻る（mockups/v68 案C）
   const phone = usePhone()
-  const [phoneList, setPhoneList] = useState(true)
+  const [phoneList, showSection, backToList] = usePhoneList()
   // 最初の読み込み（年度の設定の一覧）が長くかかっている
   const loadingSlow = useSlow(!state && !message)
   const focusLater = useFocusLater()
@@ -639,6 +679,24 @@ export function AdminApp() {
     }
   }, [historyKey])
 
+  // 断られた・誤りの知らせが出たら、見える所まで動かす（下の方で保存を押すと、上に出た知らせが見えなかった。
+  // スマホでは、上の見出しの裏に半分隠れた：管理ページの試し 2026-10-27）
+  useEffect(() => {
+    if (message?.kind !== 'ng') return
+    const id = requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>('.admin .message.ng')
+      if (!el) return
+      const head = document.querySelector('.admin-header')
+      const covered = head && getComputedStyle(head).position === 'sticky' ? head.getBoundingClientRect().bottom : 0
+      const visibleTop = Math.max(covered, el.closest('.content')?.getBoundingClientRect().top ?? 0)
+      const r = el.getBoundingClientRect()
+      if (r.top >= visibleTop && r.bottom <= window.innerHeight) return
+      el.style.scrollMarginTop = `${covered + 12}px`
+      el.scrollIntoView({ block: 'start' })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [message])
+
   /** 新しい版にするため、開き直している（タブを離れるときの確認を、もう一度出さない） */
   const [leaving, setLeaving] = useState(false)
   useLeaveGuard(dirty && !leaving)
@@ -658,7 +716,12 @@ export function AdminApp() {
       select(latest, base.year)
       return null
     }
-    const by = String(fresh.updatedBy ?? '').toLowerCase() === String(latest.user ?? '').toLowerCase() ? '別のタブかウィンドウで、この年度の設定が保存されていた' : `ほかの人（${fresh.updatedBy}）が、この年度の設定を保存していた`
+    // 公開・終了になっていたなら、そう伝える（公開すると更新日時も変わる：Code.js の publishYear）
+    const statusChanged = fresh.status !== base.status
+    const by =
+      String(fresh.updatedBy ?? '').toLowerCase() === String(latest.user ?? '').toLowerCase()
+        ? `別のタブかウィンドウで、${statusChanged ? `この年度が「${fresh.status}」になっていた` : 'この年度の設定が保存されていた'}`
+        : `ほかの人（${fresh.updatedBy}）が、${statusChanged ? `この年度を「${fresh.status}」にしていた` : 'この年度の設定を保存していた'}`
     const merged = mergeEdits(base.config, mine, fresh.config)
     if (merged.conflicts.length)
       return { kind: 'ng', text: `${verb}しませんでした。この画面を開いたあとに${by}ためです。同じ項目（${merged.conflicts.join('、')}）がそちらでも変わっているため、自動では入れ直せません。ページを読み込み直してから、もう一度変更してください` }
@@ -717,13 +780,7 @@ export function AdminApp() {
 
   /** スマホ：一覧で区切りを押した：その区切りを開いて、中身を出す（保存していない入力の確かめで、やめたら一覧のまま） */
   const openSection = async (s: Section) => {
-    if (!(await go(s))) return
-    setPhoneList(false)
-    window.scrollTo(0, 0)
-  }
-  const backToList = () => {
-    setPhoneList(true)
-    window.scrollTo(0, 0)
+    if (await go(s)) showSection()
   }
   /** 年度を切り替える（保存していない変更・まだ反映していない入力があれば確かめる） */
   const switchYear = async (s: AdminState, y: number) => {
@@ -770,6 +827,7 @@ export function AdminApp() {
           onSelectYear={(y) => switchYear(state, y)}
           confirmLeave={confirmLeave}
           onPending={setPending}
+          confirmUnappliedWords={confirmUnappliedWords}
           onSave={(templates, words, notices) =>
             // ひな形・お知らせ・書き間違えやすい語を、まとめて1回で保存する（途中で失敗して一部だけ保存されないように）
             // 画面を開いたときの更新日時も送る（そのあとにほかの先生などが保存していたら、その変更を消さないよう保存しない）
@@ -795,12 +853,14 @@ export function AdminApp() {
     // 公開中の年度と、終了した年度（その年度に書き始めた学生が今も読む）は、エラーがあると学生のツールで使えないので保存しない
     if (row.status !== '準備中' && errors.length)
       return setMessage({ kind: 'ng', text: isPublished ? '公開中の年度は、エラーを直してから保存してください' : '終了した年度も、この年度に書き始めた学生が使っているため、エラーを直してから保存してください' })
+    if (!(await confirmUnappliedWords('保存'))) return
     const text = saveConfirmText(row.status, row.year, labels)
     if (text && !(await ask(text, { title: `${saveLabel}しますか？`, ok: saveLabel }))) return
     void run('save', savedMessage(row.status, 'admin'), () => server.saveYear(draft, row.updatedAt), { recover: { verb: '保存', button: saveLabel } })
   }
   const publish = async () => {
     if (errors.length) return setMessage({ kind: 'ng', text: 'エラーを直してから公開してください' })
+    if (!(await confirmUnappliedWords('公開'))) return
     const current = state.years.find((y) => y.status === '公開中')
     // 新年度の準備で、まだのところがあれば、公開の確かめの前に並べる（前は確かめに出ず、前の年度の言葉が残ったまま公開できた：先生の試し 2026-10-21）
     const pending = (steps ?? []).filter((x) => !x.done)
@@ -896,13 +956,21 @@ export function AdminApp() {
 
   /** 欄のすぐ下に出している誤り・確認（上の枠には出さない：mockups/v49 G）：年度の設定の題目・締切、コースの開いているコース */
   const openIndex = draft.courses.findIndex((c) => c.id === openId)
+  // 詳細設定の欄も、欄のすぐ下に出す（前は区切りのいちばん上だけで、下の方の欄では見えなかった：管理ページの試し 2026-10-27）
   const shownAtField = (pr: ConfigProblem) =>
-    (section === 'year' && (pr.field === 'commonTitle' || pr.field === 'deadline')) || (section === 'course' && openIndex >= 0 && pr.field === `courses.${openIndex}`)
+    (section === 'year' && (pr.field === 'commonTitle' || pr.field === 'deadline' || pr.field === 'handbookUrl')) ||
+    (section === 'course' && openIndex >= 0 && pr.field === `courses.${openIndex}`) ||
+    (section === 'details' && sectionOfField(pr.field) === 'details')
+  // ほかの区切りで直す誤りには、直す区切りを書き添える（コースの区切りに「大学名を入力してください」だけが出て、どこで直すか分からなかった）
+  const withPlace = (pr: ConfigProblem): ConfigProblem => {
+    const place = sectionOfField(pr.field)
+    return place && place !== section ? { ...pr, message: `${pr.message}（「${SECTION_TITLES[place]}」で直します）` } : pr
+  }
   // 知らせと入力の誤りは、区切りの見出しのすぐ下に（準備中の年度は、新年度の手順の下に）
   const notices = (
     <>
       {message && <MessageBox message={message} />}
-      {['year', 'course', 'words', 'details'].includes(section) && <Problems problems={problems.filter((pr) => !shownAtField(pr))} />}
+      {['year', 'course', 'words', 'details'].includes(section) && <Problems problems={problems.filter((pr) => !shownAtField(pr)).map(withPlace)} />}
     </>
   )
   let content: ReactNode
@@ -1071,7 +1139,15 @@ export function AdminApp() {
           <label className="f">
             <span className="l">新しい年度</span>
             {/* 全角の数字（２０２７）も受け付ける（日本語入力のまま打っても消えないように） */}
-            <input className="in" value={newYear} onChange={(e) => setNewYear(e.target.value.replace(/[^0-9０-９]/g, ''))} />
+            {/* Enter でも作成する（「作成する」が押せるときだけ） */}
+            <input
+              className="in"
+              value={newYear}
+              onChange={(e) => setNewYear(e.target.value.replace(/[^0-9０-９]/g, ''))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) e.currentTarget.closest('.modal')?.querySelector<HTMLButtonElement>('.btn.primary:not(:disabled)')?.click()
+              }}
+            />
           </label>
           <div className="row-buttons">
             <SlowNote show={slow && busy === 'create'} />
@@ -1081,7 +1157,7 @@ export function AdminApp() {
             </button>
             <button
               className={`btn primary${busy === 'create' ? ' busy' : ''}`}
-              disabled={!/^\d{4}$/.test(halfDigits(newYear)) || !!busy}
+              disabled={!newYearOk(newYear) || !!busy}
               aria-busy={busy === 'create'}
               onClick={() => {
                 const n = Number(halfDigits(newYear))
@@ -1124,6 +1200,7 @@ function TeacherView({
   onSelectYear,
   confirmLeave,
   onPending,
+  confirmUnappliedWords,
   onSave,
 }: {
   state: AdminState
@@ -1142,6 +1219,8 @@ function TeacherView({
   confirmLeave: () => Promise<boolean>
   onPending: (message: string | null) => void
   /** words は、書き間違えやすい語を変えたときだけ（変えていなければ null） */
+  /** 書き方のチェックで直している語を反映しないまま、保存してよいか */
+  confirmUnappliedWords: (verb: '保存') => Promise<boolean>
   /** notices は、書き換えたコースのお知らせだけ（コースの ID → お知らせ） */
   onSave: (templates: TemplateSet, words: WordCheck[] | null, notices: Record<string, string>) => void
 }) {
@@ -1158,7 +1237,7 @@ function TeacherView({
   const formWidth = useFormWidth()
   // スマホ：はじめに区切りの一覧を出し、押すと中身。「‹ 管理ページの一覧」で一覧へ戻る（mockups/v68 案C）
   const phone = usePhone()
-  const [phoneList, setPhoneList] = useState(true)
+  const [phoneList, showSection, backToList] = usePhoneList()
   const labels = changes.map((c) => c.label)
   const dirty = changes.length > 0
   const counts = countBySection(changes)
@@ -1177,15 +1256,10 @@ function TeacherView({
 
   /** スマホ：一覧で区切りを押した：その区切りを開いて、中身を出す（保存していない入力の確かめで、やめたら一覧のまま） */
   const openSection = async (s: Section) => {
-    if (!(await go(s))) return
-    setPhoneList(false)
-    window.scrollTo(0, 0)
-  }
-  const backToList = () => {
-    setPhoneList(true)
-    window.scrollTo(0, 0)
+    if (await go(s)) showSection()
   }
   const save = async () => {
+    if (!(await confirmUnappliedWords('保存'))) return
     const templates: TemplateSet = {}
     draft.courses.forEach((c) => {
       const before = row.config.courses.find((x) => x.id === c.id)

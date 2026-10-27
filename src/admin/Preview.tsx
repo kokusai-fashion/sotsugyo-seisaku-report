@@ -135,6 +135,10 @@ export function Preview({ config, courseId, template, startAtBody = false }: { c
     sheets.innerHTML = Array.from({ length: count }, (_, i) => `<div class="sheet" style="left:${PITCH * (2 + i)}px"><span class="no">${i + 1}</span></div>`).join('')
     setBodyPages(count)
   }, [])
+  // 見えるようになったら数え直す（スマホでは「見本を見る」を押すまで見本が隠れていて、隠れたまま組んだ本文は1ページと数えていた：管理ページの試し 2026-10-27）
+  useEffect(() => {
+    if (box.width) measure()
+  }, [box.width, measure])
   /** 見本を読み込み直した回数（読み込み直すと、倍率と見開きが外れるので、当て直す。ページの数が変わらないと描き直さず、紙が大きいままだった） */
   const [, setLoads] = useState(0)
   const onLoad = useCallback(() => {
