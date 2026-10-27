@@ -1,3 +1,4 @@
+import type { PageMargins } from '../config'
 import { DOMParser } from '@xmldom/xmldom'
 import { describe, expect, it } from 'vitest'
 import { br, floatingImage, makeDocx, normalStyle, p, png, rid, sectPr, textBox } from '../../scripts/e2e/fixtures/docx.mjs'
@@ -87,9 +88,9 @@ describe('目次と本文の見出し', () => {
 })
 
 describe('ページ設定がひな形のままか', () => {
-  const settings = async (part: 'cover' | 'abstract' | 'toc' | 'body', bytes: Uint8Array) => {
+  const settings = async (part: 'cover' | 'abstract' | 'toc' | 'body', bytes: Uint8Array, margins?: PageMargins) => {
     const pkg = await openWordFile(file(bytes, 'x.docx'), 'Word')
-    return templateFindings(part, pkg.document, pkg.styles)
+    return templateFindings(part, pkg.document, pkg.styles, undefined, margins)
   }
   const LONG = '　筆者が担当したのは、主人公のシンドバッドである。シンドバッドは七つの海を旅する船乗りで、明るく好奇心の強い人物として描かれている。'
   const bodyText = [p('Ⅰ．企画・立案'), p(LONG), p(LONG), p(LONG)].join('')
@@ -97,10 +98,16 @@ describe('ページ設定がひな形のままか', () => {
     expect(await settings('body', makeDocx({ body: bodyText, styles: normalStyle(22), sectPr: sectPr() }))).toEqual([])
     expect(await settings('body', makeDocx({ body: bodyText, styles: normalStyle(22), sectPr: sectPr({ margins: [1440, 1418, 1400, 1985] }) }))).toEqual([])
   })
+  it('年度の設定の余白（はじめは 上下25mm・左右30mm。依頼者の判断 2026-10-27）でもよい', async () => {
+    expect(await settings('body', makeDocx({ body: bodyText, styles: normalStyle(22), sectPr: sectPr({ margins: [1418, 1701, 1418, 1701] }) }))).toEqual([])
+    // 左右を 25mm にした年度：行が長くなるので、字送りも広い（38字のまま）
+    const wide = sectPr({ margins: [1418, 1418, 1418, 1418], grid: [368, Math.round(((160 * 72) / 25.4 / 38 - 11) * 4096)] })
+    expect(await settings('body', makeDocx({ body: bodyText, styles: normalStyle(22), sectPr: wide }), { top: 25, bottom: 25, side: 25 })).toEqual([])
+  })
   it('余白が違えば、どこが何 mm かと、直し方を出す（エラー・手順書）', async () => {
     const [f] = await settings('body', makeDocx({ body: bodyText, styles: normalStyle(22), sectPr: sectPr({ margins: [1418, 1418, 1418, 1701] }) }))
-    expect(f).toMatchObject({ ruleId: 'template-margins', severity: 'error', source: 'guide', title: '余白は、ひな形のまま（上・下・右 25mm、左 35mm）にする' })
-    expect(f.detail).toBe('今は 左 30mm。Word の「レイアウト → ページ設定」の「余白」で直す')
+    expect(f).toMatchObject({ ruleId: 'template-margins', severity: 'error', source: 'guide', title: '余白は、上下 25mm・左右 30mmにする' })
+    expect(f.detail).toBe('今は 右 25mm。Word の「レイアウト → ページ設定」の「余白」で直す（学科の Word のひな形の 上・下・右 25mm、左 35mm のままでもよい）')
   })
   it('表紙のひな形の余白は、上下左右 25mm', async () => {
     expect(await settings('cover', makeDocx({ body: p('表紙'), sectPr: sectPr({ margins: [1418, 1418, 1418, 1418], grid: null }) }))).toEqual([])
@@ -159,7 +166,7 @@ describe('Word のチェック（学生用ツールのセルフチェックと�
     // 同じセルの「表に空いているセルがある」は出さない
     expect(by(findings, 'table-cell-empty')).toEqual([])
     expect(by(findings, 'swatch-image').map((f) => f.detail)).toEqual(['表1：「綿ブロード」の行、「生地見本」の列', '表1：「サテン」の行、「生地見本」の列', '表1：「麻」の行、「生地見本」の列'])
-    expect(by(findings, 'template-margins')).toEqual([expect.objectContaining({ part: 'toc', detail: expect.stringContaining('左 30mm') })])
+    expect(by(findings, 'template-margins')).toEqual([expect.objectContaining({ part: 'toc', detail: expect.stringContaining('右 25mm') })])
     expect(by(findings, 'toc-headings')).toEqual([expect.objectContaining({ part: 'toc', severity: 'warning', detail: '目次にだけある：「まとめ」' })])
     expect(covered).toEqual(new Set(['body-pages', 'abstract-one-page']))
   })

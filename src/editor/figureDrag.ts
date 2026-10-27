@@ -1,5 +1,6 @@
 import type { Report } from '../model/types'
-import { PAGE_W, TEXT_LEFT, TEXT_W } from './pageStage'
+import { textLeftPx, textWidthPx } from '../layout/pageGeometry'
+import { PAGE_W } from './pageStage'
 import { figureDrops, type FigureDrop } from './reportOps'
 
 /**
@@ -284,7 +285,7 @@ export class FigureDrag {
   private textColumn(page: HTMLElement): { left: number; right: number } {
     const p = page.getBoundingClientRect()
     const s = p.width / PAGE_W
-    return { left: p.left + TEXT_LEFT * s, right: p.left + (TEXT_LEFT + TEXT_W) * s }
+    return { left: p.left + textLeftPx() * s, right: p.left + (textLeftPx() + textWidthPx()) * s }
   }
 
   /** 紙面の見えている所（ページと台の重なり）。この外は「紙面の外」 */

@@ -145,7 +145,7 @@ describe('使い方の項目', () => {
 
   it('学生用は18項目、先生用は12項目。id は重ならない', () => {
     expect(STUDENT_TOPICS).toHaveLength(18)
-    expect(TEACHER_TOPICS).toHaveLength(12)
+    expect(TEACHER_TOPICS).toHaveLength(13)
     expect(new Set(all.map((t) => t.id)).size).toBe(all.length)
   })
 

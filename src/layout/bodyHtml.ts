@@ -1,6 +1,7 @@
 import { colWidthsOf, equalColumnWidths } from '../model/table'
 import type { BodyBlock, Chapter, Figure, TableBlock, TableCell } from '../model/types'
-import { FONT_SIZE_PT, LETTER_SPACING_PT, reportCss } from './reportCss'
+import { textWidthMm } from './pageGeometry'
+import { FONT_SIZE_PT, letterSpacingPt, reportCss } from './reportCss'
 import { equalRows, fitsLabel, ptText, type TableFits } from './tableFit'
 import type { FigureGrow } from './figureGrow'
 
@@ -59,8 +60,7 @@ export function numberFiguresAndTables(chapters: Chapter[]): Map<string, number>
 
 /** 図を横に並べる数（それより多いときは段を分ける：3枚は2＋1、4枚は2×2） */
 export const FIGURES_PER_ROW = 2
-/** 本文の幅（A4 の左右の余白を除く）と、横に並べるときの図の間のすき間・1枚の幅の上限 */
-const TEXT_WIDTH_MM = 150
+/** 横に並べるときの図の間のすき間・1枚の幅の上限（本文の幅は、いまの余白から：layout/pageGeometry.ts） */
 const FIGURE_GAP_MM = 8
 const PAIR_MAX_MM = 72
 
@@ -70,7 +70,7 @@ const PAIR_MAX_MM = 72
 export function rowSizes(sizes: FigureSize[]): FigureSize[] {
   if (sizes.length < 2) return sizes
   const ratios = sizes.map((s) => s.widthMm / s.heightMm)
-  const height = Math.min(PAIR_MAX_MM, (TEXT_WIDTH_MM - FIGURE_GAP_MM * (sizes.length - 1)) / ratios.reduce((a, b) => a + b, 0), PAIR_MAX_MM / Math.max(...ratios))
+  const height = Math.min(PAIR_MAX_MM, (textWidthMm() - FIGURE_GAP_MM * (sizes.length - 1)) / ratios.reduce((a, b) => a + b, 0), PAIR_MAX_MM / Math.max(...ratios))
   return ratios.map((r) => ({ widthMm: Math.round(r * height * 10) / 10, heightMm: Math.round(height * 10) / 10 }))
 }
 
@@ -181,8 +181,8 @@ const CELL_CHROME_PT = 4 * 2 + 0.75
  * 例：2列 18字・3列 11字・4列 8字・6列 5字
  */
 export function noWrapLimit(columns: number): number {
-  const widthPt = (TEXT_WIDTH_MM / 25.4) * 72
-  return Math.max(1, Math.floor((widthPt - columns * CELL_CHROME_PT) / ((FONT_SIZE_PT + LETTER_SPACING_PT) * columns)))
+  const widthPt = (textWidthMm() / 25.4) * 72
+  return Math.max(1, Math.floor((widthPt - columns * CELL_CHROME_PT) / ((FONT_SIZE_PT + letterSpacingPt()) * columns)))
 }
 
 /**
@@ -279,7 +279,7 @@ export function buildBodyDocument(chapters: Chapter[], options: BodyRenderOption
 <head>
 <meta charset="utf-8">
 <title>本文</title>
-<style>${reportCss}</style>
+<style>${reportCss()}</style>
 </head>
 <body>
 ${body}

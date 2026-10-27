@@ -1,16 +1,23 @@
 import type { ReactNode } from 'react'
-import type { YearConfig } from '../config'
+import type { PageMargins, YearConfig } from '../config'
+import { DEFAULT_MARGINS } from '../layout/pageGeometry'
 import { NumberInput, OptionalNumberInput, Row, SectionHead, TextInput } from './ui'
 
 /**
  * 「詳細設定」の区切り（ふだんは変えない項目。mockups/v43 案A の詳細設定の分け方を、案B の区切りに入れたもの）。
- * Google の障害のとき・表紙と抄録の言葉・分量の決まり・学籍番号の4つに分けて、1列に並べる
+ * Google の障害のとき・表紙と抄録の言葉・ページの余白・分量の決まり・学籍番号に分けて、1列に並べる
  */
+/** ページの余白の説明（依頼者の判断 2026-10-27：mockups/v69 案A。左右は同じ・38字×38行のまま） */
+const MARGINS_HINT = '1ページ38字×38行のまま、字の間と行の間で合わせます。表紙と作品写真のページは変わりません'
 /** 学籍番号の形式の説明（何に使うか・空のときどうなるか。依頼者から「この欄は何か」と聞かれた 2026-10-22） */
 const STUDENT_ID_HINT = '学籍番号の形の決まりです。学生がログインした大学のアカウント（wu22fa0001@… など）から学籍番号を読み取るとき（学生か先生かの見分けにも使います）と、表紙に打った学籍番号を確かめるときに使います。空なら、ツールに入っている形（数字2桁・英字2〜3字・数字3〜4桁）で読み取り、表紙の学籍番号は確かめません。'
 
 export function DetailsSection({ draft, set, changed, notices }: { draft: YearConfig; set: (patch: Partial<YearConfig>) => void; changed: (path: string) => boolean; notices?: ReactNode }) {
   const off = draft.driveSave === 'off'
+  // 入れている途中の値（範囲の外でも）をそのまま見せる。省略は、はじめの値
+  const margins: PageMargins = { ...DEFAULT_MARGINS, ...draft.margins }
+  const setMargins = (patch: Partial<PageMargins>) => set({ margins: { ...margins, ...patch } })
+  const marginsChanged = changed('margins.top') || changed('margins.bottom') || changed('margins.side')
   return (
     <>
       <SectionHead title="詳細設定" lead="ふだんは変えません。手順書が変わったときや、Google の障害のときに使います。" />
@@ -64,6 +71,24 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
           </Row>
           <Row label="学科名" htmlFor="d-department" changed={changed('department')}>
             <TextInput id="d-department" value={draft.department} onChange={(v) => set({ department: v })} />
+          </Row>
+        </div>
+      </div>
+      <div className="card">
+        <h2 className="card-h">ページの余白</h2>
+        <div className="grid">
+          <Row label="余白" sub="本文・抄録・目次" htmlFor="d-marginTop" hint={MARGINS_HINT} field="margins" changed={marginsChanged}>
+            <span className="range margins">
+              <span>
+                上<NumberInput id="d-marginTop" label="上の余白（mm）" value={margins.top} onChange={(v) => setMargins({ top: v })} />mm
+              </span>
+              <span>
+                下<NumberInput id="d-marginBottom" label="下の余白（mm）" value={margins.bottom} onChange={(v) => setMargins({ bottom: v })} />mm
+              </span>
+              <span>
+                左右<NumberInput id="d-marginSide" label="左右の余白（mm）" value={margins.side} onChange={(v) => setMargins({ side: v })} />mm
+              </span>
+            </span>
           </Row>
         </div>
       </div>

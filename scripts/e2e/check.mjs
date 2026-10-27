@@ -236,7 +236,7 @@ await withEdge(async (browser) => {
     check('Word を入れると：名前で分からない抄録の Word（abstract-final.docx）は中身から抄録に入る', loaded.abstract.some((x) => x.includes('abstract-final.docx')), JSON.stringify(loaded.abstract))
     check('指摘がパートごとに出る（エラー・要確認の数）。札「手順書」「補助」はなく、一覧の上に「エラー：直してから出す」「要確認：確かめて、必要なら直す」', /^\d+エラー\d+要確認$/.test(t) && !t.startsWith('0') && loaded.groups.join(',') === '抄録,目次,本文' && loaded.chips === 0 && loaded.sevLegend.includes('エラー：直してから出す') && loaded.sevLegend.includes('要確認：確かめて、必要なら直す'), `${t} ${loaded.groups}`)
     check('抄録：600〜900字・「である」調（指摘した文字に印）', texts.some((x) => x.includes('抄録は600〜900字にする')) && (await page.$('.issue mark')) !== null && texts.some((x) => x.includes('巻きました')))
-    check('目次：ひな形と違う余白（左 30mm）と、本文にない見出し「まとめ」', texts.some((x) => x.includes('左 30mm')) && texts.some((x) => x.includes('目次にだけある：「まとめ」')))
+    check('目次：ひな形とも年度の設定（左右 30mm）とも違う余白（右 25mm）と、本文にない見出し「まとめ」', texts.some((x) => x.includes('右 25mm')) && texts.some((x) => x.includes('目次にだけある：「まとめ」')))
     check('ツールの中でしか意味のない指摘（抄録はまだ書いていない・作品写真を入れる）は出さない', !texts.some((x) => /まだ書いていない|作品写真を入れる|コースが選ばれていない/.test(x)))
     check('Word のほうが新しい本文：「PDF が Word より古いようです」と「PDF を入れ替える」が出て、チェックの結果にも「Word を直したら、PDF も作り直す」（時刻つき）が出る', /PDF が Word より古いようです/.test(loaded.stale ?? '') && /PDF を入れ替える/.test(loaded.stale ?? '') && texts.some((x) => x.includes('Word を直したら、PDF も作り直す') && /Word：[0-9]+月[0-9]+日/.test(x)), loaded.stale)
     // 確かめの窓にも出る（エラーの数のほかに）
@@ -278,7 +278,7 @@ await withEdge(async (browser) => {
     await settled(page)
     const tocAfter = await filesOf(page, '目次')
     const textsAfter = await findingTexts(page)
-    check('× で外すと、そのファイルがなくなり（「Word なし」）、その指摘も消える', tocBefore.some((x) => x.includes('03_目次.docx')) && tocAfter.includes('Wordなし') && !textsAfter.some((x) => x.includes('左 30mm')), JSON.stringify(tocAfter))
+    check('× で外すと、そのファイルがなくなり（「Word なし」）、その指摘も消える', tocBefore.some((x) => x.includes('03_目次.docx')) && tocAfter.includes('Wordなし') && !textsAfter.some((x) => x.includes('右 25mm')), JSON.stringify(tocAfter))
     // 抄録の PDF を、目次に移す（目次の PDF と入れ替わる）→ 戻す
     const move = async (part, name, to) => {
       await page.evaluate((part, name) => [...document.querySelectorAll(`[aria-label="${part}"] .pf .fname`)].find((x) => x.textContent.includes(name)).click(), part, name)

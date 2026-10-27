@@ -1,5 +1,6 @@
 import type { Chapter } from '../model/types'
-import { LINE_PITCH_PT } from './reportCss'
+import { contentBottomMm } from './pageGeometry'
+import { linePitchPt } from './reportCss'
 
 /**
  * 図のまとまりを「次のページの上へ送る」かどうかを、組んだ紙面を見て決める。
@@ -19,11 +20,10 @@ import { LINE_PITCH_PT } from './reportCss'
  */
 
 const PAGE_HEIGHT_MM = 297
-/** 本文の領域の下端（A4 の下の余白 25mm） */
-const CONTENT_BOTTOM_MM = PAGE_HEIGHT_MM - 25
-const LINE_MM = (LINE_PITCH_PT * 25.4) / 72
+/** 1行の高さ（mm。本文の領域の下端とともに、いまの余白から：pageGeometry.ts） */
+const lineMm = () => (linePitchPt() * 25.4) / 72
 /** これより狭い空白は、送っても埋まらないので気にしない */
-const MIN_GAP_MM = 2 * LINE_MM
+const minGapMm = () => 2 * lineMm()
 /** 送れる図のまとまりの高さ（本文の領域 247mm より少し低く） */
 const MAX_GROUP_MM = 240
 
@@ -169,12 +169,12 @@ export function decideDeferredGroups(layout: FloatLayout, chapters: Chapter[], d
 
       // 段落のすぐ下に入りきらず、図ごと次のページへ回ったか
       if (first.page !== anchor.page + 1 || group.length > 1) continue
-      const gap = CONTENT_BOTTOM_MM - anchor.bottom
-      if (gap < MIN_GAP_MM || first.bottom - first.top > MAX_GROUP_MM) continue
+      const gap = contentBottomMm() - anchor.bottom
+      if (gap < minGapMm() || first.bottom - first.top > MAX_GROUP_MM) continue
       if (!after || after.type === 'figureRow') continue
       // 章の残りの文章で空いたところを埋めきって、なお図のページに文章が残るか（残らないと、図だけが次の章のページに回る）
-      const rest = layout.contentBottom(first.page) - first.bottom - LINE_MM
-      if (!layout.continuesChapter(first.page + 1) && rest < gap + LINE_MM) continue
+      const rest = layout.contentBottom(first.page) - first.bottom - lineMm()
+      if (!layout.continuesChapter(first.page + 1) && rest < gap + lineMm()) continue
       // 送ると、後ろの表が今のページと次のページにまたがり、図が表の途中に入ってしまう（組んでから確かめて送るのをやめると、組み直しが増えるので、先に見積もる）
       if (wouldSplitTable(layout, tablesAfter, first, gap)) continue
       // 送ると、次の小見出しが今のページの空白に上がる（図の下端から小見出しまでが空白より短い）なら送らない（先に見積もる。外れたら上で確かめる）

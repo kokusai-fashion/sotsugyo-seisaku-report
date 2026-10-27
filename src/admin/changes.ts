@@ -1,5 +1,6 @@
 import { DEFAULT_WORD_CHECKS } from '../checker/textRules'
 import type { Course, YearConfig } from '../config'
+import { DEFAULT_MARGINS, marginsOf } from '../layout/pageGeometry'
 
 /**
  * 年度の設定の「どこが変わったか」。保存の確認・変更履歴の要約・「保存していない変更があります」の判定と、
@@ -36,6 +37,9 @@ const DETAIL_LABELS: [string, string][] = [
   ['abstract.maxChars', '抄録の文字数'],
   ['abstract.minLines', '抄録の行数'],
   ['abstract.maxLines', '抄録の行数'],
+  ['margins.top', 'ページの余白'],
+  ['margins.bottom', 'ページの余白'],
+  ['margins.side', 'ページの余白'],
   ['body.minPages', '本文の最低ページ数'],
   ['workPhotos.maxPages', '作品写真のページ数の上限'],
   ['studentIdPattern', '学籍番号の形式'],
@@ -72,6 +76,8 @@ function normTop(key: string, value: unknown): unknown {
   if (key === 'studentIdPattern') return value === '' || value === undefined ? null : value
   // 前の版の設定の作品写真の枚数の上限は、もう使わない（ページ数の上限 maxPages に変えた。mockups/v38）。比べない
   if (key === 'workPhotos.maxImages') return undefined
+  // ページの余白：省略は、はじめの値（上下 25mm・左右 30mm）と同じ
+  if (key.startsWith('margins.') && value === undefined) return DEFAULT_MARGINS[key.slice(8) as keyof typeof DEFAULT_MARGINS]
   if (key === 'wordChecks') return words(value)
   return value
 }
@@ -170,6 +176,9 @@ const TOP_TARGETS: Record<string, string> = {
   'abstract.maxChars': 'd-minChars',
   'abstract.minLines': 'd-minLines',
   'abstract.maxLines': 'd-minLines',
+  'margins.top': 'd-marginTop',
+  'margins.bottom': 'd-marginBottom',
+  'margins.side': 'd-marginSide',
   'body.minPages': 'd-minPages',
   'workPhotos.maxPages': 'd-photoPages',
   studentIdPattern: 'd-studentId',
@@ -193,6 +202,10 @@ function topValue(config: unknown, path: string): string | undefined {
   const range = (a: string, b: string, unit: string) => `${brief(get(config, ['abstract', a]))}〜${brief(get(config, ['abstract', b]))}${unit}`
   if (path === 'abstract.minChars' || path === 'abstract.maxChars') return range('minChars', 'maxChars', '字')
   if (path === 'abstract.minLines' || path === 'abstract.maxLines') return range('minLines', 'maxLines', '行')
+  if (path.startsWith('margins.')) {
+    const m = marginsOf(config as YearConfig)
+    return `上${m.top}・下${m.bottom}・左右${m.side}mm`
+  }
   if (path === 'workPhotos.maxPages') {
     const v = get(config, ['workPhotos', 'maxPages'])
     return v === undefined || v === null ? '上限なし' : `${v}ページ`

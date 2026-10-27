@@ -1,5 +1,7 @@
 import { COVER_SUBTITLE, textUnits } from '../layout/document'
-import type { Course, TemplateBlock, WordCheck, YearConfig } from './types'
+import { abstractLineCapacity } from '../layout/documentCss'
+import { MARGIN_RANGE } from '../layout/pageGeometry'
+import type { Course, PageMargins, TemplateBlock, WordCheck, YearConfig } from './types'
 
 /**
  * 年度設定の入力チェック。管理ページで公開する前と、学生のツールが読み込んだときに使う。
@@ -126,6 +128,27 @@ function wordShapeProblem(w: unknown): string | null {
 }
 
 /** コースの名前（問題の説明に使う） */
+/**
+ * ページの余白の誤り（なければ null。省略ははじめの値なので誤りではない）。数でない・範囲の外（左右は 30mm まで：1行に38字が入る幅）・
+ * 上下の余白が大きく、抄録の最多の行数（maxAbstractLines）が1ページに入らないとき
+ */
+export function marginsProblem(margins: unknown, maxAbstractLines?: unknown): string | null {
+  if (margins === undefined || margins === null) return null
+  if (!isObject(margins)) return 'ページの余白の形が正しくありません'
+  for (const [key, label] of [
+    ['top', '上'],
+    ['bottom', '下'],
+    ['side', '左右'],
+  ] as const) {
+    const v = margins[key]
+    const [min, max] = MARGIN_RANGE[key]
+    if (!(isNumber(v) && v >= min && v <= max)) return `ページの余白（${label}）は${min}〜${max}mmにしてください${key === 'side' ? '（30mmまでなら、1行に38字が入ります）' : ''}`
+  }
+  if (isNumber(maxAbstractLines) && abstractLineCapacity(margins as unknown as PageMargins) < maxAbstractLines)
+    return `上下の余白が大きく、抄録の${maxAbstractLines}行が1ページに入りません。上下の余白を小さくしてください`
+  return null
+}
+
 function courseLabel(c: unknown, i: number): string {
   return isObject(c) && filled(c.name) ? c.name : `${i + 1}番目のコース`
 }
@@ -204,6 +227,8 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
   if (!(isNumber(a.minLines) && isNumber(a.maxLines) && a.minLines > 0 && a.maxLines >= a.minLines)) error('abstract.lines', '抄録の行数の範囲を確認してください')
   const body: Partial<YearConfig['body']> = isObject(config.body) ? config.body : {}
   if (!(isNumber(body.minPages) && body.minPages > 0)) error('body.minPages', '本文の最低ページ数を入力してください')
+  const margins = marginsProblem(config.margins, a.maxLines)
+  if (margins) error('margins', margins)
   const photos: Partial<YearConfig['workPhotos']> = isObject(config.workPhotos) ? config.workPhotos : {}
   // 作品写真のページ数の上限：空（null）は上限なし。入れるなら1以上の整数
   if (!(photos.maxPages === null || photos.maxPages === undefined || (isNumber(photos.maxPages) && Number.isInteger(photos.maxPages) && photos.maxPages > 0)))
@@ -295,6 +320,8 @@ export function repairConfig(config: YearConfig): YearConfig {
   // 作品写真：前の版の設定の枚数の上限（maxImages）は使わない。ページ数の上限がない・崩れているときは、上限なし（mockups/v38：依頼者の判断）
   const maxPages: unknown = isObject(config.workPhotos) ? config.workPhotos.maxPages : undefined
   repaired.workPhotos = { maxPages: isNumber(maxPages) && Number.isInteger(maxPages) && maxPages > 0 ? maxPages : null }
+  // ページの余白：崩れている・範囲の外なら、はじめの値（上下 25mm・左右 30mm）で組む
+  if (marginsProblem(config.margins, isObject(config.abstract) ? config.abstract.maxLines : undefined)) delete repaired.margins
   if (wordChecks) repaired.wordChecks = wordChecks
   else delete repaired.wordChecks
   return repaired

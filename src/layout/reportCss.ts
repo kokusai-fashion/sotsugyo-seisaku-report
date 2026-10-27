@@ -1,19 +1,26 @@
+import { pageMargins, textHeightMm, textWidthMm, type PageMargins } from './pageGeometry'
+
 /**
- * 本文ページの組版 CSS。手順書の書式をここで固定する。
- * - A4、余白 上下右25mm・左35mm
- * - 11pt、1行38字（字間で調整）、1ページ38行（行送り18.4pt）
+ * 本文ページの組版 CSS。手順書の書式をここで決める。
+ * - A4、余白は年度の設定（はじめは 上下25mm・左右30mm。layout/pageGeometry.ts。手順書は 上・下・右25mm、左35mm）
+ * - 11pt、1行38字（字間で調整）、1ページ38行（行送りで調整。上下25mm のとき 18.4pt）。余白を変えても38字×38行のまま
  * - 禁則（行頭の小書き仮名・長音を禁止）、句読点のぶら下げ、和欧間のすき間（Word の既定に合わせる）
  */
 
 export const FONT_SIZE_PT = 11
 const CHARS_PER_LINE = 38
-const TEXT_WIDTH_MM = 210 - 35 - 25
 const MM_TO_PT = 72 / 25.4
-/** 38字ちょうどで1行が埋まる字間。丸め誤差で37字に落ちないよう、わずかに切り捨てる */
-export const LETTER_SPACING_PT =
-  Math.floor(((TEXT_WIDTH_MM * MM_TO_PT - CHARS_PER_LINE * FONT_SIZE_PT) / CHARS_PER_LINE) * 1000) / 1000
-/** Word テンプレートの行送り（368twip） */
-export const LINE_PITCH_PT = 18.4
+/** Word テンプレートの行送り（368twip）。上下25mm（本文の高さ 247mm）のとき */
+const WORD_LINE_PITCH_PT = 18.4
+
+/** chars 字ちょうどで、widthMm の1行が埋まる字間（pt）。丸め誤差で1字少なく落ちないよう、わずかに切り捨てる */
+export function fillSpacingPt(widthMm: number, chars: number, fontPt: number): number {
+  return Math.floor(((widthMm * MM_TO_PT - chars * fontPt) / chars) * 1000) / 1000
+}
+/** 本文の字間（38字ちょうどで1行が埋まる。左右30mm・25mm＋35mm のとき 0.189pt） */
+export const letterSpacingPt = (m: PageMargins = pageMargins()) => fillSpacingPt(textWidthMm(m), CHARS_PER_LINE, FONT_SIZE_PT)
+/** 本文の行送り（38行ちょうどで本文の領域が埋まる。上下25mm のとき Word のひな形と同じ 18.4pt） */
+export const linePitchPt = (m: PageMargins = pageMargins()) => Math.round(((WORD_LINE_PITCH_PT * textHeightMm(m)) / 247) * 1000) / 1000
 /**
  * 表の行の高さ「写真が入る高さ」の、見出しの行のほかの行の高さ（mm）。映画・舞台衣装デザイナーコースの Word の素材表の行（1957twip）と同じ。
  * 見出しの行と6行で、ページの大部分を使う枠になる（依頼者の選択 2026-10-22 案A）
@@ -22,10 +29,14 @@ export const PHOTO_ROW_MM = 34.5
 /** その行のセルの画像の高さの上限（mm）。行の高さから、セルの上下の余白（2pt ずつ）・画像の下の余白（1mm）・枠線の分を引いて、少しゆとりを残す */
 export const PHOTO_IMAGE_MM = 31
 
-export const reportCss = `
+/** 本文ページの組版 CSS（余白 m で。省略はいまの余白） */
+export function reportCss(m: PageMargins = pageMargins()): string {
+  const LINE_PITCH_PT = linePitchPt(m)
+  const LETTER_SPACING_PT = letterSpacingPt(m)
+  return `
 @page {
   size: A4;
-  margin: 25mm 25mm 25mm 35mm;
+  margin: ${m.top}mm ${m.side}mm ${m.bottom}mm;
   @bottom-center {
     content: counter(page);
     font-family: 'BIZ UDMincho', serif;
@@ -260,3 +271,4 @@ figcaption,
   object-fit: cover;
 }
 `
+}

@@ -4,16 +4,19 @@
  * 表紙はテンプレートの「指定のフォーマットにそのまま入力する」に従い、要素を決まった位置に置く。
  */
 import { PHOTO_ARRANGEMENTS } from '../model/photos'
-import { FONT_SIZE_PT, LETTER_SPACING_PT, LINE_PITCH_PT, reportCss } from './reportCss'
-
-const MM_TO_PT = 72 / 25.4
+import { pageMargins, textHeightMm, textWidthMm, type PageMargins } from './pageGeometry'
+import { fillSpacingPt, FONT_SIZE_PT, letterSpacingPt, linePitchPt, reportCss } from './reportCss'
 
 /** 抄録：10.5pt、横40字、行送り23pt（手順書・テンプレート） */
 export const ABSTRACT_FONT_PT = 10.5
 export const ABSTRACT_LINE_PITCH_PT = 23
 export const ABSTRACT_CHARS_PER_LINE = 40
-const ABSTRACT_LETTER_SPACING_PT =
-  Math.floor(((150 * MM_TO_PT - ABSTRACT_CHARS_PER_LINE * ABSTRACT_FONT_PT) / ABSTRACT_CHARS_PER_LINE) * 1000) / 1000
+/** 抄録の上部（見出し・学籍番号・題目・サブタイトル）の高さ（mm） */
+const ABSTRACT_HEAD_MM = 51
+/** 抄録の本文が1ページに入る行数（余白 m で。上下の余白を大きくしたとき、抄録の最多の行数が入るかを確かめる：config/validate.ts） */
+export function abstractLineCapacity(m: PageMargins): number {
+  return Math.floor((((textHeightMm(m) - ABSTRACT_HEAD_MM) * 72) / 25.4) / ABSTRACT_LINE_PITCH_PT)
+}
 
 /** 作品写真のページ：ふちなし（紙の端まで写真）、写真の間は細い白い線（mockups/v11 案A） */
 export const PHOTO_GAP_MM = 1.5
@@ -21,8 +24,14 @@ export const PHOTO_GAP_MM = 1.5
 const COVER_FONT = `'BIZ UDPGothic', sans-serif`
 const MINCHO = `'BIZ UDMincho', serif`
 
-export const documentCss = `
-${reportCss}
+/** 報告書全体の組版 CSS（本文・抄録・目次の余白 m で。省略はいまの余白） */
+export function documentCss(m: PageMargins = pageMargins()): string {
+  const LINE_PITCH_PT = linePitchPt(m)
+  const TEXT_WIDTH_MM = textWidthMm(m)
+  /** 抄録の字間（40字ちょうどで1行が埋まる） */
+  const ABSTRACT_LETTER_SPACING_PT = fillSpacingPt(TEXT_WIDTH_MM, ABSTRACT_CHARS_PER_LINE, ABSTRACT_FONT_PT)
+  return `
+${reportCss(m)}
 
 /* ---- ページの種類 ---- */
 @page cover { margin: 20mm; @bottom-center { content: none; } }
@@ -68,10 +77,10 @@ section.body { counter-reset: page 1; }
 
 /* ---- 抄録（10.5pt、横40字、行送り23pt。上部はテンプレートの配置） ---- */
 .abstract { font-family: ${MINCHO}; }
-.abstract .head { position: relative; height: 51mm; letter-spacing: 0; text-indent: 0; line-height: 1; }
+.abstract .head { position: relative; height: ${ABSTRACT_HEAD_MM}mm; letter-spacing: 0; text-indent: 0; line-height: 1; }
 .abstract .head .el { position: absolute; white-space: nowrap; }
-.abstract .head .h { top: 2.15mm; left: 0; width: 150mm; text-align: center; font-size: 14pt; }
-.abstract .head .row { left: 0; width: 150mm; font-size: 10pt; }
+.abstract .head .h { top: 2.15mm; left: 0; width: ${TEXT_WIDTH_MM}mm; text-align: center; font-size: 14pt; }
+.abstract .head .row { left: 0; width: ${TEXT_WIDTH_MM}mm; font-size: 10pt; }
 .abstract .head .row2 { top: 11.4mm; display: flex; justify-content: space-between; border-bottom: 0.75pt solid #000; padding-bottom: 1.2mm; }
 .abstract .head .row2 .course-part { padding-right: 3.6mm; }
 /* 学籍番号・氏名（左）と指導教員（右）を1行に。文字の大きさは長さに合わせて document.ts が決める */
@@ -93,7 +102,7 @@ section.body { counter-reset: page 1; }
 }
 
 /* ---- 目次（11pt。大見出しにリーダーとページ番号、小見出しは字下げのみ） ---- */
-.toc { font-family: ${MINCHO}; text-indent: 0; letter-spacing: 0.189pt; }
+.toc { font-family: ${MINCHO}; text-indent: 0; letter-spacing: ${letterSpacingPt(m)}pt; }
 .toc .toc-title { margin-bottom: ${LINE_PITCH_PT}pt; }
 .toc .toc-ch { display: flex; align-items: baseline; }
 .toc .toc-ch .leader { flex: 1; overflow: hidden; white-space: nowrap; margin: 0 1pt; }
@@ -116,5 +125,6 @@ ${PHOTO_ARRANGEMENTS.map((a) => `.photos.grid-${a.columns}x${a.rows} { grid-temp
 /* 「全体を入れる（切らない）」にした写真：枠の中に全体を入れ、真ん中に置く（まわりはページの白。mockups/v32 ③ 案A） */
 .photos .slot.whole img { object-fit: contain; object-position: 50% 50%; }
 `
+}
 
-export { FONT_SIZE_PT, LETTER_SPACING_PT, LINE_PITCH_PT }
+export { FONT_SIZE_PT }

@@ -3,7 +3,7 @@ import type { TemplateBlock, YearConfig } from '../config'
 import { bodyContentHtml } from '../layout/bodyHtml'
 import { abstractHtml, coverHtml } from '../layout/document'
 import { documentCss } from '../layout/documentCss'
-import { reportCss } from '../layout/reportCss'
+import { marginsOf, pageMargins, setPageMargins, textHeightMm, textWidthMm, type PageMargins } from '../layout/pageGeometry'
 import { bodyFromTemplate } from '../model/template'
 import { DATA_FORMAT_VERSION, type Report } from '../model/types'
 import { Icon } from '../app/icons'
@@ -51,15 +51,16 @@ const GAP = 16
 const PITCH = PAGE_W + GAP
 const PAD = 16
 
-const PREVIEW_CSS = `
+/** 見本の CSS（本文・抄録の余白 m で） */
+const previewCss = (m: PageMargins) => `
 html, body { margin: 0; overflow: hidden; background: #eef0f3; }
 body { letter-spacing: 0; text-align: left; }
 .strip { position: relative; width: ${PITCH * 2 - GAP}px; height: ${PAGE_H}px; margin: ${PAD}px; transform-origin: 0 0; clip-path: inset(-12px -8px); }
 .rail { position: absolute; left: 0; top: 0; height: ${PAGE_H}px; transition: transform 0.2s ease; }
 .page, .sheet { position: absolute; top: 0; width: 210mm; height: 297mm; box-sizing: border-box; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.15); overflow: hidden; }
 .page.cover-page { left: 0; padding: 20mm; }
-.page.abstract-page { left: ${PITCH}px; padding: 25mm 25mm 25mm 35mm; }
-.sheet .no { position: absolute; left: 0; right: 0; top: calc(297mm - 15mm); text-align: center; font-family: 'BIZ UDMincho', serif; font-size: 11pt; }
+.page.abstract-page { left: ${PITCH}px; padding: ${m.top}mm ${m.side}mm ${m.bottom}mm; }
+.sheet .no { position: absolute; left: 0; right: 0; top: calc(297mm - ${m.bottom - 10}mm); text-align: center; font-family: 'BIZ UDMincho', serif; font-size: 11pt; }
 [data-block-id]:empty::before { content: attr(data-placeholder); color: #9aa1ad; }
 [data-block-id="basic:subtitleInput"]:empty::before { content: '（学生の入力）'; }
 .abstract .body p { color: #9aa1ad; }
@@ -67,8 +68,8 @@ body { letter-spacing: 0; text-align: left; }
 /* 年度設定から入る部分 */
 .cover .year, .cover .heading, .cover .label, .cover .title, .cover .department, .cover .course, .cover .university,
 .abstract .head .h, .abstract .head .row2, .abstract .head .row3 .advisors, .abstract .head .title { background: #fff3b0; }
-/* 本文：段組みの1段が1ページの本文の領域（幅 150mm・高さ 247mm）。段の間は、ページの左右の余白とページの間 */
-.flow { position: absolute; left: calc(${PITCH * 2}px + 35mm); top: 25mm; width: 150mm; height: 247mm; column-width: 150mm; column-gap: calc(60mm + ${GAP}px); column-fill: auto; }
+/* 本文：段組みの1段が1ページの本文の領域（はじめは幅 150mm・高さ 247mm）。段の間は、ページの左右の余白とページの間 */
+.flow { position: absolute; left: calc(${PITCH * 2}px + ${m.side}mm); top: ${m.top}mm; width: ${textWidthMm(m)}mm; height: ${textHeightMm(m)}mm; column-width: ${textWidthMm(m)}mm; column-gap: calc(${m.side * 2}mm + ${GAP}px); column-fill: auto; }
 .flow h1.chapter:not(:first-child) { break-before: column; }
 .flow .page-break:not(.end) { break-after: column; }
 .flow .page-break { position: relative; }
@@ -112,12 +113,15 @@ export function Preview({ config, courseId, template, startAtBody = false }: { c
   const scale = box.width ? Math.min(0.75, Math.max(0.2, Math.min(byWidth, byHeight))) : 0.5
 
   const srcDoc = useMemo(() => {
+    // 本文・抄録の余白は、見せている設定のもの（図を横に並べる大きさ・前の作り方の見本も、この余白で：layout/pageGeometry.ts）
+    const margins = marginsOf(config)
+    setPageMargins(margins)
     const report = sampleReport(config, courseId)
     const chapters = bodyFromTemplate(template.some((b) => b.type === 'chapter') ? template : [])
     const body = bodyContentHtml(chapters, { imageSrc: () => '', figureSize: () => ({ widthMm: 60, heightMm: 45 }) })
     return `<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDMincho&family=BIZ+UDPGothic&display=swap">
-<style>${documentCss}${reportCss}${PREVIEW_CSS}</style></head>
+<style>${documentCss(margins)}${previewCss(margins)}</style></head>
 <body><div class="strip"><div class="rail"><div class="page cover-page">${coverHtml(report, config)}</div><div class="page abstract-page">${abstractHtml(report, config)}</div><div class="sheets"></div><div class="flow"><section class="body">${body}</section></div></div></div></body></html>`
   }, [config, courseId, template])
 
@@ -127,13 +131,16 @@ export function Preview({ config, courseId, template, startAtBody = false }: { c
     const flow = doc?.querySelector<HTMLElement>('.flow')
     const sheets = doc?.querySelector<HTMLElement>('.sheets')
     if (!doc || !flow || !sheets) return
-    const count = Math.max(1, Math.round((flow.scrollWidth + 60 * MM + GAP) / PITCH))
+    const count = Math.max(1, Math.round((flow.scrollWidth + pageMargins().side * 2 * MM + GAP) / PITCH))
     sheets.innerHTML = Array.from({ length: count }, (_, i) => `<div class="sheet" style="left:${PITCH * (2 + i)}px"><span class="no">${i + 1}</span></div>`).join('')
     setBodyPages(count)
   }, [])
+  /** 見本を読み込み直した回数（読み込み直すと、倍率と見開きが外れるので、当て直す。ページの数が変わらないと描き直さず、紙が大きいままだった） */
+  const [, setLoads] = useState(0)
   const onLoad = useCallback(() => {
     const doc = frame.current?.contentDocument
     measure()
+    setLoads((n) => n + 1)
     void doc?.fonts?.ready.then(measure)
   }, [measure])
 

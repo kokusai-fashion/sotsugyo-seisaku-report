@@ -8,6 +8,7 @@ import type { LayoutInfo } from '../layout/measure'
 import { createReport } from '../model/newReport'
 import type { Report } from '../model/types'
 import { templateFindings } from './docxSettings'
+import { marginsOf } from '../layout/pageGeometry'
 import { idAndName, type CheckFinding, type PartId } from './parts'
 import { abstractParagraphs, blockLines, bodyHeadings, findCourseId, headingDifference, sniffWordBlocks, sniffWordStrict, tocHeadings } from './wordParts'
 import { countOf } from '../checker/progress'
@@ -150,7 +151,7 @@ export async function readWord(inputs: WordInputs, config: YearConfig): Promise<
     const pkg = packages[part]
     if (!pkg || errors[part]) continue
     const isAbstractBody = (text: string) => abstractTexts.has(text.replace(/[\s　]/g, ''))
-    extra.push(...templateFindings(part, pkg.document, pkg.styles, isAbstractBody))
+    extra.push(...templateFindings(part, pkg.document, pkg.styles, isAbstractBody, marginsOf(config)))
   }
   // 目次の見出しと、本文の見出し
   if (packages.toc && packages.body && !errors.body) {

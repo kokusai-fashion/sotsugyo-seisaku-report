@@ -1,6 +1,7 @@
 import type { Chapter } from '../model/types'
 import { measureFloatLayout, type Placed } from './figureFloat'
-import { LINE_PITCH_PT } from './reportCss'
+import { contentBottomMm, textWidthMm } from './pageGeometry'
+import { linePitchPt } from './reportCss'
 
 /**
  * 改ページ・章の終わりの直前の図を、下の空きに合わせて自動で大きくする（mockups/v61・v62 案B。依頼者の選択 2026-10-26）。
@@ -16,12 +17,9 @@ import { LINE_PITCH_PT } from './reportCss'
  * そこで、決めたときのページと違うページにあれば、いったん元の大きさに戻して決め直す（それでもまた移れば、この組み直しの間は大きくしない）
  */
 
-const PAGE_HEIGHT_MM = 297
-/** 本文の領域の下端（A4 の下の余白 25mm） */
-const CONTENT_BOTTOM_MM = PAGE_HEIGHT_MM - 25
-const LINE_MM = (LINE_PITCH_PT * 25.4) / 72
-/** 本文の幅・横に並べる図の間のすき間（bodyHtml.ts と同じ） */
-const TEXT_WIDTH_MM = 150
+/** 1行の高さ（mm。本文の領域の下端・本文の幅とともに、いまの余白から：pageGeometry.ts） */
+const lineMm = () => (linePitchPt() * 25.4) / 72
+/** 横に並べる図の間のすき間（bodyHtml.ts と同じ） */
 const FIGURE_GAP_MM = 8
 /** 大きくしても、図の縦はここまで */
 const MAX_HEIGHT_MM = 120
@@ -76,7 +74,7 @@ export function decideFigureGrowth(layout: GrowLayout, chapters: Chapter[], defe
         return
       }
       // 大きくしたまま、決めたときと別のページへ移った・はみ出した：元の大きさに戻して決め直す（2回目は、もう大きくしない）
-      if (was && (was.page !== place.page || place.bottom > CONTENT_BOTTOM_MM)) {
+      if (was && (was.page !== place.page || place.bottom > contentBottomMm())) {
         if (reset.has(block.id)) blocked.add(block.id)
         else reset.add(block.id)
         return
@@ -86,9 +84,9 @@ export function decideFigureGrowth(layout: GrowLayout, chapters: Chapter[], defe
       // いまの図の高さ（段ごとのいちばん高い図の合計）と、倍率 1 のときの大きさ
       const heights = rows.map((r) => Math.max(...r.map((s) => s.heightMm)))
       const imagesHeight = heights.reduce((a, b) => a + b, 0)
-      const room = CONTENT_BOTTOM_MM - LINE_MM - place.bottom
+      const room = contentBottomMm() - lineMm() - place.bottom
       const bySpace = (current * (imagesHeight + room)) / imagesHeight
-      const byWidth = Math.min(...rows.map((r) => (current * (TEXT_WIDTH_MM - FIGURE_GAP_MM * (r.length - 1))) / r.reduce((a, s) => a + s.widthMm, 0)))
+      const byWidth = Math.min(...rows.map((r) => (current * (textWidthMm() - FIGURE_GAP_MM * (r.length - 1))) / r.reduce((a, s) => a + s.widthMm, 0)))
       const byHeight = (current * MAX_HEIGHT_MM) / Math.max(...heights)
       const scale = Math.floor(Math.min(bySpace, byWidth, byHeight) * 100) / 100
       if (scale < MIN_GROW) return

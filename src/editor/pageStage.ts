@@ -10,9 +10,6 @@
 /** A4 の大きさ（CSS の px） */
 export const PAGE_W = 793.7
 export const PAGE_H = 1122.52
-/** 本文の版面（左の余白 35mm・右の余白 25mm の内側。足したばかりの欄を、紙面に出る前に仮に置くときにも使う：reportEditor.ts） */
-export const TEXT_LEFT = 132.3
-export const TEXT_W = 566.9
 const MAX_ZOOM = 1.4
 /** パソコンの1ページの表示の左右の余白（index.css の .stage の --inset-side。道具と ‹ › の分）。台が狭いか（narrow・tight）を、この余白で決める */
 const ROOMY_SIDE = 185
@@ -170,6 +167,9 @@ export class PageStage {
     const side = this.inset('--inset-side', 180)
     // スマホで拡大するときは、余白を外して本文の幅を画面の幅に合わせる（--zoom-to-text: 1）
     const toText = this.zoomed && this.inset('--zoom-to-text', 0) === 1
+    // 本文の版面（左右の余白の内側。いまの余白から：layout/pageGeometry.ts）
+    const TEXT_LEFT = textLeftPx()
+    const TEXT_W = textWidthPx()
     const byWidth = (w - side * 2) / (toText ? TEXT_W : PAGE_W)
     this.textScale = (w - side * 2) / TEXT_W
     // 指で広げた倍率（スマホ）：紙面の左の端を台の左の端に（台より狭ければ真ん中に）置き、横の位置はスクロールで決める
@@ -210,4 +210,5 @@ export class PageStage {
     this.scale = scale
     this.onChange()
   }
-}
+}import { textLeftPx, textWidthPx } from '../layout/pageGeometry'
+

@@ -13,6 +13,13 @@ export interface WordCheck {
   severity: 'error' | 'warning'
 }
 
+/** ページの余白（mm）。side は左と右（同じ） */
+export interface PageMargins {
+  top: number
+  bottom: number
+  side: number
+}
+
 export interface YearConfig {
   fiscalYear: number
   /** 書き間違えやすい語の一覧。省略したら、ツールに入っている一覧（DEFAULT_WORD_CHECKS）を使う */
@@ -51,6 +58,11 @@ export interface YearConfig {
      */
     maxPages: number | null
   }
+  /**
+   * 本文・抄録・目次のページの余白（mm。左右は同じ）。省略は 上下 25mm・左右 30mm（layout/pageGeometry.ts。依頼者の判断 2026-10-27：mockups/v69）。
+   * 変えても 1ページ38字×38行のまま（字の間と行の間で合わせる）
+   */
+  margins?: PageMargins
   /** 学籍番号の形式（正規表現）。未確定の間は null とし、形式チェックを行わない */
   studentIdPattern: string | null
   courses: Course[]

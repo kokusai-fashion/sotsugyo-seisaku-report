@@ -4,6 +4,7 @@ import { useDialogFocus } from '../app/useDialogFocus'
 import type { Course, TemplateBlock, YearConfig } from '../config'
 import { LIMITS, templateRowName, tooLong } from '../config/validate'
 import { bodyContentHtml } from '../layout/bodyHtml'
+import { pageMargins, type PageMargins } from '../layout/pageGeometry'
 import { reportCss } from '../layout/reportCss'
 import { bodyFromTemplate, DEFAULT_TEMPLATE } from '../model/template'
 import { useConfirm } from './confirm'
@@ -93,9 +94,10 @@ const NEW_BLOCKS: Record<TemplateBlock['type'], TemplateBlock> = {
   table: { type: 'table', caption: '', header: ['', ''] },
 }
 
-const PREVIEW_CSS = `
+/** 見本の CSS（本文の余白 m で） */
+const previewCss = (m: PageMargins) => `
 body { margin: 0; padding: 14px; background: #eef0f3; }
-.page { width: 210mm; min-height: 297mm; box-sizing: border-box; margin: 0 auto; padding: 25mm 25mm 25mm 35mm; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+.page { width: 210mm; min-height: 297mm; box-sizing: border-box; margin: 0 auto; padding: ${m.top}mm ${m.side}mm ${m.bottom}mm; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
 ${TEMPLATE_CONTENT_CSS}
 h1.chapter:not(:first-child) { margin-top: 2em; }
 .page-break { position: relative; height: 9mm; }
@@ -117,7 +119,7 @@ export function TemplatePreview({ blocks }: { blocks: TemplateBlock[] }) {
     const body = bodyContentHtml(chapters, { imageSrc: () => '', figureSize: () => ({ widthMm: 60, heightMm: 45 }) })
     return `<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDMincho&family=BIZ+UDPGothic&display=swap">
-<style>${reportCss}${PREVIEW_CSS} body { zoom: ${zoom}; }</style></head>
+<style>${reportCss()}${previewCss(pageMargins())} body { zoom: ${zoom}; }</style></head>
 <body><div class="page"><section class="body">${body}</section></div></body></html>`
   }, [blocks, zoom])
   return (

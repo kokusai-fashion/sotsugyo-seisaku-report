@@ -1,3 +1,4 @@
+import { marginsOf, setPageMargins } from '../layout/pageGeometry'
 import type { YearConfig } from '../config'
 import type { FigureSize } from '../layout/bodyHtml'
 import { buildReportParts, COVER_SUBTITLE, fitLineFontPt, OVERFLOW_RATIO, partList, refitLineFontPt, subtitleLine } from '../layout/document'
@@ -199,6 +200,8 @@ export class ReportRenderer {
    * stale：組んでいる途中で原稿がまた変わったか（変わっていたら、組み直しの回の区切りでやめる）
    */
   async renderBack(report: Report, config: YearConfig, sources: ImageSources, stale: () => boolean = () => false, first?: FirstShow): Promise<RenderResult> {
+    // 組む報告書の余白（図の置き方・図を大きくする・改ページの空きの測り方が読む：layout/pageGeometry.ts）
+    setPageMargins(marginsOf(config))
     const front = this.buffers[this.frontIndex]
     const back = this.buffers[1 - this.frontIndex]
     const groupIds = new Set(report.body.flatMap((c) => c.blocks).filter((b) => b.type === 'figureRow').map((b) => b.id))

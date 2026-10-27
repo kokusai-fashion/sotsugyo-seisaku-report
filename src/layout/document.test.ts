@@ -134,8 +134,8 @@ describe('作品写真の「全体を入れる（切らない）」（mockups/v3
   })
 
   it('組版の CSS：切り抜くのは object-fit: cover、全体を入れるのは contain（画面と PDF で同じ）', () => {
-    expect(documentCss).toContain('.photos .slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }')
-    expect(documentCss).toMatch(/\.photos \.slot\.whole img \{ object-fit: contain;/)
+    expect(documentCss()).toContain('.photos .slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }')
+    expect(documentCss()).toMatch(/\.photos \.slot\.whole img \{ object-fit: contain;/)
   })
 })
 
@@ -203,8 +203,8 @@ describe('作品写真の何ページか（mockups/v38 案A）', () => {
   })
 
   it('組版の CSS に、6枚の並べ方（2×3・3×2）はない', () => {
-    expect(documentCss).not.toContain('grid-2x3')
-    expect(documentCss).not.toContain('grid-3x2')
+    expect(documentCss()).not.toContain('grid-2x3')
+    expect(documentCss()).not.toContain('grid-3x2')
   })
 })
 

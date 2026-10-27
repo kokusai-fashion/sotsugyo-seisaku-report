@@ -2,13 +2,17 @@ import { isPlaceholderOnly, parseCaptionLine } from '../import/wordImport'
 import { headingFromText } from '../model/headingText'
 import { attr, child, elements, is } from '../import/wordDocument'
 import type { CheckFinding, PartId } from './parts'
+import type { PageMargins } from '../config'
+import { DEFAULT_MARGINS, textHeightMm, textWidthMm } from '../layout/pageGeometry'
 
 /**
  * 提出前チェック：Word のページ設定が、学科のひな形のままか（手順書「ページ設定・文字数・文字の大きさについて」）。
  * - 余白（w:pgMar）：本文・抄録・目次は 上・下・右 25mm、左 35mm。表紙のひな形は 上下左右 25mm
  * - 文字数と行数（w:docGrid）：「文字数と行数を指定する」と、ひな形の行送り（linePitch）・字送り（charSpace）
  * - 文字の大きさ：本文は 11pt、抄録の本文は 10.5pt（本文の段落の、いちばん多い大きさで見る）
- * 値は、学科のひな形（01_表紙.docx〜04_本文.docx の w:sectPr とスタイル）から写したもの。ずれは ±1mm まで見逃す
+ * 値は、学科のひな形（01_表紙.docx〜04_本文.docx の w:sectPr とスタイル）から写したもの。ずれは ±1mm まで見逃す。
+ * 本文・抄録・目次の余白と文字数と行数は、年度の設定の「ページの余白」（はじめは 上下25mm・左右30mm。依頼者の判断 2026-10-27：
+ * データ提出で綴じ代が要らない）でもよい。学科の Word のひな形（左35mm）で書いた人を、指摘しないように両方を認める
  */
 
 type WordPart = Exclude<PartId, 'photo'>
@@ -36,6 +40,22 @@ const PITCH_TOLERANCE = 4
 const CHAR_SPACE_TOLERANCE = 120
 
 const toMm = (twip: number) => Math.round(twip / 56.7)
+const toTwip = (mm: number) => Math.round(mm * 56.7)
+
+/** 年度の設定の余白にしたときの、上・右・下・左（twip）と文字数と行数（38字×38行・抄録は40字のまま。字送り・行送りは余白から） */
+function marginTemplate(part: Exclude<WordPart, 'cover'>, m: PageMargins): Template {
+  const base = TEMPLATES[part]
+  const grid = base.grid
+  // 字送り：1字の幅（行の長さ ÷ 字数）と、字の大きさの差（1/4096pt）。行送り：38行（抄録はひな形の行送りのまま）
+  const fontPt = (base.fontHalfPt ?? 22) / 2
+  const charSpace = grid ? Math.round((((textWidthMm(m) * 72) / 25.4 / grid.chars) - fontPt) * 4096) : 0
+  const linePitch = grid ? (part === 'abstract' ? grid.linePitch : Math.round((grid.linePitch * textHeightMm(m)) / 247)) : 0
+  return { ...base, margins: [toTwip(m.top), toTwip(m.side), toTwip(m.bottom), toTwip(m.side)], grid: grid && { ...grid, charSpace, linePitch } }
+}
+/** 余白の言い方（例：上下 25mm・左右 30mm） */
+function marginsText(m: PageMargins): string {
+  return `${m.top === m.bottom ? `上下 ${m.top}mm` : `上 ${m.top}mm・下 ${m.bottom}mm`}・左右 ${m.side}mm`
+}
 const SIDES = ['上', '右', '下', '左'] as const
 
 /** 本文の w:sectPr（区切りごとに1つ。最後のものは w:body の直下、ほかは段落の w:pPr の中） */
@@ -161,8 +181,10 @@ const pt = (halfPt: number) => `${halfPt / 2}`.replace(/\.0$/, '')
  * ひな形のページ設定と違うところ（エラー・手順書）。document・styles は Word の中の XML（wordPackage.ts で開いたもの）。
  * abstractBody：抄録の本文の段落か（抄録は、上の決まった行が 10pt なので、本文の段落だけで大きさを見る）
  */
-export function templateFindings(part: WordPart, document: Document, styles: Document | null, abstractBody?: (text: string) => boolean): CheckFinding[] {
+export function templateFindings(part: WordPart, document: Document, styles: Document | null, abstractBody?: (text: string) => boolean, margins: PageMargins = DEFAULT_MARGINS): CheckFinding[] {
   const template = TEMPLATES[part]
+  // 年度の設定の余白にしたもの（表紙はひな形のまま）
+  const setting = part === 'cover' ? null : marginTemplate(part, margins)
   const out: CheckFinding[] = []
   const add = (ruleId: string, title: string, detail: string) => out.push({ id: `docx:${part}:${ruleId}`, ruleId, part, severity: 'error', source: 'guide', title, detail })
   const list = sections(document)
@@ -171,22 +193,28 @@ export function templateFindings(part: WordPart, document: Document, styles: Doc
   for (const sect of list) {
     const pgMar = child(sect, 'w', 'pgMar')
     const values = [num(pgMar, 'top'), num(pgMar, 'right'), num(pgMar, 'bottom'), num(pgMar, 'left')]
+    // 上下の余白は、ヘッダー・フッターに合わせて負の値（固定）にすることがあるので、大きさで比べる
+    const fits = (want: Template) => values.every((v, i) => v !== null && Math.abs(Math.abs(v) - want.margins[i]) <= MARGIN_TOLERANCE)
+    if (fits(template) || (setting && fits(setting))) continue
+    // 違うところは、年度の設定の余白と比べて出す（表紙はひな形と）
+    const want = setting ?? template
     values.forEach((v, i) => {
-      // 上下の余白は、ヘッダー・フッターに合わせて負の値（固定）にすることがあるので、大きさで比べる
-      if ((v === null || Math.abs(Math.abs(v) - template.margins[i]) > MARGIN_TOLERANCE) && !wrong.has(SIDES[i])) wrong.set(SIDES[i], v === null ? NaN : Math.abs(v))
+      if ((v === null || Math.abs(Math.abs(v) - want.margins[i]) > MARGIN_TOLERANCE) && !wrong.has(SIDES[i])) wrong.set(SIDES[i], v === null ? NaN : Math.abs(v))
     })
   }
   if (list.length && wrong.size) {
-    const want = part === 'cover' ? '上下左右 25mm' : '上・下・右 25mm、左 35mm'
     const now = [...wrong.entries()].map(([side, v]) => `${side} ${Number.isNaN(v) ? '（なし）' : `${toMm(v)}mm`}`).join('・')
-    add('template-margins', `余白は、ひな形のまま（${want}）にする`, `今は ${now}。Word の「レイアウト → ページ設定」の「余白」で直す`)
+    if (part === 'cover') add('template-margins', '余白は、ひな形のまま（上下左右 25mm）にする', `今は ${now}。Word の「レイアウト → ページ設定」の「余白」で直す`)
+    else add('template-margins', `余白は、${marginsText(margins)}にする`, `今は ${now}。Word の「レイアウト → ページ設定」の「余白」で直す（学科の Word のひな形の 上・下・右 25mm、左 35mm のままでもよい）`)
   }
   // 文字数と行数
   const grid = template.grid
   if (grid && list.length) {
+    // ひな形のまま、または年度の設定の余白に合わせた字送り・行送り
+    const grids = [grid, ...(setting?.grid ? [setting.grid] : [])]
     const ok = list.every((sect) => {
       const g = child(sect, 'w', 'docGrid')
-      return attr(g, 'type') === 'linesAndChars' && Math.abs((num(g, 'linePitch') ?? 0) - grid.linePitch) <= PITCH_TOLERANCE && Math.abs((num(g, 'charSpace') ?? 0) - grid.charSpace) <= CHAR_SPACE_TOLERANCE
+      return attr(g, 'type') === 'linesAndChars' && grids.some((want) => Math.abs((num(g, 'linePitch') ?? 0) - want.linePitch) <= PITCH_TOLERANCE && Math.abs((num(g, 'charSpace') ?? 0) - want.charSpace) <= CHAR_SPACE_TOLERANCE)
     })
     if (!ok)
       add(

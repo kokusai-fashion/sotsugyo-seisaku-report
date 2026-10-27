@@ -3,6 +3,7 @@ import type { Reference, Report } from '../model/types'
 import { photoGrid, shownPhotos } from '../model/photos'
 import { bodyContentHtml, chapterHtmls, chapterLabel, chapterSentinelHtml, escapeHtml, subheadingLabel, type BodyRenderOptions } from './bodyHtml'
 import { documentCss } from './documentCss'
+import { marginsOf, textWidthMm } from './pageGeometry'
 
 /**
  * 報告書全体の HTML 文書を作る。ページ順は手順書どおり：
@@ -94,7 +95,7 @@ export function coverHtml(report: Report, config: YearConfig, options: Pick<Docu
 </section>`
 }
 
-/** 抄録の見出しの1行（学籍番号・氏名と指導教員）の幅。本文の幅 150mm に収まる文字の大きさを選ぶ */
+/** 抄録の見出しの1行（学籍番号・氏名と指導教員）の幅。本文の幅（はじめは 150mm）に収まる文字の大きさを選ぶ */
 const ABSTRACT_ROW_WIDTH_MM = 150
 const PT_TO_MM = 25.4 / 72
 const ABSTRACT_ROW_SIZES_PT = [10, 9.5, 9, 8.5, 8]
@@ -105,9 +106,9 @@ export function textUnits(text: string): number {
 }
 
 /** 左右に振り分けた2つの文字列が1行に収まる文字の大きさ（pt）。間に全角2字分のすき間を空ける */
-export function abstractRowFontPt(left: string, right: string): number {
+export function abstractRowFontPt(left: string, right: string, widthMm = ABSTRACT_ROW_WIDTH_MM): number {
   const units = textUnits(left) + textUnits(right) + 2
-  return ABSTRACT_ROW_SIZES_PT.find((pt) => units * pt * PT_TO_MM <= ABSTRACT_ROW_WIDTH_MM) ?? ABSTRACT_ROW_SIZES_PT[ABSTRACT_ROW_SIZES_PT.length - 1]
+  return ABSTRACT_ROW_SIZES_PT.find((pt) => units * pt * PT_TO_MM <= widthMm) ?? ABSTRACT_ROW_SIZES_PT[ABSTRACT_ROW_SIZES_PT.length - 1]
 }
 
 /** 1行の欄：幅（mm）と、文字の大きさのいちばん大きい値・いちばん小さい値（pt） */
@@ -122,7 +123,7 @@ export interface LineBox {
  * 本文の文字（10.5pt）より小さくはしない。それでも入らなければ、セルフチェックのエラーにする
  */
 export const COVER_SUBTITLE: LineBox = { widthMm: 144.2, maxPt: 22, minPt: 11 }
-/** 抄録の見出しのサブタイトル（本文の幅150mm・12pt）。表紙と同じく、1行に入るまで小さくする */
+/** 抄録の見出しのサブタイトル（本文の幅・12pt。幅は余白で変わる：abstractHtml）。表紙と同じく、1行に入るまで小さくする */
 export const ABSTRACT_SUBTITLE: LineBox = { widthMm: 150, maxPt: 12, minPt: 9 }
 /** 文字を小さくする刻み（pt） */
 const FIT_STEP_PT = 0.5
@@ -178,12 +179,13 @@ export function abstractHtml(report: Report, config: YearConfig): string {
   const { basicInfo } = report
   // サブタイトルは、本文の幅の1行に入るまで小さくする（抄録の書体は字の幅がそろっているので、字数から決める）
   const subtitle = subtitleLine(report, config)
-  const subtitlePt = fitLineFontPt(subtitle, ABSTRACT_SUBTITLE)
+  const widthMm = textWidthMm(marginsOf(config))
+  const subtitlePt = fitLineFontPt(subtitle, { ...ABSTRACT_SUBTITLE, widthMm })
   const advisors = course ? course.advisors.join('、') : ''
   // 学籍番号・氏名（左）と指導教員（右）は1行にまとめる。長いときは文字を少し小さくする
   const studentPart = `学籍番号　${basicInfo.studentId}　　氏名　${basicInfo.name}`
   const advisorPart = `（指導教員　${advisors}　）`
-  const rowFontPt = abstractRowFontPt(studentPart, advisorPart)
+  const rowFontPt = abstractRowFontPt(studentPart, advisorPart, widthMm)
   // 書き始めるまでは、抄録の欄に案内と「先生の許可が出た」ボタンを出す（画面だけ。PDF では空欄）
   const locked = report.abstract.started === false
   const paragraphs = locked
@@ -336,7 +338,7 @@ function documentHtml(config: YearConfig, body: string): string {
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(config.reportName)}</title>
-<style>${documentCss}</style>
+<style>${documentCss(marginsOf(config))}</style>
 </head>
 <body>
 ${body}

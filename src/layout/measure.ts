@@ -1,3 +1,4 @@
+import { contentBottomMm, pageMargins } from './pageGeometry'
 import type { Chapter } from '../model/types'
 import { chapterAnchor } from './bodyHtml'
 import { REFERENCES_ANCHOR } from './document'
@@ -51,9 +52,6 @@ export type CoverField = 'studentId' | 'name'
 /** 表紙の欄と、その欄の下線（この幅に入っていればよい） */
 const COVER_FIELD_RULES: Record<CoverField, string> = { studentId: '.cover .rule.id-rule', name: '.cover .rule.name-rule' }
 
-/** 本文の領域（A4 の上下の余白 25mm を除く） */
-const CONTENT_TOP_MM = 25
-const CONTENT_BOTTOM_MM = 297 - 25
 
 function lineCount(element: Element): number {
   const range = document.createRange()
@@ -154,7 +152,10 @@ export function measureLayout(pages: HTMLElement[], chapters: Chapter[]): Layout
       [...page.querySelectorAll<HTMLElement>('.page-break[data-block-id]:not(.end)')].map((el) => {
         const p = page.getBoundingClientRect()
         const top = ((el.getBoundingClientRect().top - p.top) / p.height) * 297
-        const emptyRatio = Math.max(0, Math.min(1, (CONTENT_BOTTOM_MM - top) / (CONTENT_BOTTOM_MM - CONTENT_TOP_MM)))
+        // 本文の領域（上下の余白を除く。いまの余白から：pageGeometry.ts）
+        const { top: contentTop } = pageMargins()
+        const contentBottom = contentBottomMm()
+        const emptyRatio = Math.max(0, Math.min(1, (contentBottom - top) / (contentBottom - contentTop)))
         return { id: el.dataset.blockId!, page: i, emptyRatio }
       }),
     ),

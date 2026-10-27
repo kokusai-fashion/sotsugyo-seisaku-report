@@ -11,12 +11,8 @@
  * 紙面に重ねる層（入力欄と同じ所）に置く、画面だけの部品。紙面の中には入れないので、PDF・印刷には出ず、ページの組み方も変えない
  */
 
-/** A4 の幅と、本文の版面（左の余白 35mm・右の余白 25mm の内側。pageStage.ts と同じ） */
+/** A4 の幅（本文の版面・本文の領域の下端は、いまの余白から：layout/pageGeometry.ts） */
 const PAGE_W = 793.7
-const TEXT_LEFT = 132.3
-const TEXT_W = 566.9
-/** 本文の領域の下端（ページの高さに対する割合。A4 の下の余白 25mm） */
-const CONTENT_BOTTOM = (297 - 25) / 297
 /** 行の高さと、図・表との間（画面の px。図を選んだときの枠より下に出す）。スマホの行の高さは 44px（index.css。rowHeight で測る） */
 const ROW_H = 30
 const GAP = 12
@@ -77,9 +73,9 @@ export class ContinueRow {
     const layer = this.layer.getBoundingClientRect()
     const k = page.width / PAGE_W
     Object.assign(b.style, {
-      left: `${page.left + TEXT_LEFT * k - layer.left}px`,
+      left: `${page.left + textLeftPx() * k - layer.left}px`,
       top: `${box.bottom + GAP - layer.top}px`,
-      width: `${TEXT_W * k}px`,
+      width: `${textWidthPx() * k}px`,
     })
     b.hidden = false
     // 紙面が小さいとき（スマホの横向き）は、本文の幅に言葉が入らず、枠の外にはみ出していた。
@@ -100,11 +96,12 @@ export class ContinueRow {
 export function endsPageWithRoom(page: HTMLElement, el: HTMLElement): boolean {
   const p = page.getBoundingClientRect()
   const bottom = el.getBoundingClientRect().bottom
-  if (p.top + p.height * CONTENT_BOTTOM - bottom < GAP + rowHeight(page.ownerDocument)) return false
+  if (p.top + p.height * contentBottomRatio() - bottom < GAP + rowHeight(page.ownerDocument)) return false
   for (const section of page.querySelectorAll('section')) {
     const range = document.createRange()
     range.selectNodeContents(section)
     if ([...range.getClientRects()].some((r) => r.height > 0 && r.top >= bottom - 1)) return false
   }
   return ![...page.querySelectorAll('.page-break')].some((b) => b.getBoundingClientRect().top >= bottom - 1)
-}
+}import { contentBottomRatio, textLeftPx, textWidthPx } from '../layout/pageGeometry'
+

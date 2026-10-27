@@ -17,7 +17,8 @@ import { ContinueRow, endsPageWithRoom, type ContinueTarget } from './continueRo
 import { FigureDrag } from './figureDrag'
 import { EditHistory } from './history'
 import { OverlayEditor, offsetInCopy, type OverlayKind, type OverlayPlacement, type OverlayTarget } from './overlayEditor'
-import { PageStage, TEXT_LEFT, TEXT_W, ZOOM_STEPS } from './pageStage'
+import { contentBottomRatio, contentTopRatio, marginsOf, setPageMargins, textLeftPx, textWidthPx } from '../layout/pageGeometry'
+import { PageStage, ZOOM_STEPS } from './pageStage'
 import { loadWritingZoom, PinchZoom, saveWritingZoom, type Point } from './pinchZoom'
 import { blockPaperKey, fixedTitleNote, markFocusable, PAPER_FOCUSABLE, paperElement, paperKeyOf, paperOrder, rememberTabStop, setTabStop } from './paperFocus'
 import * as ops from './reportOps'
@@ -347,6 +348,8 @@ export class ReportEditor {
    */
   constructor(stage: HTMLElement, scroller: HTMLElement, layer: HTMLElement, config: YearConfig, report: Report, callbacks: EditorCallbacks, options: EditorOptions = {}) {
     this.config = config
+    // 本文・抄録・目次の余白（紙面の上の書く欄・図を運ぶ線・図の置き方が読む：layout/pageGeometry.ts）
+    setPageMargins(marginsOf(config))
     this.report = report
     this.callbacks = callbacks
     this.template = !!options.template
@@ -961,6 +964,8 @@ export class ReportEditor {
   /** 年度の設定を入れ替える（原稿を、書き始めた年度の設定で開くとき） */
   setConfig(config: YearConfig): void {
     this.config = config
+    // 本文・抄録・目次の余白（紙面の上の書く欄・図を運ぶ線・図の置き方が読む：layout/pageGeometry.ts）
+    setPageMargins(marginsOf(config))
     this.runChecks()
     this.notify()
     void this.render()
@@ -1552,7 +1557,7 @@ export class ReportEditor {
     const tap = this.lastTap && performance.now() - this.lastTap.time < 1000 ? this.lastTap : null
     const s0 = this.stage.scale
     // 押した点の、紙面の上の横の位置（押していなければ、本文の左の端）
-    const cx = tap && before ? (tap.x - before.left) / s0 : TEXT_LEFT
+    const cx = tap && before ? (tap.x - before.left) / s0 : textLeftPx()
     this.stage.setFreeZoom(this.stage.textScale * ratio)
     const after = page?.getBoundingClientRect()
     if (!this.stage.panX || !after) return
@@ -1924,7 +1929,7 @@ export class ReportEditor {
     const caret = this.overlay.inSheet ? this.overlay.liveCaretRect() : this.overlay.caretRect()
     const page = this.renderer.pageView.pages()[this.page]?.getBoundingClientRect()
     if (!caret || !page || !page.height) return false
-    return caret.bottom > page.top + (page.height * (297 - 25)) / 297 + 1
+    return caret.bottom > page.top + page.height * contentBottomRatio() + 1
   }
 
   /**
@@ -2095,8 +2100,8 @@ export class ReportEditor {
     const section = last.closest('section')
     if (!page || !section) return shifted
     const pageRect = page.getBoundingClientRect()
-    // 本文の領域の下端（A4 の下の余白 25mm）
-    const contentBottom = pageRect.top + (pageRect.height * (297 - 25)) / 297
+    // 本文の領域の下端（A4 の下の余白の上）
+    const contentBottom = pageRect.top + pageRect.height * contentBottomRatio()
     const scale = this.stage.scale
     // 書いている段落より後ろにある要素（親をさかのぼり、それぞれの後ろの兄弟）。ページの上に送った図などは除く
     const targets: HTMLElement[] = []
@@ -2224,9 +2229,9 @@ export class ReportEditor {
       const alignOffset = view.charsBefore(id, fragment)
       // 前のページから続く段落は、前のページの部分（入力欄の上の方）がページの上の余白に見えないよう、段落の上端から下だけを見せる
       const shown = { ...clip, top: alignOffset > 0 ? r.top : clip.top }
-      // スマホ：打った字をその場で見せる写しは、本文の領域（下の余白 25mm より上）までを見せる（はみ出した行は、組み直すと次のページへ移る。
+      // スマホ：打った字をその場で見せる写しは、本文の領域（下の余白より上）までを見せる（はみ出した行は、組み直すと次のページへ移る。
       // 下の余白のページ番号に重ねない）
-      if (this.overlay.inSheet) shown.bottom = p.top + (p.height * (297 - 25)) / 297
+      if (this.overlay.inSheet) shown.bottom = p.top + p.height * contentBottomRatio()
       return { rect: { left: r.left, top: r.top, right: r.right }, clip: shown, scale, alignOffset }
     }
     // 見出し・図のタイトル・表紙の項目・表のセル：入力部分の左端から、行（セル）の右端まで
@@ -2502,19 +2507,19 @@ export class ReportEditor {
     const nearBox = near ? this.blockBox(near.id) : null
     const box = nearBox ?? [...page.querySelectorAll<HTMLElement>('section.body [data-block-id]:not(.page-break)')].map((el) => this.boxOf(el)).at(-1) ?? null
     const r = box?.getBoundingClientRect()
-    // 本文の領域（上の余白 25mm・下の余白 25mm の内側）。下にはみ出すときは、本文の最後の行に置く（組み直すと、次のページへ移る）
-    const contentTop = p.top + (p.height * 25) / 297
-    const contentBottom = p.top + (p.height * (297 - 25)) / 297
+    // 本文の領域（上下の余白の内側）。下にはみ出すときは、本文の最後の行に置く（組み直すと、次のページへ移る）
+    const contentTop = p.top + p.height * contentTopRatio()
+    const contentBottom = p.top + p.height * contentBottomRatio()
     const top = Math.min(!r ? contentTop : nearBox && near?.place === 'over' ? r.top : r.bottom + 6 * scale, contentBottom - 24 * scale)
     // 書体：同じ種類の欄（見えているページのものを先に）から写す。なければ目印のブロックから
     const kinds = new Map(ops.editables(this.report).map((e) => [e.id, e.kind]))
     const same = [...this.viewport.querySelectorAll<HTMLElement>('[data-block-id]')].filter((el) => el.dataset.blockId !== id && kinds.get(el.dataset.blockId!) === editable.kind)
     const styleSource = same.find((el) => view.pageIndexOf(el) === this.page) ?? same[0] ?? box ?? page
-    const left = p.left + TEXT_LEFT * scale
+    const left = p.left + textLeftPx() * scale
     // 入れたばかりの図・表のタイトル：番号（「図4.」）も書く欄の前に出す（紙面に出たら、紙面の番号に合わせる）
     const number = editable.kind === 'figureCaption' || editable.kind === 'tableCaption' ? ops.numbering(this.report).numbers.get(id) : undefined
     return {
-      rect: { left, top: Math.max(top, contentTop), right: left + TEXT_W * scale },
+      rect: { left, top: Math.max(top, contentTop), right: left + textWidthPx() * scale },
       clip: { left: p.left, top: p.top, right: p.right, bottom: p.bottom },
       scale,
       alignOffset: 0,
