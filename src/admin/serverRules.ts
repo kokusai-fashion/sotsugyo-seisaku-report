@@ -34,6 +34,14 @@ export function cleanTemplate(template: unknown, courseName: string): TemplateBl
     // 段落の説明は空でもよい（大見出し・小見出し・図・表の名前は空にしない）
     if (key !== 'hint' && !text.trim()) throw new Error(row + 'の名前が空です')
     const out: Record<string, unknown> = { type, [key]: text }
+    // 段落の本文に入る文（学生の本文にそのまま入る。空なら持たない。mockups/v70）
+    if (type === 'paragraph' && block.text !== undefined) {
+      const fixed = checkText(block.text, LIMITS.text, label + 'の' + templateRowName(i, 'text', block.text))
+      if (fixed.trim()) {
+        out.hint = ''
+        out.text = fixed
+      }
+    }
     if (type === 'table') cleanTable(block, out, row)
     return out as unknown as TemplateBlock
   })

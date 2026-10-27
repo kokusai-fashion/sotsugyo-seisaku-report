@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import config2026 from '../config/2026.json'
 import { currentConfig, type TemplateBlock, type YearConfig } from '../config'
 import { LIMITS, repairConfig, templateProblems, validateConfig } from '../config/validate'
+import { cleanTemplate } from '../admin/serverRules'
 import { templateSummary } from '../admin/templateText'
-import { numbering, contentToText, split } from '../editor/reportOps'
+import { numbering, contentToText, setPrefilled, setText, split } from '../editor/reportOps'
 import { createReport } from '../model/newReport'
-import { bodyFromTemplate, DEFAULT_TEMPLATE } from '../model/template'
+import { bodyFromTemplate, bodyWritten, DEFAULT_TEMPLATE } from '../model/template'
 import type { ParagraphBlock, Report, TableBlock } from '../model/types'
 import { abstractPlaceholder, templateBody, templateFromReport, templateIssues, templateReport } from './convert'
 import { isAllowedParentOrigin, newNonce, NONCE_PATTERN, readInitPayload, receivedProblems, templateToolUrls } from './protocol'
@@ -268,5 +269,80 @@ describe('管理ページとのやり取り（postMessage）', () => {
     expect(receivedProblems('x', '')).toEqual(['ひな形が空です'])
     expect(receivedProblems([{ type: 'paragraph', hint: 'a' }], 1)).toEqual(['ひな形は、大見出しから始めてください', 'ひな形に大見出しがありません', '抄録の書き出し例の形が正しくありません'])
     expect(receivedProblems(DEFAULT_TEMPLATE, 'あ'.repeat(501))).toEqual(['抄録の書き出し例が長すぎます（500字まで。今は501字）'])
+  })
+})
+
+// ひな形の段落を「本文に入る文」にできる（依頼者の判断 2026-10-27：mockups/v70 案C。字は学生の本文にそのまま入る）
+describe('ひな形の本文に入る文', () => {
+  const TEXT = '本報告書は、2026年度の卒業制作において、筆者が担当した舞台衣装の制作についてまとめたものである。'
+  const CHAPTER: TemplateBlock = { type: 'chapter', title: '企画・立案' }
+  const WITH_TEXT: TemplateBlock[] = [CHAPTER, { type: 'paragraph', hint: '', text: TEXT }, { type: 'subheading', title: '担当衣装' }, { type: 'paragraph', hint: '担当した衣装を書く' }]
+
+  it('学生の本文には、字のまま入る（説明も印も付かない）。説明の段落は、今までどおり空で薄い字', () => {
+    const [text, , hint] = bodyFromTemplate(WITH_TEXT)[0].blocks as ParagraphBlock[]
+    expect(text.content).toEqual([{ type: 'text', text: TEXT }])
+    expect(text.hint).toBeUndefined()
+    expect(text.prefilled).toBeUndefined()
+    expect(hint.content).toEqual([{ type: 'text', text: '' }])
+    expect(hint.hint).toBe('担当した衣装を書く')
+  })
+
+  it('ひな形のままなら、本文に入る文があっても「書き始めていない」（コースを変えるときに聞かない）', () => {
+    const withText = { ...config, courses: [{ ...FILM, template: WITH_TEXT }] }
+    const report = createReport(withText, FILM.id)
+    expect(bodyWritten(report, withText)).toBe(false)
+    expect(bodyWritten(setText(report, report.body[0].blocks[0].id, '書き直した'), withText)).toBe(true)
+  })
+
+  it('ひな形を作る画面では「本文に入る文」の印が付き、戻すと同じひな形になる', () => {
+    const [text, , hint] = templateBody(WITH_TEXT)[0].blocks as ParagraphBlock[]
+    expect(text.prefilled).toBe(true)
+    expect(contentToText(text.content, numbering(templateReport(config, FILM.id, WITH_TEXT, '')))).toBe(TEXT)
+    expect(hint.prefilled).toBeUndefined()
+    expect(roundTrip(WITH_TEXT).template).toEqual(WITH_TEXT)
+  })
+
+  it('切り替え：印を外すと字は説明に、付けると本文に入る文に。印を付けた空の段落は、説明のない空の段落', () => {
+    const report = templateReport(config, FILM.id, WITH_TEXT, '')
+    const [textId, , hintId] = report.body[0].blocks.map((b) => b.id)
+    expect(templateFromReport(setPrefilled(report, textId, false)).template[1]).toEqual({ type: 'paragraph', hint: TEXT })
+    expect(templateFromReport(setPrefilled(report, hintId, true)).template[3]).toEqual({ type: 'paragraph', hint: '', text: '担当した衣装を書く' })
+    expect(setPrefilled(report, textId, true)).toBe(report)
+    expect(templateFromReport(setText(report, textId, '')).template[1]).toEqual({ type: 'paragraph', hint: '' })
+  })
+
+  it('字を直しても印は残り、Enter で分けた後ろの段落も「本文に入る文」（説明の段落は、今までどおり説明）', () => {
+    const report = templateReport(config, FILM.id, WITH_TEXT, '')
+    const [textId, , hintId] = report.body[0].blocks.map((b) => b.id)
+    const edited = setText(report, textId, '書き直した文。')
+    expect((edited.body[0].blocks[0] as ParagraphBlock).prefilled).toBe(true)
+    const { report: two, newId } = split(edited, textId, '前の文。', '後ろの文。', { period: false })
+    const after = two.body[0].blocks.find((b) => b.id === newId) as ParagraphBlock
+    expect(after.prefilled).toBe(true)
+    const { report: hints, newId: hintNew } = split(report, hintId, '担当', 'した衣装を書く', { period: false })
+    expect((hints.body[0].blocks.find((b) => b.id === hintNew) as ParagraphBlock).prefilled).toBeUndefined()
+    expect(templateFromReport(two).template.slice(1, 3)).toEqual([
+      { type: 'paragraph', hint: '', text: '前の文。' },
+      { type: 'paragraph', hint: '', text: '後ろの文。' },
+    ])
+  })
+
+  it('長すぎる・形の崩れた本文に入る文は、ひな形を作る画面・学生のツール・管理ページのサーバーで断る（500字まで）', () => {
+    const long = 'あ'.repeat(LIMITS.text + 1)
+    const report = templateReport(config, FILM.id, [CHAPTER, { type: 'paragraph', hint: '', text: long }], '')
+    expect(templateIssues(templateFromReport(report)).map((i) => i.text)).toEqual(['「Ⅰ．」の中の本文に入る文が長すぎます（500字まで。今は501字）'])
+    expect(templateProblems(WITH_TEXT)).toEqual([])
+    expect(templateProblems([CHAPTER, { type: 'paragraph', hint: '', text: 3 } as unknown as TemplateBlock])).toEqual(['の2行目の本文に入る文の形が正しくありません'])
+    const head = `「${'あ'.repeat(12)}…」`
+    expect(templateProblems([CHAPTER, { type: 'paragraph', hint: '', text: long }])).toEqual([`の2行目の本文に入る文${head}が長すぎます（500字まで。今は501字）`])
+    // サーバーは、本文に入る文があれば説明を空にし、空白だけの本文に入る文は持たない
+    expect(cleanTemplate([CHAPTER, { type: 'paragraph', hint: '説明', text: TEXT }], '衣装')).toEqual([CHAPTER, { type: 'paragraph', hint: '', text: TEXT }])
+    expect(cleanTemplate([CHAPTER, { type: 'paragraph', hint: '説明', text: ' ' }], '衣装')).toEqual([CHAPTER, { type: 'paragraph', hint: '説明' }])
+    expect(() => cleanTemplate([CHAPTER, { type: 'paragraph', hint: '', text: long }], '衣装')).toThrow(`「衣装」のひな形の2行目の本文に入る文${head}が長すぎます（500字まで。今は501字）`)
+  })
+
+  it('コースのカードの要約：説明と本文に入る文を分けて数える（本文に入る文がなければ、今までどおり）', () => {
+    expect(templateSummary({ ...FILM, template: WITH_TEXT })).toBe('大見出し1・小見出し1・説明1・本文に入る文1')
+    expect(templateSummary({ ...FILM, template: DEFAULT_TEMPLATE })).toBe('大見出し3・小見出し0・説明3')
   })
 })

@@ -105,12 +105,14 @@ export interface Course {
 /**
  * 下書きのひな形の部品。並べた順に本文になる（最初は大見出し）。
  * 段落の hint は「ここに何を書くか」の説明で、空の段落に薄く出す（画面だけ。PDF には出ない）。
+ * 段落の text は「本文に入る文」で、学生の本文にそのまま字として入る（学生が直せる。空でなければ hint は使わない。
+ * 依頼者の判断 2026-10-27：mockups/v70 案C）。
  * 改ページ（pageBreak）と、ふつうの表（table）は mockups/v44 で足した（先生は見出しの行を書き、中身は学生が書く）
  */
 export type TemplateBlock =
   | { type: 'chapter'; title: string }
   | { type: 'subheading'; title: string }
-  | { type: 'paragraph'; hint: string }
+  | { type: 'paragraph'; hint: string; text?: string }
   | { type: 'figure'; caption: string }
   | { type: 'materialTable'; caption: string }
   | { type: 'pageBreak' }

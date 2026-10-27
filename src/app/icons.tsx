@@ -36,6 +36,24 @@ export const Icon = {
       <path d="M4 10h16M4 14.5h16M10 10v9M15 10v9" />
     </>,
   ),
+  /** ひな形を作る画面：段落を「ここに書くこと」（学生に薄い字で出す説明）にする（点線の枠に薄い「あ」。mockups/v70 案C） */
+  hintText: svg(
+    <>
+      <rect x={3.5} y={3.5} width={17} height={17} rx={3} strokeDasharray="2.4 2.2" />
+      <text x={12} y={16.8} textAnchor="middle" fontSize={12.5} fontWeight={700} fontFamily="'BIZ UDMincho', serif" fill="currentColor" stroke="none" opacity={0.55}>
+        あ
+      </text>
+    </>,
+  ),
+  /** ひな形を作る画面：段落を「本文に入る文」（学生の本文にそのまま入る）にする（線の枠に「あ」） */
+  fixedText: svg(
+    <>
+      <rect x={3.5} y={3.5} width={17} height={17} rx={3} />
+      <text x={12} y={16.8} textAnchor="middle" fontSize={12.5} fontWeight={700} fontFamily="'BIZ UDMincho', serif" fill="currentColor" stroke="none">
+        あ
+      </text>
+    </>,
+  ),
   pageBreak: svg(<path d="M6 3.5h12v6H6zM6 14.5h12v6H6zM3 12h2M7.5 12h2M12 12h2M16.5 12h2" />),
   /** 作品写真のページを足す（紙に ＋。mockups/v38 案A） */
   photoPageAdd: svg(<path d="M6.5 3.5h11a1.5 1.5 0 011.5 1.5v14a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 015 19V5a1.5 1.5 0 011.5-1.5zM12 8.8v6.6M8.7 12.1h6.6" />),

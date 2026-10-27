@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { ZOOM_STEPS } from '../editor/pageStage'
-import { figurePairing, figurePlacement, numbering, type FigureMoveBlock } from '../editor/reportOps'
+import { figurePairing, figurePlacement, findParagraph, numbering, type FigureMoveBlock } from '../editor/reportOps'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
 import { SELECTION_TEXTS } from '../editor/selectionBar'
@@ -52,6 +52,7 @@ function Tool({
   className,
   onWhy,
   short,
+  pressed,
 }: {
   label: string
   icon: ReactNode
@@ -69,6 +70,8 @@ function Tool({
   onWhy?: (why: string) => void
   /** 道具が台の高さに入りきらないとき（index.css の fit-3）に、1行で出す短い名前 */
   short?: string
+  /** 切り替えのボタン（押した状態を aria-pressed で示す。ひな形を作る画面の段落の種類：mockups/v70 案C） */
+  pressed?: boolean
 }) {
   const why = disabled && onWhy && title ? onWhy : undefined
   return (
@@ -77,6 +80,7 @@ function Tool({
       title={title ?? label.replace(/\n/g, '')}
       disabled={disabled && !why}
       aria-disabled={why ? true : undefined}
+      aria-pressed={pressed}
       onMouseDown={keepFocus}
       onMouseEnter={() => onPreview?.(true)}
       onMouseLeave={() => onPreview?.(false)}
@@ -533,9 +537,17 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
     editor.removeBlock(editingId)
   }
   if (editingKind === 'paragraph') {
+    // ひな形を作る画面：段落の種類を切り替える（mockups/v70 案C。言葉の切れ目で折り返す）
+    const prefilled = !!findParagraph(snap.report, editingId)?.prefilled
     return (
       <div className="group ctx">
         <div className="ctx-label">この段落</div>
+        {template && (
+          <>
+            <Tool label={'ここに\n書くこと'} icon={Icon.hintText} pressed={!prefilled} title="学生には薄い字で出す説明にする（学生が書き始めると消え、PDF には出ません）" onClick={() => editor.setPrefilled(false)} />
+            <Tool label={'本文に\n入る文'} icon={Icon.fixedText} pressed={prefilled} title="学生の本文に、そのまま字として入れる（学生が直したり消したりできます）" onClick={() => editor.setPrefilled(true)} />
+          </>
+        )}
         {paste}
         <Tool label="削除" icon={Icon.remove} danger title="この段落を削除" onClick={remove} />
       </div>

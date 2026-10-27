@@ -728,6 +728,11 @@ describe('管理ページ（admin-project）', () => {
       [chapter, { type: 'table', caption: ' ', header: ['a'] }],
       [chapter, { type: 'table', caption: 3, header: ['a'] }],
       [{ type: 'pageBreak' }, chapter],
+      // 段落の本文に入る文（mockups/v70）
+      [chapter, { type: 'paragraph', hint: '説明', text: '本報告書は、衣装の制作をまとめたものである。' }],
+      [chapter, { type: 'paragraph', hint: '説明', text: '  ' }],
+      [chapter, { type: 'paragraph', hint: '', text: 3 }],
+      [chapter, { type: 'paragraph', hint: '', text: 'あ'.repeat(501) }],
     ]
     for (const t of templates) expect(outcome(() => rules.cleanTemplate(t, '衣装'))).toBe(outcome(() => gas.cleanTemplate_(t, '衣装')))
     const words: unknown[] = [

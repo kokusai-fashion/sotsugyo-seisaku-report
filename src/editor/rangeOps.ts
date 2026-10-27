@@ -578,7 +578,7 @@ export function pasteClip(report: Report, paragraphId: string, offset: number, c
   } else if (!emptyContent(right)) {
     // カーソルの後ろの文は、段落として残す（前の文を残さなかったときは、元の段落の ID のまま）
     const id = keptTarget ? newId('p') : paragraphId
-    out.push({ type: 'paragraph', id, content: mergeTexts(right), ...(keptTarget || !target.hint ? {} : { hint: target.hint }) })
+    out.push({ type: 'paragraph', id, content: mergeTexts(right), ...(keptTarget || !target.hint ? {} : { hint: target.hint }), ...(target.prefilled ? { prefilled: true as const } : {}) })
     caretAt = { id, before: [] }
   } else if (last.type === 'paragraph') {
     caretAt = { id: last.id, before: last.content }

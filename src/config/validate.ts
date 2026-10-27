@@ -18,9 +18,12 @@ export interface ConfigProblem {
  * 文字数・数の上限（管理ページのサーバー gas/admin-project/Code.js の LIMITS と同じ値にする）。
  * tableColumns・tableRows：ひな形の表の列の数と、見出しの下の行の数（学生の表と同じ：model/table.ts の TABLE_SIZE）
  */
-export const LIMITS = { blocks: 100, name: 100, hint: 300, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
+export const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
 
 const BLOCK_LABELS: Record<TemplateBlock['type'], string> = { chapter: '大見出し', subheading: '小見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
+/** 行の呼び名の種類（'text'：本文に入る文の段落。mockups/v70） */
+export type TemplateRowKind = TemplateBlock['type'] | 'text'
+const ROW_LABELS: Record<TemplateRowKind, string> = { ...BLOCK_LABELS, text: '本文に入る文' }
 const BLOCK_TYPES = new Set<unknown>(Object.keys(BLOCK_LABELS))
 
 const isText = (v: unknown): v is string => typeof v === 'string'
@@ -61,10 +64,10 @@ export function templateTableProblem(block: Record<string, unknown>): 'shape' | 
  * ひな形の行の呼び名（例：3行目の説明「デザインの意図を書く…」）。どの行か見つけやすいよう、種類と書き出しを付ける
  * （管理ページのサーバー gas/admin-project/Code.js の rowName_ と同じ言い方）
  */
-export function templateRowName(index: number, type: TemplateBlock['type'], text: unknown): string {
+export function templateRowName(index: number, type: TemplateRowKind, text: unknown): string {
   const head = typeof text === 'string' ? text.trim() : ''
   const preview = head ? `「${head.length > 12 ? `${head.slice(0, 12)}…` : head}」` : ''
-  return `${index + 1}行目の${BLOCK_LABELS[type]}${preview}`
+  return `${index + 1}行目の${ROW_LABELS[type]}${preview}`
 }
 
 /** 長すぎる文字の説明（例：が長すぎます（300字まで。今は312字）） */
@@ -73,7 +76,7 @@ export const tooLong = (max: number, length: number) => `が長すぎます（${
 /**
  * 下書きのひな形の問題（なければ空。説明の先頭に「…の下書きのひな形」を付けて使う）。
  * 管理ページの入力チェックと、学生のツールで崩れたひな形を使わないために使う（サーバーの cleanTemplate_ と同じ決まり）。
- * 部品の種類は決まったものだけ。大見出し・小見出し・図・表は名前が要る。段落の説明は空でもよいが、文字であること。
+ * 部品の種類は決まったものだけ。大見出し・小見出し・図・表は名前が要る。段落の説明は空でもよいが、文字であること（本文に入る文も、あれば文字）。
  * 改ページは名前がない。ふつうの表は、見出しの行（1〜6列）と行の数などの形も確かめる（templateTableProblem）。
  * いちばん上は大見出し（空のひな形は「標準のひな形を使う」の意味なので、問題にしない）
  */
@@ -90,7 +93,11 @@ export function templateProblems(template: unknown): string[] {
     const text = block[key]
     const max = type === 'paragraph' ? LIMITS.hint : LIMITS.name
     const table = type === 'table' ? templateTableProblem(block) : null
+    // 段落の本文に入る文（ないときは説明だけの段落）
+    const fixed = type === 'paragraph' ? block.text : undefined
     if (!isText(text) || table === 'shape') problems.push(`の${templateRowName(i, type, null)}の形が正しくありません`)
+    else if (fixed !== undefined && !isText(fixed)) problems.push(`の${templateRowName(i, 'text', null)}の形が正しくありません`)
+    else if (fixed !== undefined && fixed.length > LIMITS.text) problems.push(`の${templateRowName(i, 'text', fixed)}${tooLong(LIMITS.text, fixed.length)}`)
     else if (text.length > max) problems.push(`の${templateRowName(i, type, text)}${tooLong(max, text.length)}`)
     else if (table) problems.push(`の${templateRowName(i, type, text)}の見出しの${table.header + 1}列目${tooLong(LIMITS.name, table.length)}`)
     else blocks.push(block as unknown as TemplateBlock)

@@ -390,6 +390,9 @@ body.reordering iframe { pointer-events: none; }
 .tpl-modal .row input { min-width: 0; padding: 6px 4px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 15px; }
 .tpl-modal .row input:focus { outline: 2px solid var(--accent); background: #fff; }
 .tpl-modal .row.paragraph input { color: #5f6675; font-size: 14px; }
+/* 本文に入る文（学生の本文にそのまま入る字。説明の薄い字と分ける。mockups/v70） */
+.tpl-modal .row.paragraph.text input { color: var(--ink); }
+.tpl-modal .row.paragraph.text .kind { color: #23408e; }
 .tpl-modal .row .acts { display: flex; gap: 2px; }
 .tpl-modal .row .acts button { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 14px; }
 .tpl-modal .row .acts button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }

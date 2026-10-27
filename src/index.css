@@ -1830,6 +1830,11 @@ p.busy-line { display: flex; }
   .tpl-mode .page-viewport section.abstract .body p[data-block-id]:not(:empty)::before { content: '書き出しの例'; }
   /* 何も書いていない段落（学生には説明なしの空の段落になる） */
   .tpl-mode .page-viewport section.body p[data-block-id]:empty::before { content: '（クリックして、ここに書くことを入力）'; }
+  /* 「本文に入る文」の段落（左の道具の「この段落」で切り替える。mockups/v70 案C）：字は紙面のふつうの黒、札は青 */
+  .tpl-mode .page-viewport section.body p[data-block-id][data-prefilled] { color: inherit; }
+  .tpl-mode .page-viewport section.body p[data-block-id][data-prefilled]:not(:empty)::before { content: '本文に入る文'; border-color: #a9bce6; background: #e3eafa; color: #23408e; }
+  .tpl-mode .page-viewport section.body p[data-block-id][data-prefilled]:empty::before { content: '（クリックして、本文に入る文を入力）'; }
+  .tpl-mode .stage.tpl-text-editing :is(.overlay-editor, .overlay-ghost)[data-kind='paragraph'] { color: #000 !important; }
   /* 図の枠・表の中身の行は、学生が入れる所 */
   .tpl-mode .page-viewport .figure-slot { cursor: default; }
   .tpl-mode .page-viewport .figure-slot::before { content: '（学生が写真を入れる枠）'; color: #8a90a0; }
@@ -1842,6 +1847,10 @@ p.busy-line { display: flex; }
   .tpl-mode .stage.tpl-off .page-viewport.front [data-vivliostyle-page-container].is-current { opacity: 0.55; }
 }
 .tpl-editing-tag { position: fixed; z-index: 40; margin-top: 2px; padding: 0 6px; border: 1px solid #e7c46e; border-radius: 5px; background: #fcefcb; color: #7a5600; font: 700 10px/1.55 'BIZ UDPGothic', sans-serif; letter-spacing: 0.02em; white-space: nowrap; transform: translateX(calc(-100% - 8px)); pointer-events: none; }
+.tpl-editing-tag.text { border-color: #a9bce6; background: #e3eafa; color: #23408e; }
+/* 左の道具の「この段落」の、段落の種類の切り替え（押してある方を白地と枠で示す。mockups/v70 案C） */
+.palette .group.ctx .tb[aria-pressed='true'] { background: #fff; box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent); font-weight: 700; }
+.palette .group.ctx .tb[aria-pressed='false'] { color: var(--muted); }
 .tpl-off-note { position: absolute; z-index: 12; left: 50%; bottom: 22%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 22px; border-radius: 12px; border: 1.5px solid #e2c47a; background: rgba(255, 255, 255, 0.96); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); color: #4d3500; font-size: 15px; white-space: nowrap; pointer-events: none; }
 .tpl-off-note span { font-size: 13px; color: #6b5a33; }
 
@@ -1858,6 +1867,9 @@ p.busy-line { display: flex; }
 .tpl-course { margin: 4px 0 14px 30px; font-size: 14.5px; color: var(--muted); }
 .tpl-points { margin: 0; padding: 12px 14px 12px 30px; border-radius: 10px; background: #f6f4ef; color: #4a4d55; font-size: 14px; line-height: 1.9; }
 .tpl-points li::marker { color: #b9a26a; }
+/* 段落の2つの種類の名前（紙面の札と同じ色） */
+.tpl-points .k-hint { color: #7a5600; }
+.tpl-points .k-text { color: #23408e; }
 .tpl-issues { margin-top: 14px; padding: 10px 12px 10px 14px; border: 1px solid #e7c2bd; border-radius: 10px; background: var(--error-soft); color: var(--error); font-size: 14px; line-height: 1.6; }
 .tpl-issues b { display: block; margin-bottom: 4px; }
 .tpl-issues ul { margin: 0; padding-left: 18px; }

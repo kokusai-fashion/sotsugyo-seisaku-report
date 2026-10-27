@@ -61,9 +61,12 @@ export function bodyFromTemplate(template: TemplateBlock[]): Chapter[] {
       case 'subheading':
         body = { type: 'subheading', id: newId('s'), title: textOf(block.title) }
         break
-      case 'paragraph':
-        body = emptyParagraph(textOf(block.hint).trim() || undefined)
+      // 本文に入る文があれば、その字の段落（学生が直せる。mockups/v70）。なければ、説明を薄く出す空の段落
+      case 'paragraph': {
+        const text = textOf(block.text)
+        body = text.trim() ? { type: 'paragraph', id: newId('p'), content: [{ type: 'text', text }] } : emptyParagraph(textOf(block.hint).trim() || undefined)
         break
+      }
       case 'figure':
         body = { type: 'figureRow', id: newId('r'), figures: [{ id: newId('f'), imageId: '', caption: textOf(block.caption) }] }
         break

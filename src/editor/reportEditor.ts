@@ -3786,6 +3786,21 @@ export class ReportEditor {
     this.currentId = id
   }
 
+  /**
+   * ひな形を作る画面：書いている本文の段落を「本文に入る文」（on）か「ここに書くこと」にする（左の道具の「この段落」。mockups/v70 案C）。
+   * 切り替えたあとも、同じ段落を同じ所から書き続ける
+   */
+  setPrefilled(on: boolean): void {
+    const id = this.overlay.blockId
+    const p = id ? ops.findParagraph(this.report, id) : undefined
+    if (!id || !p || !!p.prefilled === on || this.settlingRemoval) return
+    const caret = this.overlay.caret
+    this.commitForChange()
+    this.pushHistory(this.report)
+    this.report = ops.setPrefilled(this.report, id, on)
+    this.reopenAfterRender(id, caret)
+  }
+
   addParagraph(): void {
     if (this.settlingRemoval) return
     const id = ops.newId('p')

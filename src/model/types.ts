@@ -74,6 +74,11 @@ export interface ParagraphBlock {
   content: InlineNode[]
   /** ひな形の「ここに何を書くか」の説明。空の段落に薄く出す（画面だけ） */
   hint?: string
+  /**
+   * ひな形を作る画面だけ：この段落の字は「本文に入る文」（学生の本文にそのまま入る。ないときは「ここに書くこと」の説明。mockups/v70 案C）。
+   * 学生の原稿には付かない（ひな形から作るときは、ふつうの字の段落になる：model/template.ts）
+   */
+  prefilled?: true
 }
 
 export type InlineNode = TextNode | ReferenceNode

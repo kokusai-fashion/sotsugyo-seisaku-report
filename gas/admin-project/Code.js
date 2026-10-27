@@ -27,9 +27,10 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+$/
 
 /** 下書きのひな形の部品の種類と、その呼び名（管理ページのひな形の窓と同じ。改ページ・ふつうの表は mockups/v44 で足した） */
 const BLOCK_TYPES = ['chapter', 'subheading', 'paragraph', 'figure', 'materialTable', 'pageBreak', 'table']
-const BLOCK_LABELS = { chapter: '大見出し', subheading: '小見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
+// text：本文に入る文の段落の呼び名（行の種類ではない。mockups/v70）
+const BLOCK_LABELS = { chapter: '大見出し', subheading: '小見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表', text: '本文に入る文' }
 /** 文字数・数の上限（学生のツールの src/config/validate.ts の LIMITS と同じ値にする。tableColumns・tableRows：ひな形の表の列の数と、見出しの下の行の数） */
-const LIMITS = { blocks: 100, name: 100, hint: 300, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
+const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
 
 /** 初期値（2026年度）。ビルド時に app/src/config/2026.json の内容が入る */
 const INITIAL_CONFIG = /*INITIAL_CONFIG*/ null
@@ -201,7 +202,7 @@ function applyNotices_(config, notices) {
 
 /**
  * 下書きのひな形を確かめ、決まった項目だけの形にして返す。崩れていたら（種類が決まったもの以外、
- * 名前や説明が文字でない・長すぎる、名前が空、先頭が大見出しでない）エラーにする。
+ * 名前や説明・本文に入る文が文字でない・長すぎる、名前が空、先頭が大見出しでない）エラーにする。
  * 学生のツールが崩れたひな形で止まらないように（学生のツールの src/config/validate.ts の templateProblems と同じ決まり）
  */
 function cleanTemplate_(template, courseName) {
@@ -219,6 +220,14 @@ function cleanTemplate_(template, courseName) {
     if (key !== 'hint' && !text.trim()) throw new Error(row + 'の名前が空です')
     const out = { type: block.type }
     out[key] = text
+    // 段落の本文に入る文（学生の本文にそのまま入る。空なら持たない。mockups/v70）
+    if (block.type === 'paragraph' && block.text !== undefined) {
+      const fixed = checkText_(block.text, LIMITS.text, label + 'の' + rowName_(i, 'text', block.text))
+      if (fixed.trim()) {
+        out.hint = ''
+        out.text = fixed
+      }
+    }
     if (block.type === 'table') cleanTable_(block, out, row)
     return out
   })

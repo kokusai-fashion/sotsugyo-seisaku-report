@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ReportEditor, type EditorSnapshot } from '../editor/reportEditor'
+import { findParagraph } from '../editor/reportOps'
 import type { PageKind } from '../layout/measure'
 import { Spinner } from '../app/Busy'
 import { Icon } from '../app/icons'
@@ -18,6 +19,7 @@ import type { InitPayload, TemplateYearStatus } from './protocol'
 /**
  * ひな形を作る画面（mockups/v44 案A）。管理ページの上に重ねた窓（iframe）の中で、学生のツールを ?template=1 で開いたもの。
  * 紙面・左の道具は学生と同じ。本文の段落の字は、学生に薄い字で出す「ここに書くこと」になる。
+ * 左の道具の「この段落」で「本文に入る文」にした段落の字は、学生の本文にそのまま入る（mockups/v70 案C）。
  * 学生の原稿ではないので：ログイン・ドライブ・この端末への保存（自動保存・控え）・PDF・セルフチェックはしない。学生の原稿にも触れない。
  * 原稿はこの画面の中（メモリ）だけに置き、「管理ページに戻して反映」で、ひな形にして管理ページへ渡す（bridge.ts）
  */
@@ -97,8 +99,11 @@ export function TemplateApp() {
   )
 }
 
+/** 書いているのが「本文に入る文」の段落か（札と、書く欄の字の色を変える） */
+const editingPrefilled = (snap: EditorSnapshot | null) => snap?.editingKind === 'paragraph' && !!snap.editingId && !!findParagraph(snap.report, snap.editingId)?.prefilled
+
 /**
- * 書いている段落の左の余白の札（「ここに書くこと」・抄録は「書き出しの例」）。
+ * 書いている段落の左の余白の札（「ここに書くこと」・「本文に入る文」・抄録は「書き出しの例」）。
  * 紙面の段落の札（index.css の「ひな形を作る画面」）は、書いている間は段落ごと隠れるので、書く欄の横に同じ札を出す
  */
 function EditingTag({ snap, stage }: { snap: EditorSnapshot | null; stage: React.RefObject<HTMLElement | null> }) {
@@ -126,8 +131,8 @@ function EditingTag({ snap, stage }: { snap: EditorSnapshot | null; stage: React
   if (!on || !at) return null
   const [left, top] = at.split(',').map(Number)
   return (
-    <div className="tpl-editing-tag" style={{ left, top }} aria-hidden="true">
-      {kind === 'abstractParagraph' ? '書き出しの例' : 'ここに書くこと'}
+    <div className={`tpl-editing-tag${editingPrefilled(snap) ? ' text' : ''}`} style={{ left, top }} aria-hidden="true">
+      {kind === 'abstractParagraph' ? '書き出しの例' : editingPrefilled(snap) ? '本文に入る文' : 'ここに書くこと'}
     </div>
   )
 }
@@ -288,7 +293,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
   return (
     <div className="app tpl-app" style={panelStyle()}>
       {ready ? <PageColumn editor={editor} snap={snap} excluded={excluded} /> : <aside className="thumbs-col" />}
-      <main className={`stage${off ? ' tpl-off' : ''}`} ref={stageRef}>
+      <main className={`stage${off ? ' tpl-off' : ''}${editingPrefilled(snap) ? ' tpl-text-editing' : ''}`} ref={stageRef}>
         <div className="page-scroller" ref={scrollerRef} />
         <div id="overlay-layer" ref={layerRef} />
         {ready && snap.layout && <TocNotice editor={editor} snap={snap} point={tocPoint} onClose={() => setTocPoint(null)} />}
@@ -338,7 +343,22 @@ function TemplateScreen({ init }: { init: InitPayload }) {
           <p className="tpl-course">{init.courseName || '（名前のないコース）'} コース</p>
           <ul className="tpl-points">
             <li>学生と同じように、紙面に書きます</li>
-            <li>本文の字は、学生には薄い字で出ます</li>
+            {/* 段落の2つの種類と切り替え方（mockups/v70 案C。言葉の切れ目で折り返す） */}
+            <li>
+              <b className="k-hint">「ここに書くこと」</b>は、
+              <br />
+              学生には薄い字で出ます
+            </li>
+            <li>
+              <b className="k-text">「本文に入る文」</b>は、
+              <br />
+              そのまま学生の本文に入ります
+            </li>
+            <li>
+              書いている段落の左の道具で、
+              <br />
+              切り替えられます
+            </li>
             <li>表紙・作品写真は、ひな形に入りません</li>
           </ul>
           {issues && issues.length > 0 && (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../app/icons'
 import { useDialogFocus } from '../app/useDialogFocus'
 import type { Course, TemplateBlock, YearConfig } from '../config'
-import { LIMITS, templateRowName, tooLong } from '../config/validate'
+import { LIMITS, templateRowName, tooLong, type TemplateRowKind } from '../config/validate'
 import { bodyContentHtml } from '../layout/bodyHtml'
 import { pageMargins, type PageMargins } from '../layout/pageGeometry'
 import { reportCss } from '../layout/reportCss'
@@ -14,12 +14,15 @@ import { useReorder } from './useReorder'
 
 /**
  * コースの「下書きのひな形」を編集する画面（mockups/v8 案1：コースのカードから開く）。
- * 左で本文の組み立て（大見出し・小見出し・書くことの説明・図の枠・素材表）を並べ、右で学生が最初に見る本文を確かめる。
+ * 左で本文の組み立て（大見出し・小見出し・書くことの説明・本文に入る文・図の枠・素材表）を並べ、右で学生が最初に見る本文を確かめる。
  * mockups/v44 からは、学生と同じ紙面で作る画面（TemplateOverlay.tsx）がふつうの作り方で、この窓は「前の作り方で直す」から開く予備。
  * 改ページ・ふつうの表（新しい画面で作ったもの）も消さずに残し、並べ替え・削除・表のタイトルの直しはできる（表の見出しの行は新しい画面で直す）
  */
 
-const KIND_LABELS: Record<TemplateBlock['type'], string> = { chapter: '大見出し', subheading: '小見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
+/** 行の種類の名前（text：本文に入る文の段落。mockups/v70） */
+const KIND_LABELS: Record<TemplateRowKind, string> = { chapter: '大見出し', subheading: '小見出し', paragraph: '説明', text: '本文に入る文', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
+/** 行の種類（段落は、本文に入る文の項目を持てば text） */
+const kindOf = (b: TemplateBlock): TemplateRowKind => (b.type === 'paragraph' && b.text !== undefined ? 'text' : b.type)
 const ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ', 'Ⅸ', 'Ⅹ']
 const SMALL = ['ⅰ', 'ⅱ', 'ⅲ', 'ⅳ', 'ⅴ', 'ⅵ', 'ⅶ', 'ⅷ', 'ⅸ', 'ⅹ']
 
@@ -63,31 +66,45 @@ function problemsOf(blocks: TemplateBlock[], abstractExample: string): Problem[]
   else if (blocks[0].type !== 'chapter') push('いちばん上は大見出しにしてください')
   if (blocks.length > LIMITS.blocks) push(`行が多すぎます（${LIMITS.blocks}行まで。今は${blocks.length}行）`)
   blocks.forEach((b, i) => {
+    const kind = kindOf(b)
     const empty = b.type === 'chapter' || b.type === 'subheading' ? !b.title.trim() : b.type === 'figure' || b.type === 'materialTable' || b.type === 'table' ? !b.caption.trim() : false
-    if (empty) push(`${i + 1}行目の${KIND_LABELS[b.type]}の名前が空です`)
-    const max = b.type === 'paragraph' ? LIMITS.hint : LIMITS.name
+    if (empty) push(`${i + 1}行目の${KIND_LABELS[kind]}の名前が空です`)
+    // 本文に入る文は、空にしない（空の段落なら「説明」の行を空のまま使う）
+    if (kind === 'text' && !textOf(b).trim()) push(`${i + 1}行目の${KIND_LABELS[kind]}が空です`)
+    const max = kind === 'paragraph' ? LIMITS.hint : kind === 'text' ? LIMITS.text : LIMITS.name
     // 短い文は「3行目の説明が長すぎます（…）」（行の書き出し「…」を外す）
-    if (textOf(b).length > max) push(`${templateRowName(i, b.type, textOf(b))}${tooLong(max, textOf(b).length)}`, `${templateRowName(i, b.type, '')}${tooLong(max, textOf(b).length)}`)
+    if (textOf(b).length > max) push(`${templateRowName(i, kind, textOf(b))}${tooLong(max, textOf(b).length)}`, `${templateRowName(i, kind, '')}${tooLong(max, textOf(b).length)}`)
   })
   return problems
 }
 
-const textOf = (b: TemplateBlock) => (b.type === 'chapter' || b.type === 'subheading' ? b.title : b.type === 'paragraph' ? b.hint : b.type === 'pageBreak' ? '' : b.caption)
+const textOf = (b: TemplateBlock) =>
+  b.type === 'chapter' || b.type === 'subheading' ? b.title : b.type === 'paragraph' ? (b.text ?? b.hint) : b.type === 'pageBreak' ? '' : b.caption
 const withText = (b: TemplateBlock, text: string): TemplateBlock =>
-  b.type === 'chapter' || b.type === 'subheading' ? { ...b, title: text } : b.type === 'paragraph' ? { ...b, hint: text } : b.type === 'pageBreak' ? b : { ...b, caption: text }
-const PLACEHOLDERS: Record<TemplateBlock['type'], string> = {
+  b.type === 'chapter' || b.type === 'subheading'
+    ? { ...b, title: text }
+    : b.type === 'paragraph'
+      ? b.text !== undefined
+        ? { ...b, text }
+        : { ...b, hint: text }
+      : b.type === 'pageBreak'
+        ? b
+        : { ...b, caption: text }
+const PLACEHOLDERS: Record<TemplateRowKind, string> = {
   chapter: '大見出しの名前（例：企画・立案）',
   subheading: '小見出しの名前（例：デザイン説明）',
   paragraph: '学生に薄い字で見せる「ここに何を書くか」（例：デザインの意図を書く）',
+  text: '学生の本文にそのまま入る文（例：本報告書は、…についてまとめたものである。）',
   figure: '図のタイトル（例：デザイン画）',
   materialTable: '表のタイトル（例：使用素材表）',
   pageBreak: '',
   table: '表のタイトル（例：寸法表）',
 }
-const NEW_BLOCKS: Record<TemplateBlock['type'], TemplateBlock> = {
+const NEW_BLOCKS: Record<TemplateRowKind, TemplateBlock> = {
   chapter: { type: 'chapter', title: '' },
   subheading: { type: 'subheading', title: '' },
   paragraph: { type: 'paragraph', hint: '' },
+  text: { type: 'paragraph', hint: '', text: '' },
   figure: { type: 'figure', caption: '' },
   materialTable: { type: 'materialTable', caption: '使用素材表' },
   pageBreak: { type: 'pageBreak' },
@@ -151,7 +168,10 @@ function startBlocks(template: unknown): TemplateBlock[] {
   return template.flatMap((b: unknown) => {
     const type = b && typeof b === 'object' ? (b as { type?: unknown }).type : undefined
     if (typeof type !== 'string' || !Object.prototype.hasOwnProperty.call(NEW_BLOCKS, type)) return []
-    const text: unknown = textOf(b as TemplateBlock)
+    // 本文に入る文（字があるときだけ。空なら説明の行）
+    const fixed = type === 'paragraph' ? (b as { text?: unknown }).text : undefined
+    if (typeof fixed === 'string' && fixed.trim()) return [{ ...NEW_BLOCKS.text, text: fixed } as TemplateBlock]
+    const text: unknown = type === 'paragraph' ? (b as { hint?: unknown }).hint : textOf(b as TemplateBlock)
     const base = type === 'table' ? { ...NEW_BLOCKS.table, ...(b as object) } : NEW_BLOCKS[type as TemplateBlock['type']]
     return [withText(base as TemplateBlock, typeof text === 'string' ? text : '')]
   })
@@ -206,7 +226,7 @@ export function TemplateEditor({ course, config, footNote, onApply, onClose }: P
     setRows(rows.filter((_, j) => j !== i))
     setSelected(Math.max(0, Math.min(i, rows.length - 2)))
   }
-  const add = (type: TemplateBlock['type']) => {
+  const add = (type: TemplateRowKind) => {
     const at = rows.length ? Math.min(selected, rows.length - 1) + 1 : 0
     const row = { key: ++keyCounter, block: { ...NEW_BLOCKS[type] } }
     setRows([...rows.slice(0, at), row, ...rows.slice(at)])
@@ -258,12 +278,12 @@ export function TemplateEditor({ course, config, footNote, onApply, onClose }: P
             </div>
             <div className="ol" ref={listRef}>
               {rows.map(({ key, block }, i) => (
-                <div key={key} className={`row ${block.type}${i === selected ? ' on' : ''}${order.drag?.from === i ? ' dragging' : ''}`} onClick={() => setSelected(i)}>
+                <div key={key} className={`row ${block.type}${kindOf(block) === 'text' ? ' text' : ''}${i === selected ? ' on' : ''}${order.drag?.from === i ? ' dragging' : ''}`} onClick={() => setSelected(i)}>
                   <button className="grip" {...order.gripProps(i, key)} onFocus={() => setSelected(i)}>
                     ⋮⋮
                   </button>
                   <span className="kind">
-                    {KIND_LABELS[block.type]}
+                    {KIND_LABELS[kindOf(block)]}
                     {nums[i] && <b>{nums[i]}</b>}
                   </span>
                   {block.type === 'pageBreak' ? (
@@ -277,7 +297,7 @@ export function TemplateEditor({ course, config, footNote, onApply, onClose }: P
                           else inputs.current.delete(key)
                         }}
                         value={textOf(block)}
-                        placeholder={PLACEHOLDERS[block.type]}
+                        placeholder={PLACEHOLDERS[kindOf(block)]}
                         onFocus={() => setSelected(i)}
                         onChange={(e) => setBlock(i, withText(block, e.target.value))}
                       />
@@ -299,7 +319,7 @@ export function TemplateEditor({ course, config, footNote, onApply, onClose }: P
             </div>
             <div className="adds">
               <span className="l">選んでいる行の下に足す：</span>
-              {(['chapter', 'subheading', 'paragraph', 'figure', 'materialTable', 'pageBreak'] as const).map((type) => (
+              {(['chapter', 'subheading', 'paragraph', 'text', 'figure', 'materialTable', 'pageBreak'] as const).map((type) => (
                 <button key={type} onClick={() => add(type)}>
                   ＋ {KIND_LABELS[type]}
                 </button>

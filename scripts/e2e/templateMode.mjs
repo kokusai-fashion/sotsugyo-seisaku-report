@@ -186,10 +186,11 @@ export async function templateModeAdmin(browser, check) {
   }))
   await shot('1-admin-overlay-open')
   check(
-    'ひな形を作る画面：いちばん上の帯・右の欄（このコースのひな形・3行・戻すボタン・やめる・標準に戻す）。ログイン・セルフチェック・PDF はない',
+    'ひな形を作る画面：いちばん上の帯・右の欄（このコースのひな形・5行・戻すボタン・やめる・標準に戻す）。ログイン・セルフチェック・PDF はない',
     screen.banner === 'ひな形を作っています：映画・舞台衣装デザイナー コース（学生の画面ではありません）' &&
       screen.title === 'このコースのひな形' &&
-      screen.points === '学生と同じように、紙面に書きます|本文の字は、学生には薄い字で出ます|表紙・作品写真は、ひな形に入りません' &&
+      screen.points ===
+        '学生と同じように、紙面に書きます|「ここに書くこと」は、学生には薄い字で出ます|「本文に入る文」は、そのまま学生の本文に入ります|書いている段落の左の道具で、切り替えられます|表紙・作品写真は、ひな形に入りません' &&
       screen.buttons === '管理ページに戻して反映|やめる|標準のひな形に戻す' &&
       screen.note === '学生に届くのは、管理ページで「保存して学生に反映」を押してから' &&
       !screen.gate &&
@@ -599,4 +600,142 @@ export async function templateModeAdmin(browser, check) {
     helpLonely.join(' / ') || help.slice(0, 120),
   )
   await tctx.close()
+}
+
+/**
+ * ひな形の段落を「本文に入る文」にする（依頼者の判断 2026-10-27：mockups/v70 案C）。admin.mjs から呼ぶ。
+ * - 書いている段落の左の道具（「この段落」）に「ここに書くこと」「本文に入る文」。押すと切り替わり、同じ段落を書き続ける
+ * - 本文に入る文：札は「本文に入る文」、字は黒。Enter で分けた後ろの段落も本文に入る文
+ * - 戻して保存すると、ひな形の段落に text（本文に入る文）が入る。コースのカードの要約・前の作り方の窓にも出る
+ */
+export async function templatePrefilledAdmin(browser, check) {
+  const context = await browser.createBrowserContext()
+  const page = await context.newPage()
+  page.on('pageerror', (e) => console.log('pageerror(template-prefilled):', e.message))
+  await dialogLog(page)
+  await recordTemplateFrame(page)
+  await page.setViewport({ width: 1366, height: 768 })
+  await page.goto(`${APP}/admin.html`, { waitUntil: 'networkidle0' })
+  await page.evaluate(() => {
+    localStorage.removeItem('sotsugyo-admin-mock')
+    localStorage.removeItem('sotsugyo-admin-year')
+    sessionStorage.removeItem('sotsugyo-admin-section')
+  })
+  await page.reload({ waitUntil: 'networkidle0' })
+  await page.waitForSelector('.admin .content')
+  await page.evaluate(() => [...document.querySelectorAll('.side-nav button')].find((b) => b.textContent.includes('コース')).click())
+  await page.waitForSelector('.course.open .tpl-line .tpl-open')
+  await page.evaluate(() => document.querySelector('.course.open .tpl-open').click())
+  await page.waitForSelector('.tpl-overlay iframe')
+  await page.waitForFunction(() => !document.querySelector('.tpl-opening'), { timeout: 30000 })
+  const frame = page.frames().find((f) => f.url().includes('template=1') && f.parentFrame() === page.mainFrame())
+  const ready = () => frame.waitForFunction(() => { const s = window.__editor?.getSnapshot(); return s?.layout && !s.rendering && !s.turning }, { timeout: 60000 })
+  await frame.waitForFunction(() => { const s = window.__editor?.getSnapshot(); return s?.layout && !s.rendering && !s.turning && s.page === window.__editor.pageOfArea('body') }, { timeout: 60000 })
+  await sleep(500)
+  /** 左の道具のボタンを、名前で押す */
+  const tool = async (text) => {
+    const found = await frame.evaluate((text) => {
+      const b = [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.replace(/\s/g, '').includes(text))
+      b?.click()
+      return !!b
+    }, text)
+    if (!found) throw new Error(`道具「${text}」がありません`)
+  }
+  /** いまの道具の「この段落」の切り替えと、書いている欄のようす */
+  const state = () =>
+    frame.evaluate(() => {
+      const s = window.__editor.getSnapshot()
+      const block = s.report.body.flatMap((c) => c.blocks).find((b) => b.id === s.editingId)
+      // ボタンの名前（アイコンの「あ」を除く）
+      const pressed = (name) => [...document.querySelectorAll('.palette .group.ctx .tb')].find((b) => b.querySelector(':scope > span')?.textContent.replace(/\s/g, '') === name)?.getAttribute('aria-pressed') ?? null
+      return {
+        id: s.editingId,
+        prefilled: !!block?.prefilled,
+        hintOn: pressed('ここに書くこと'),
+        textOn: pressed('本文に入る文'),
+        tag: document.querySelector('.tpl-editing-tag')?.textContent ?? '',
+        tagText: !!document.querySelector('.tpl-editing-tag.text'),
+        color: document.querySelector('.overlay-editor') ? getComputedStyle(document.querySelector('.overlay-editor')).color : '',
+      }
+    })
+
+  // ---- 企画・立案の最初の段落（説明）を書き始める ----
+  const pid = await frame.evaluate(() => window.__editor.getSnapshot().report.body[0].blocks.find((b) => b.type === 'paragraph').id)
+  await frame.evaluate((id) => window.__editor.openWhenReady(id, 0), pid)
+  await frame.waitForSelector('.overlay-editor', { visible: true })
+  await sleep(400)
+  const first = await state()
+  check('書いている段落の左の道具に「ここに書くこと」（押してある）と「本文に入る文」', first.id === pid && first.hintOn === 'true' && first.textOn === 'false' && first.tag === 'ここに書くこと', JSON.stringify(first))
+
+  // ---- 「本文に入る文」を押す：切り替わり、同じ段落を書き続ける ----
+  await tool('本文に入る文')
+  await sleep(700)
+  await ready()
+  const on = await state()
+  await page.screenshot({ path: `${OUT}/10-prefilled-tool.png`, captureBeyondViewport: false })
+  check(
+    '「本文に入る文」を押すと、その段落が本文に入る文になり（札「本文に入る文」・字は黒）、同じ段落を書き続ける',
+    on.id === pid && on.prefilled && on.textOn === 'true' && on.hintOn === 'false' && on.tag === '本文に入る文' && on.tagText && on.color === 'rgb(0, 0, 0)',
+    JSON.stringify(on),
+  )
+  await page.keyboard.down('Control')
+  await page.keyboard.press('KeyA')
+  await page.keyboard.up('Control')
+  await page.keyboard.type('本報告書は、試験の文である。', { delay: 10 })
+  await page.keyboard.press('Enter')
+  await sleep(500)
+  await page.keyboard.type('二つ目の文', { delay: 10 })
+  await sleep(300)
+  const second = await state()
+  check('Enter で分けた後ろの段落も「本文に入る文」', second.id !== pid && second.prefilled && second.textOn === 'true', JSON.stringify(second))
+  await tool('ここに書くこと')
+  await sleep(700)
+  await ready()
+  const back = await state()
+  check('「ここに書くこと」を押すと、説明（薄い字）に戻る', back.id === second.id && !back.prefilled && back.hintOn === 'true' && back.tag === 'ここに書くこと' && back.color === 'rgb(95, 107, 149)', JSON.stringify(back))
+
+  // ---- 書き終えた紙面：札と字の色 ----
+  await frame.evaluate(() => window.__editor.finishEditing())
+  await sleep(500)
+  await ready()
+  const paper = await frame.evaluate((ids) => {
+    const p = (id) => document.querySelector(`.page-viewport.front section.body p[data-block-id="${id}"]`)
+    return ids.map((id) => ({ tag: getComputedStyle(p(id), '::before').content, color: getComputedStyle(p(id)).color }))
+  }, [pid, second.id])
+  check(
+    '紙面の札：本文に入る文は「本文に入る文」（字は紙面のふつうの色）、説明は「ここに書くこと」（薄い字）',
+    paper[0].tag === '"本文に入る文"' && paper[0].color !== 'rgb(95, 107, 149)' && paper[1].tag === '"ここに書くこと"' && paper[1].color === 'rgb(95, 107, 149)',
+    JSON.stringify(paper),
+  )
+  await page.screenshot({ path: `${OUT}/11-prefilled-paper.png`, captureBeyondViewport: false })
+
+  // ---- 戻して保存：ひな形に入る。カードの要約・前の作り方の窓 ----
+  await frame.evaluate(() => document.querySelector('.tpl-primary').click())
+  await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 10000 })
+  await sleep(300)
+  const summary = await page.evaluate(() => document.querySelector('.course.open .tpl-line b').textContent)
+  await page.evaluate(() => document.querySelector('.course.open .tpl-old').click())
+  await page.waitForSelector('.tpl-modal')
+  await sleep(400)
+  const oldRows = await page.evaluate(() => ({
+    rows: [...document.querySelectorAll('.tpl-modal .row')].map((r) => `${r.querySelector('.kind').textContent}:${r.querySelector('input')?.value ?? ''}`),
+    adds: [...document.querySelectorAll('.tpl-modal .adds button')].map((b) => b.textContent.trim()),
+  }))
+  await page.screenshot({ path: `${OUT}/12-prefilled-fallback.png`, captureBeyondViewport: false })
+  await page.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === 'やめる').click())
+  await sleep(300)
+  check(
+    'カードの要約に「本文に入る文1」。前の作り方の窓にも「本文に入る文」の行と「＋ 本文に入る文」',
+    summary.includes('・本文に入る文1') && oldRows.rows.includes('本文に入る文:本報告書は、試験の文である。') && oldRows.rows.includes('説明:二つ目の文') && oldRows.adds.includes('＋ 本文に入る文'),
+    JSON.stringify({ summary, ...oldRows }),
+  )
+  await page.evaluate(() => [...document.querySelectorAll('.dirty-bar button')].find((b) => b.textContent.includes('保存して学生に反映')).click())
+  await page.waitForFunction(() => !document.querySelector('.dirty-bar'), { timeout: 10000 })
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sotsugyo-admin-mock')).years[0].config.courses[0].template.slice(2, 4))
+  check(
+    '保存すると、ひな形の段落に本文に入る文（text）が入る（説明は空）。後ろの段落は説明のまま',
+    JSON.stringify(saved) === JSON.stringify([{ type: 'paragraph', hint: '', text: '本報告書は、試験の文である。' }, { type: 'paragraph', hint: '二つ目の文' }]),
+    JSON.stringify(saved),
+  )
+  await context.close()
 }

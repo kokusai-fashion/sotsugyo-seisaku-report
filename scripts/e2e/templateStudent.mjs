@@ -1,5 +1,6 @@
 // 先生がひな形を作る画面（mockups/v44 案A）で入れた改ページと、ふつうの表（見出しの行）が、学生の新しい原稿に出るかを確かめる（smoke.mjs から呼ぶ）。
-// 映画・舞台衣装デザイナー コースのひな形の「制作過程」の説明の後ろに、改ページと表（部位・寸法・メモ、中身2行）を入れた設定で、学生がコースを選んで始める。
+// 映画・舞台衣装デザイナー コースのひな形の「制作過程」の説明の後ろに、改ページと表（部位・寸法・メモ、中身2行）を入れ、
+// 最初の大見出しのすぐ下に本文に入る文（mockups/v70）を入れた設定で、学生がコースを選んで始める。
 // 画面の写真は poc-output/template-mode/ に置く
 import { mkdirSync, readFileSync } from 'node:fs'
 import { answerConfirms } from './confirmUi.mjs'
@@ -9,7 +10,10 @@ const OUT = 'poc-output/template-mode'
 mkdirSync(OUT, { recursive: true })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** 自動テストの設定（config-fixture.json）の衣装コースに、2026年度の初期値のひな形と、表・改ページを入れる */
+/** 先生が本文に入れておく文（ひな形の段落の text。mockups/v70 案C） */
+const PREFILLED = '本報告書は、2026年度の卒業制作において、筆者が担当した衣装の制作についてまとめたものである。'
+
+/** 自動テストの設定（config-fixture.json）の衣装コースに、2026年度の初期値のひな形と、表・改ページ・本文に入る文（最初の大見出しのすぐ下）を入れる */
 function configWithTemplate() {
   const config = JSON.parse(readFileSync(new URL('./config-fixture.json', import.meta.url), 'utf8'))
   const base = JSON.parse(readFileSync(new URL('../../src/config/2026.json', import.meta.url), 'utf8'))
@@ -18,6 +22,7 @@ function configWithTemplate() {
   for (const block of film.template) {
     if (block.type === 'chapter' && block.title === 'まとめ') template.push({ type: 'pageBreak' }, { type: 'table', caption: '寸法表', header: ['部位', '寸法', 'メモ'], rows: 2 })
     template.push(block)
+    if (block.type === 'chapter' && template.filter((b) => b.type === 'chapter').length === 1) template.push({ type: 'paragraph', hint: '', text: PREFILLED })
   }
   for (const c of config.courses) delete c.notice
   Object.assign(config.courses.find((c) => c.id === 'film-stage-costume'), { template, abstractExample: film.abstractExample })
@@ -80,6 +85,10 @@ export async function templateStudentPc(browser, check) {
       breakPage: brk ? ed.pageOfBlock(brk.id) : -1,
       lastPage: last ? ed.pageOfBlock(last.id) : -1,
       tableId: table?.id ?? null,
+      prefilled: (() => {
+        const p = body[0].blocks[0]
+        return p?.type === 'paragraph' ? { text: p.content.map((n) => n.text ?? '').join(''), hint: p.hint ?? null, mark: p.prefilled ?? null } : null
+      })(),
     }
   })
   check(
@@ -87,6 +96,18 @@ export async function templateStudentPc(browser, check) {
     made.header === '部位・寸法・メモ' && made.rows === '|' && !!made.breakId,
     JSON.stringify(made),
   )
+  check(
+    '先生が「本文に入る文」にした段落は、学生の新しい原稿に字のまま入る（説明・印は付かない）',
+    made.prefilled?.text === PREFILLED && made.prefilled.hint === null && made.prefilled.mark === null,
+    JSON.stringify(made.prefilled),
+  )
+  // 紙面では、ふつうの字（薄い字の説明ではない）
+  const prefilledPaper = await page.evaluate(() => {
+    const id = window.__editor.getSnapshot().report.body[0].blocks[0].id
+    const p = document.querySelector(`.page-viewport.front section.body p[data-block-id="${id}"]`)
+    return p ? { text: p.textContent, prefilledAttr: p.hasAttribute('data-prefilled') } : null
+  })
+  check('学生の紙面に、本文に入る文がふつうの字で出る', prefilledPaper?.text === PREFILLED && !prefilledPaper.prefilledAttr, JSON.stringify(prefilledPaper))
   // 改ページのあるページと、表のあるページを、見開きで並べて見る
   await page.evaluate((id) => {
     window.__editor.setView('spread')
@@ -120,6 +141,6 @@ export async function templateStudentPc(browser, check) {
     JSON.stringify({ ...paper, tablePage: made.tablePage, breakPage: made.breakPage, lastPage: made.lastPage }),
   )
   // ひな形のままの原稿は、書き始めていない（コースを変えても確かめずに入れ替わる）
-  check('ひな形のままの原稿は「書き始めていない」とみなす（表・改ページが入っていても）', !(await page.evaluate(() => window.__editor.bodyWritten())))
+  check('ひな形のままの原稿は「書き始めていない」とみなす（表・改ページ・本文に入る文が入っていても）', !(await page.evaluate(() => window.__editor.bodyWritten())))
   await context.close()
 }

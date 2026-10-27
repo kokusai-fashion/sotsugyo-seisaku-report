@@ -11,7 +11,8 @@ import type { InitPayload } from './protocol'
 /**
  * ひな形 ⇄ ひな形を作る画面の原稿（mockups/v44 案A）。
  * ひな形を作る画面は、学生と同じ紙面で書く。原稿は学生の原稿と同じ形で、この画面の中（メモリ）だけに置く（保存しない）。
- * - 本文の段落の字 ＝ ひな形の「ここに書くこと」（学生には、空の段落に薄い字で出る）
+ * - 本文の段落の字 ＝ ひな形の「ここに書くこと」（学生には、空の段落に薄い字で出る）。
+ *   「本文に入る文」にした段落（prefilled）の字は、学生の本文にそのまま入る（mockups/v70 案C）
  * - 抄録の段落の字 ＝ 抄録の書き出し例
  * - 図は空の枠、表は見出しの行（中身の行は学生が書く。行の数だけを持つ）、改ページはそのまま
  * - 表紙の項目・作品写真・引用参考文献は、ひな形に入らない
@@ -54,12 +55,16 @@ export function abstractPlaceholder(config: YearConfig): string {
   return `書き出しの例を入力。空のときは「${config.abstract.openingExample}」`
 }
 
-/** 本文の段落の説明（hint）を、段落の字にする（ひな形を作る画面では、説明を書く字として直す） */
+/**
+ * 本文の段落の説明（hint）を、段落の字にする（ひな形を作る画面では、説明を書く字として直す）。
+ * 字の入った段落（ひな形の本文に入る文から作ったもの）は、字のまま「本文に入る文」の印を付ける
+ */
 function hintAsText(chapters: Chapter[]): Chapter[] {
   return chapters.map((c) => ({
     ...c,
     blocks: c.blocks.map((b) => {
       if (b.type !== 'paragraph') return b
+      if (!b.hint && b.content.some((n) => n.type !== 'text' || n.text !== '')) return { type: 'paragraph', id: b.id, content: b.content, prefilled: true }
       const paragraph: ParagraphBlock = { type: 'paragraph', id: b.id, content: [{ type: 'text', text: b.hint ?? '' }] }
       return paragraph
     }),
@@ -121,7 +126,11 @@ export function templateFromReport(report: Report): TemplateResult {
     if (only?.type === 'paragraph' && contentToText(only.content, num) === '') continue
     for (const b of chapter.blocks) {
       if (b.type === 'subheading') push({ type: 'subheading', title: b.title }, b.id)
-      else if (b.type === 'paragraph') push({ type: 'paragraph', hint: contentToText(b.content, num) }, b.id)
+      else if (b.type === 'paragraph') {
+        // 本文に入る文（字が空なら、説明のない空の段落）
+        const text = contentToText(b.content, num)
+        push(b.prefilled && text.trim() ? { type: 'paragraph', hint: '', text } : { type: 'paragraph', hint: b.prefilled ? '' : text }, b.id)
+      }
       else if (b.type === 'figureRow') for (const f of b.figures) push({ type: 'figure', caption: f.caption }, f.id)
       else if (b.type === 'table') push(tableTemplate(b), b.id)
       else push({ type: 'pageBreak' }, b.id)
@@ -168,6 +177,7 @@ export function templateIssues({ template, abstractExample, ids, abstractId }: T
       else if (b.title.length > LIMITS.name) push(id, `${label}の名前${tooLong(LIMITS.name, b.title.length)}`)
     } else if (b.type === 'paragraph') {
       if (b.hint.length > LIMITS.hint) push(id, `「${chapterLabel(Math.max(0, chapter))}」の中の説明${tooLong(LIMITS.hint, b.hint.length)}`)
+      if (b.text && b.text.length > LIMITS.text) push(id, `「${chapterLabel(Math.max(0, chapter))}」の中の本文に入る文${tooLong(LIMITS.text, b.text.length)}`)
     } else if (b.type === 'figure') {
       const label = `図${++figure}のタイトル`
       if (!b.caption.trim()) push(id, `${label}が空です`)

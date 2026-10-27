@@ -93,7 +93,9 @@ function renderBlock(block: BodyBlock, numbers: Map<string, number>, tableIds: S
         .join('')
       // 空の段落には、ひな形の「ここに何を書くか」の説明（なければ操作の案内）を薄く出す（画面だけ）
       const placeholder = block.hint ? `（${block.hint}）` : '（クリックして文章を入力）'
-      return `<p data-block-id="${escapeHtml(block.id)}" data-placeholder="${escapeHtml(placeholder)}">${text}</p>`
+      // ひな形を作る画面の「本文に入る文」の印（札と字の色を変える：index.css。学生の原稿には付かない）
+      const prefilled = block.prefilled ? ' data-prefilled=""' : ''
+      return `<p data-block-id="${escapeHtml(block.id)}" data-placeholder="${escapeHtml(placeholder)}"${prefilled}>${text}</p>`
     }
     case 'figureRow': {
       // 図のまとまり：2枚ずつの段に分けて並べる（最後の段が1枚なら中央）

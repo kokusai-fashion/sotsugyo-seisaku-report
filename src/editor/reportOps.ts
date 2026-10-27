@@ -157,14 +157,27 @@ export function withPeriod(text: string): string {
   return /[、，,]$/.test(t) ? `${t.slice(0, -1)}。` : `${t}。`
 }
 
+/** 段落を作り直すときに持ち続けるもの */
+type Keep = Pick<ParagraphBlock, 'hint' | 'prefilled'>
+
 /**
- * 段落を作る。hint：ひな形の「ここに何を書くか」（書き換えても持ち続ける。空の段落を開いて、何も書かずに閉じたときに、
- * 説明が消えていたため。説明が出るのは空のときだけなので、書いてある段落では見えない）
+ * 段落を作る。keep.hint：ひな形の「ここに何を書くか」（書き換えても持ち続ける。空の段落を開いて、何も書かずに閉じたときに、
+ * 説明が消えていたため。説明が出るのは空のときだけなので、書いてある段落では見えない）。
+ * keep.prefilled：ひな形を作る画面の「本文に入る文」の印（書き換えても持ち続ける。mockups/v70）
  */
-function paragraph(id: string, text: string, num?: Numbering, hint?: string): ParagraphBlock {
+function paragraph(id: string, text: string, num?: Numbering, keep?: Keep): ParagraphBlock {
   const normalized = normalizeParagraph(text)
-  return { type: 'paragraph', id, content: num ? textToContent(normalized, num) : [{ type: 'text', text: normalized }], ...(hint ? { hint } : {}) }
+  return {
+    type: 'paragraph',
+    id,
+    content: num ? textToContent(normalized, num) : [{ type: 'text', text: normalized }],
+    ...(keep?.hint ? { hint: keep.hint } : {}),
+    ...(keep?.prefilled ? { prefilled: true as const } : {}),
+  }
 }
+
+/** Enter・貼り付けで分けた後ろの段落が、前の段落から引き継ぐもの（本文に入る文の印だけ。説明は前の段落に残す） */
+const sameKind = (b: ParagraphBlock): Keep => ({ prefilled: b.prefilled })
 
 // ---- 編集できる文字列の一覧 ----
 
@@ -220,13 +233,13 @@ export function setText(report: Report, id: string, text: string): Report {
   }
   if (report.abstract.paragraphs.some((p) => p.id === id)) {
     // 抄録を書き始めたか（started）は、そのまま残す
-    return { ...report, abstract: { ...report.abstract, paragraphs: report.abstract.paragraphs.map((p) => (p.id === id ? paragraph(id, text, undefined, p.hint) : p)) } }
+    return { ...report, abstract: { ...report.abstract, paragraphs: report.abstract.paragraphs.map((p) => (p.id === id ? paragraph(id, text, undefined, p) : p)) } }
   }
   const num = numbering(report)
   const withChapter = { ...report, body: report.body.map((c) => (c.id === id ? { ...c, title: text.replace(/[\r\n]/g, '') } : c)) }
   return mapBody(withChapter, (b): BodyBlock => {
     if (b.type === 'subheading' && b.id === id) return { ...b, title: text.replace(/[\r\n]/g, '') }
-    if (b.type === 'paragraph' && b.id === id) return paragraph(id, text, num, b.hint)
+    if (b.type === 'paragraph' && b.id === id) return paragraph(id, text, num, b)
     if (b.type === 'table' && b.id === id) return { ...b, caption: text.replace(/[\r\n]/g, '') }
     if (b.type === 'table' && b.rows.some((r) => r.cells.some((c) => c.id === id))) return setCellText(b, id, text.trim())
     if (b.type === 'figureRow' && b.figures.some((f) => f.id === id))
@@ -252,7 +265,7 @@ export function split(report: Report, id: string, before: string, after: string,
   const ai = abstract.findIndex((p) => p.id === id)
   if (ai >= 0) {
     const paragraphs = [...abstract]
-    paragraphs.splice(ai, 1, paragraph(id, ended(before), undefined, abstract[ai].hint), paragraph(created, after))
+    paragraphs.splice(ai, 1, paragraph(id, ended(before), undefined, abstract[ai]), paragraph(created, after))
     return { report: { ...report, abstract: { ...report.abstract, paragraphs } }, newId: created }
   }
   const num = numbering(report)
@@ -278,10 +291,11 @@ export function split(report: Report, id: string, before: string, after: string,
     const labels = attached.flatMap((a) => (a.type === 'figureRow' ? a.figures.map((f) => `図${num.numbers.get(f.id)}`) : [`表${num.numbers.get(a.id)}`]))
     const keepWithBefore = attached.length > 0 && after.length > 0 && !labels.some((l) => after.includes(l))
     const blocks = [...chapter.blocks]
-    // 分けた前の段落の終わりに「。」がなければ付ける（ひな形の説明は、前の段落に残す）
-    const first = paragraph(b.id, ended(before), num, b.hint)
-    if (keepWithBefore) blocks.splice(i, end - i, first, ...attached, paragraph(created, after, num))
-    else blocks.splice(i, 1, first, paragraph(created, after, num))
+    // 分けた前の段落の終わりに「。」がなければ付ける（ひな形の説明は、前の段落に残す。本文に入る文の印は、後ろの段落も引き継ぐ）
+    const first = paragraph(b.id, ended(before), num, b)
+    const second = paragraph(created, after, num, sameKind(b))
+    if (keepWithBefore) blocks.splice(i, end - i, first, ...attached, second)
+    else blocks.splice(i, 1, first, second)
     return { report: { ...report, body: report.body.map((c) => (c === chapter ? { ...c, blocks } : c)) }, newId: created }
   }
   return {
@@ -352,7 +366,7 @@ export function mergeBackward(report: Report, id: string, text: string): { repor
     const prev = abstract[ai - 1]
     const prevText = contentToText(prev.content, num)
     const paragraphs = [...abstract]
-    paragraphs.splice(ai - 1, 2, paragraph(prev.id, prevText + text, undefined, prev.hint))
+    paragraphs.splice(ai - 1, 2, paragraph(prev.id, prevText + text, undefined, prev))
     return { report: { ...report, abstract: { ...report.abstract, paragraphs } }, targetId: prev.id, caret: prevText.length }
   }
   if (ai === 0) return null
@@ -363,7 +377,7 @@ export function mergeBackward(report: Report, id: string, text: string): { repor
     if (prev.type !== 'paragraph') return null
     const prevText = contentToText(prev.content, num)
     const blocks = [...c.blocks]
-    blocks.splice(i - 1, 2, paragraph(prev.id, prevText + text, num, prev.hint))
+    blocks.splice(i - 1, 2, paragraph(prev.id, prevText + text, num, prev))
     return { report: { ...report, body: report.body.map((x) => (x === c ? { ...c, blocks } : x)) }, targetId: prev.id, caret: prevText.length }
   }
   return null
@@ -398,12 +412,12 @@ export function replaceWithParagraphs(report: Report, id: string, texts: string[
   const ids = texts.map((_, i) => (i === 0 ? id : newId('p')))
   const lastId = ids[ids.length - 1]
   if (report.abstract.paragraphs.some((p) => p.id === id)) {
-    const paragraphs = report.abstract.paragraphs.flatMap((p) => (p.id === id ? texts.map((t, i) => paragraph(ids[i], t, undefined, i === 0 ? p.hint : undefined)) : [p]))
+    const paragraphs = report.abstract.paragraphs.flatMap((p) => (p.id === id ? texts.map((t, i) => paragraph(ids[i], t, undefined, i === 0 ? p : undefined)) : [p]))
     return { report: { ...report, abstract: { ...report.abstract, paragraphs } }, lastId, ids }
   }
   const num = numbering(report)
   return {
-    report: mapBody(report, (b) => (b.id === id && b.type === 'paragraph' ? texts.map((t, i) => paragraph(ids[i], t, num, i === 0 ? b.hint : undefined)) : b)),
+    report: mapBody(report, (b) => (b.id === id && b.type === 'paragraph' ? texts.map((t, i) => paragraph(ids[i], t, num, i === 0 ? b : sameKind(b))) : b)),
     lastId,
     ids,
   }
@@ -427,7 +441,7 @@ export function paragraphToHeading(report: Report, id: string, heading: { level:
   const old = chapter.blocks[i] as ParagraphBlock
   const title = heading.title.replace(/[\r\n]/g, '')
   const nextId = rest === undefined ? null : newId('p')
-  const next: BodyBlock[] = nextId === null ? [] : [paragraph(nextId, rest ?? '', numbering(report), old.hint)]
+  const next: BodyBlock[] = nextId === null ? [] : [paragraph(nextId, rest ?? '', numbering(report), old)]
   // 段落と、その下の図・表の間で見出しの形を打ったときは、見出しを図・表の後ろに置く（図・表を、説明の段落から離さない）。
   // 段落の終わりで改行すると、Word と同じく図・表の上に新しい段落ができるため（依頼者の選択 2026-10-23）
   let end = i + 1
@@ -583,12 +597,26 @@ export function removeChapter(report: Report, id: string): Report {
 // ---- 図を入れる（書いている文の終わりに（図n）を入れ、段落の下に図を置く） ----
 
 /** 段落を探す（本文） */
-function findParagraph(report: Report, id: string): ParagraphBlock | undefined {
+export function findParagraph(report: Report, id: string): ParagraphBlock | undefined {
   for (const chapter of report.body) {
     const b = chapter.blocks.find((x) => x.id === id)
     if (b?.type === 'paragraph') return b
   }
   return undefined
+}
+
+/**
+ * ひな形を作る画面：本文の段落を「本文に入る文」（on）か「ここに書くこと」の説明にする（mockups/v70 案C）。
+ * 段落でない・すでにそうなっていれば、同じ原稿
+ */
+export function setPrefilled(report: Report, id: string, on: boolean): Report {
+  const p = findParagraph(report, id)
+  if (!p || !!p.prefilled === on) return report
+  return mapBody(report, (b): BodyBlock => {
+    if (b !== p) return b
+    const { prefilled: _dropped, ...rest } = p
+    return on ? { ...rest, prefilled: true } : rest
+  })
 }
 
 /**
