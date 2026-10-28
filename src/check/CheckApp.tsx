@@ -199,7 +199,8 @@ export function CheckApp() {
   const slotsRef = useRef<Slots>({})
   const docs = useRef(new Map<number, PDFDocumentProxy>())
   const nextId = useRef(0)
-  const [reading, setReading] = useState<{ done: number; total: number } | null>(null)
+  // heic：iPhone の写真（HEIC）を変換している（数秒かかる。依頼者の要望 2026-10-28）
+  const [reading, setReading] = useState<{ done: number; total: number; heic?: boolean } | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [announce, setAnnounce] = useState('')
   const [check, setCheck] = useState<CheckState>({ findings: [], hasWord: false, forKey: '', forConfig: null, wordErrors: {}, oks: [] })
@@ -319,7 +320,7 @@ export function CheckApp() {
         } else {
           const { preparePhoto } = await loadPhoto()
           try {
-            entry.photos = [{ id: entry.id, file, photo: await preparePhoto(file) }]
+            entry.photos = [{ id: entry.id, file, photo: await preparePhoto(file, () => setReading({ done: i, total: list.length, heic: true })) }]
           } catch (e) {
             // 読めない写真は、入れない（入れてある写真は、そのまま）
             warn(`「${file.name}」：${e instanceof Error && e.name === 'PhotoError' ? e.message : 'この写真を読めませんでした。JPEG か PNG にしてから入れてください。'}`)
@@ -1135,11 +1136,12 @@ export function CheckApp() {
  * ファイルを入れる所。読んでいる間は、ボタンに回る印と「読んでいます…」を出し（押せない）、何個目かを出す。
  * 2秒を過ぎたら「数秒かかることがあります」を足す（ページの多い PDF・写真は、スマホで数秒かかる。依頼者の要望 2026-10-20）
  */
-function DropArea({ big, dragging, reading, onPick }: { big: boolean; dragging: boolean; reading: { done: number; total: number } | null; onPick: () => void }) {
+function DropArea({ big, dragging, reading, onPick }: { big: boolean; dragging: boolean; reading: { done: number; total: number; heic?: boolean } | null; onPick: () => void }) {
   const slow = useSlow(!!reading)
   const status = reading ? (
     <span className="d-busy">
-      ファイルを読んでいます（{Math.min(reading.done + 1, reading.total)} / {reading.total}）{slow && <span className="nb">数秒かかることがあります</span>}
+      {reading.heic ? 'iPhone の写真（HEIC）を変換しています' : 'ファイルを読んでいます'}（{Math.min(reading.done + 1, reading.total)} / {reading.total}）
+      {(slow || reading.heic) && <span className="nb">数秒かかることがあります</span>}
     </span>
   ) : null
   const button = (

@@ -101,6 +101,8 @@ export interface OverlayCallbacks {
    * 呼び出し側が、直前の原稿の変更を戻したら true（段落に「Ⅲ．まとめ」と打って Enter で見出しにした直後など）
    */
   onUndoEmpty?(): boolean
+  /** Ctrl+Enter（⌘+Enter）を押した。呼び出し側が改ページを入れたら true（本文を書いているときだけ） */
+  onPageBreakKey?(blockId: string): boolean
 }
 
 /** 紙面上の位置と大きさ（画面座標）。紙面は縮小・拡大して表示しているため、倍率も渡す */
@@ -1809,6 +1811,11 @@ export class OverlayEditor {
       }
     }
 
+    // Ctrl+Enter（⌘+Enter）：改ページ（Word と同じ押し方。依頼者の選択 2026-10-28）。入れない所（抄録・表・タイトルなど）では、Enter と同じ
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && this.callbacks.onPageBreakKey?.(blockId)) {
+      e.preventDefault()
+      return
+    }
     if (e.key === 'Escape') {
       e.preventDefault()
       this.closingByKey = true

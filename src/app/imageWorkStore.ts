@@ -2,7 +2,8 @@
  * 写真を取り込んでいる様子（何枚目か）。編集の中核（editor/reportEditor.ts の onImageWork）から受けて、知らせの部品（app/ImageWork.tsx）に渡す
  */
 
-export type ImageWorkState = { done: number; total: number } | null
+/** heic：iPhone の写真（HEIC）を変換している（数秒かかる） */
+export type ImageWorkState = { done: number; total: number; heic?: boolean } | null
 
 /** 写真を取り込んでいる様子（何枚目か。終わったら null） */
 export class ImageWork {

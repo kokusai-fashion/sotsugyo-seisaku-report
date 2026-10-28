@@ -27,6 +27,8 @@ export function ImageWorkToast({ work, editor }: { work: ImageWork; editor: Repo
   }
   if (tail && !state && !rendering) setTail(false)
   if (!state && (!tail || waiting)) return null
-  const text = state && state.total > 1 ? `写真を取り込んでいます…（${Math.min(state.done + 1, state.total)} / ${state.total}枚）` : '写真を取り込んでいます…'
+  // HEIC を変換している間は、そう伝える（数秒かかり、ふつうの写真より待つため。依頼者の要望 2026-10-28）
+  const doing = state?.heic ? 'iPhone の写真（HEIC）を変換しています…' : '写真を取り込んでいます…'
+  const text = state && state.total > 1 ? `${doing}（${Math.min(state.done + 1, state.total)} / ${state.total}枚）` : doing
   return <WaitToast className="on-stage" text={text} />
 }

@@ -12,8 +12,23 @@ export const FIGURE_MAX_PX = 1600
 export const PHOTO_MAX_PX = 2400
 const JPEG_QUALITY = 0.88
 
-export async function importImage(file: Blob, id: string, maxLongEdgePx: number): Promise<StoredImage> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+/**
+ * 写真を絵にする（写真の向き（Exif）も直す）。ブラウザが読めない HEIC（パソコンの Chrome・Edge で選んだ iPhone の写真）は、
+ * 端末の中で HEIC を読む部品で読む（model/heic.ts。onHeic：変換を始めるときに呼ぶ。数秒かかるので、画面に知らせを出すため）
+ */
+export async function readBitmap(file: Blob, onHeic?: () => void): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(file, { imageOrientation: 'from-image' })
+  } catch (error) {
+    const heic = await import('./heic')
+    if (!(await heic.isHeif(file))) throw error
+    onHeic?.()
+    return heic.decodeHeic(file)
+  }
+}
+
+export async function importImage(file: Blob, id: string, maxLongEdgePx: number, onHeic?: () => void): Promise<StoredImage> {
+  const bitmap = await readBitmap(file, onHeic)
   const scale = Math.min(1, maxLongEdgePx / Math.max(bitmap.width, bitmap.height))
   const width = Math.round(bitmap.width * scale)
   const height = Math.round(bitmap.height * scale)

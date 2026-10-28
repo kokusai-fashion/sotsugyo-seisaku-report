@@ -41,6 +41,9 @@ npm run build    # 配信用ファイルを dist/ に出力
 
 同梱フォント（BIZ UD明朝・BIZ UDPゴシック）は SIL Open Font License 1.1。
 
+iPhone の写真（HEIC）を読む部品 libheif-js（libheif と HEVC の復号の libde265 を含む）は GNU LGPL 3.0。
+HEIC を選んだときだけ読み込む（`src/model/heic.ts`）。利用条件の文は [public/licenses/libheif.txt](public/licenses/libheif.txt)（公開のツールでは `licenses/libheif.txt`）。
+
 ## 公開
 
 - 学生用ツール：GitHub Pages。`main` に送ると GitHub Actions がテスト・ビルドして公開する（`.github/workflows/pages.yml`）

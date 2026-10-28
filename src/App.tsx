@@ -24,7 +24,7 @@ import { Palette, ViewBar } from './app/Palette'
 import { PageBand } from './app/PageBand'
 import { TocNotice } from './app/TocNotice'
 import { PhoneChrome } from './app/Phone'
-import { readPhoneDirect, useNoFocusZoom } from './app/phoneDirect'
+import { isIos, readPhoneDirect, useNoFocusZoom } from './app/phoneDirect'
 import { UndoBar } from './app/UndoBar'
 import { useUndoNotice } from './app/useUndoNotice'
 import { useKeyboardInset, useNarrow, useSwipe, useTouchLandscape, useWheelPaging } from './app/uiShared'
@@ -145,12 +145,18 @@ function courseChangeNote(config: YearConfig, current: Report, restored: Report)
   return name ? `\nコースも「${name}」に戻ります（表紙と抄録の指導教員も、そのコースになります）` : '\nコースも、その控えのときのコースに戻ります'
 }
 
+/**
+ * 写真を選ぶ画面で選べるファイル。パソコンでは、iPhone の写真（HEIC）も出す（Windows では「画像」に HEIC が入らないことがあるため。
+ * 読むのは model/heic.ts）。iPhone・iPad は「画像」だけ（HEIC を入れると、写真を JPEG に変えずに渡すようになるため）
+ */
+const imageAccept = () => (isIos() ? 'image/*' : 'image/*,.heic,.heif')
+
 /** 写真を選ぶ画面を開き、選ばれたファイルを返す（やめたら null） */
 function pickImageFile(): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*'
+    input.accept = imageAccept()
     input.addEventListener('change', () => resolve(input.files?.[0] ?? null), { once: true })
     input.addEventListener('cancel', () => resolve(null), { once: true })
     input.click()
@@ -162,7 +168,7 @@ function pickImageFiles(): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*'
+    input.accept = imageAccept()
     input.multiple = true
     input.addEventListener('change', () => resolve([...(input.files ?? [])]), { once: true })
     input.addEventListener('cancel', () => resolve([]), { once: true })

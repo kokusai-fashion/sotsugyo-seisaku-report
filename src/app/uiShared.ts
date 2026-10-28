@@ -108,11 +108,15 @@ export function useKeyboardInset(): void {
 const WHEEL_GESTURE_GAP_MS = 200
 /** ページを送るのに必要な回転の量（px。マウスのホイールなら1目盛りで届く） */
 const WHEEL_TURN_PX = 50
+/** 紙面の大きさを1段変えるのに必要な回転の量（px。マウスのホイールは1目盛りで1段。タッチパッドの2本の指は、広げた分だけ少しずつ） */
+const WHEEL_ZOOM_PX = 30
 
 /**
  * マウスのホイール（タッチパッドの2本指）でページを送る。下（右）へ回すと次のページ、上（左）へ回すと前のページ。
  * 1回の操作（間が空くまでの一続きの回転）で1ページ。めくっている間の回転と、タッチパッドの指を離したあとの惰性では続けて送らない。
  * 紙面をスクロールできるとき（拡大など）は、ふつうにスクロールし、端まで来てから改めて回したときだけ送る。
+ * Ctrl を押しながら回す（タッチパッドの2本の指で広げる・狭める）と、紙面の大きさを1段ずつ変える（右下の「－ ＋」と同じ。依頼者の選択 2026-10-28）。
+ * 紙面の外（右の欄など）では、今までどおりブラウザの拡大・縮小
  */
 export function useWheelPaging(target: React.RefObject<HTMLElement | null>, scroller: React.RefObject<HTMLElement | null>, editor: ReportEditor | null, enabled: boolean): void {
   useEffect(() => {
@@ -122,6 +126,9 @@ export function useWheelPaging(target: React.RefObject<HTMLElement | null>, scro
     let last = 0
     let sum = 0
     let mode: 'turn' | 'scroll' | 'done' = 'turn'
+    // Ctrl＋ホイールで回した量（一続きの操作の中で、同じ向きに回した分）
+    let zoomLast = 0
+    let zoomSum = 0
     // めくっている間の回転は、そのめくりの続き（惰性など）とみなして使わない
     let busy = false
     const turn = async (dir: 1 | -1) => {
@@ -134,7 +141,20 @@ export function useWheelPaging(target: React.RefObject<HTMLElement | null>, scro
       }
     }
     const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) return // 画面の拡大・縮小
+      if (e.ctrlKey && editor.wheelZoomable) {
+        // 紙面の大きさを変える（ブラウザの拡大・縮小はしない）。上へ回す・指を広げると大きく。1回の回転で変えるのは1段まで
+        e.preventDefault()
+        const d = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? sc.clientHeight : 1)
+        if (!d) return
+        if (e.timeStamp - zoomLast > WHEEL_GESTURE_GAP_MS || Math.sign(d) !== Math.sign(zoomSum)) zoomSum = 0
+        zoomLast = e.timeStamp
+        zoomSum += d
+        if (Math.abs(zoomSum) < WHEEL_ZOOM_PX) return
+        editor.wheelZoom(zoomSum < 0 ? 1 : -1)
+        zoomSum = 0
+        return
+      }
+      if (e.ctrlKey || e.metaKey) return // 画面の拡大・縮小（スマホ・Mac の ⌘）
       // 道具の中を上下に動かせるとき（表を選んでいて、道具が画面に入りきらない）は、道具を動かす
       const palette = e.target instanceof Element ? e.target.closest('.palette') : null
       if (palette && palette.scrollHeight > palette.clientHeight) return

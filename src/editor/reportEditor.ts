@@ -160,7 +160,7 @@ export interface EditorCallbacks {
    * 選んだ写真を縮めて、この端末に保存している間（画面に「写真を取り込んでいます…」を出す。依頼者の要望 2026-10-20）。
    * done・total：何枚目か（まとめて選んだとき）。終わったら null
    */
-  onImageWork?(work: { done: number; total: number } | null): void
+  onImageWork?(work: { done: number; total: number; heic?: boolean } | null): void
   /** 知らせの窓を出してほしい（画面の中に出す：app/ask.tsx。ないときはブラウザの alert） */
   onAlert?(text: string): void
 }
@@ -501,6 +501,14 @@ export class ReportEditor {
         const table = this.report.body.flatMap((c) => c.blocks).find((b) => b.id === id)
         return !backward && table?.type === 'table' && this.tabCells(table).length > 0
       },
+      // Ctrl+Enter（⌘+Enter）：左の道具の「改ページ」と同じ（段落の頭なら段落の前、ほかは段落の後ろ。依頼者の選択 2026-10-28）。
+      // 道具に「改ページ」が出る所（本文の段落・見出し）だけ
+      onPageBreakKey: (id) => {
+        const kind = ops.findEditable(this.report, id)?.kind
+        if (kind !== 'paragraph' && kind !== 'chapter' && kind !== 'subheading') return false
+        this.addPageBreak()
+        return true
+      },
       // 段落で Tab：Word のつもりで字下げしようとした。1字下げは自動で付くことを、開いている間に1回だけ知らせる
       onTabStay: (id) => {
         const kind = ops.findEditable(this.report, id)?.kind
@@ -779,7 +787,7 @@ export class ReportEditor {
     // 縮めて保存する間（大きな写真は、スマホで1〜数秒かかる）は、画面に「写真を取り込んでいます…」を出す
     this.callbacks.onImageWork?.({ done: 0, total: 1 })
     try {
-      return await this.storeImage(file, purpose)
+      return await this.storeImage(file, purpose, undefined, { done: 0, total: 1 })
     } finally {
       this.callbacks.onImageWork?.(null)
     }
@@ -793,14 +801,15 @@ export class ReportEditor {
 
   /**
    * 選んだ写真を縮めて、この端末に保存する（読めない・保存できないときは、わけを出して null）。
-   * unreadable を渡したときは、読めなかったファイルの名前をそこに足し、知らせは出さない（まとめて選んだ写真は、あとでまとめて知らせる：alertUnreadable）
+   * unreadable を渡したときは、読めなかったファイルの名前をそこに足し、知らせは出さない（まとめて選んだ写真は、あとでまとめて知らせる：alertUnreadable）。
+   * work：取り込んでいる様子（何枚目か）。iPhone の写真（HEIC）を変換し始めたら、画面の知らせを「HEIC を変換しています…」にする
    */
-  private async storeImage(file: File, purpose: 'figure' | 'swatch' | 'photo', unreadable?: string[]): Promise<string | null> {
+  private async storeImage(file: File, purpose: 'figure' | 'swatch' | 'photo', unreadable?: string[], work?: { done: number; total: number }): Promise<string | null> {
     let stored: StoredImage
     try {
-      stored = await importImage(file, ops.newId('img'), purpose === 'photo' ? PHOTO_MAX_PX : FIGURE_MAX_PX)
+      stored = await importImage(file, ops.newId('img'), purpose === 'photo' ? PHOTO_MAX_PX : FIGURE_MAX_PX, () => work && this.callbacks.onImageWork?.({ ...work, heic: true }))
     } catch {
-      // 写真として読めない（パソコンで iPhone の HEIC を選んだ、壊れたファイルなど）。黙って何もしないと、押しても動かないように見える
+      // 写真として読めない（壊れたファイル・写真でないファイルなど。iPhone の HEIC は、パソコンでも読む：model/heic.ts）。黙って何もしないと、押しても動かないように見える
       if (unreadable) unreadable.push(file.name)
       else this.alertUnreadable([file.name])
       return null
@@ -823,7 +832,7 @@ export class ReportEditor {
     if (!names.length) return
     this.alert(
       `${names.map((n) => `「${n}」`).join('')}を写真として読み込めませんでした。\n` +
-        'iPhone の写真（HEIC）は、パソコンでは読めないことがあります。JPEG か PNG にしてから選んでください（iPhone の「設定」→「カメラ」→「フォーマット」で「互換性優先」にすると JPEG で撮れます）。',
+        'ファイルが壊れているか、読めない形式です。JPEG か PNG にしてから選んでください。',
     )
   }
 
@@ -1478,6 +1487,24 @@ export class ReportEditor {
     this.scroller.scrollTop = ratio * this.scroller.scrollHeight
     if (this.overlay.blockId) this.followCaret()
     this.notify()
+  }
+
+  /** Ctrl＋ホイールで、紙面の大きさを変えられるか（パソコンだけ。スマホは2本の指で広げる。false ならブラウザの拡大・縮小に任せる） */
+  get wheelZoomable(): boolean {
+    return !this.phone
+  }
+
+  /**
+   * Ctrl＋ホイール（タッチパッドの2本の指で広げる・狭める）で、紙面の大きさを1段変える（右下の「－ ＋」と同じ段。依頼者の選択 2026-10-28）。
+   * 見開きのときに大きくすると、1ページの表示にして1段大きく（見開きには「－ ＋」がないため）。小さくするときは、見開きのまま
+   */
+  wheelZoom(dir: 1 | -1): void {
+    if (this.phone) return
+    if (this.stage.spread) {
+      if (dir < 0) return
+      this.setView('fit')
+    }
+    this.zoomStep(dir)
   }
 
   /** 紙面のまわりに空ける幅（台の CSS の変数）を変えたとき、紙面の倍率と位置を求め直す（スマホの紙面の下の帯。app/PageBand.tsx） */
@@ -4773,8 +4800,8 @@ export class ReportEditor {
       for (const file of files) {
         if (stored.length >= slots.length) break
         this.callbacks.onImageWork?.({ done: tried, total })
+        const imageId = await this.storeImage(file, 'photo', unreadable, { done: tried, total })
         tried++
-        const imageId = await this.storeImage(file, 'photo', unreadable)
         if (imageId) stored.push({ ...slots[stored.length], imageId })
       }
     } finally {

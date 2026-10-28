@@ -229,11 +229,11 @@ export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSn
           前は拡大しているときだけ出し、100% が「拡大」の大きさだった：v59 案A）。見開きのときは出さない */}
       {!snap.spread && (
         <div className="zoom-step" role="group" aria-label="表示の大きさ">
-          <button title="小さく（1段下げる。100% は「1ページ」の大きさ）" aria-label="小さく" disabled={!snap.zoomed} onClick={() => editor.zoomStep(-1)}>
+          <button title="小さく（1段下げる。100% は「1ページ」の大きさ。紙面の上で Ctrl＋ホイールでも）" aria-label="小さく" disabled={!snap.zoomed} onClick={() => editor.zoomStep(-1)}>
             －
           </button>
           <b aria-live="polite">{Math.round(snap.zoomLevel * 100)}%</b>
-          <button title="大きく（1段上げる）" aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01} onClick={() => editor.zoomStep(1)}>
+          <button title="大きく（1段上げる。紙面の上で Ctrl＋ホイールでも）" aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01} onClick={() => editor.zoomStep(1)}>
             ＋
           </button>
         </div>
@@ -624,7 +624,7 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
             {/* 大きい順（大見出し → 小見出し）に並べる（依頼者の判断 2026-10-21） */}
             <Tool label="大見出し" icon={Icon.heading1} title="大見出し（Ⅰ．）を足す" onPreview={preview} onClick={() => editor.addChapter()} />
             <Tool label="小見出し" icon={Icon.heading2} title="小見出し（ⅰ．）を足す" onPreview={preview} onClick={() => editor.addSubheading()} />
-            <Tool label="改ページ" icon={Icon.pageBreak} title="ここで改ページする（この後ろは次のページから始まります）" onPreview={(on) => editor.previewInsert(on, 'pageBreak')} onClick={() => editor.addPageBreak()} />
+            <Tool label="改ページ" icon={Icon.pageBreak} title="ここで改ページする（この後ろは次のページから始まります。Ctrl+Enter でも）" onPreview={(on) => editor.previewInsert(on, 'pageBreak')} onClick={() => editor.addPageBreak()} />
           </div>
           <div className="group">
             <Tool

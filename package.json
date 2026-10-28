@@ -25,6 +25,7 @@
     "budoux": "0.9.3",
     "fflate": "^0.8.3",
     "jspdf": "^4.2.1",
+    "libheif-js": "1.23.5",
     "modern-screenshot": "^4.7.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.4.299",

@@ -45,7 +45,7 @@ export function readPhoneDirect(): boolean {
 }
 
 /** iPhone・iPad（Safari）か（iPad は「Mac」と名乗るので、指で触れるかで見分ける） */
-function isIos(): boolean {
+export function isIos(): boolean {
   const ua = navigator.userAgent
   return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 }
