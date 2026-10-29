@@ -3,7 +3,7 @@ import { checkReportDetailed, type ReportFinding } from '../checker/reportChecks
 import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
-import { listItemLine, typedHeading, type HeadingText } from '../model/headingText'
+import { listItemLine, subheadingTitle, typedHeading, type HeadingText } from '../model/headingText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
 import { tidyName } from '../model/personName'
 import { putImage, type StoredImage } from '../model/storage'
@@ -103,6 +103,8 @@ export interface EditorSnapshot {
   photoPage: number | null
   /** 拡大して表示しているか */
   zoomed: boolean
+  /** スマホで紙面に直接書いている間：本文の幅より大きく広げている（「幅に合わせる」を出す。mockups/v74 ③ 案A） */
+  overZoomed: boolean
   /** パソコンの表示の大きさ（「1ページ」の大きさを 1 = 100% として。pageStage.ts の ZOOM_STEPS。1ページ・見開きのときは 1） */
   zoomLevel: number
   /**
@@ -199,6 +201,8 @@ const FIGURE_MAX_MM = 80
 const ENTER_CREATES_PARAGRAPH = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
 /** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」・氏名の空白〔書き終えたときにそろえる〕）。書いている欄では、書き終えるまで出さない（runChecks） */
 const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty', 'name-space', 'name-no-space'])
+/** スマホで書いている間、本文の幅に合わせる倍率のこの倍より大きく広げていたら「幅に合わせる」を出す */
+const OVER_ZOOM = 1.08
 /** 学籍番号を書いている間は出さない指摘（書き終えると、半角・大文字にそろえる：tidyText） */
 const STUDENT_ID_TYPING_RULES = new Set(['digit-fullwidth', 'fullwidth-alpha', 'student-id-format'])
 /** スマホ：入れた図・表のタイトルの欄を開いてから、キーボードが出ていないかを見るまでの時間（showTapHint） */
@@ -768,6 +772,7 @@ export class ReportEditor {
       pageCount: this.layout?.kinds.length ?? 0,
       photoPage: this.layout ? photoPageAt(this.layout.kinds, this.page) : null,
       zoomed: this.stage.zoomed,
+      overZoomed: this.writingOnPaper && this.stage.scale > this.stage.textScale * OVER_ZOOM,
       zoomLevel: this.stage.relativeZoom,
       waiting: this.overlay.waiting || this.insertingFigure,
       spread: this.stage.spread,
@@ -1154,7 +1159,10 @@ export class ReportEditor {
     const id = this.overlay.blockId
     const editing = id ? ops.findEditable(this.report, id) : undefined
     const typing = id && editing?.kind === 'paragraph' ? { id, text: editing.text, heading: this.headingOf(id, editing.text) } : null
-    const checked = checkReportDetailed(this.report, this.config, this.provisional ? null : this.layout, typing)
+    const checked = checkReportDetailed(this.report, this.config, this.provisional ? null : this.layout, typing, (id) => {
+      const img = this.images.get(id)
+      return img ? { width: img.widthPx, height: img.heightPx } : undefined
+    })
     // 書いている途中の段落は「空の段落がある」と言わない（閉じても空のままなら言う）
     const writing = this.writingBlankIds()
     const findings = writing.size ? checked.findings.filter((f) => !(f.ruleId === 'paragraph-empty' && f.blockId && writing.has(f.blockId))) : checked.findings
@@ -1206,6 +1214,18 @@ export class ReportEditor {
   }
 
   private refreshHighlights(): void {
+    // 大きく切れている作品写真：紙面のその枠に札を出す（画面だけ。印刷・PDF には出ない。mockups/v74 ② 案A）
+    for (const el of this.viewport.querySelectorAll<HTMLElement>('.crop-warn')) {
+      el.classList.remove('crop-warn')
+      delete el.dataset.cropNote
+    }
+    for (const f of this.findings) {
+      if (f.ruleId !== 'photo-cropped' || f.photoPage === undefined || f.photoSlot === undefined) continue
+      for (const el of this.viewport.querySelectorAll<HTMLElement>(photoSlotSelector(f.photoPage, f.photoSlot))) {
+        el.classList.add('crop-warn')
+        el.dataset.cropNote = f.detail?.includes('上と下') ? '上と下が大きく切れています' : '左と右が大きく切れています'
+      }
+    }
     // 空いている欄（タイトル・表紙の項目など）のエラーは、欄を赤い点線と赤い字で示す
     for (const el of this.viewport.querySelectorAll('.has-issue')) el.classList.remove('has-issue')
     for (const f of this.findings) {
@@ -1903,6 +1923,70 @@ export class ReportEditor {
     this.realignOverlay()
     this.realignFrozen()
     this.placeContinueRow()
+    this.notify()
+  }
+
+  /**
+   * 書いている短い段落を、小見出しにする（左の道具の「この段落」の「小見出しにする」）。Word から読み込んだ「2-1 パターンと仮縫い」が段落になり、
+   * 「小見出し」を押しても下に空の小見出しが増えるだけで、直し方が分からなかった（学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑦ 案A）。
+   * 打って Enter で見出しにしたときと同じく、画面に「小見出し「…」にしました［戻す］」を出し、戻すと段落に戻る
+   */
+  convertToSubheading(): void {
+    const id = this.overlay.blockId
+    if (!id || this.settlingRemoval || ops.findEditable(this.report, id)?.kind !== 'paragraph') return
+    const title = subheadingTitle(this.overlay.text)
+    if (!title) return
+    this.keepParagraph = true
+    try {
+      this.commitForChange()
+    } finally {
+      this.keepParagraph = false
+    }
+    const typed = this.report
+    const text = ops.findEditable(typed, id)?.text.trim() ?? title
+    const heading: HeadingText = { level: 2, title }
+    const result = ops.paragraphToHeading(typed, id, heading)
+    if (!result) return
+    this.pushHistory(typed)
+    this.report = result.report
+    const step = this.headingStep(typed, [[id, text]], this.headingNoticeBody(result.report, result.headingId, heading))
+    this.afterChange({ render: 'now', save: true })
+    this.noticeHeading(step)
+  }
+
+  /** 抄録の字数の決まり（スマホの書いている間の字数の行：app/Phone.tsx） */
+  get abstractLimits(): { minChars: number; maxChars: number } {
+    return { minChars: this.config.abstract.minChars, maxChars: this.config.abstract.maxChars }
+  }
+
+  /** 表のマスを書いている：次のマスがあるか（スマホの「次のマス」を出す） */
+  hasNextCell(): boolean {
+    const id = this.overlay.blockId
+    const table = id ? this.report.body.flatMap((c) => c.blocks).find((b): b is TableBlock => b.type === 'table' && b.rows.some((r) => r.cells.some((c) => c.id === id))) : undefined
+    if (!table) return false
+    const cells = this.tabCells(table)
+    const at = cells.findIndex((c) => c.id === id)
+    return at >= 0 && at < cells.length - 1
+  }
+
+  /** 表のマスを書いている：次のマスへ移る（Tab と同じ。スマホの「次のマス」：mockups/v74 ⑤） */
+  nextCell(): void {
+    this.overlay.nextCell()
+  }
+
+  /**
+   * スマホ：書いている間の大きさを、本文の幅に合わせる（覚えている大きさも戻す）。2本の指で広げたままで、行の両端が画面の外に出て、
+   * 戻し方が分からなかった（学生の試し 2026-10-29。依頼者の選択 mockups/v74 ③ 案A「幅に合わせる」）
+   */
+  fitWritingWidth(): void {
+    if (!this.writingOnPaper) return
+    saveWritingZoom(1)
+    this.stage.setZoom(true)
+    this.scroller.scrollLeft = 0
+    this.realignOverlay()
+    this.realignFrozen()
+    this.placeContinueRow()
+    this.scheduleCaretReveal()
     this.notify()
   }
 

@@ -6,7 +6,8 @@ import type { HeadingText } from '../model/headingText'
 import type { Report, TableBlock, TableRow } from '../model/types'
 import { nameWithoutSpace, untidyNameGap } from '../model/personName'
 import { DEFAULT_STUDENT_ID } from '../model/account'
-import { pagePhotoCount } from '../model/photos'
+import { pagePhotoCount, photoCrop, photoGrid, photoSlotName, shownPhotos } from '../model/photos'
+import { PHOTO_GAP_MM } from '../layout/documentCss'
 import { swatchColumn, unusedRows } from '../model/table'
 import { charCount, checkText, DEFAULT_WORD_CHECKS, EMOJI_TITLE, findEmoji, type TextFinding } from './textRules'
 import type { Severity } from './types'
@@ -31,6 +32,8 @@ export interface ReportFinding {
   blockId?: string
   /** 作品写真の何ページ目の指摘か（0 から。作品写真が何ページかあるとき。そのページへ移る。mockups/v38 案A） */
   photoPage?: number
+  /** 作品写真の何枚目の枠の指摘か（0 から。紙面のその枠に札を出す：photo-cropped） */
+  photoSlot?: number
   start?: number
   end?: number
   /**
@@ -101,8 +104,9 @@ export function checkReportDetailed(
   config: YearConfig,
   layout?: LayoutInfo | null,
   typing?: { id: string; text: string; heading: HeadingText | null } | null,
+  imageSize?: (id: string) => { width: number; height: number } | undefined,
 ): { findings: ReportFinding[]; acknowledged: ReportFinding[] } {
-  let all = [...checkReport(report, config, layout, true), ...toolFindings(report, config)]
+  let all = [...checkReport(report, config, layout, true), ...toolFindings(report, config), ...(imageSize ? croppedPhotos(report, imageSize) : [])]
   // 見出しの形のときだけ、本文の段落か（抄録などではないか）を確かめる（打つたびに全部の欄を調べないように）
   const end = typing ? typedHeadingNumber(typing.text, typing.heading) : null
   if (typing && end !== null && editables(report).some((e) => e.id === typing.id && e.kind === 'paragraph' && e.text === typing.text)) {
@@ -110,6 +114,35 @@ export function checkReportDetailed(
   }
   const keys = new Set(report.acknowledged ?? [])
   return { findings: all.filter((f) => !f.key || !keys.has(f.key)), acknowledged: all.filter((f) => f.key && keys.has(f.key)) }
+}
+
+/** 作品写真の見える所が、写真のこの割合より小さければ「大きく切れている」 */
+export const PHOTO_CROP_LIMIT = 0.6
+
+/**
+ * 作品写真が大きく切れている（縦長の全身の写真を横長の枠に入れたなど。要確認。このままにできる）。
+ * 前は何も言わず、PDF でも大きく切れていた（学生の試し 2026-10-29。依頼者の選択 mockups/v74 ② 案A）。
+ * 写真の大きさはツールの中にしかない（端末に保存した画像）ので、ツールのチェックだけ（imageSize）
+ */
+export function croppedPhotos(report: Report, imageSize: (id: string) => { width: number; height: number } | undefined): ReportFinding[] {
+  const many = report.workPhotos.length > 1
+  return report.workPhotos.flatMap((page, k) =>
+    shownPhotos(page).flatMap((p, i): ReportFinding[] => {
+      const size = p.imageId && !p.whole ? imageSize(p.imageId) : undefined
+      if (!size) return []
+      const crop = photoCrop(page, size, PHOTO_GAP_MM)
+      if (crop.visible >= PHOTO_CROP_LIMIT) return []
+      const where = `${many ? `${k + 1}ページ目の` : ''}${page.layout === 1 ? '' : `${photoSlotName(page, i)}の`}写真`
+      return [
+        guide('photo-cropped', 'warning', '作品写真が大きく切れている', 'photos', {
+          detail: `${where}は、${crop.cut === 'tb' ? '上と下' : '左と右'}が大きく切れています。写真を押して「全体を入れる（切らない）」か、並べ方を変えます`,
+          key: `photo-cropped|${k}|${i}|${p.imageId}|${page.layout}|${photoGrid(page).columns}`,
+          photoPage: k,
+          photoSlot: i,
+        }),
+      ]
+    }),
+  )
 }
 
 /** 名前を打ち始める前の、見出しの番号だけの行（「Ⅲ」「Ⅲ．」「ⅱ」。前後の空白も） */

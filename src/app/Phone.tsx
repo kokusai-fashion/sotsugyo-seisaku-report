@@ -22,6 +22,7 @@ import { useDialogFocus } from './useDialogFocus'
 import { UndoBar } from './UndoBar'
 import { useUndoNotice } from './useUndoNotice'
 import { WordImportLink } from './WordImport'
+import { abstractCharCount } from '../checker/reportChecks'
 
 /**
  * 書いている間の道具の、いまは押せないボタン（戻す・やり直す）。disabled にすると、押したときにボタンが受け取らず、
@@ -360,6 +361,39 @@ function LandTip({ hidden }: { hidden: boolean }) {
   )
 }
 
+/**
+ * スマホで抄録を書いている間の字数（キーボードの上の道具のいちばん上。前は、チェックを開かないと字数が見えなかった：
+ * 学生の試し 2026-10-29。依頼者の選択 mockups/v74 ④ 案A）
+ */
+function AbstractCount({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot }) {
+  const n = abstractCharCount(snap.report)
+  const { minChars, maxChars } = editor.abstractLimits
+  return (
+    <p className="db-count" aria-live="polite">
+      抄録 <b>{n}字</b>（{minChars}〜{maxChars}字。{n < minChars ? <>あと<b>{minChars - n}</b>字</> : n > maxChars ? <><b>{n - maxChars}</b>字多い</> : '範囲に入っています'}）
+    </p>
+  )
+}
+
+/**
+ * スマホで書いている間、本文の幅より大きく広げているときの「幅に合わせる」（上の帯のすぐ下の右。押すと本文の幅に戻し、次からもその大きさで書く）。
+ * 2本の指で広げたままで、行の両端が画面の外に出て、戻し方が分からなかった（学生の試し 2026-10-29。依頼者の選択 mockups/v74 ③ 案A）
+ */
+function FitWidth({ editor }: { editor: ReportEditor }) {
+  const ref = useRef<HTMLButtonElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    const top = document.querySelector('.p-top')?.getBoundingClientRect().bottom ?? 48
+    if (el) el.style.top = `${top + 8}px`
+  })
+  return (
+    <button ref={ref} className="fit-width" onMouseDown={keepFocus} onClick={() => editor.fitWritingWidth()}>
+      {Icon.fitWidth}
+      幅に合わせる
+    </button>
+  )
+}
+
 function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: EditorSnapshot; guiding: boolean }) {
   const ask = useAsk()
   const id = snap.editingId
@@ -396,7 +430,9 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
     <>
       <PinchTip hidden={guiding} />
       <LandTip hidden={guiding || !pinchTipDone()} />
+      {snap.overZoomed && !guiding && <FitWidth editor={editor} />}
       <div className="direct-bar" role="toolbar" aria-label="書く道具">
+        {snap.editingKind === 'abstractParagraph' && <AbstractCount editor={editor} snap={snap} />}
         {hint && (
           <p className="db-hint">
             <b>ここに書くこと：</b>
@@ -462,6 +498,13 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
             >
               {Icon.remove}
               <span>削除</span>
+            </button>
+          )}
+          {/* 表のマス：次のマスへ（スマホには Tab がないため。mockups/v74 ⑤） */}
+          {snap.editingKind === 'tableCell' && editor.hasNextCell() && (
+            <button className="db-next" onMouseDown={keepFocus} onClick={() => editor.nextCell()}>
+              {Icon.nextCell}
+              <span>次のマス</span>
             </button>
           )}
           <button className="db-done" onMouseDown={keepFocus} onClick={() => editor.finishEditing()}>

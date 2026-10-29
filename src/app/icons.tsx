@@ -149,6 +149,10 @@ export const Icon = {
   ),
   minus: svg(<path d="M6 12h12" />),
   plus: svg(<path d="M12 5v14M5 12h14" />),
+  /** 次へ（表の次のマス） */
+  nextCell: svg(<path d="M5 12h12M13 6l6 6-6 6" />),
+  /** 幅に合わせる（四隅のかぎ） */
+  fitWidth: svg(<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />),
   /** 幅をそろえ直す（同じ幅の列。表の列の幅を自分で決めるとき：mockups/v42） */
   evenColumns: svg(
     <>

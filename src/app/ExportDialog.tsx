@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { YearConfig } from '../config'
-import { exportNote, type ProgressRow } from '../checker/progress'
+import { countOf, exportNote, type ProgressRow } from '../checker/progress'
 import type { ReportFinding } from '../checker/reportChecks'
 import { deviceName } from '../drive/device'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
@@ -425,9 +425,19 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
   if (phase.kind === 'done') {
     const { pdf, saved } = phase
     const size = `${pdf.pageCount}ページ・${sizeText(pdf.blob.size)}`
+    // 直すところ・まだのところが残ったまま保存した：提出用ではないことを知らせる（前は何も言わず、提出用と見分けられなかった：
+    // 学生の試し 2026-10-29。依頼者の選択 mockups/v74 ① 案A。透かしは付けない）
+    const leftNote = fixes.length > 0 ? `直すところが${countOf(fixes.length)}` : notYet.length > 0 ? `まだのところが${countOf(notYet.length)}` : ''
+    const leftWarn = leftNote ? (
+      <p className="pdf-left-warn" role="note">
+        <b>{leftNote}残ったまま保存しました。</b>
+        提出するときは、直してから、もう一度保存します。
+      </p>
+    ) : null
     if (mode === 'share') {
       return (
         <Modal key="done" title="PDF ができました" onClose={onClose} className="pdf-modal">
+          {leftWarn}
           <FileBox fileName={pdf.fileName} note={size} />
           <Thumbs urls={thumbs} total={pdf.pageCount} />
           <p className="lead">
@@ -474,6 +484,7 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
         onClose={onClose}
         className="pdf-modal"
       >
+        {leftWarn}
         <FileBox fileName={pdf.fileName} note={`${size}　「ダウンロード」のフォルダ`} />
         <Thumbs urls={thumbs} total={pdf.pageCount} />
         <p className="lead">{waiting ? '数秒かかることがあります' : '開いて、ページの数と写真を確かめてください。'}</p>
@@ -569,10 +580,24 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
           うまくいかないとき：印刷の画面から保存
         </button>
         <span className="spacer" />
-        <button onClick={onClose}>{left ? '直しに戻る' : 'やめる'}</button>
-        <button className="primary pdf-start" onClick={start}>
-          {mode === 'share' ? 'PDF を作る' : 'PDF を保存する'}
-        </button>
+        {/* 残っているときは「直しに戻る」を濃くし、保存は「このまま〜」と薄く（依頼者の選択 mockups/v74 ① 案A） */}
+        {left ? (
+          <>
+            <button className="pdf-start" onClick={start}>
+              {mode === 'share' ? 'このまま PDF を作る' : 'このまま保存する'}
+            </button>
+            <button className="primary pdf-back" onClick={onClose}>
+              直しに戻る
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={onClose}>やめる</button>
+            <button className="primary pdf-start" onClick={start}>
+              {mode === 'share' ? 'PDF を作る' : 'PDF を保存する'}
+            </button>
+          </>
+        )}
       </div>
     </Modal>
   )

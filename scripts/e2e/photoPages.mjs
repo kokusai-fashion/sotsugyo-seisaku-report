@@ -82,7 +82,14 @@ const showPhotoPage = async (page, ready, k) => {
 const tool = (page, scope, text) => page.evaluate((scope, text) => [...document.querySelectorAll(`${scope} .tb`)].find((b) => b.textContent.replace(/\s/g, '').includes(text))?.click(), scope, text)
 
 const photosOf = (page) => page.evaluate(() => window.__editor.getSnapshot().report.workPhotos)
-const photoRow = (scope) => (page) => page.evaluate((scope) => [...document.querySelectorAll(`${scope} li`)].find((li) => li.querySelector('.l')?.textContent.trim() === '作品写真')?.querySelector('.v')?.textContent ?? '', scope)
+// 済んだ行は、直すところ（要確認の「作品写真が大きく切れている」など）があると1行にたたむので、そのときは名前の title（「作品写真：6枚（2ページ）（押すと…）」）から読む
+const photoRow = (scope) => (page) =>
+  page.evaluate((scope) => {
+    const row = [...document.querySelectorAll(`${scope} li`)].find((li) => li.querySelector('.l')?.textContent.trim() === '作品写真')?.querySelector('.v')?.textContent
+    if (row !== undefined) return row
+    const folded = [...document.querySelectorAll(`${scope} .done-fold button[title]`)].find((b) => b.title.startsWith('作品写真：'))?.title ?? ''
+    return folded.replace(/^作品写真：/, '').replace(/（押すと、その場所へ）$/, '')
+  }, scope)
 
 export async function photoPagesPc(browser, check) {
   const { context, page, ready } = await openSample(browser, { width: 1366, height: 768, deviceScaleFactor: 1 })

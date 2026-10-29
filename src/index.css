@@ -801,6 +801,11 @@ body.resizing .page-viewport { pointer-events: none; }
 .pdf-thumbs .tile.now { position: relative; background: #fff; box-shadow: inset 0 0 0 2px var(--accent); }
 .pdf-thumbs .tile.now::after { content: ''; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 2.5px solid var(--accent-soft); border-top-color: var(--accent); animation: login-spin 0.8s linear infinite; }
 /* iPhone・iPad：できたあとに押す「保存する」（大きく） */
+/* 大きく切れている作品写真の札（画面だけ。mockups/v74 ② 案A。editor/reportEditor.ts の refreshHighlights） */
+.page-viewport [data-photo-slot].crop-warn:not(.is-selected)::after { content: attr(data-crop-note); position: absolute; left: 50%; bottom: calc(10px / var(--s)); z-index: 4; translate: -50% 0; padding: calc(3px / var(--s)) calc(10px / var(--s)); border-radius: 999px; background: #b26a00; color: #fff; font-family: 'BIZ UDPGothic', sans-serif; font-size: calc(12px / var(--s)); font-weight: 700; line-height: 1.4; white-space: nowrap; pointer-events: none; }
+/* 直すところ・まだのところが残ったまま保存したとき（mockups/v74 ① 案A） */
+.pdf-left-warn { margin: 0 0 12px; padding: 10px 12px; border: 1px solid #f0c58f; border-radius: 10px; background: #fdf1e4; color: #8a4b0f; font-size: 14px; line-height: 1.6; }
+.pdf-left-warn b { display: block; }
 .modal button.pdf-save { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 13px 0; border-radius: 12px; font-size: 16px; }
 .modal button.pdf-save svg, .modal button.pdf-open svg { width: 18px; height: 18px; }
 .modal button.pdf-open { display: inline-flex; align-items: center; gap: 6px; }
@@ -1554,6 +1559,11 @@ button.row { cursor: pointer; }
 .app.phone .range-bar .photo-arrange .photo-pages-sep { display: block; flex: none; width: 1px; align-self: stretch; margin: 4px 2px 4px 4px; background: var(--line); }
 .app.phone .range-bar .photo-arrange .tb { min-width: 0; width: 52px; padding: 3px 0; gap: 2px; font-size: 10.5px; letter-spacing: -0.03em; white-space: nowrap; }
 .app.phone .range-bar .photo-arrange .tb svg { width: 20px; height: 20px; }
+/* スマホ（縦）：空いている枠があるときの「＋ 写真」（「並べ方」の名前の代わりに、並べ方の左に。mockups/v74 ⑥） */
+.photo-arrange .photo-add { display: none; }
+.app.phone .sel-bar .photo-arrange.has-add > .ctx-label { display: none; }
+.app.phone .sel-bar .photo-arrange .photo-add { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 52px; min-height: 52px; margin-right: 4px; padding: 0; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font: inherit; font-size: 11px; font-weight: 700; }
+.app.phone .sel-bar .photo-arrange .photo-add svg { width: 20px; height: 20px; stroke-width: 2.6; }
 /* スマホ（横）：右の列は今までどおり3列×2段。並べ方4つの後ろに「ページを足す」「ページを消す」を続けて並べる（並べ方の入れ物は、札の並びにそのまま入れる） */
 .app.phone .page-side .photo-arrange .layouts { display: contents; }
 
@@ -2095,6 +2105,11 @@ p.busy-line { display: flex; }
 .app.phone.writing-land { grid-template-rows: 0 minmax(0, 1fr) 62px; }
 .app.phone.writing-land .p-top { display: none; }
 /* そのとき1回だけ「縦向きにすると…」（Phone.tsx の LandTip） */
+/* スマホで書いている間：抄録の字数の行・「幅に合わせる」（mockups/v74 ③④） */
+.direct-bar .db-count { margin: 0; padding: 3px 12px 4px; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.5; color: var(--muted); }
+.direct-bar .db-count b { color: var(--ink); }
+.fit-width { position: fixed; z-index: 35; right: 10px; display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border: 1px solid #c9cede; border-radius: 999px; background: #fff; color: var(--accent); font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18); }
+.fit-width svg { width: 18px; height: 18px; }
 .land-tip { position: fixed; z-index: 36; left: 50%; top: 8px; translate: -50% 0; max-width: calc(100vw - 24px); padding: 7px 16px; border-radius: 99px; background: #2b2e36; color: #fff; font-size: 13.5px; line-height: 1.4; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); pointer-events: none; word-break: auto-phrase; }
 .pinch-tip b { grid-column: 1; }
 .pinch-tip span { grid-column: 1; font-size: 13px; opacity: 0.92; }

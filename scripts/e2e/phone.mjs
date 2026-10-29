@@ -922,18 +922,19 @@ async function bandCheck(browser) {
   )
   check('生地見本の画像を入れた表のセルには、仮の文字（「（タップして入力）」）も「＋」の印も出さず、帯でも空いている所にしない', swatch.cells > 0 && swatch.marks.every((m) => m === 'none') && !swatch.band.includes('表のセル'), JSON.stringify(swatch))
 
-  // 作品写真：空いている枠は「＋」の印だけ。帯に「下の枠に、まだ写真がありません」と「写真を選ぶ」。並べ方の道具とも重ならない
+  // 作品写真：空いている枠は「＋」の印だけ。縦向きでは紙面の下の帯は出さず、下の並べ方の道具の左に「＋ 写真」（mockups/v74 ⑥）
   await showKind('photos')
   const ph = await band()
+  const addPhoto = await page.evaluate(() => { const b = document.querySelector('.sel-bar .photo-arrange .photo-add'); const r = b?.getBoundingClientRect(); return b ? { text: b.textContent, h: Math.round(r.height), title: b.title } : null })
   const slotMark = await page.evaluate(() => {
     const before = getComputedStyle(document.querySelector('.page-viewport.front [data-photo-slot="1"]'), '::before')
     return { content: before.content, w: before.width }
   })
   await page.screenshot({ path: `${OUT}/13-band-photo.png` })
   check(
-    '作品写真：空いている枠は「＋」の印だけになり、帯に「下の枠に、まだ写真がありません」と「写真を選ぶ」（13px 以上・高さ 44px 以上。並べ方の道具に重ならない。紙面は上に動かない）',
-    ph.shown && ph.text.includes('下の枠に、まだ写真がありません') && ph.button === '写真を選ぶ' && ph.minFont >= 13 && ph.buttonH >= 44 && ph.pageTop === plain.pageTop && !ph.overlapsBar && ph.inside && !ph.scrollX && !slotMark.content.includes('クリック'),
-    JSON.stringify({ ph, plain, slotMark }),
+    '作品写真：空いている枠は「＋」の印だけになり、縦向きでは紙面の下の帯は出さず、下の並べ方の道具の左に「＋ 写真」（高さ 44px 以上。押す枠は「下の枠に、まだ写真がありません」）',
+    !ph.shown && !!addPhoto && addPhoto.text === '写真' && addPhoto.h >= 44 && addPhoto.title.includes('下の枠に、まだ写真がありません') && !slotMark.content.includes('クリック'),
+    JSON.stringify({ ph, addPhoto, slotMark }),
   )
 
   // 作品写真を押すと、下の道具にスイッチ「全体を入れる（切らない）」（mockups/v32 ③ 案A）。入れると枠の中に全体が入る
@@ -986,7 +987,7 @@ async function bandCheck(browser) {
   await page.evaluate(() => window.__editor.setZoom(true))
   await wait(300)
   const unzoomH = await height('.unzoom')
-  // 拡大したまま、ページ一覧からほかのページ（作品写真）へ移ると、ページ全体の表示に戻り、ページ送りと帯が出る
+  // 拡大したまま、ページ一覧からほかのページ（作品写真）へ移ると、ページ全体の表示に戻り、ページ送りと道具が出る（縦向きの作品写真のページに帯は出さない：mockups/v74 ⑥）
   // （前は拡大したままで、作品写真のページは白い所しか見えず、ページ送りと帯も隠れたままだった）
   await page.click('.p-nav button:nth-child(1)')
   await page.waitForSelector('.sheet .thumb-list .t')
@@ -996,10 +997,10 @@ async function bandCheck(browser) {
   const movedZoomed = await page.evaluate(() => {
     const s = window.__editor.getSnapshot()
     const pageEl = document.querySelector('.page-viewport.front [data-vivliostyle-page-container].is-current').getBoundingClientRect()
-    return { kind: s.layout.kinds[s.page], zoomed: s.zoomed, pager: !!document.querySelector('.pager'), band: !!document.querySelector('.page-band'), wholePage: pageEl.top >= 0 && pageEl.bottom <= innerHeight }
+    return { kind: s.layout.kinds[s.page], zoomed: s.zoomed, pager: !!document.querySelector('.pager'), band: !!document.querySelector('.sel-bar .photo-arrange'), wholePage: pageEl.top >= 0 && pageEl.bottom <= innerHeight }
   })
   await page.screenshot({ path: `${OUT}/16a-moved-after-zoom.png` })
-  check('スマホ：拡大したままほかのページへ移ると、ページ全体の表示に戻り、ページ送りと帯が出る', movedZoomed.kind === 'photos' && !movedZoomed.zoomed && movedZoomed.pager && movedZoomed.band && movedZoomed.wholePage, JSON.stringify(movedZoomed))
+  check('スマホ：拡大したままほかのページへ移ると、ページ全体の表示に戻り、ページ送りと並べ方の道具が出る', movedZoomed.kind === 'photos' && !movedZoomed.zoomed && movedZoomed.pager && movedZoomed.band && movedZoomed.wholePage, JSON.stringify(movedZoomed))
   await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p1'), 'none'))
   await ready()
   // 「追加」の欄に「＋ 引用・参考文献を入れる」はない（使い方の「引用・参考文献」から入れる。mockups/v35 ①）
@@ -1080,7 +1081,7 @@ async function bandCheck(browser) {
   await wait(800)
   await ready()
 
-  // 帯のボタンで、紙面のボタンと同じことができる：「写真を選ぶ」で写真を選ぶ画面が開き、入れると帯が消える。「先生の許可が出た」で抄録を書き始める
+  // 縦向きの作品写真は、下の道具の「＋ 写真」で写真を選ぶ画面が開き、入れると「＋ 写真」が消える（mockups/v74 ⑥）。帯の「先生の許可が出た」で抄録を書き始める
   await showKind('photos')
   const png = await page.evaluate(async () => {
     const c = new OffscreenCanvas(300, 400)
@@ -1095,13 +1096,13 @@ async function bandCheck(browser) {
   const { join } = await import('node:path')
   const pngPath = join(tmpdir(), 'sotsugyo-e2e-band.png')
   writeFileSync(pngPath, Buffer.from(png, 'base64'))
-  const [chooser] = await Promise.all([page.waitForFileChooser({ timeout: 10000 }), page.tap('.page-band button')])
+  const [chooser] = await Promise.all([page.waitForFileChooser({ timeout: 10000 }), page.tap('.sel-bar .photo-add')])
   await chooser.accept([pngPath])
   await page.waitForFunction(() => !!window.__editor.getSnapshot().report.workPhotos[0].imageIds[1], { timeout: 20000 })
   await ready()
   await wait(300)
-  const afterPhoto = await band()
-  check('帯の「写真を選ぶ」で写真を選ぶ画面が開き、写真を入れると帯が消える', !afterPhoto.shown, JSON.stringify(afterPhoto))
+  const afterPhoto = { ...(await band()), add: !!(await page.$('.sel-bar .photo-add')) }
+  check('下の道具の「＋ 写真」で写真を選ぶ画面が開き、写真を入れると「＋ 写真」が消える（帯も出ない）', !afterPhoto.shown && !afterPhoto.add, JSON.stringify(afterPhoto))
   await showKind('abstract')
   await page.tap('.page-band button')
   await wait(400)
@@ -1156,9 +1157,9 @@ async function iphoneShareCheck(browser) {
   const title = await page.evaluate(() => window.__editor.pdfTitle)
   await page.click('.p-nav .nav-pdf')
   await page.waitForSelector('.modal .pdf-start')
-  // 直すところ・まだのところが残っていても、ふつうの「PDF を作る」（保存は、できたあとに押す）。下書きの PDF はない
+  // 直すところ・まだのところが残っているときは「このまま PDF を作る」（濃いのは「直しに戻る」。mockups/v74 ① 案A。保存は、できたあとに押す）。下書きの PDF はない
   const startInfo = await page.evaluate(() => ({ start: document.querySelector('.modal .pdf-start')?.textContent, list: !!document.querySelector('.modal .pdf-left'), old: !!document.querySelector('.modal .draft-box, .modal .pdf-draft, .modal .checklist') }))
-  check('iPhone：直すところ・まだのところが残っていても、ボタンはふつうの「PDF を作る」（保存は、できたあとに押す。下書きの PDF はない）', startInfo.start === 'PDF を作る' && startInfo.list && !startInfo.old, JSON.stringify(startInfo))
+  check('iPhone：直すところ・まだのところが残っているときは「このまま PDF を作る」（保存は、できたあとに押す。下書きの PDF はない）', startInfo.start === 'このまま PDF を作る' && startInfo.list && !startInfo.old, JSON.stringify(startInfo))
   // 「直しに戻る」「PDF を作る」・「うまくいかないとき：印刷の画面から保存」も、見た目の高さ 44px 以上
   const pdfStartH = { back: await minVisibleHeight(page, '.modal .row-buttons button:not(.pdf-fallback)'), print: await minVisibleHeight(page, '.modal .row-buttons .pdf-fallback') }
   const backLabels = await page.$$eval('.modal .row-buttons button', (bs) => bs.map((b) => b.textContent))
@@ -1266,14 +1267,14 @@ async function phoneWordCheck(browser) {
     const top = await page.evaluate(() => document.querySelector('.sheet-body').firstElementChild?.className ?? '')
     await page.screenshot({ path: `${OUT}/10-word-after.png` })
     check('写し終えると、チェックの欄が開き、いちばん上に「つぎにすること」が出る', top === 'word-todo', top)
-    // 「図1へ」：欄を閉じて、図のページへ
-    const hasFigure = await page.$('.sheet .word-todo .go')
+    // 「本文へ」（表紙へ）：欄を閉じて、そのページへ
+    const hasFigure = await page.$('.sheet .word-todo .go:not(.problems-ok)')
     if (hasFigure) {
-      await page.evaluate(() => document.querySelector('.sheet .word-todo .go').click())
+      await page.evaluate(() => document.querySelector('.sheet .word-todo .go:not(.problems-ok)').click())
       await wait(700)
       await ready()
       const s = await page.evaluate(() => ({ sheet: !!document.querySelector('.sheet'), sel: window.__editor.getSnapshot().selection?.kind }))
-      check('「図1へ」（表紙へ）を押すと、チェックの欄を閉じて紙面のその場所へ移る', !s.sheet, JSON.stringify(s))
+      check('「本文へ」（表紙へ）を押すと、チェックの欄を閉じて紙面のその場所へ移る', !s.sheet, JSON.stringify(s))
     }
   }
   await context.close()

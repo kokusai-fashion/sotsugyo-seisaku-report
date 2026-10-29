@@ -64,7 +64,8 @@ function bandOf(editor: ReportEditor, snap: EditorSnapshot): Band | null {
     // 写真を押して選んでいる：その写真を指で動かせることを知らせる（全体を入れている写真は、切り抜いていないので動かせない）
     const s = snap.selection
     if (s?.kind === 'photos' && s.index !== undefined && photos?.imageIds[s.index] && !photos.whole?.[s.index]) return { kind: 'photoMove' }
-    const photo = photos && photoBand(photos)
+    // 縦向きでは帯を出さない（下の並べ方の道具の「＋ 写真」で入れる。mockups/v74 ⑥）。横向きは右の列に今までどおり
+    const photo = photos && matchMedia(BAND_SIDE_QUERY).matches ? photoBand(photos) : null
     return photo ? { kind: 'photos', page, ...photo } : null
   }
   // 表のマスの画像を押して選んでいる：切り抜いていれば、指で動かせることを知らせる（全体を入れている画像は動かせない）

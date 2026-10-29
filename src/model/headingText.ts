@@ -100,6 +100,20 @@ export function listItemLine(line: string): boolean {
   return arabicHeading(line)?.level === 2
 }
 
+/** 小見出しにできる段落の長さの上限（左の道具の「小見出しにする」を出す） */
+const SUBHEADING_MAX = 30
+
+/**
+ * 段落を小見出しにしたときの名前（左の道具の「この段落」の「小見出しにする」。mockups/v74 ⑦ 案A）。
+ * 短く（30字まで）、文ではない（「。」「！」「？」がない）段落だけ。番号の形（「2-1」「ⅰ．」など）は除く（番号は自動で付く）。できなければ null
+ */
+export function subheadingTitle(text: string): string | null {
+  const t = text.replace(/[\n\t]/g, '').trim()
+  if (!t || t.length > SUBHEADING_MAX || /[。！？!?]/.test(t)) return null
+  const found = typedHeading(t)
+  return found?.level === 2 ? found.title : t
+}
+
 export function typedHeading(line: string): HeadingText | null {
   const found = headingFromText(line) ?? romanBeforeJapanese(line) ?? arabicHeading(line)
   if (!found) return null

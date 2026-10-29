@@ -1965,6 +1965,15 @@ export class OverlayEditor {
     return { undo: on && this.undoStack.length > 0, redo: on && this.redoStack.length > 0 }
   }
 
+  /** 表のマスを書いている：Tab と同じく、次のマスへ移る（スマホの「次のマス」。Tab のないスマホで、次のマスへ移れなかった：mockups/v74 ⑤） */
+  nextCell(): void {
+    if (!this.target || this.target.kind !== 'cell' || !this.callbacks.onTab) return
+    const { blockId } = this.target
+    const text = this.text
+    const onTab = this.callbacks.onTab
+    this.handOff(() => onTab(blockId, text, false))
+  }
+
   /**
    * 段落を分けた・つなげたなどを呼び出し側に任せる。呼び出し側が書く先を移した（continueIn・open）ら開いたまま、
    * 移さなかった（組み直してから開き直す）ら、書いた内容は呼び出し側が受け取り済みなので、確定せずに閉じる

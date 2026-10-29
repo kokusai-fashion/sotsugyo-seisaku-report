@@ -21,7 +21,7 @@ export interface WordTodo {
   at: string
   /** 写す前の原稿の控え（storage の Snapshot.savedAt）。「読み込む前の原稿に戻す」で使う */
   snapshotAt: string | null
-  /** 「図1へ」から順に見た図の数（すべて見たら済み） */
+  /** 前の版の「図1へ」から順に見た図の数（いまは使わない。図の位置は、改ページの位置と一緒に確かめる：mockups/v74 ⑧） */
   figuresSeen: number
   /** 写したあとに表紙のページを開いた（開いただけでは済みにしない。「確かめた」を押すと coverChecked） */
   coverSeen: boolean
@@ -34,11 +34,6 @@ export interface WordTodo {
    * 図の大きさが Word と変わるため、改ページの位置がずれることがある（依頼者 2026-10-23：読み込んだ直後に、必ず確かめて直すように出す）
    */
   pagesChecked: boolean
-  /**
-   * 写した図の ID（「図の位置を確かめる」で見る図。写したあとにツールで足した図は入れない。前は図を足すと ✓ が外れた：学生の試し 2026-10-29）。
-   * 前の版で覚えた「つぎにすること」にはない（そのときは、いまの図をすべて見る）
-   */
-  figureIds?: string[]
   /** 確かめる窓の「うまく読み取れなかったところ」（読み込んだあとも見られるように。前は窓を閉じると二度と見られなかった：学生の試し 2026-10-29） */
   problems?: ImportProblem[]
   /** 読み取れなかったところを直して、学生が「直した」を押した */
@@ -62,7 +57,6 @@ function readTodo(): WordTodo | null {
           coverChecked: !!t.coverChecked,
           pagesSeen: !!t.pagesSeen || !!t.pagesChecked,
           pagesChecked: !!t.pagesChecked,
-          ...(Array.isArray(t.figureIds) ? { figureIds: t.figureIds } : {}),
           ...(Array.isArray(t.problems) ? { problems: t.problems, problemsChecked: !!t.problemsChecked } : {}),
           ...(t.previous ? { previous: t.previous } : {}),
         }

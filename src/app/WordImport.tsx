@@ -805,18 +805,14 @@ interface TodoProps {
 
 /**
  * 写したあとの「つぎにすること」（案B）。右の欄（スマホはチェックの欄）の上に、閉じる（×）まで残す。
- * 済んだものに ✓：エラーが0になった・「図1へ」から図を順に見た・本文を見て改ページの位置を「確かめた」・表紙を見て「確かめた」を押した（表紙のページを開いただけでは済みにしない）
+ * 済んだものに ✓：エラーが0になった・読み取れなかったところを「直した」・本文を見て図と改ページの位置を「確かめた」・表紙を見て「確かめた」を押した（表紙のページを開いただけでは済みにしない）。
+ * 済んだ項目は1行にたたむ。図の位置は改ページの位置と一緒に確かめる（前は図を1枚ずつ「図1へ」で見て、図24枚では24回押した：学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑧ 案A）
  */
 export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, onRestore, onPick }: TodoProps) {
   // 下の「直すところ」のエラーの数（下の「チェック」の赤い数と同じ）。前はすべてのエラー（本文のページ・抄録・作品写真など、
   // 「進み具合」の側に出るものも）を数え、「あと6件（下の一覧）」なのに「直すところ 0」と食い違っていた（学生の試し 2026-10-24）
   const errors = checkSummary(snap, config).errors
-  // 見る図は、写した図だけ（写したあとにツールで足した図は入れない）。紙面の順に並べる
-  const allFigures = snap.report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures : []))
-  const imported = todo.figureIds ? new Set(todo.figureIds) : null
-  const figures = imported ? allFigures.filter((f) => imported.has(f.id)) : allFigures
-  const seen = Math.min(todo.figuresSeen, figures.length)
-  const figuresDone = seen >= figures.length
+  const hasFigures = snap.report.body.some((c) => c.blocks.some((b) => b.type === 'figureRow'))
   const problems = todo.problems ?? []
   const problemsDone = !!todo.problemsChecked
   // 表紙の空いている項目（空のまま「確かめた」で済みにならないように：学生の試し 2026-10-29）
@@ -831,7 +827,7 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
     .filter(([, v]) => !v.trim())
     .map(([label]) => label)
   const coverDone = todo.coverChecked && coverMissing.length === 0
-  const steps = [errors === 0, ...(problems.length > 0 ? [problemsDone] : []), ...(figures.length > 0 ? [figuresDone] : []), todo.pagesChecked, coverDone]
+  const steps = [errors === 0, ...(problems.length > 0 ? [problemsDone] : []), todo.pagesChecked, coverDone]
   const allDone = steps.every(Boolean)
   const ask = useAsk()
   // まだ済んでいない項目があるときは、確かめてから閉じる（閉じると「読み込む前の原稿に戻す」も消え、もう出ない。
@@ -844,16 +840,6 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   const when = new Date(todo.at).toLocaleString('ja-JP', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   const [restoring, restore] = useBusy<'restore'>()
 
-  const goFigure = async () => {
-    const figure = figures[seen]
-    if (!figure) return
-    onPick?.()
-    onUpdate({ ...todo, figuresSeen: seen + 1 })
-    const page = editor.pageOfBlock(figure.id)
-    if (page < 0) return
-    await editor.goToPage(page, 'fade')
-    editor.select({ kind: 'figure', id: figure.id })
-  }
   // 「表紙へ」：表紙のページへ移るだけ（済みにはしない）。表紙を見て、合っていたら「確かめた」を押して済みにする
   const goCover = () => {
     onPick?.()
@@ -861,7 +847,7 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
     void editor.goToPage(0, 'fade')
   }
   const confirmCover = () => onUpdate({ ...todo, coverSeen: true, coverChecked: true })
-  // 「本文へ」：本文の最初のページへ移る。最後のページまで見て、改ページの位置がよければ「確かめた」を押して済みにする
+  // 「本文へ」：本文の最初のページへ移る。最後のページまで見て、図と改ページの位置がよければ「確かめた」を押して済みにする
   const goPages = () => {
     onPick?.()
     onUpdate({ ...todo, pagesSeen: true })
@@ -895,16 +881,12 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
           {box(errors === 0)}
           <div>
             <b>セルフチェックのエラーを直す</b>
-            <small>
-              {/* 下の「直すところ」には要確認（黄）も並ぶので、赤いエラーの数だと分かるように（「あと1件」と「直すところ 3」が食い違って見えた：学生の試し 2026-10-29） */}
-              {errors > 0 ? (
-                <>
-                  あと <em>{errors}件</em>（下の「直すところ」の赤いエラー）
-                </>
-              ) : (
-                'エラーはありません'
-              )}
-            </small>
+            {/* 下の「直すところ」には要確認（黄）も並ぶので、赤いエラーの数だと分かるように（「あと1件」と「直すところ 3」が食い違って見えた：学生の試し 2026-10-29） */}
+            {errors > 0 && (
+              <small>
+                あと <em>{errors}件</em>（下の「直すところ」の赤いエラー）
+              </small>
+            )}
           </div>
           <span />
         </li>
@@ -913,9 +895,7 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
             {box(problemsDone)}
             <div>
               <b>読み取れなかったところを直す</b>
-              {problemsDone ? (
-                <small>直しました</small>
-              ) : (
+              {!problemsDone && (
                 <details className="todo-problems">
                   <summary>{countOf(problems.length)}（押して見る）</summary>
                   <ul>
@@ -938,36 +918,19 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
             )}
           </li>
         )}
-        {figures.length > 0 && (
-          <li className={figuresDone ? 'done' : ''}>
-            {box(figuresDone)}
-            <div>
-              <b>図の位置を確かめる</b>
-              <small>
-                {figures.length === 1 ? '図1（1枚）' : `図1〜図${figures.length}（${figures.length}枚）`}
-                {figuresDone ? 'を見ました' : seen > 0 ? `。図${seen}まで見ました` : ''}
-              </small>
-            </div>
-            {figuresDone ? (
-              <span />
-            ) : (
-              <button className="go" onClick={() => void goFigure()}>
-                図{seen + 1}へ
-              </button>
-            )}
-          </li>
-        )}
         <li className={todo.pagesChecked ? 'done' : ''}>
           {box(todo.pagesChecked)}
           <div>
-            <b>改ページの位置を確かめる</b>
-            <small>
-              {todo.pagesChecked
-                ? '確かめました'
-                : todo.pagesSeen
-                  ? '最後のページまで見て、改ページの位置がよければ「確かめた」を押します'
-                  : `${figures.length > 0 ? '図の大きさ' : '文字の組み方'}が Word と変わるため、改ページの位置がずれることがあります。必ず全ページを見て、必要なら改ページを入れる・消す`}
-            </small>
+            <b>{hasFigures ? '図と改ページの位置を確かめる' : '改ページの位置を確かめる'}</b>
+            {!todo.pagesChecked && (
+              <small>
+                {todo.pagesSeen
+                  ? `最後のページまで見て、${hasFigures ? '図と改ページ' : '改ページ'}の位置がよければ「確かめた」を押します`
+                  : hasFigures
+                    ? '図の大きさが Word と変わるため、図や改ページの位置がずれることがあります。全ページを見て、必要なら直す'
+                    : '文字の組み方が Word と変わるため、改ページの位置がずれることがあります。全ページを見て、必要なら改ページを入れる・消す'}
+              </small>
+            )}
           </div>
           {todo.pagesChecked ? (
             <span />
@@ -985,15 +948,15 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
           {box(coverDone)}
           <div>
             <b>表紙を確かめる</b>
-            <small>
-              {coverDone
-                ? '確かめました'
-                : coverMissing.length > 0 && todo.coverSeen
+            {!coverDone && (
+              <small>
+                {coverMissing.length > 0 && todo.coverSeen
                   ? `${coverMissing.join('・')}が空です。表紙に入れてから「確かめた」を押します`
                   : todo.coverSeen
                     ? 'コース・学籍番号・氏名・サブタイトルが合っていたら「確かめた」を押します'
                     : 'コース・学籍番号・氏名・サブタイトルが合っているか'}
-            </small>
+              </small>
+            )}
           </div>
           {coverDone ? (
             <span />

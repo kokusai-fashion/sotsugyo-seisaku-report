@@ -691,7 +691,8 @@ export async function firstTimeV3Word(browser, check) {
   const confirmed = await coverItem()
   check(
     '表紙のページを開いただけでは「表紙を確かめる」は済みにならず、「確かめた」を押すと済みになる',
-    !opened.done && opened.button === '確かめた' && confirmed.done && confirmed.note === '確かめました',
+    // 済んだ項目は1行にたたむ（説明の字はなくなる：mockups/v74 ⑧）
+    !opened.done && opened.button === '確かめた' && confirmed.done && confirmed.note === '',
     JSON.stringify({ opened, confirmed }),
   )
 

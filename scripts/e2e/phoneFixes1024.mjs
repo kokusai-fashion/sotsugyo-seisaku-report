@@ -176,7 +176,7 @@ await withEdge(async (browser) => {
         return { small, todo: m ? Number(m[1]) : 0, tally, fixErrors }
       })
       await page.screenshot({ path: `${OUT}/5-word-todo.png` })
-      check('Word から写したあとの「エラーを直す」の数は、下の「直すところ」のエラーの数と同じ', counts.todo === counts.fixErrors && (counts.todo > 0 ? counts.small.includes('「直すところ」') : counts.small.includes('エラーはありません')), JSON.stringify(counts))
+      check('Word から写したあとの「エラーを直す」の数は、下の「直すところ」のエラーの数と同じ', counts.todo === counts.fixErrors && (counts.todo > 0 ? counts.small.includes('「直すところ」') : counts.small === ''), JSON.stringify(counts))
     } else {
       check('見本の Word がある', false)
     }

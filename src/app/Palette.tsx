@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { createPortal } from 'react-dom'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { ZOOM_STEPS } from '../editor/pageStage'
-import { figurePairing, figurePlacement, findParagraph, numbering, type FigureMoveBlock } from '../editor/reportOps'
+import { figurePairing, figurePlacement, findEditable, findParagraph, numbering, type FigureMoveBlock } from '../editor/reportOps'
+import { subheadingTitle } from '../model/headingText'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
 import { SELECTION_TEXTS } from '../editor/selectionBar'
@@ -11,6 +12,7 @@ import { useAsk } from './ask'
 import { TableSizeMenu } from './TableSize'
 import { ShapeFace, TableShapeSheet, TableShapeTool } from './tableShape'
 import { keepFocus, PAGE_CONTEXT, TOC_PALETTE_NOTE } from './uiShared'
+import { BAND_SIDE_QUERY, photoBand } from './bandText'
 
 /** マウスの指の絵（目次の行を押せること。mockups/v41 案C） */
 const TOC_HAND = (
@@ -398,11 +400,27 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         />
       </>
     )
+    // スマホ（縦）：空いている枠があれば、並べ方の左に「＋ 写真」（紙面の下の「写真を選ぶ」の帯はなくした。iPhone SE で、帯が3つ重なって
+    // 3枚目・4枚目の枠が見えなかった：学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑥）
+    const empty = phone && !matchMedia(BAND_SIDE_QUERY).matches ? photoBand(photos) : null
     return (
       <>
         {photoTools}
-        <div className="group ctx photo-arrange">
+        <div className={`group ctx photo-arrange${empty ? ' has-add' : ''}`}>
           <div className="ctx-label">並べ方</div>
+          {empty && (
+            <button
+              className="photo-add"
+              title={empty.text}
+              onClick={() => {
+                editor.select({ kind: 'photos', page })
+                void editor.addPhotos(page, empty.index)
+              }}
+            >
+              {Icon.plus}
+              <span>写真</span>
+            </button>
+          )}
           <div className="layouts">
             {PHOTO_ARRANGEMENTS.map((a) => (
               <button
@@ -603,6 +621,10 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
           </>
         )}
         {paste}
+        {/* 短く「。」のない段落：小見出しにする（Word から読み込んだ「2-1 〇〇」など。mockups/v74 ⑦ 案A） */}
+        {!template && subheadingTitle(findEditable(snap.report, editingId)?.text ?? '') && (
+          <Tool label={'小見出し\nにする'} icon={Icon.heading2} title="この段落を小見出しにする（番号は自動で付きます）" onClick={() => editor.convertToSubheading()} />
+        )}
         <Tool label="削除" icon={Icon.remove} danger title="この段落を削除" onClick={remove} />
       </div>
     )

@@ -30,6 +30,29 @@ export function photoGrid(photos: Pick<WorkPhotoPage, 'layout' | 'columns'>): Ph
   return candidates.find((a) => a.columns === photos.columns) ?? candidates[0] ?? PHOTO_ARRANGEMENTS[0]
 }
 
+/** 作品写真のページの紙の大きさ（mm。写真は紙いっぱいに並べる：layout/documentCss.ts の .photos） */
+const PHOTO_PAGE_MM = { width: 210, height: 297 }
+
+/**
+ * 枠いっぱいに切り抜いたときに見える、写真の割合（1 なら切れない）と、切れる向き（tb：上と下、lr：左と右）。gap：写真の間の線の太さ（mm）
+ */
+export function photoCrop(page: Pick<WorkPhotoPage, 'layout' | 'columns'>, size: { width: number; height: number }, gap: number): { visible: number; cut: 'tb' | 'lr' } {
+  const { columns, rows } = photoGrid(page)
+  const slot = (PHOTO_PAGE_MM.width - gap * (columns - 1)) / columns / ((PHOTO_PAGE_MM.height - gap * (rows - 1)) / rows)
+  const image = size.width / Math.max(1, size.height)
+  return image > slot ? { visible: slot / image, cut: 'lr' } : { visible: image / slot, cut: 'tb' }
+}
+
+/** 枠の名前（2枚：「左の枠」「下の枠」など。ほか：「3枚目の枠」。作品写真の帯・指摘の言葉） */
+export function photoSlotName(photos: Pick<WorkPhotoPage, 'layout' | 'columns'>, index: number): string {
+  if (photos.layout === 2) {
+    const sideBySide = photoGrid(photos).columns === 2
+    if (index === 0) return sideBySide ? '左の枠' : '上の枠'
+    return sideBySide ? '右の枠' : '下の枠'
+  }
+  return `${index + 1}枚目の枠`
+}
+
 /** ページに載せる写真（先頭から layout 枚。空いている枠は ''）。whole：全体を入れる（切らない）写真か */
 export function shownPhotos(photos: WorkPhotoPage): { imageId: string; position: PhotoPosition | null; whole: boolean }[] {
   return Array.from({ length: photos.layout }, (_, i) => ({ imageId: photos.imageIds[i] ?? '', position: photos.positions?.[i] ?? null, whole: photos.whole?.[i] === true }))

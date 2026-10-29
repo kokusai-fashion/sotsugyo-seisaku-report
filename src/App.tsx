@@ -849,7 +849,6 @@ export default function App() {
       // courseId：確認の窓で、表紙の Word のコースを選んだ（本文は読み込む本文のまま、コースの名前を変える）
       editor.replace(applyWordImport(before, result, courseId ? { courseId, config: configRef.current } : undefined))
       rememberImportPrints(wordPrints(result))
-      const figureIds = editor.getSnapshot().report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures.map((f) => f.id) : []))
       // 前の読み込みの「つぎにすること」は、この読み込みを戻したときに、また出す（1つ前の分だけ）
       setWordTodo({
         at: new Date().toISOString(),
@@ -859,7 +858,6 @@ export default function App() {
         coverChecked: false,
         pagesSeen: false,
         pagesChecked: false,
-        figureIds,
         ...(result.problems.length ? { problems: result.problems, problemsChecked: false } : {}),
         previous: wordTodo ? { ...wordTodo, previous: null } : null,
       })

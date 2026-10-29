@@ -2346,7 +2346,7 @@ await withEdge(async (browser) => {
     }))
     await page.screenshot({ path: `${OUT}/0-pdf-left.png` })
     check(
-      '直すところ・まだのところが残っていると、PDF の窓に右の欄と同じ言葉で一覧（押すとその場所へ）と「提出の前に直しましょう。このまま書き出すこともできます」を出し、ふつうの「PDF を保存する」で書き出せる（3つのチェック・下書きの欄・透かしの話はない）',
+      '直すところ・まだのところが残っていると、PDF の窓に右の欄と同じ言葉で一覧（押すとその場所へ）と「提出の前に直しましょう。このまま書き出すこともできます」を出し、濃い「直しに戻る」と薄い「このまま保存する」（mockups/v74 ① 案A。3つのチェック・下書きの欄・透かしの話はない）',
       left.keep &&
         dialog.title === 'PDFを書き出す' &&
         dialog.lead.startsWith('直すところが') &&
@@ -2355,9 +2355,9 @@ await withEdge(async (browser) => {
         dialog.fixes.length + (dialog.more ? Number(dialog.more.replace(/\D/g, '')) : 0) === left.fixes &&
         (left.notYet ? dialog.heads[1] === 'まだのところ' && dialog.notYet === left.notYet : dialog.heads.length === 1) &&
         dialog.anyway === '提出の前に直しましょう。このまま書き出すこともできます（途中で先生に見せるときなど）。' &&
-        dialog.start === 'PDF を保存する' &&
+        dialog.start === 'このまま保存する' &&
         !dialog.startDisabled &&
-        dialog.primaries.join(',') === 'PDF を保存する' &&
+        dialog.primaries.join(',') === '直しに戻る' &&
         dialog.file === `${title}.pdf` &&
         !dialog.old &&
         dialog.buttons.includes('直しに戻る'),
@@ -3053,13 +3053,10 @@ async function wordImportCheck(browser) {
     await ready()
   }
 
-  // 「図1へ」で、図1を選んで見せる。表紙のページを開いて「確かめた」を押すと「表紙を確かめる」が済みになる（開いただけでは済みにしない）
+  // 図の位置は、改ページの位置と一緒に確かめる（「図1へ」はない：mockups/v74 ⑧）。表紙のページを開いて「確かめた」を押すと「表紙を確かめる」が済みになる（開いただけでは済みにしない）
   if (after.figures > 0) {
-    await clickButton('.side .word-todo .go', '図1へ')
-    await pause(700)
-    await ready()
-    const fig = await page.evaluate(() => ({ sel: window.__editor.getSnapshot().selection, next: [...document.querySelectorAll('.side .word-todo .go')].map((x) => x.textContent) }))
-    check('「図1へ」で図1のページへ移って図を選び、ボタンが「図2へ」に進む（図が1枚なら済みになる）', fig.sel?.kind === 'figure' && (after.figures === 1 || fig.next.includes('図2へ')), JSON.stringify(fig))
+    const items = await page.evaluate(() => [...document.querySelectorAll('.side .word-todo > ul > li b')].map((x) => x.textContent))
+    check('図があるときは「図と改ページの位置を確かめる」の1つ（図を1枚ずつ見る「図1へ」はない）', items.includes('図と改ページの位置を確かめる') && !items.some((t) => t.includes('図の位置を確かめる')), JSON.stringify(items))
   }
   await page.evaluate(() => window.__editor.goToPage(0, 'none'))
   await pause(300)
@@ -3082,7 +3079,7 @@ async function wordImportCheck(browser) {
   const pagesDone = await pagesItem()
   check(
     '「改ページの位置を確かめる」は、改ページがずれることを知らせ、「本文へ」で本文の最初のページへ移り、「確かめた」で ✓ が付く',
-    /改ページの位置がずれることがあります。必ず全ページを見て/.test(pagesFirst.note) && pagesFirst.button === '本文へ' && pagesOpened.kind === 'body' && pagesOpened.button === '確かめた' && pagesOpened.cls !== 'done' && pagesDone.cls === 'done',
+    /位置がずれることがあります。全ページを見て/.test(pagesFirst.note) && pagesFirst.button === '本文へ' && pagesOpened.kind === 'body' && pagesOpened.button === '確かめた' && pagesOpened.cls !== 'done' && pagesDone.cls === 'done',
     JSON.stringify({ pagesFirst, pagesOpened, pagesDone }),
   )
   check('Word から読み込んだあと（案内を終えていない）は、指差し確認を出さない', !(await page.$('.tour')))
