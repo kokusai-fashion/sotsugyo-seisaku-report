@@ -101,6 +101,11 @@ export interface OverlayCallbacks {
    * 呼び出し側が、直前の原稿の変更を戻したら true（段落に「Ⅲ．まとめ」と打って Enter で見出しにした直後など）
    */
   onUndoEmpty?(): boolean
+  /**
+   * 書く欄の中で、やり直すもののない（この欄で戻した字がない）ときに Ctrl+Y・Ctrl+Shift+Z を押した。
+   * 呼び出し側が、原稿の「やり直す」をしたら true（Enter・改ページを戻したあと：学生の試し 4回目 2026-10-30）
+   */
+  onRedoEmpty?(): boolean
   /** Ctrl+Enter（⌘+Enter）を押した。呼び出し側が改ページを入れたら true（本文を書いているときだけ） */
   onPageBreakKey?(blockId: string): boolean
 }
@@ -1602,7 +1607,10 @@ export class OverlayEditor {
 
   private redoStep(): void {
     const next = this.redoStack.pop()
-    if (!next) return
+    if (!next) {
+      this.callbacks.onRedoEmpty?.()
+      return
+    }
     this.pushUndo({ text: this.model, ...this.selectionOffsets() })
     this.restore(next)
   }
@@ -1822,6 +1830,12 @@ export class OverlayEditor {
     // 紙面と同じ組み方で書いているとき：書く欄の中の Ctrl+Z（⌘+Z）・Ctrl+Y・Ctrl+Shift+Z（⌘+Shift+Z）は、ここで書いた文字を戻す・やり直す
     // 紙面と同じ組み方で書いていないとき（見出しなど1行の欄・スマホ）：開いてから何も書いていなければ、Ctrl+Z は呼び出し側に任せる（onUndoEmpty）
     if (!this.typeset && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z' && text === this.target.text && this.callbacks.onUndoEmpty?.()) {
+      e.preventDefault()
+      return
+    }
+    // やり直す（Ctrl+Y・Ctrl+Shift+Z）も同じ：開いてから何も書いていなければ、原稿の「やり直す」（onRedoEmpty）
+    const redoKey = (e.ctrlKey || e.metaKey) && !e.altKey && ((e.key.toLowerCase() === 'z' && e.shiftKey) || (e.key.toLowerCase() === 'y' && !e.shiftKey && !e.metaKey))
+    if (!this.typeset && redoKey && text === this.target.text && this.callbacks.onRedoEmpty?.()) {
       e.preventDefault()
       return
     }

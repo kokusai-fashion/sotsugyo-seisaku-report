@@ -12,6 +12,21 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
  */
 const openDialogs: HTMLElement[] = []
 
+/**
+ * 最後にフォーカスがあった所。窓を開く前に、押したボタンが押せなくなって（「PDFを書き出す」の「確かめています…」）フォーカスが外れていたら、
+ * 閉じたときはここへ戻す（PDF の窓を閉じたあと、フォーカスが行方不明になっていた：学生の試し 4回目 2026-10-30）
+ */
+let lastFocused: HTMLElement | null = null
+if (typeof document !== 'undefined') {
+  document.addEventListener(
+    'focusin',
+    (e) => {
+      if (e.target instanceof HTMLElement) lastFocused = e.target
+    },
+    true,
+  )
+}
+
 export function useDialogFocus(ref: RefObject<HTMLElement | null>, onEscape?: () => void): void {
   const escape = useRef(onEscape)
   useEffect(() => {
@@ -20,7 +35,8 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, onEscape?: ()
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+    const previous = active ?? (lastFocused?.matches('button, a[href]') ? lastFocused : null)
     const focusables = () => [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null || x === document.activeElement)
     const first = el.querySelector<HTMLElement>('[data-autofocus]') ?? focusables().find((x) => !x.classList.contains('close')) ?? focusables()[0]
     first?.focus()

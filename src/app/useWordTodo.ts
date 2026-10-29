@@ -42,6 +42,11 @@ export interface WordTodo {
   previous?: WordTodo | null
   /** 読み込んだ本文の Word のファイル名（戻すときに残す控えの名前） */
   fileName?: string
+  /**
+   * いま確かめている項目（「本文へ」「表紙へ」を押した・表紙のページを開いた）。説明と「確かめた」は、この1つにだけ出す
+   * （「本文へ」のあと「表紙へ」を押すと、両方に「確かめた」が出て、上の「確かめた」で違う項目が済みになった：学生の試し 4回目 2026-10-30）
+   */
+  doing?: 'pages' | 'cover'
 }
 
 const TODO_KEY = scoped('sotsugyo-seisaku-report-word-todo')
@@ -62,6 +67,7 @@ function readTodo(): WordTodo | null {
           ...(Array.isArray(t.problems) ? { problems: t.problems, problemsChecked: !!t.problemsChecked } : {}),
           ...(t.previous ? { previous: t.previous } : {}),
           ...(typeof t.fileName === 'string' ? { fileName: t.fileName } : {}),
+          ...(t.doing === 'pages' || t.doing === 'cover' ? { doing: t.doing } : {}),
         }
       : null
   } catch {
@@ -95,7 +101,7 @@ export function useWordTodo(snap: EditorSnapshot | null): { todo: WordTodo | nul
   useEffect(() => {
     const prev = prevPage.current
     prevPage.current = page
-    if (todo && !todo.coverSeen && onCover && prev !== null && prev !== page) update({ ...todo, coverSeen: true })
+    if (todo && !todo.coverSeen && onCover && prev !== null && prev !== page) update({ ...todo, coverSeen: true, doing: 'cover' })
   }, [page, onCover, todo, update])
   return { todo, update }
 }

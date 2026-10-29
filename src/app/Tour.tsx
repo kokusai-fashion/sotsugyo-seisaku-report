@@ -1,5 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useDialogFocus } from './useDialogFocus'
+import { forTouch } from './bandText'
+import { touchPrimary } from './uiShared'
 
 /**
  * 指差し確認（mockups/v27 案A「スポットライト」）。画面の大事な場所に1か所ずつ光を当て、ひとことで知らせる。
@@ -52,6 +54,9 @@ const phonePaper = () => {
   const heading = [...document.querySelectorAll(`${CUR} h1, ${CUR} h2`)].find(visible)
   return heading ? [heading, ...paras.slice(0, 1)] : first(CUR)()
 }
+
+/** パソコンの形の指差し確認。指で触る画面（iPad の横向きなど）では「クリック」を「タップ」に（学生の試し 4回目 2026-10-30） */
+const pcSteps = (drive: boolean): Step[] => (touchPrimary() ? PC_STEPS(drive).map((s) => ({ ...s, text: typeof s.text === 'string' ? forTouch(s.text) : s.text })) : PC_STEPS(drive))
 
 const PC_STEPS = (drive: boolean): Step[] => [
   { title: '紙面', text: '文をクリックすると、その場で書けます。', targets: paper, sides: ['below', 'above', 'right'] },
@@ -165,7 +170,7 @@ export function Tour({ narrow, drive, direct = true, onDone }: Props) {
   // 始めたときに、場所が見つかる段だけにする。使い方を閉じてすぐ（右の欄が戻る前）にも始めるため、画面ができてから（次のフレームで）調べる
   const [steps, setSteps] = useState<Step[] | null>(null)
   useLayoutEffect(() => {
-    const frame = requestAnimationFrame(() => setSteps((narrow ? PHONE_STEPS(drive, direct) : PC_STEPS(drive)).filter((s) => rectOf(s))))
+    const frame = requestAnimationFrame(() => setSteps((narrow ? PHONE_STEPS(drive, direct) : pcSteps(drive)).filter((s) => rectOf(s))))
     return () => cancelAnimationFrame(frame)
   }, [narrow, drive, direct])
   // 見せる場所が1つもなければ、すぐ終える

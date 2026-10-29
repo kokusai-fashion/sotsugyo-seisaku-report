@@ -11,8 +11,8 @@ import { Icon } from './icons'
 import { useAsk } from './ask'
 import { TableSizeMenu } from './TableSize'
 import { ShapeFace, TableShapeSheet, TableShapeTool } from './tableShape'
-import { keepFocus, PAGE_CONTEXT, TOC_PALETTE_NOTE } from './uiShared'
-import { BAND_SIDE_QUERY, photoBand } from './bandText'
+import { keepFocus, PAGE_CONTEXT, swallowSecondClick, TOC_PALETTE_NOTE, touchPrimary } from './uiShared'
+import { BAND_SIDE_QUERY, forTouch, photoBand } from './bandText'
 
 /** マウスの指の絵（目次の行を押せること。mockups/v41 案C） */
 const TOC_HAND = (
@@ -56,6 +56,7 @@ function Tool({
   onWhy,
   short,
   pressed,
+  once,
 }: {
   label: string
   icon: ReactNode
@@ -75,6 +76,11 @@ function Tool({
   short?: string
   /** 切り替えのボタン（押した状態を aria-pressed で示す。ひな形を作る画面の段落の種類：mockups/v70 案C） */
   pressed?: boolean
+  /**
+   * 押すと道具の並びが変わる（削除・小見出しにする）：ダブルクリックの2回目を受け止めて捨てる（並び直った道具や押せないボタンに当たり、
+   * 書く欄が閉じて続けて打った字が入らなかった：学生の試し 4回目 2026-10-30）
+   */
+  once?: boolean
 }) {
   const why = disabled && onWhy && title ? onWhy : undefined
   return (
@@ -90,6 +96,7 @@ function Tool({
       onClick={(e) => {
         onPreview?.(false)
         if (why) return why(title!, e.currentTarget)
+        if (once) swallowSecondClick(e)
         onClick()
       }}
     >
@@ -181,7 +188,7 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
   )
   return (
     <div className="group undo-redo">
-      {button('元に戻す', Icon.undo, UNDO_TIP, 'Control+Z Meta+Z', snap.canUndo, () => !editor.justRemoved && editor.undo())}
+      {button('元に戻す', Icon.undo, UNDO_TIP, 'Control+Z Meta+Z', snap.canUndo, () => !editor.toolsJustChanged && editor.undo())}
       {button('やり直す', Icon.redo, REDO_TIP, 'Control+Y Control+Shift+Z Meta+Shift+Z', snap.canRedo, () => editor.redo())}
       {tip && (
         <div className="ur-tip" role="tooltip" style={{ left: tip.left, top: tip.top }}>
@@ -623,9 +630,9 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         {paste}
         {/* 短く「。」のない段落：小見出しにする（Word から読み込んだ「2-1 〇〇」など。mockups/v74 ⑦ 案A） */}
         {!template && subheadingTitle(findEditable(snap.report, editingId)?.text ?? '') && (
-          <Tool label={'小見出し\nにする'} icon={Icon.heading2} title="この段落を小見出しにする（番号は自動で付きます）" onClick={() => editor.convertToSubheading()} />
+          <Tool label={'小見出し\nにする'} icon={Icon.heading2} once title="この段落を小見出しにする（番号は自動で付きます）" onClick={() => editor.convertToSubheading()} />
         )}
-        <Tool label="削除" icon={Icon.remove} danger title="この段落を削除" onClick={remove} />
+        <Tool label="削除" icon={Icon.remove} danger once title="この段落を削除" onClick={remove} />
       </div>
     )
   }
@@ -634,7 +641,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
       <div className="group ctx">
         <div className="ctx-label">この段落</div>
         {paste}
-        <Tool label="削除" icon={Icon.remove} danger title="この段落を削除" onClick={remove} />
+        <Tool label="削除" icon={Icon.remove} danger once title="この段落を削除" onClick={remove} />
       </div>
     )
   }
@@ -653,7 +660,8 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
   // 図・表は、段落を書いているとき（文中の入れたい位置にカーソルがあるとき）だけ入れられる
   const writing = snap.editingKind === 'paragraph'
   const kind = snap.layout?.kinds[snap.page] ?? 'unknown'
-  const context = PAGE_CONTEXT[kind]
+  // 指で触る画面（iPad の横向きなど）では「クリック」を「タップ」に（学生の試し 4回目 2026-10-30）
+  const context = touchPrimary() ? { ...PAGE_CONTEXT[kind], hint: forTouch(PAGE_CONTEXT[kind].hint) } : PAGE_CONTEXT[kind]
   const preview = (on: boolean) => editor.previewInsert(on)
   // 押せない「図を入れる」「表を入れる」を押したときの吹き出し（ボタンの右。低い画面では道具の説明を隠すので、わけが分からなかった：
   // 学生の試し 2026-10-29。依頼者の選択 mockups/v73 ⑤ 案A）

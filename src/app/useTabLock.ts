@@ -14,16 +14,29 @@ const LOCK_NAME = scoped('sotsugyo-seisaku-report-writer')
 export function useTabLock(onLost: () => void): { locked: boolean; takeOver: () => void } {
   const [locked, setLocked] = useState(false)
   const lost = useRef(onLost)
+  /** ロックが空くのを待っている（「こちらで続ける」では、待つのをやめてから取り上げる） */
+  const waitingRef = useRef<AbortController | null>(null)
   useEffect(() => {
     lost.current = onLost
   })
   useEffect(() => {
     if (!navigator.locks) return
+    const locks = navigator.locks
     let release: (() => void) | undefined
-    navigator.locks
+    const waiting = new AbortController()
+    waitingRef.current = waiting
+    locks
       .request(LOCK_NAME, { ifAvailable: true }, (lock) => {
         if (!lock) {
           setLocked(true)
+          // もう一方のタブが閉じたら（ロックが空いたら）、読み込み直して、このタブで書く（このタブでは書いていないので、読み込み直しても消えるものはない）。
+          // タブを閉じてすぐ開き直すと、前のタブがまだ閉じ終わっておらず、ほかのタブがないのに書けない窓が出たまま消えなかった（学生の試し 4回目 2026-10-30）
+          locks
+            .request(LOCK_NAME, { signal: waiting.signal }, () => {
+              location.reload()
+              return new Promise<void>(() => {})
+            })
+            .catch(() => {})
           return
         }
         return new Promise<void>((resolve) => {
@@ -35,10 +48,14 @@ export function useTabLock(onLost: () => void): { locked: boolean; takeOver: () 
         setLocked(true)
         lost.current()
       })
-    return () => release?.()
+    return () => {
+      waiting.abort()
+      release?.()
+    }
   }, [])
   const takeOver = () => {
     if (!navigator.locks) return
+    waitingRef.current?.abort()
     // 取り上げて、もう一方のタブが保存し終えるのを少し待ってから、読み込み直す（最新の原稿で続けるため）。
     // 読み込み直したこのタブがロックを持てるよう、手放してから読み込み直す
     void navigator.locks

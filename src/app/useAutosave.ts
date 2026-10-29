@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { clearLeavingCopy, keepLeavingCopy, saveReport, saveSnapshot } from '../model/storage'
+import { clearLeavingCopy, keepLeavingCopy, saveReport, saveSnapshotIfNew, storedReport } from '../model/storage'
 import type { Report } from '../model/types'
 
 export type SaveState = { status: 'idle' } | { status: 'saving' } | { status: 'saved'; at: Date } | { status: 'error'; message: string }
@@ -24,6 +24,8 @@ export function useAutosave(beforeLeave?: () => void) {
   /** まだ保存し終えていない最新の版（保存している途中の版も含む。閉じる直前に localStorage へ写す） */
   const unsaved = useRef<Report | null>(null)
   const lastSnapshot = useRef(0)
+  /** 開いてから初めて保存した（開いたときの原稿を控えに残した） */
+  const openedKept = useRef(false)
   const stopped = useRef(false)
   const leaving = useRef(beforeLeave)
   useEffect(() => {
@@ -36,6 +38,14 @@ export function useAutosave(beforeLeave?: () => void) {
     if (!report || stopped.current) return
     pending.current = null
     try {
+      // 開いてから初めて保存する前に、開いたときの原稿（前の日の終わりの原稿）を控えに残す。
+      // 前は初めて保存した原稿（最初に変えたあと）を残したので、開いてすぐ図を消すと、どの控えにも残らなかった（学生の試し 4回目 2026-10-30）
+      if (!openedKept.current) {
+        openedKept.current = true
+        lastSnapshot.current = Date.now()
+        const opened = await storedReport()
+        if (opened) await saveSnapshotIfNew(opened)
+      }
       await saveReport(report)
       // 保存し終えた：閉じる直前の写しは要らない（その後に書いた版があれば、それはまだ保存していない）
       if (unsaved.current === report) {
@@ -44,7 +54,7 @@ export function useAutosave(beforeLeave?: () => void) {
       }
       if (Date.now() - lastSnapshot.current > SNAPSHOT_INTERVAL_MS) {
         lastSnapshot.current = Date.now()
-        await saveSnapshot(report)
+        await saveSnapshotIfNew(report)
       }
       setState({ status: 'saved', at: new Date() })
     } catch (e) {

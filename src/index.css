@@ -1362,6 +1362,7 @@ button.row { cursor: pointer; }
 .side-menu.table-menu .tgrid button.on.h { background: #c3cbe6; }
 .table-menu .tgrid-label { margin: 9px 0 2px; text-align: center; font-size: 13.5px; font-weight: 700; color: var(--accent); }
 .table-menu .tgrid-label small { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--muted); }
+.side-menu.table-menu > button.kb-on { background: var(--accent-soft); color: var(--accent); outline: 2px solid var(--accent); outline-offset: -2px; }
 .table-menu .tmenu-sep { height: 1px; margin: 8px -4px 4px; background: var(--line); }
 .side-menu.table-menu > button { width: 100%; padding: 7px 6px; font-size: 12.5px; line-height: 1.45; }
 .side-menu.table-menu > button small { display: block; font-size: 11px; color: var(--muted); }
@@ -2227,3 +2228,22 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
 
 /* スマホ：紙面の写真の長押しで、スマホの画像のメニュー（保存・共有）を出さない（試し 2026-10-26。reportEditor の contextmenu も） */
 .app.phone .page-viewport img, .app.phone .page-viewport [data-photo-slot] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+/* ---- 学生の試し 4回目（2026-10-30）：押す所を広げる（見た目は同じ） ---- */
+/* PDF の窓の「保存されていないときは、もう一度保存」（高さ 12px）・残りの一覧の項目（パソコンも） */
+.modal button.pdf-fallback { position: relative; }
+.modal button.pdf-fallback::after { content: ''; position: absolute; inset: -12px -6px; }
+.pdf-left :is(.fix-list, .notyet-list) button.link { position: relative; }
+.pdf-left :is(.fix-list, .notyet-list) button.link::after { content: ''; position: absolute; inset: -4px -4px; }
+/* 指で触る画面（iPad の横向きなど、パソコンの形のとき）：紙面の右下の道具（1ページ・見開き・拡大 26px、－・＋ 28px） */
+@media (pointer: coarse) {
+  .view-bar button { position: relative; }
+  .view-bar button::after { content: ''; position: absolute; inset: -8px -2px; }
+}
+/* 指で触る画面（iPad の横向きなど、パソコンの形のとき）：紙面の仮の文字の「クリック」を「タップ」に（学生の試し 4回目 2026-10-30） */
+@media screen and (pointer: coarse) {
+  .app:not(.phone) .page-viewport [data-placeholder='（クリックして入力）']:empty::before { content: '（タップして入力）'; }
+  .app:not(.phone) .page-viewport [data-placeholder='（クリックして文章を入力）']:empty::before { content: '（タップして文章を入力）'; }
+  .app:not(.phone) .page-viewport [data-placeholder='（クリックして抄録を入力）']:empty::before { content: '（タップして抄録を入力）'; }
+  .app:not(.phone) .page-viewport [data-photo-slot]:empty::before { content: '＋\A写真を選ぶ\A（ここをタップ）'; }
+}

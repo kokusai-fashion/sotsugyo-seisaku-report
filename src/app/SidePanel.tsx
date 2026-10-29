@@ -381,7 +381,19 @@ function Issue({ finding, editor, onPick, active }: { finding: ReportFinding; ed
           className="keep"
           onClick={(e) => {
             e.stopPropagation()
+            // キーボードで押したときは、次の指摘（なければ「確認済み」）へフォーカスを移す（この行が消えて、フォーカスが行方不明になっていた：学生の試し 4回目 2026-10-30）
+            const keyboard = e.detail === 0
+            const list = e.currentTarget.closest('.check, .sheet')
+            const items = list ? [...list.querySelectorAll<HTMLElement>('.issue')] : []
+            const at = items.indexOf(e.currentTarget.closest('.issue') as HTMLElement)
+            const nextKey = items[at + 1]?.querySelector<HTMLElement>('.go')?.getAttribute('aria-label') ?? null
             editor.acknowledge(finding.key!)
+            if (keyboard && list) {
+              requestAnimationFrame(() => {
+                const next = [...list.querySelectorAll<HTMLElement>('.issue .go')].find((b) => b.getAttribute('aria-label') === nextKey) ?? list.querySelector<HTMLElement>('.issue .go, details.acked summary')
+                next?.focus()
+              })
+            }
           }}
         >
           このままにする（確認済み）

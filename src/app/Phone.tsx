@@ -15,7 +15,7 @@ import { BackupLabel } from './dialogs'
 import { Spinner } from './Busy'
 import { CheckBody, CourseNotice, DeadlineChip, DriveStoppedNote, ExportNote, HelpButton, PageThumbs, SaveChip, SourceNotice, Tally } from './SidePanel'
 import { checkSummary } from './checkSummary'
-import { keepFocus, PAGE_CONTEXT, pageName, useBandSide, useTouchLandscape } from './uiShared'
+import { keepFocus, PAGE_CONTEXT, pageName, swallowSecondClick, useBandSide, useTouchLandscape } from './uiShared'
 import { DriveChip, DriveMenu, type DriveControls } from './DriveUi'
 import type { SaveState } from './useAutosave'
 import { useDialogFocus } from './useDialogFocus'
@@ -442,7 +442,10 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
   const [addFor, setAddFor] = useState<string | null>(null)
   const addOpen = addable && !!id && addFor === id
   const setAddOpen = (open: boolean) => setAddFor(open ? id : null)
-  const addThen = (run: () => void) => () => {
+  // すばやく2回押した2回目は、閉じたこの段の下（紙面）に当てない（書き始めた見出しが閉じ、下の別の見出しが開いて、打った字がそこに入った：
+  // 学生の試し 4回目 2026-10-30）
+  const addThen = (run: () => void) => (e: React.MouseEvent) => {
+    swallowSecondClick(e)
     setAddFor(null)
     run()
   }
@@ -627,7 +630,10 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
   const tool = (label: string, icon: ReactNode, run: () => void) => (
     <button
       className="tb"
-      onClick={() => {
+      onClick={(e) => {
+        // すばやく2回押した2回目は、閉じたこの欄の下の紙面に当てない（書き始めた見出しが閉じ、下の別の見出しが開いて、打った字がそこに入った：
+        // 学生の試し 4回目 2026-10-30）
+        swallowSecondClick(e)
         // 紙面で直接書く：足した見出しは、紙面の上ですぐ書き始める。先にこの欄を閉じ終えてから足す
         // （閉じるときにフォーカスが下の「追加」に戻り、書き始めた見出しが閉じてしまうため）
         if (direct) flushSync(onDone)

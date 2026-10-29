@@ -64,6 +64,10 @@ export function sentencesOf(text: string): { start: number; end: number; text: s
  * 前は助詞の前まで送り仮名を付けていたので、「観客から」「依頼し」と切れていた（学生の試し 3回目 2026-10-29）
  */
 const words = (text: string) => [...new Set(text.match(/[一-鿿々]{2,}[めげけれえきみりびち]?|[ァ-ヴー]{2,}/g) ?? [])]
+/**
+ * 漢数字と数え方だけの語（「三種類」「二着」「五日間」）：本文にない語に数えない（素材表の行の数を言っただけの文に印が付いた：学生の試し 4回目 2026-10-30）
+ */
+const COUNT_WORD = /^[一二三四五六七八九十百千両数]+(種類|種|点|枚|着|色|回|個|本|人|名|件|段階|工程|週間|日間|時間|か月|ヶ月|年間|割)$/
 /** 数字（半角にそろえる） */
 const numbers = (text: string) => [...new Set((text.match(/[0-9０-９]+/g) ?? []).map((n) => n.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0))))]
 
@@ -107,7 +111,13 @@ export function abstractAwayFromBody(report: Report, config: YearConfig): Abstra
   const bodySentences = blocks.flatMap((b) => (b.type === 'paragraph' ? sentencesOf(contentToText(b.content, num)).map((s) => s.text) : [])).filter((s) => comparable(s).length >= MIN_CHARS)
   if (bodySentences.length < MIN_BODY_SENTENCES) return []
   // 比べる相手には、表（行ごと・タイトル）と図のタイトルも入れる（素材表をまとめた文に印が付いていた：学生の試し 3回目 2026-10-29）
-  const tableLines = blocks.flatMap((b) => (b.type === 'table' ? [b.caption, ...b.rows.map((r) => r.cells.map((c) => c.text).join('、'))] : b.type === 'figureRow' ? b.figures.map((f) => f.caption) : []))
+  // 表まるごと（タイトルとすべての行）も1つの相手にする（いくつもの行をまとめた文「素材は、コットンサテンとシルクシフォンの二種類」：学生の試し 4回目 2026-10-30）
+  const tableLines = blocks.flatMap((b) => {
+    if (b.type === 'figureRow') return b.figures.map((f) => f.caption)
+    if (b.type !== 'table') return []
+    const rows = b.rows.map((r) => r.cells.map((c) => c.text).join('、'))
+    return [b.caption, ...rows, [b.caption, ...rows].join('、')]
+  })
   const sets = [...bodySentences, ...tableLines.filter((t) => comparable(t).length >= 4)].map((x) => new Set(bigrams(x)))
   // 本文のどこかにある語か（見出し・図表のタイトル・表の中身・サブタイトルも）
   // 表紙の題目・サブタイトルも（「卒業イベント」が本文にない語に出ていた）
@@ -144,7 +154,7 @@ export function abstractAwayFromBody(report: Report, config: YearConfig): Abstra
       // 本文にない数字は、ほかが本文と同じでも知らせる（「20時間」を「40時間」にした文）
       const newNumbers = numbers(s.text).filter((n) => !bodyNumbers.has(n))
       if (overlap >= NEW_WORD_LIMIT && newNumbers.length === 0) return []
-      const newWords = words(s.text).filter((w) => !bodyText.includes(comparable(w.replace(/[ぁ-ん]+$/, ''))))
+      const newWords = words(s.text).filter((w) => !COUNT_WORD.test(w) && !bodyText.includes(comparable(w.replace(/[ぁ-ん]+$/, ''))))
       // 重なりが少ない、または、本文にない数字・カタカナの語がある
       const strong = newNumbers.length > 0 || newWords.some((w) => /^[ァ-ヴー]+$/.test(w))
       if (overlap >= ABSTRACT_SOURCE_LIMIT && !strong) return []

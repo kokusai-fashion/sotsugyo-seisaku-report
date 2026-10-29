@@ -22,6 +22,26 @@ export function swallowSecondClick(at: { clientX: number; clientY: number }, ms 
   window.setTimeout(() => shield.remove(), ms)
 }
 
+/** F6 で順に移る所（ページの一覧・道具・紙面・右の欄。見えているものだけ） */
+const REGIONS = ['.thumb-list', '.palette', '.stage', 'aside.side']
+const REGION_FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+
+/**
+ * F6・Shift+F6：ページの一覧・道具・紙面・右の欄を順に移る（キーボードで、右の欄の「PDFを書き出す」まで Tab で39回かかった：学生の試し 4回目 2026-10-30）。
+ * 紙面は、Tab で止まる欄（なければ、見えているページのいちばん上の欄）へ
+ */
+export function moveRegion(step: 1 | -1): void {
+  const regions = REGIONS.map((s) => document.querySelector<HTMLElement>(s)).filter((el): el is HTMLElement => !!el && el.getClientRects().length > 0)
+  if (regions.length === 0) return
+  const at = regions.findIndex((el) => el.contains(document.activeElement))
+  const next = regions[at < 0 ? (step > 0 ? 0 : regions.length - 1) : (at + step + regions.length) % regions.length]
+  const visible = (el: HTMLElement) => el.getClientRects().length > 0
+  const target = next.matches('.stage')
+    ? (next.querySelector<HTMLElement>('.page-viewport.front [data-paper-key][tabindex="0"]') ?? [...next.querySelectorAll<HTMLElement>('.page-viewport.front [data-paper-key]')].find(visible))
+    : [...next.querySelectorAll<HTMLElement>(REGION_FOCUSABLE)].find(visible)
+  target?.focus()
+}
+
 /**
  * ページの種類ごとの名前と、道具の上に出すひとこと。
  * 道具の幅（1行6字ほど）で、言葉の切れ目で行を分ける（1字だけ次の行に残らないように。目次は前の「見出しから／自動で作られる」が「る」だけの行になっていた：mockups/v41）
@@ -267,3 +287,23 @@ export function useSwipe(target: React.RefObject<HTMLElement | null>, editor: Re
     }
   }, [target, editor, enabled])
 }
+
+/**
+ * 拡大した紙面を、キーで上下に動かす（↓↑：少し、Space・Shift+Space：ほぼ1画面、Home・End：いちばん上・下）。動かしたら true。
+ * 道具・右の欄・ページの一覧のボタンを押すキーは横取りしない。Space・Home・End は、どこにもフォーカスがないときだけ
+ */
+export function scrollPaperKey(e: KeyboardEvent, scroller: HTMLElement | null): boolean {
+  if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 1 || e.ctrlKey || e.metaKey) return false
+  const target = e.target instanceof Element ? e.target : null
+  if (target?.closest('.side, .palette, .thumb-list, .view-bar, select, input, textarea')) return false
+  const free = !target || target === document.body || target === document.documentElement
+  const step = e.key === 'ArrowDown' ? 60 : e.key === 'ArrowUp' ? -60 : free && e.key === ' ' ? scroller.clientHeight * 0.85 * (e.shiftKey ? -1 : 1) : 0
+  if (step) scroller.scrollTop += step
+  else if (free && e.key === 'Home') scroller.scrollTop = 0
+  else if (free && e.key === 'End') scroller.scrollTop = scroller.scrollHeight
+  else return false
+  return true
+}
+
+/** 指で触る端末（おもに指で操作する：スマホ・iPad）。言葉の「クリック」を「タップ」にする（パソコンの形のときも：学生の試し 4回目 2026-10-30） */
+export const touchPrimary = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches

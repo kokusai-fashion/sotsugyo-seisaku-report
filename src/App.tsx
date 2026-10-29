@@ -7,7 +7,7 @@ import { DriveSync, hasContent, type DriveState, type RemoteCopy, type Resolutio
 import { studentIdFromEmail } from './model/account'
 import { backupFileName, createBackup, readBackup } from './model/backup'
 import { createReport } from './model/newReport'
-import { trialMode } from './model/scope'
+import { scoped, trialMode } from './model/scope'
 import { allImages, clearAll, listSnapshots, loadReport, keepSnapshot, putImage, saveSnapshot, usedImageIds, type Snapshot } from './model/storage'
 import type { Report } from './model/types'
 import type { WordImportResult } from './import/types'
@@ -27,7 +27,7 @@ import { PhoneChrome } from './app/Phone'
 import { isIos, readPhoneDirect, useNoFocusZoom } from './app/phoneDirect'
 import { UndoBar } from './app/UndoBar'
 import { useUndoNotice } from './app/useUndoNotice'
-import { useKeyboardInset, useNarrow, useSwipe, useTouchLandscape, useWheelPaging } from './app/uiShared'
+import { moveRegion, scrollPaperKey, touchPrimary, useKeyboardInset, useNarrow, useSwipe, useTouchLandscape, useWheelPaging } from './app/uiShared'
 import { topicsForTouch } from './app/bandText'
 import { SidePanel, PageColumn } from './app/SidePanel'
 import { StartGuide, type GuideStep } from './app/StartGuide'
@@ -54,6 +54,8 @@ import { TrialBanner } from './trial/TrialBanner'
 const noopSubscribe = () => () => {}
 /** スマホの「？ 使い方」の項目（「クリック」を「タップ」に。PC は STUDENT_TOPICS のまま） */
 const STUDENT_TOPICS_TOUCH = topicsForTouch(STUDENT_TOPICS)
+/** 横向きの iPad などで、縦向きを勧めたか（一度だけ。学生の試し 4回目 2026-10-30） */
+const TABLET_TIP_KEY = scoped('sotsugyo-seisaku-report-tablet-tip')
 const nullSnapshot = () => null
 
 type Dialog =
@@ -293,6 +295,19 @@ export default function App() {
     const scroller = scrollerRef.current
     if (scroller) scroller.scrollTop += writingLand ? -48 : 48
   }, [writingLand])
+  // 指で触る iPad などを横向き（パソコンの形）にして書き始めたら、一度だけ縦向きを勧める（横向きでは、キーボードで書く行が隠れる・
+  // 2本の指で紙面を広げられない・表に「次のマス」がない。学生の試し 4回目 2026-10-30。依頼者の選択：縦向きを勧める）
+  const editingNow = snap?.editingId ?? null
+  useEffect(() => {
+    if (!editor || !editingNow || narrow || !touchPrimary() || innerWidth <= innerHeight) return
+    try {
+      if (localStorage.getItem(TABLET_TIP_KEY)) return
+      localStorage.setItem(TABLET_TIP_KEY, 'done')
+    } catch {
+      return
+    }
+    editor.showNotice('iPad などは、縦向きにすると書きやすくなります（キーボードの上に道具が出て、2本の指で紙面を広げられます）')
+  }, [editor, editingNow, narrow])
   const panels = usePanelWidths()
   const hasLayout = !!snap?.layout
   useKeyboardInset()
@@ -637,6 +652,16 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [drive])
 
+  // 写真を取り込んでいる途中に閉じようとしたら、ブラウザの確認を出す（取り込み終える前に閉じると、選んだ写真が入らず、
+  // 開き直しても何も知らせなかった：学生の試し 4回目 2026-10-30）
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (imageWork.get()) e.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [imageWork])
+
   // 別の端末が、この端末より後にドライブに保存した：どちらで続けるかを選んでもらう
   const driveStatus = driveState?.status.kind
   useEffect(() => {
@@ -747,6 +772,12 @@ export default function App() {
         }
         return
       }
+      // F6・Shift+F6：ページの一覧・道具・紙面・右の欄を順に移る（右の欄の「PDFを書き出す」まで Tab で39回かかった：学生の試し 4回目 2026-10-30）
+      if (e.key === 'F6' && !dialog && !driveDialog && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        moveRegion(e.shiftKey ? -1 : 1)
+        return
+      }
       if (dialog || driveDialog || guide === 'course' || guide === 'word' || isTyping(e.target) || e.altKey) return
       // 紙面で文字を選んでいるとき：Shift+矢印は選ぶ範囲を広げる（ページは送らない）
       if (e.shiftKey && /^(Arrow|Page|Home|End)/.test(e.key) && editor.hasPaperSelection()) return
@@ -764,6 +795,9 @@ export default function App() {
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault()
         editor.prevPage()
+      } else if (scrollPaperKey(e, scrollerRef.current)) {
+        // 拡大した紙面（道具の「＋」・スマホの形）は、↓↑・Space・Home・End で上下に動かす（キーでは動かせなかった：学生の試し 4回目 2026-10-30）
+        e.preventDefault()
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         // 紙面をなぞって選んだ範囲（段落をまたいでも）を消す
         if (editor.deleteSelection()) {

@@ -203,3 +203,15 @@ function changedInBody(before: Report, after: Report): ChangedPlace | null {
   const near = before.body.slice(0, gone).reverse().find((c) => kept.has(c.id)) ?? before.body.slice(gone).find((c) => kept.has(c.id))
   return near ? { kind: 'block', id: near.id } : null
 }
+
+/**
+ * 元に戻した・やり直したあとの、欄の中で変わった字の後ろの位置（前と後で同じ頭と同じ終わりを除いた所の終わり）。
+ * 消した字を戻したら戻した字の後ろ、書いた字を戻したら書いていた所（reportEditor.ts の placeAfterHistory）
+ */
+export function changedEnd(before: string, after: string): number {
+  let head = 0
+  while (head < before.length && head < after.length && before[head] === after[head]) head++
+  let tail = 0
+  while (tail < before.length - head && tail < after.length - head && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail++
+  return after.length - tail
+}

@@ -92,7 +92,15 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
   const [rect, setRect] = useState<DOMRect | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
   const prevEditing = useRef<string | null>(null)
+  const onFinishRef = useRef(onFinish)
+  useEffect(() => {
+    onFinishRef.current = onFinish
+  })
   const titleId = useId()
+  // 指で触れない端末（マウス・キーボードのパソコン）：スマホの形（ブラウザを 150%・200% に拡大したときなど）でも、パソコンと同じく欄の入力欄を開き、
+  // 言葉も「Enter で次へ」（前は欄が開かず、打った字がどこにも入らなかった：学生の試し 4回目 2026-10-30）
+  const [keyboardFirst] = useState(() => !matchMedia('(any-pointer: coarse)').matches)
+  const tap = narrow && !keyboardFirst
 
   // 案内している欄の位置。PC で入力欄が開いていれば、入力欄に光を当てる（紙面の仮の文字より広いことがある）。
   // 紙面の組み直し・画面の大きさ・キーボード・文字の読み込みなどで位置が変わるため、毎フレーム確かめ、変わったときだけ動かす
@@ -147,18 +155,43 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
   // 表紙を表示する。PC は案内する欄の入力欄を開く（スマホは、タップしたときにキーボードが出るよう、学生にタップしてもらう）
   useEffect(() => {
     if (editor.getSnapshot().page !== 0) void editor.goToPage(0, 'none')
-    if (!narrow && field && step !== 'course') editor.openWhenReady(field)
-  }, [editor, narrow, field, step])
+    if (!tap && field && step !== 'course') editor.openWhenReady(field)
+  }, [editor, tap, field, step])
 
   // 案内している欄を書き終えたら（入力欄を閉じたら）、次の段階へ。
   // ページの絵などで表紙からほかのページへ移って閉じたときは、案内を閉じる（前は次の段階へ進み、表紙へ引き戻していた：学生の試し 2026-10-29）
+  // Esc で欄を閉じたときは、案内を閉じる（前は次の欄へ進み、学籍番号を空のまま飛ばした。キーボードでは「あとで入力する」に届かなかった：学生の試し 4回目 2026-10-30）
+  const escaped = useRef(false)
+  useEffect(() => {
+    escaped.current = false
+    if (!field || step === 'course') return
+    const esc = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape' && editor.getSnapshot().editingId === field) escaped.current = true
+    }
+    document.addEventListener('keydown', esc, true)
+    return () => document.removeEventListener('keydown', esc, true)
+  }, [editor, field, step])
   useEffect(() => {
     const was = prevEditing.current
     prevEditing.current = snap.editingId
     if (!field || step === 'course' || was !== field || snap.editingId === field) return
     const leftCover = !!snap.layout && snap.layout.kinds[snap.page] !== 'cover'
-    onStep(leftCover ? null : NEXT[step])
+    onStep(leftCover || escaped.current ? null : NEXT[step])
   }, [snap.editingId, snap.layout, snap.page, field, step, onStep])
+
+  // 「表紙ができました」：「本文へ進む」にフォーカスを移し、Esc で閉じる（前はフォーカスが紙面の欄に残り、Tab 22回でやっと届いた：学生の試し 4回目 2026-10-30）
+  useEffect(() => {
+    if (step !== 'done') return
+    tipRef.current?.querySelector<HTMLButtonElement>('.g-actions .primary')?.focus()
+    const esc = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onStep(null)
+      onFinishRef.current?.()
+    }
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [step, onStep])
 
   // 表紙の欄の段階で、ページの絵・ページ送りを押した（ほかのページへ移るつもり）：案内を閉じる。欄を閉じたことだけを見ると、
   // 打ちかけのときは移る前に次の段階へ進み、表紙へ引き戻していた（学生の試し 3回目 2026-10-29）
@@ -326,14 +359,14 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
         return (
           <>
             <h2 id={titleId}>学籍番号を入力してください</h2>
-            <p>{narrow ? '光っている欄をタップして入力し、「完了」を押します。' : '入力したら Enter で次へ進みます。'}</p>
+            <p>{tap ? '光っている欄をタップして入力し、「完了」を押します。' : '入力したら Enter で次へ進みます。'}</p>
           </>
         )
       case 'name':
         return (
           <>
             <h2 id={titleId}>氏名を入力してください</h2>
-            <p>姓と名の間は、全角の空白を入れます（例：文化　花子）。{narrow ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}</p>
+            <p>姓と名の間は、全角の空白を入れます（例：文化　花子）。{tap ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}</p>
           </>
         )
       case 'subtitle':
@@ -343,7 +376,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             <p>
               「{subtitleBefore}〇〇{subtitleAfter}」の〇〇の部分だけを入力します。前後は自動で付きます。
               {/* PC は学籍番号の段がとばされることが多く、「Enter で次へ」を見ないまま進んでいた（PC の試し 2026-10-25） */}
-              {narrow ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}
+              {tap ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}
             </p>
           </>
         )
@@ -364,7 +397,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             <h2 id={titleId}>{missing.length ? 'まだ入っていない項目があります' : '表紙ができました'}</h2>
             {missing.length > 0 && (
               <p className="g-missing">
-                {missing.join('・')}が空です。あとで表紙の欄を{narrow ? 'タップ' : 'クリック'}して入力できます。
+                {missing.join('・')}が空です。あとで表紙の欄を{tap ? 'タップ' : 'クリック'}して入力できます。
               </p>
             )}
             <p>

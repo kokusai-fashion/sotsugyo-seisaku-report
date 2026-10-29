@@ -28,7 +28,7 @@ import { PLACEHOLDER_ATTR } from './pageView'
 import { copyRange, deleteRange, pasteClip, rangePieces, resolveRange, sameClipText, type Clip, type ModelPoint, type ModelRange } from './rangeOps'
 import { caretAt, caretBefore, domPoint, includeClosing, markHangingSelection, paperPoint, type Caret } from './rangeSelection'
 import { SelectionBar, type Bounds } from './selectionBar'
-import { changedPlace, headingNotice, tableCutNotice, type ChangedPlace, type NoticeBody, type RemovedWhat, type UndoNotice } from './undoNotice'
+import { changedEnd, changedPlace, headingNotice, tableCutNotice, type ChangedPlace, type NoticeBody, type RemovedWhat, type UndoNotice } from './undoNotice'
 import { submissionTitle } from '../model/fileName'
 
 /**
@@ -588,6 +588,11 @@ export class ReportEditor {
       // 足した行のマスに入ることがあった（はじめて使う学生の試し 2026-10-21）。戻すものがなければ何もしない
       onUndoEmpty: () => {
         if (this.history.canUndo) this.undo()
+        return true
+      },
+      // 書く欄で戻した字がないときの Ctrl+Y・Ctrl+Shift+Z：左の道具の「やり直す」と同じ（Enter・改ページを戻したあとに効かなかった：学生の試し 4回目 2026-10-30）
+      onRedoEmpty: () => {
+        if (this.history.canRedo) this.redo()
         return true
       },
       // 紙面で選んでコピーした・切り取ったまとまり（段落・図表など）を、書いている段落に貼り付ける（rangeOps.ts の pasteClip）
@@ -1370,6 +1375,10 @@ export class ReportEditor {
     const page = this.pageOfFinding(finding, caret)
     if (page < 0) return
     await this.goToPage(page, 'fade')
+    // 作品写真の枠の指摘（大きく切れている）：その写真を選ぶ（「全体を入れる」を、すぐ押せるように。前はページへ移るだけだった：学生の試し 4回目 2026-10-30）
+    if (finding.photoSlot !== undefined && finding.photoPage !== undefined && this.report.workPhotos[finding.photoPage]?.imageIds[finding.photoSlot]) {
+      return this.select({ kind: 'photos', page: finding.photoPage, index: finding.photoSlot })
+    }
     const id = finding.blockId
     if (!id) return
     const fragment = this.renderer.pageView.fragments(id).find((f) => this.renderer.pageView.pageIndexOf(f) === this.page)
@@ -1959,6 +1968,9 @@ export class ReportEditor {
     const result = ops.paragraphToHeading(typed, id, heading)
     if (!result) return
     this.pushHistory(typed)
+    this.toolsChangedAt = performance.now()
+    // 元に戻したら、段落に戻した所で書き続ける（前は書く欄が閉じ、続けて打った字が入らなかった：学生の試し 4回目 2026-10-30）
+    this.writingBefore.set(typed, { id, caret: ops.findEditable(typed, id)?.text.length ?? 0 })
     this.report = result.report
     const step = this.headingStep(typed, [[id, text]], this.headingNoticeBody(result.report, result.headingId, heading))
     // 小見出しにした所で、そのまま書き続ける（前は書く欄が閉じ、続けて打った字が入らなかった：学生の試し 3回目 2026-10-29）
@@ -2194,6 +2206,8 @@ export class ReportEditor {
     const heading = this.headingOnClose(id, text, committed)
     // 仮に表示する欄（見出しにしたときは、見出し。組み直して見出しが出るまで、打ったままの文を見せる）
     const shownId = heading?.headingId ?? id
+    // Esc・Enter で書き終えたあと、フォーカスを戻す紙面の欄（消した段落なら、その前の図・表のタイトル）
+    let focusId = shownId
     // 書いていた欄の文字が、表に出ている紙面と違えば、組み直した紙面が出るまで、閉じる前の見た目のまま仮に表示する（freezeEdited）。
     // 後ろの文章をずらしていれば、それもそのままにする
     // （段落を分けたばかりで、まだ紙面にない段落も。分けた前の段落の仮の表示も一緒に写してある）
@@ -2217,6 +2231,10 @@ export class ReportEditor {
       const made = this.captionParagraph.id === id ? this.captionParagraph : null
       this.captionParagraph = null
       if (made && kindNow === 'paragraph' && !tidy.trim() && !heading && !ops.findParagraph(this.report, id)?.hint) {
+        // フォーカスは、前の図・表のタイトル（見出し）へ戻す（消した段落へ戻そうとして、行方不明になっていた：学生の試し 4回目 2026-10-30）
+        const blocks = this.report.body.flatMap((c) => c.blocks)
+        const prev = blocks[blocks.findIndex((b) => b.id === id) - 1]
+        focusId = (prev?.type === 'figureRow' ? prev.figures.at(-1)?.id : prev?.id) ?? focusId
         this.report = ops.removeBlock(this.report, id)
         // 段落を作ったことごと、なかったことにする（元に戻す1回で、タイトルを書く前へ。見出しなら、打ったままの段落へ）
         if (!made.titled) this.reportBeforeEdit = null
@@ -2245,11 +2263,11 @@ export class ReportEditor {
     this.hideStyle.textContent = ''
     // 閉じた段落が空のままなら、すぐ「空の段落がある」と言う（組み直すのを待たない）
     this.runChecks()
-    if (byKey && !this.phone) {
-      // Esc・Enter で書き終えた（PC）：書いていた紙面の欄にフォーカスを戻す（ページ全体に戻ると、どこにいたか分からなくなる）。
+    if (byKey && (!this.phone || this.keyboardFirst)) {
+      // Esc・Enter で書き終えた（PC。スマホの形でも、マウス・キーボードの端末なら）：書いていた紙面の欄にフォーカスを戻す（ページ全体に戻ると、どこにいたか分からなくなる）。
       // 欄がまだ紙面にない（分けたばかりの段落など）ときは、組み直してから戻す
-      if (!this.focusPaper(blockPaperKey(shownId), true)) this.refocusKey = blockPaperKey(shownId)
-      else this.ringFrozen(shownId)
+      if (!this.focusPaper(blockPaperKey(focusId), true)) this.refocusKey = blockPaperKey(focusId)
+      else if (focusId === shownId) this.ringFrozen(shownId)
     }
     this.afterChange({ render: 'now', save: true })
     if (heading) this.noticeHeading(heading.step)
@@ -3301,6 +3319,14 @@ export class ReportEditor {
   }
 
   /** フォーカスしている紙面の欄（なければ null）。visible：キーボードで移った（目印が出ている）か */
+  /**
+   * 指で触れない端末（マウス・キーボード）。スマホの形（ブラウザを 150%・200% に拡大したパソコンなど）でも、フォーカスの戻し方はパソコンと同じにする
+   * （書く欄を Esc で閉じたあと、フォーカスが行方不明になっていた：学生の試し 4回目 2026-10-30）
+   */
+  private get keyboardFirst(): boolean {
+    return !matchMedia('(any-pointer: coarse)').matches
+  }
+
   private paperFocus(): { key: string; visible: boolean } | null {
     const active = document.activeElement
     const key = active && this.viewport.contains(active) ? paperKeyOf(active) : null
@@ -3485,15 +3511,15 @@ export class ReportEditor {
     this.afterChange({ render: 'now', save: true })
   }
 
-  /** 道具の「削除」を押した時刻（justRemoved） */
-  private removedAt = 0
+  /** 左の道具の並びが変わる操作（削除・小見出しにする）をした時刻（toolsJustChanged） */
+  private toolsChangedAt = 0
 
   /**
-   * 道具の「削除」を押したすぐあと（ダブルクリックの間）。左の道具の「元に戻す」は、このときは戻さない
-   * （「削除」のダブルクリックの2回目が、入れ替わった道具の「元に戻す」に当たり、消えてすぐ戻っていた：学生の試し 3回目 2026-10-29）
+   * 左の道具の並びが変わる操作（段落・図・表の「削除」、「小見出しにする」）をしたすぐあと（ダブルクリックの間）。左の道具の「元に戻す」は、このときは戻さない
+   * （ダブルクリックの2回目が、並び直った道具の「元に戻す」に当たり、消えてすぐ戻っていた：学生の試し 3回目 2026-10-29。表・小見出しにする：4回目 2026-10-30）
    */
-  get justRemoved(): boolean {
-    return performance.now() - this.removedAt < DOUBLE_PRESS_MS
+  get toolsJustChanged(): boolean {
+    return performance.now() - this.toolsChangedAt < DOUBLE_PRESS_MS
   }
 
   undo(): void {
@@ -3504,6 +3530,7 @@ export class ReportEditor {
     const keepWriting = shown && tableCutNotice(shown) && this.overlay.blockId ? (this.tableCutFrom ?? { id: this.overlay.blockId, caret: this.overlay.caret }) : null
     this.tableCutFrom = null
     const writing = !!this.overlay.blockId
+    const was = this.overlay.blockId ? { id: this.overlay.blockId, caret: this.overlay.caret } : null
     this.commitForChange()
     // 書いている間に入れた改ページなどを、書いたまま戻した：する前に書いていた所で書き続ける（書いた字を確定して積んだときは、その字を先に戻す）
     const writingFrom = writing && this.history.last ? this.writingBefore.get(this.history.last) : undefined
@@ -3518,15 +3545,28 @@ export class ReportEditor {
     if (heading) for (const [id, line] of heading.declined) this.declined.set(id, line)
     // 戻した所は、組み直した紙面で見せる（ほかのページでも、そこへ移って少しの間光らせる）
     this.undone = changedPlace(this.report, previous)
+    const from = this.report
     this.report = previous
     this.afterChange({ render: 'now', save: true })
     const restored: NoticeBody | null = heading ? { kind: 'unheaded' } : shown?.kind === 'removed' ? { kind: 'restored', what: shown.what } : shown?.kind === 'started' ? { kind: 'unstarted' } : null
-    this.notice = restored ? { notice: { ...restored, id: ++this.noticeCount }, report: this.report } : null
+    this.notice = restored ? { notice: { ...restored, id: ++this.noticeCount }, report: this.report, input: this.inputSeq } : null
     // 削除して、まだ組み直していない間に戻したもの：すぐまた見せる
     this.hideRemoved()
     this.notify()
-    const reopen = keepWriting ?? writingFrom
+    const reopen = keepWriting ?? writingFrom ?? (was ? this.placeAfterHistory(from, was) : null)
     if (reopen && ops.findEditable(this.report, reopen.id)) this.openSoon(reopen.id, reopen.caret)
+  }
+
+  /**
+   * 書いている間に元に戻した・やり直した：変わった所（書ける欄なら、変わった字の後ろ）で書き続ける。書けない所（図など）なら、書いていた欄で。
+   * 前は書く欄が閉じ、続けて打った字が入らなかった（Ctrl+Enter のあとの2回目の Ctrl+Z・開いてすぐの Ctrl+Z：学生の試し 4回目 2026-10-30）
+   */
+  private placeAfterHistory(from: Report, was: { id: string; caret: number }): { id: string; caret: number } | null {
+    const place = this.undone
+    const changed = place?.kind === 'block' ? ops.findEditable(this.report, place.id) : undefined
+    if (place?.kind === 'block' && changed) return { id: place.id, caret: changedEnd(ops.findEditable(from, place.id)?.text ?? '', changed.text) }
+    const still = ops.findEditable(this.report, was.id)
+    return still ? { id: was.id, caret: Math.min(was.caret, still.text.length) } : null
   }
 
   /**
@@ -3535,8 +3575,10 @@ export class ReportEditor {
    * 削除をやり直したときは、削除したときと同じく、組み直すのを待たずに紙面から隠し、「〜を削除しました［戻す］」をもう一度出す
    */
   redo(): void {
+    const was = this.overlay.blockId ? { id: this.overlay.blockId, caret: this.overlay.caret } : null
     this.commitForChange()
     const before = bodyIds(this.report)
+    const from = this.report
     const next = this.history.redo(this.report)
     if (!next) return
     this.historySeq += 1
@@ -3558,6 +3600,9 @@ export class ReportEditor {
       this.shownHeadingStep = heading
     }
     this.notify()
+    // 書いている間にやり直した（Ctrl+Y・Ctrl+Shift+Z も）：変わった所で書き続ける（元に戻すと同じ）
+    const reopen = was ? this.placeAfterHistory(from, was) : null
+    if (reopen && ops.findEditable(this.report, reopen.id)) this.openSoon(reopen.id, reopen.caret)
   }
 
   /**
@@ -3602,6 +3647,7 @@ export class ReportEditor {
 
   /** 原稿を削除で変える（元に戻せる）。消えたものは、組み直すのを待たずに紙面から隠す。what：消したもの（画面の下に知らせる） */
   private removeNow(fn: (report: Report) => Report, what: RemovedWhat, note?: string): void {
+    this.toolsChangedAt = performance.now()
     const before = bodyIds(this.report)
     this.update(fn)
     // 隠した分だけ紙面の後ろの文章が詰まり、書き終えた欄の仮の表示と位置が合わなくなるので外す
@@ -3620,7 +3666,8 @@ export class ReportEditor {
    * until：原稿が変わっても出しておく知らせ（showNotice。貼り付けた・「。」を付けたなど、書いている途中の知らせ）の、出しておく時刻の終わり
    */
   /** field：短い知らせ（showNotice）を出したときに書いていた欄（ほかの欄を書き始めたら、その知らせは消す） */
-  private notice: { notice: UndoNotice; report: Report; until?: number; field?: string | null } | null = null
+  /** input：元に戻したときの、打った字の数え（元に戻して書き続けている間は、打ち始めるまで「〜を戻しました」を出す） */
+  private notice: { notice: UndoNotice; report: Report; until?: number; field?: string | null; input?: number } | null = null
   private noticeCount = 0
   /** 元に戻して変わった所（組み直したら、そこへ移って光らせる） */
   private undone: ChangedPlace | null = null
@@ -3638,7 +3685,8 @@ export class ReportEditor {
     // 戻すもののない知らせ（表の行・列を消せないわけ）と、表の行・列を消した知らせは、書いている間も出す（セルを書いている間に押すため。
     // 消したあとも、となりのマスを書き続ける）
     const n = this.notice.notice
-    const whileEditing = n.kind === 'info' || tableCutNotice(n)
+    // 元に戻して、変わった所で書き続けている（placeAfterHistory）：打ち始めるまでは「〜を戻しました」を出す（学生の試し 4回目 2026-10-30）
+    const whileEditing = n.kind === 'info' || tableCutNotice(n) || (this.notice.input !== undefined && this.notice.input === this.inputSeq)
     // 短い知らせは、ほかの欄を書き始めたら消す（前の欄の「1行目だけを貼り付けました」が、次に貼った表のマスのことに読めた：学生の試し 2026-10-29）
     const moved = n.kind === 'info' && !!this.notice.field && !!this.overlay.blockId && this.overlay.blockId !== this.notice.field
     return fresh && !moved && (!this.overlay.blockId || whileEditing) ? n : null
@@ -4116,8 +4164,22 @@ export class ReportEditor {
       } else this.reopenAfterRender(keep.id, keep.caret)
       return
     }
+    // 書いていないとき：最後に触った所の後ろに入れる。どこに入ったかを知らせる（知らせなしで入り、どこに入ったか分からなかった：学生の試し 4回目 2026-10-30）
+    const where = this.placeName(after)
     this.update((r) => ops.insertAfter(r, after, { type: 'pageBreak', id }))
     this.currentId = id
+    this.showNotice(`${where}の後ろに、改ページを入れました（ほかの所に入れるときは、その段落を書いている間に「改ページ」）`)
+  }
+
+  /** 知らせに書く、ブロックの名前（「「最初に生地の…」」・図・表など） */
+  private placeName(id: string | null): string {
+    const block = id ? this.report.body.flatMap((c) => c.blocks).find((b) => b.id === id) : undefined
+    const text = id ? (ops.findEditable(this.report, id)?.text.trim() ?? '') : ''
+    if (text) return `「${text.length > 12 ? `${text.slice(0, 12)}…` : text}」`
+    if (block?.type === 'figureRow') return '図'
+    if (block?.type === 'table') return '表'
+    const chapter = id ? this.report.body.find((c) => c.id === id) : undefined
+    return chapter ? `「${chapter.title || '大見出し'}」` : '最後に触った所'
   }
 
   /**
@@ -4389,7 +4451,6 @@ export class ReportEditor {
   removeBlock(id: string): void {
     const editable = ops.findEditable(this.report, id)
     if (!editable || this.removed.size > 0) return
-    this.removedAt = performance.now()
     this.hideStyle.textContent = ''
     this.currentId = null
     const what = editable.kind === 'chapter' ? '大見出し（章）' : editable.kind === 'subheading' ? '小見出し' : '段落'

@@ -30,10 +30,12 @@ const MOVES: Record<string, [number, number]> = { ArrowRight: [1, 0], ArrowLeft:
 export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: TableSize) => void; onMaterial: () => void; onClose: () => void }) {
   // 色を付けている大きさ（はじめは、いつもの 2列×2行）
   const [hi, setHi] = useState<TableSize>(USUAL)
+  // キーボード：いちばん下の行から ↓ で「素材表」を選んでいる（書く欄からフォーカスを動かさずに選ぶ。前はキーで「素材表」に行けなかった：学生の試し 4回目 2026-10-30）
+  const [onMat, setOnMat] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const latest = useRef({ hi, onPick, onClose })
+  const latest = useRef({ hi, onMat, onPick, onMaterial, onClose })
   useEffect(() => {
-    latest.current = { hi, onPick, onClose }
+    latest.current = { hi, onMat, onPick, onMaterial, onClose }
   })
 
   // キーボード：矢印キーで選び、Enter で入れ、Esc で閉じる（書く欄にカーソルがあっても、書く欄より先に受け取る。カーソルは動かさない）。
@@ -41,7 +43,7 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return
-      const { hi: now, onPick: pick, onClose: close } = latest.current
+      const { hi: now, onMat: mat, onPick: pick, onMaterial: material, onClose: close } = latest.current
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
@@ -52,7 +54,16 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
       if (move) {
         e.preventDefault()
         e.stopPropagation()
-        setHi((h) => clampTableSize(h.columns + move[0], h.rows + move[1]))
+        if (mat) {
+          if (e.key === 'ArrowUp') setOnMat(false)
+        } else if (e.key === 'ArrowDown' && now.rows >= TABLE_SIZE.maxRows) setOnMat(true)
+        else setHi((h) => clampTableSize(h.columns + move[0], h.rows + move[1]))
+        return
+      }
+      if (e.key === 'Enter' && !e.repeat && mat) {
+        e.preventDefault()
+        e.stopPropagation()
+        material()
         return
       }
       if (e.key === 'Enter' && !e.repeat) {
@@ -105,7 +116,10 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
           className={on ? (r === 1 ? 'on h' : 'on') : undefined}
           aria-label={`${size.columns}列×${size.rows}行`}
           onMouseDown={keepFocus}
-          onPointerEnter={() => setHi(size)}
+          onPointerEnter={() => {
+            setHi(size)
+            setOnMat(false)
+          }}
           onClick={(e) => {
             swallowSecondClick(e)
             onPick(size)
@@ -117,7 +131,7 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
   return (
     <div className="side-menu table-menu" ref={ref} onMouseLeave={onClose}>
       <div className="side-menu-title">表の大きさを選ぶ</div>
-      <div className="tgrid" role="group" aria-label="表の大きさ（矢印キーで選び、Enter で入れる）">
+      <div className="tgrid" role="group" aria-label="表の大きさ（矢印キーで選び、Enter で入れる。いちばん下から ↓ で素材表）">
         {cells}
       </div>
       <div className="tgrid-label" aria-live="polite">
@@ -126,6 +140,7 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
       <div className="tmenu-sep" />
       <button
         type="button"
+        className={onMat ? 'kb-on' : undefined}
         onMouseDown={keepFocus}
         onClick={(e) => {
           swallowSecondClick(e)

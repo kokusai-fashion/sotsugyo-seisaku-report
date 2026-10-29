@@ -129,6 +129,12 @@ export async function loadReport(): Promise<Report | null> {
   return saved
 }
 
+/** 保存してある原稿（閉じる直前の写しは見ない）。開いたときの原稿の控えに使う（useAutosave） */
+export async function storedReport(): Promise<Report | null> {
+  const raw = await promisify((await store('report', 'readonly')).get(REPORT_KEY))
+  return raw ? migrateReport(raw) : null
+}
+
 export async function saveReport(report: Report): Promise<void> {
   await promisify((await store('report', 'readwrite')).put(report, REPORT_KEY))
 }
@@ -170,6 +176,13 @@ export async function saveSnapshot(report: Report, savedAt = new Date().toISOStr
   const old = [...oldest(all.filter((x) => !x.keep), MAX_SNAPSHOTS), ...oldest(all.filter((x) => x.keep), MAX_KEPT_SNAPSHOTS)]
   const s = await store('snapshots', 'readwrite')
   await Promise.all(old.map((x) => promisify(s.delete(x.savedAt))))
+}
+
+/** 自動の控えを保存する。いちばん新しい自動の控えと同じ原稿なら、残さない（開き直すたびに同じ控えが増え、古い日の控えが早く消えていた：学生の試し 4回目 2026-10-30） */
+export async function saveSnapshotIfNew(report: Report): Promise<void> {
+  const latest = (await listSnapshots()).find((x) => !x.keep)
+  if (latest && JSON.stringify(latest.report) === JSON.stringify(report)) return
+  await saveSnapshot(report)
 }
 
 /** 入れ替える前の原稿の控え（押し出されない控え）を保存する。label：控えの一覧に出す名前（例：作り直す前） */

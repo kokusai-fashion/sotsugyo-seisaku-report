@@ -425,7 +425,7 @@ export function BackupDialog({
         </p>
       )}
       <SlowNote busy={busy === 'save' || busy === 'file'} />
-      <h3>自動の控え（誤って消したときに戻せる版。10分ごとに残します）</h3>
+      <h3>自動の控え（誤って消したときに戻せる版。開いたときと、10分ごとに残します）</h3>
       {snapshots === null ? (
         <p className="muted busy-line" role="status">
           <Spinner />

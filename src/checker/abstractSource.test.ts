@@ -71,3 +71,10 @@ describe('3回目の試しの直し（2026-10-29）', () => {
     expect(abstractAwayFromBody(r, currentConfig)[0].newWords).toEqual(expect.arrayContaining(['観客', '依頼', '手染め', 'ミラノ']))
   })
 })
+
+describe('4回目の試しの直し（2026-10-30）', () => {
+  it('素材表の行の数を言っただけの「三種類」は、本文にない語にしない', () => {
+    const r = withAbstract(demoReport(), '書き出しの文である。', '使用した素材は、コットンサテンとシルクシフォンの二種類である。')
+    expect(abstractAwayFromBody(r, currentConfig)).toEqual([])
+  })
+})
