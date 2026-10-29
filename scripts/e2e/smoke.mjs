@@ -823,15 +823,16 @@ await withEdge(async (browser) => {
   }))
   check('セルフチェックの一覧の上に「× エラー：直してから出す」「! 要確認：確かめて、必要なら直す」が、囲みなしの1行で出て（それぞれの途中では折り返さない）、指摘ごとの札（手順書・補助）はない', legend.text.includes('エラー：直してから出す') && legend.text.includes('要確認：確かめて、必要なら直す') && legend.aboveList && legend.icons.join(',') === '"×","!"' && legend.chips === 0 && !legend.chipText && legend.boxless && legend.oneLineEach, JSON.stringify(legend))
   check('書いた文の間違いは「直すところ」に出る（凡例も直すところの中。「直すところ」の横の数 N は赤）', legend.inFix && legend.tallyRed && legend.tally === `直すところ${legend.issues}`, JSON.stringify(legend))
-  // 直すところがあるときは、まだのところの済んだ（✓）行を、灰色の1行「✓ 表紙・…」にたたむ（mockups/v37 の承認）。まだ・先生の許可のあとの行は、そのまま
+  // 直すところがあるときは、まだのところの済んだ（✓）行を、灰色の1行「✓ 表紙・…」にたたむ（mockups/v37 の承認）。まだ・先生の許可のあとの行は、そのまま。
+  // 抄録の行（字数・行数）は、済んでもたたまない（学生の試し 3回目 2026-10-29）
   const folded = await page.evaluate(() => {
     const sec = document.querySelector('.side .sec.check')
     const s = window.__editor.getSnapshot()
     return {
       line: sec.querySelector('.check-prog li.done-fold')?.textContent ?? null,
       last: sec.querySelector('.check-prog li:last-child')?.className ?? '',
-      doneRows: sec.querySelectorAll('.check-prog li.done').length,
-      rows: [...sec.querySelectorAll('.check-prog li:not(.done-fold)')].map((li) => li.className),
+      doneRows: [...sec.querySelectorAll('.check-prog li.done')].filter((li) => !li.textContent.startsWith('抄録')).length,
+      rows: [...sec.querySelectorAll('.check-prog li:not(.done-fold)')].filter((li) => !li.textContent.startsWith('抄録')).map((li) => li.className),
       names: [...sec.querySelectorAll('.done-fold button')].map((b) => b.textContent),
       tip: sec.querySelector('.done-fold button')?.title ?? '',
       color: getComputedStyle(sec.querySelector('.done-fold .row') ?? sec).color,
@@ -840,7 +841,7 @@ await withEdge(async (browser) => {
   })
   await page.screenshot({ path: `${OUT}/1-check-folded.png` })
   check(
-    '直すところがあるときは、済んだ行（✓）が「✓ 表紙・…」の灰色の1行（まだのところのいちばん下）にたたまれ、まだの行はそのまま。名前にマウスを乗せると、右の字（入れました など）が出る',
+    '直すところがあるときは、済んだ行（✓）が「✓ 表紙・…」の灰色の1行（まだのところのいちばん下）にたたまれ、まだの行と抄録の行はそのまま。名前にマウスを乗せると、右の字（入れました など）が出る',
     folded.doneRows === 0 && folded.last === 'done-fold' && folded.names[0] === '表紙' && folded.line === `済んだもの：${folded.names.join('・')}` && folded.rows.every((c) => c !== 'done') && folded.tip === '表紙：入れました（押すと、その場所へ）' && folded.color === 'rgb(104, 107, 114)',
     JSON.stringify(folded),
   )

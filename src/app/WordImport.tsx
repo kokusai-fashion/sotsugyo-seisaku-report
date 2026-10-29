@@ -813,8 +813,6 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   // 「進み具合」の側に出るものも）を数え、「あと6件（下の一覧）」なのに「直すところ 0」と食い違っていた（学生の試し 2026-10-24）
   const errors = checkSummary(snap, config).errors
   const hasFigures = snap.report.body.some((c) => c.blocks.some((b) => b.type === 'figureRow'))
-  const problems = todo.problems ?? []
-  const problemsDone = !!todo.problemsChecked
   // 表紙の空いている項目（空のまま「確かめた」で済みにならないように：学生の試し 2026-10-29）
   const info = snap.report.basicInfo
   const coverMissing = (
@@ -826,6 +824,9 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   )
     .filter(([, v]) => !v.trim())
     .map(([label]) => label)
+  // 「表紙の〜を読み取れませんでした」は、表紙を入れたら出さない（入れたあとも残り、「直した」を押すまで ✓ にならなかった：学生の試し 3回目 2026-10-29）
+  const problems = (todo.problems ?? []).filter((p) => !(coverMissing.length === 0 && p.where === '表紙' && /^表紙の.*を読み取れませんでした$/.test(p.message)))
+  const problemsDone = !!todo.problemsChecked
   const coverDone = todo.coverChecked && coverMissing.length === 0
   const steps = [errors === 0, ...(problems.length > 0 ? [problemsDone] : []), todo.pagesChecked, coverDone]
   const allDone = steps.every(Boolean)

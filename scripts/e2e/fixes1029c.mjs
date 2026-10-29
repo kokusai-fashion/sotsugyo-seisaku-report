@@ -144,7 +144,7 @@ await withEdge(async (browser) => {
     const saved = await page.evaluate(() => document.querySelector('.modal .pdf-left-warn')?.textContent ?? '')
     check(
       '直すところが残っているときの PDF の窓：濃いボタンは「直しに戻る」、保存は薄い「このまま保存する」。保存したあと「直すところがNつ残ったまま保存しました。提出するときは…」',
-      before.primary.join() === '直しに戻る' && before.start === 'このまま保存する' && /^直すところが[0-9]+つ残ったまま保存しました。/.test(saved) && saved.includes('提出するときは'),
+      before.primary.join() === '直しに戻る' && before.start === 'このまま保存する' && /^直すところが[0-9]+つ(・まだのところが[0-9]+つ)?残ったまま保存しました。/.test(saved) && saved.includes('提出するときは'),
       JSON.stringify({ before, saved }),
     )
     await context.close()
@@ -173,7 +173,7 @@ await withEdge(async (browser) => {
     await goTo(page, ready, 'a1')
     await openAt(page, 'a1', 10)
     const count = await page.evaluate(() => document.querySelector('.direct-bar .db-count')?.textContent ?? '')
-    check('スマホ：抄録を書いている間は、道具の上に「抄録 174字（600〜900字。あと426字）」', count === '抄録 174字（600〜900字。あと426字）', count)
+    check('スマホ：抄録を書いている間は、道具の上に「抄録 174字・◯行（600〜900字。あと426字）」', /^抄録 174字・[0-9]+行（600〜900字。あと426字）$/.test(count), count)
     await page.evaluate(() => window.__editor.finishEditing())
     await wait(600)
     await ready()

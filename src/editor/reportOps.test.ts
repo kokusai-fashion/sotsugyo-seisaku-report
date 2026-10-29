@@ -863,3 +863,18 @@ describe('学生の試し 2回目（2026-10-29）の直し', () => {
     expect(ops.pageBreakBefore(r, second.id)).toBeNull()
   })
 })
+
+describe('先に書いた「（図n）」をつなぐ（学生の試し 3回目 2026-10-29）', () => {
+  it('ほかの段落に手で書いた（図n）も、図へのリンクにする', () => {
+    const r = demoReport()
+    const num = ops.numbering(r)
+    const [figId, n] = [...num.numbers.entries()].find(([id]) => !num.tableIds.has(id))!
+    const paragraphs = r.body.flatMap((c) => c.blocks).filter((b) => b.type === 'paragraph')
+    const other = paragraphs.find((b) => b.type === 'paragraph' && !b.content.some((x) => x.type === 'ref'))!
+    const typed = ops.setText(r, other.id, '')
+    const withText = { ...typed, body: typed.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === other.id && b.type === 'paragraph' ? { ...b, content: [{ type: 'text' as const, text: `袖の形を変えた（図${n}）。` }] } : b)) })) }
+    const linked = ops.linkWrittenRefsElsewhere(withText, 'nothing', figId)
+    const after = linked.body.flatMap((c) => c.blocks).find((b) => b.id === other.id)
+    expect(after?.type === 'paragraph' && after.content.some((x) => x.type === 'ref' && x.targetId === figId)).toBe(true)
+  })
+})

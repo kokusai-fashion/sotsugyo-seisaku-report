@@ -38,8 +38,10 @@ export interface WordTodo {
   problems?: ImportProblem[]
   /** 読み取れなかったところを直して、学生が「直した」を押した */
   problemsChecked?: boolean
-  /** この読み込みの前に出ていた「つぎにすること」（2回目の読み込みを「読み込む前の原稿に戻す」で戻したら、また出す） */
+  /** この読み込みの前に出ていた「つぎにすること」（2回目の読み込みを「読み込む前の原稿に戻す」で戻したら、また出す。前の前も、その中に） */
   previous?: WordTodo | null
+  /** 読み込んだ本文の Word のファイル名（戻すときに残す控えの名前） */
+  fileName?: string
 }
 
 const TODO_KEY = scoped('sotsugyo-seisaku-report-word-todo')
@@ -59,6 +61,7 @@ function readTodo(): WordTodo | null {
           pagesChecked: !!t.pagesChecked,
           ...(Array.isArray(t.problems) ? { problems: t.problems, problemsChecked: !!t.problemsChecked } : {}),
           ...(t.previous ? { previous: t.previous } : {}),
+          ...(typeof t.fileName === 'string' ? { fileName: t.fileName } : {}),
         }
       : null
   } catch {

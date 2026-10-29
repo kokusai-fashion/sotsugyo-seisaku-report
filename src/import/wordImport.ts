@@ -573,8 +573,11 @@ function buildChapters(events: Event[]): DraftChapter[] {
       case 'table': {
         // タイトルのない表：同じ見出しの中で、前に表の見つからなかったタイトルがあれば、その表のタイトルにする（タイトルと表の間に
         // 段落があった。前は「表が見つかりませんでした」と出たのに、表はタイトルなしで写っていた：学生の試し 2026-10-29）
-        const lost = current().lostTableCaptions
-        const caption = ev.table.caption ?? lost.shift() ?? null
+        // 同じ見出しになければ、同じ章の前の見出しの中も探す（タイトルの下に学生が小見出しを足し、その下に表があった：学生の試し 3回目 2026-10-29）
+        current()
+        const sections = chapters[chapters.length - 1].sections
+        const holder = [...sections].reverse().find((x) => x.lostTableCaptions.length > 0)
+        const caption = ev.table.caption ?? holder?.lostTableCaptions.shift() ?? null
         current().blocks.push({ t: 'table', table: caption === ev.table.caption ? ev.table : { ...ev.table, caption } })
         break
       }
@@ -956,9 +959,28 @@ export function documentNotes(doc: Document): ImportProblem[] {
   if (w('ruby').length > 0) notes.push({ message: 'ふりがな（ルビ）は写していません', detail: 'ふりがなを付けた字は、ふりがなを除いて写します。' })
   if (w('vertAlign').some((el) => /^(superscript|subscript)$/.test(attr(el, 'val') ?? '')))
     notes.push({ message: '上付き・下付きの字（m² など）は、ふつうの字で写しました', detail: '「m2」のようになります。読み込んだあと、ツールで「㎡」「平方メートル」などに直してください。' })
-  if (w('tc').some((cell) => [...cell.getElementsByTagNameNS('*', 'tbl')].some((el) => is(el, 'w', 'tbl'))))
-    notes.push({ message: '表の中の表は、表の形のままでは写せません', detail: '中の表の字は、外の表のマスに入ります。読み込んだあと、ツールで表を確かめてください。' })
+  const nested = w('tc').find((cell) => [...cell.getElementsByTagNameNS('*', 'tbl')].some((el) => is(el, 'w', 'tbl')))
+  if (nested) {
+    const where = nestedTableWhere(nested)
+    notes.push({ message: '表の中の表は、表の形のままでは写せません', ...(where ? { where } : {}), detail: '中の表の字は、外の表のマスに入ります。読み込んだあと、ツールで表を確かめてください。' })
+  }
   return notes
+}
+
+/** 表の中の表の場所：外の表のすぐ前の「表n」の行。なければ外の表の初めの字（場所がなく、どの表か分からなかった：学生の試し 3回目 2026-10-29） */
+function nestedTableWhere(cell: Element): string | null {
+  let outer: Element = cell
+  for (let el = cell.parentNode; el && el.nodeType === 1; el = el.parentNode) if (is(el as Element, 'w', 'tbl')) outer = el as Element
+  const text = (el: Element) => [...el.getElementsByTagNameNS('*', 't')].filter((t) => is(t, 'w', 't')).map((t) => t.textContent ?? '').join('').trim()
+  let before = outer.previousSibling
+  for (let i = 0; before && i < 3; before = before.previousSibling) {
+    if (before.nodeType !== 1 || !is(before as Element, 'w', 'p')) continue
+    i += 1
+    const line = text(before as Element)
+    if (/^表\s*[0-9０-９]/.test(line)) return line.length > 20 ? `${line.slice(0, 20)}…` : line
+  }
+  const head = text(outer)
+  return head ? `「${head.length > 12 ? `${head.slice(0, 12)}…` : head}」で始まる表` : null
 }
 
 export async function readWordFiles(files: WordFiles, context: { config: YearConfig; courseId: string; images?: boolean }): Promise<WordImportResult> {
@@ -1316,7 +1338,8 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
     first(
       {
         message: `参考文献${refLines ? `（${refLines}行）` : ''}は写していません`,
-        detail: '読み込んだあと、道具の「参考文献」から入れてください。PDF の最後に、決まった形で並びます。',
+        // 入れ口は「使い方」の「引用・参考文献」だけ（左の道具にはない。前は「道具の「参考文献」」と書いていた：学生の試し 3回目 2026-10-29）
+        detail: '読み込んだあと、「使い方」の「引用・参考文献」から入れてください。PDF の最後に、決まった形で並びます。',
       },
       -1,
     )

@@ -308,12 +308,13 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
       severity: 'warning',
       source: 'supplementary',
       title: '本文にない内容かもしれない文がある',
-      detail: `「${a.text.slice(0, 14)}…」${a.newWords.length ? `本文にない語：${a.newWords.slice(0, 3).join('・')}。` : ''}抄録は、本文から抜き出して、言い方を少し整えて書きます`,
+      // 本文にない語がなければ、言い方が本文と大きく違うと書く（前は理由が書かれなかった：学生の試し 3回目 2026-10-29）
+      detail: `「${a.text.slice(0, 14)}…」${a.newWords.length ? `本文にない語：${a.newWords.slice(0, 3).join('・')}。` : '本文と言い方が大きく違います。'}抄録は、本文から抜き出して、言い方を少し整えて書きます`,
       area: 'abstract',
       blockId: a.blockId,
       start: a.start,
       end: a.end,
-      key: `abstract-source|${a.blockId}|${a.text.slice(0, 40)}`,
+      key: `abstract-source|${a.text.slice(0, 40)}`,
     })
   }
 
@@ -407,7 +408,7 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   if (abstractStarted && (chars < minChars || chars > maxChars)) {
     findings.push(
       guide('abstract-length', 'error', `抄録は${minChars}〜${maxChars}字にする`, 'abstract', {
-        detail: `現在 ${chars}字（${chars < minChars ? `あと${minChars - chars}字` : `${chars - maxChars}字多い`}）`,
+        detail: `現在 ${chars}字。${chars < minChars ? `あと${minChars - chars}字` : `${chars - maxChars}字多い`}`,
       }),
     )
   }
@@ -419,7 +420,7 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
     }
     if (lines < minLines || lines > maxLines) {
       const more = lines < minLines ? `あと${minLines - lines}行` : `${lines - maxLines}行多い。文を短くするか、段落をまとめて減らします`
-      findings.push(guide('abstract-lines', 'error', `抄録は${minLines}〜${maxLines}行にする`, 'abstract', { detail: `現在 ${lines}行（${more}）` }))
+      findings.push(guide('abstract-lines', 'error', `抄録は${minLines}〜${maxLines}行にする`, 'abstract', { detail: `現在 ${lines}行。${more}` }))
     }
   }
 
@@ -491,7 +492,8 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
             severity: 'error',
             source: 'supplementary',
             title: `${kind}の番号を手で書いている`,
-            detail: `「（${kind}${n}）」の形で打ち直すと、${kind}${n}とつながります（つながると、${kind}を足したり消したりしても番号が自動でそろいます）`,
+            // 「（図3）」の形で書いてあっても、つながっていないことがある（書いたあとに図を入れた）。その段落を押して書き終えると、つながる
+            detail: `この段落を押して書き終えると（Esc・ほかの所を押す）、${kind}${n}とつながります。「${kind}${n}」の形でないときは「（${kind}${n}）」と打ち直します（つながると、番号が自動でそろいます）`,
             area: 'body',
             blockId: block.id,
             start: offset + m.index,

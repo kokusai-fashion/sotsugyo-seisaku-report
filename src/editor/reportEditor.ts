@@ -201,6 +201,8 @@ const FIGURE_MAX_MM = 80
 const ENTER_CREATES_PARAGRAPH = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
 /** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」・氏名の空白〔書き終えたときにそろえる〕）。書いている欄では、書き終えるまで出さない（runChecks） */
 const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty', 'name-space', 'name-no-space', 'abstract-source'])
+/** すばやく2回押した（ダブルクリック）とみなす間（ミリ秒） */
+const DOUBLE_PRESS_MS = 450
 /** スマホで書いている間、本文の幅に合わせる倍率のこの倍より大きく広げていたら「幅に合わせる」を出す */
 const OVER_ZOOM = 1.08
 /** 学籍番号を書いている間は出さない指摘（書き終えると、半角・大文字にそろえる：tidyText） */
@@ -443,6 +445,7 @@ export class ReportEditor {
         const start = this.reportBeforeEdit ?? this.report
         if (ops.findEditable(start, id)?.text !== ops.findEditable(typed, id)?.text) this.pushHistory(start)
         this.pushHistory(typed)
+        this.writingBefore.set(typed, { id, caret: before.length })
         // ひな形を作る画面では「。」を付けない（ひな形の説明は、先生が書いたまま）
         // 箇条書きの形の行（「2．アイロン」）には「。」を付けない
         const result = ops.split(typed, id, before, after, { period: !this.template && !listItemLine(before) })
@@ -466,7 +469,7 @@ export class ReportEditor {
           const removed = text === '' ? ops.removeEmptyBackward(cut, id, text) : null
           this.report = removed?.report ?? cut
           // 書いている間も出る知らせにする（「〜を削除しました［戻す］」は、書いている間は出ない）
-          this.showNotice('改ページを消しました（「元に戻す」で戻せます）')
+          this.showNotice(this.phone ? '改ページを消しました（上の「戻す」で戻せます）' : '改ページを消しました（「元に戻す」で戻せます）')
           if (removed) this.continueWriting(removed.targetId, removed.caret, { alsoHide: id })
           else this.continueWriting(id, 0)
           return
@@ -489,6 +492,7 @@ export class ReportEditor {
           return
         }
         this.pushHistory(this.reportBeforeEdit ?? this.report)
+        if (this.history.last) this.writingBefore.set(this.history.last, { id, caret: 0 })
         this.report = result.report
         this.continueWriting(result.targetId, result.caret, { alsoHide: id })
       },
@@ -522,6 +526,8 @@ export class ReportEditor {
         if (backward && table && table.id !== id && (cells[0]?.id === id || fromCaption === id)) return this.continueWriting(table.id, ops.findEditable(this.report, table.id)?.text.length ?? 0)
         if (next && table?.id === id) this.enteredFromCaption = next.id
         if (next) this.continueWriting(next.id, next.text.length)
+        // 生地見本の空いたマスに入った（前はマスを押したときだけ知らせ、「次のマス」で入ると出なかった：学生の試し 3回目 2026-10-29）
+        if (next) this.noticeSwatchOnce(next.id)
         else this.onCommitEdit(id, text, true)
       },
       tabMoves: (id, backward) => {
@@ -590,7 +596,10 @@ export class ReportEditor {
         paste: (id, text, start, end) => this.pasteClipAt(id, text, start, end),
       },
       // ふつうの文字の貼り付け（ほかのアプリ・書く欄からコピーした文字。スマホも）：抄録には、図表の参照の括弧を除いて入れる（abstractRefs.ts）
-      pasteText: (id, pasted) => {
+      pasteText: (id, raw) => {
+        // Word から貼った文のタブ（「1.⇥素材選び」）は、全角の空白1つにする（タブのまま残っていた：学生の試し 3回目 2026-10-29）
+        const kind = ops.findEditable(this.report, id)?.kind
+        const pasted = kind === 'paragraph' || kind === 'abstractParagraph' ? raw.replace(/[ \t]*\t[ \t]*/g, '　') : raw
         if (!this.report.abstract.paragraphs.some((p) => p.id === id)) return pasted
         const r = stripFigureRefs(pasted)
         const note = abstractPasteNotice(false, r.removed, r.kept)
@@ -1191,6 +1200,8 @@ export class ReportEditor {
       (f) =>
         // 学籍番号を書いている間：全角の数字・英字と形の指摘は出さない（書き終えると半角・大文字にそろえる。打つたびに3件出て、欄が動いていた：学生の試し 2026-10-29）
         !(id === 'basic:studentId' && f.blockId === id && STUDENT_ID_TYPING_RULES.has(f.ruleId)) &&
+        // 抄録の照らし合わせ：いま書いている文（カーソルのある文）には、書き終えるまで出さない（印のある段落では、打ちかけの文にも出ていた：学生の試し 3回目 2026-10-29）
+        !(f.ruleId === 'abstract-source' && f.blockId === id && f.start !== undefined && f.end !== undefined && this.overlay.caret >= f.start && this.overlay.caret <= f.end) &&
         // 表紙の項目が空の間は、開いても「まだ」のまま（「学籍番号がまだ」を押して欄を開いただけで、表紙が済んだほうへ移っていた：学生の試し 2026-10-29）
         (!WRITING_RULES.has(f.ruleId) || (f.ruleId === 'required-field' && !!f.blockId?.startsWith('basic:')) || ((!opened || f.blockId !== opened.id || opened.rules.has(f.ruleId)) && !(freshCells && f.blockId && freshCells.has(f.blockId)))),
     )
@@ -1950,13 +1961,15 @@ export class ReportEditor {
     this.pushHistory(typed)
     this.report = result.report
     const step = this.headingStep(typed, [[id, text]], this.headingNoticeBody(result.report, result.headingId, heading))
-    this.afterChange({ render: 'now', save: true })
+    // 小見出しにした所で、そのまま書き続ける（前は書く欄が閉じ、続けて打った字が入らなかった：学生の試し 3回目 2026-10-29）
+    this.reopenAfterRender(result.headingId, title.length, { id, place: 'over' })
     this.noticeHeading(step)
   }
 
   /** 抄録の字数の決まり（スマホの書いている間の字数の行：app/Phone.tsx） */
-  get abstractLimits(): { minChars: number; maxChars: number } {
-    return { minChars: this.config.abstract.minChars, maxChars: this.config.abstract.maxChars }
+  get abstractLimits(): { minChars: number; maxChars: number; minLines: number; maxLines: number } {
+    const { minChars, maxChars, minLines, maxLines } = this.config.abstract
+    return { minChars, maxChars, minLines, maxLines }
   }
 
   /** 表のマスを書いている：次のマスがあるか（スマホの「次のマス」を出す） */
@@ -2200,8 +2213,9 @@ export class ReportEditor {
       this.captionParagraph = null
       if (made && kindNow === 'paragraph' && !tidy.trim() && !heading && !ops.findParagraph(this.report, id)?.hint) {
         this.report = ops.removeBlock(this.report, id)
-        // 段落を作ったことごと、なかったことにする（元に戻す1回で、タイトルを書く前へ）
-        if (this.history.dropLast(made.titled)) {
+        // 段落を作ったことごと、なかったことにする（元に戻す1回で、タイトルを書く前へ。見出しなら、打ったままの段落へ）
+        if (!made.titled) this.reportBeforeEdit = null
+        else if (this.history.dropLast(made.titled)) {
           this.historySeq += 1
           this.reportBeforeEdit = null
         }
@@ -2785,10 +2799,11 @@ export class ReportEditor {
     this.continueWriting(created.newId, 0, { ghostOf: id })
   }
   /**
-   * 図・表のタイトルで Enter を押して、図・表の後ろに作った段落と、そのとき積んだ原稿（タイトルを書いた原稿）。
-   * 何も書かずに離れたら、段落を消し、積んだ原稿も取り除く（元に戻すで、空の段落が戻らないように：onCommitEdit）
+   * 図・表のタイトル・打って見出しにした行で Enter を押して、その後ろに作った段落と、図・表のときに積んだ原稿（タイトルを書いた原稿）。
+   * 何も書かずに離れたら、段落を消し、積んだ原稿も取り除く（元に戻すで、空の段落が戻らないように：onCommitEdit）。
+   * 見出しのとき（titled なし）は、元に戻すと打ったままの段落に戻るので、積んだ原稿は残す
    */
-  private captionParagraph: { id: string; titled: Report } | null = null
+  private captionParagraph: { id: string; titled: Report | null } | null = null
 
   /**
    * 見出しで Enter：すぐ後ろの、何も書いていない段落（blankId）へ移って書く（新しい段落は作らない）。
@@ -2885,6 +2900,8 @@ export class ReportEditor {
     this.autoPeriod = null
     const step = this.headingStep(typed, [[id, before.trim()]], this.headingNoticeBody(result.report, result.headingId, heading))
     if (listItemLine(before)) this.listHeadings.set(result.headingId, before.trim())
+    // 何も書かずに離れたら、後ろに作った段落は消す（図のタイトルの Enter と同じ。空の段落が残っていた：学生の試し 3回目 2026-10-29）
+    if (!after.trim()) this.captionParagraph = { id: result.nextId, titled: null }
     // 組み直すまでは、打ったままの文を仮に表示しておく（組み直すと、見出しになる）
     this.continueWriting(result.nextId, 0, { ghostOf: id, ghostText: before })
     this.noticeHeading(step)
@@ -3463,6 +3480,17 @@ export class ReportEditor {
     this.afterChange({ render: 'now', save: true })
   }
 
+  /** 道具の「削除」を押した時刻（justRemoved） */
+  private removedAt = 0
+
+  /**
+   * 道具の「削除」を押したすぐあと（ダブルクリックの間）。左の道具の「元に戻す」は、このときは戻さない
+   * （「削除」のダブルクリックの2回目が、入れ替わった道具の「元に戻す」に当たり、消えてすぐ戻っていた：学生の試し 3回目 2026-10-29）
+   */
+  get justRemoved(): boolean {
+    return performance.now() - this.removedAt < DOUBLE_PRESS_MS
+  }
+
   undo(): void {
     // 削除の知らせが出ている間に戻した（知らせの「戻す」でも、道具の「元に戻す」でも）：「〜を戻しました」と知らせる。
     // 「抄録を書き始めました」が出ている間に戻した：「抄録を書き始める前に戻しました」
@@ -3493,7 +3521,7 @@ export class ReportEditor {
     this.hideRemoved()
     this.notify()
     const reopen = keepWriting ?? writingFrom
-    if (reopen && ops.findEditable(this.report, reopen.id)) this.openWhenReady(reopen.id, reopen.caret)
+    if (reopen && ops.findEditable(this.report, reopen.id)) this.openSoon(reopen.id, reopen.caret)
   }
 
   /**
@@ -3878,6 +3906,16 @@ export class ReportEditor {
     if (written) this.noticeRemoved('下書き')
   }
 
+  /**
+   * 書いている間に原稿を変えた（元に戻したなど）あと、組み直すのを待たずに書く欄を開く（組み直した紙面が出たら、位置を合わせる）。
+   * 組み終わるのを待って開くと、その間（約0.5秒）に打った字がどこにも入らず消えていた（学生の試し 3回目 2026-10-29）。すぐ開けなければ、組み終わってから
+   */
+  private openSoon(id: string, caret: number): void {
+    this.hideStyle.textContent = this.editingStyle(id)
+    this.pendingOpen = { id, caret }
+    if (!this.openBeforeRender(id, caret, null) && !this.rendering) void this.render()
+  }
+
   /** ブロックの入力欄を開く。組み直しの途中なら、組み終わってから開く */
   openWhenReady(id: string, caret = 0): void {
     const page = this.renderer.pageView.pageOfOffset(id, caret)
@@ -4098,14 +4136,25 @@ export class ReportEditor {
     this.insertAndEdit({ type: 'paragraph', id, content: [{ type: 'text', text: '' }] }, id)
   }
 
+  /**
+   * 足す道具（小見出し・大見出し）をすばやく2回押した：2回目は足さない（ダブルクリックで、空の見出し・章が2つできていた：学生の試し 3回目 2026-10-29）
+   */
+  private doubleAdd(kind: 'subheading' | 'chapter'): boolean {
+    const now = performance.now()
+    const twice = this.lastAdd?.kind === kind && now - this.lastAdd.at < DOUBLE_PRESS_MS
+    this.lastAdd = { kind, at: now }
+    return twice
+  }
+  private lastAdd: { kind: 'subheading' | 'chapter'; at: number } | null = null
+
   addSubheading(): void {
-    if (this.settlingRemoval) return
+    if (this.settlingRemoval || this.doubleAdd('subheading')) return
     const id = ops.newId('s')
     this.insertAndEdit({ type: 'subheading', id, title: '' }, id)
   }
 
   addChapter(): void {
-    if (this.settlingRemoval) return
+    if (this.settlingRemoval || this.doubleAdd('chapter')) return
     const after = this.insertionAnchor()
     this.marker.hidden = true
     this.commitForChange()
@@ -4188,7 +4237,8 @@ export class ReportEditor {
       return { id: paragraphId, place: 'after' }
     }
     const next = below(ops.insertRef(this.report, paragraphId, caret, objectId))
-    this.report = ops.linkWrittenRef(next, paragraphId, objectId) ?? next
+    // ほかの段落に先に書いておいた「（図3）」も、入れた図へのリンクにする（文字のまま残り、「図の番号を手で書いている」のエラーになっていた：学生の試し 3回目 2026-10-29）
+    this.report = ops.linkWrittenRefsElsewhere(ops.linkWrittenRef(next, paragraphId, objectId) ?? next, paragraphId, objectId)
     return { id: paragraphId, place: 'after' }
   }
 
@@ -4330,6 +4380,7 @@ export class ReportEditor {
   removeBlock(id: string): void {
     const editable = ops.findEditable(this.report, id)
     if (!editable || this.removed.size > 0) return
+    this.removedAt = performance.now()
     this.hideStyle.textContent = ''
     this.currentId = null
     const what = editable.kind === 'chapter' ? '大見出し（章）' : editable.kind === 'subheading' ? '小見出し' : '段落'
@@ -4791,6 +4842,12 @@ export class ReportEditor {
     document.execCommand('copy')
     this.removeRange(range, '切り取り')
     return true
+  }
+
+  /** 紙面をなぞって選んだまま字を打った：書き換えはしないので、やり方を知らせる（選んでいなければ何もしない） */
+  noticeTypingOverRange(): void {
+    if (this.overlay.blockId || !this.hasPaperSelection() || !this.paperRange()) return
+    this.showNotice('選んだ文は書き換えられません。消すときは Delete、書くときは書きたい所を押します')
   }
 
   /** 削除（Delete・Backspace）：紙面で選んだ範囲を消す（1回で元に戻せる）。範囲がなければ false（ほかに任せる） */

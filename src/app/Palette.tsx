@@ -181,7 +181,7 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
   )
   return (
     <div className="group undo-redo">
-      {button('元に戻す', Icon.undo, UNDO_TIP, 'Control+Z Meta+Z', snap.canUndo, () => editor.undo())}
+      {button('元に戻す', Icon.undo, UNDO_TIP, 'Control+Z Meta+Z', snap.canUndo, () => !editor.justRemoved && editor.undo())}
       {button('やり直す', Icon.redo, REDO_TIP, 'Control+Y Control+Shift+Z Meta+Shift+Z', snap.canRedo, () => editor.redo())}
       {tip && (
         <div className="ur-tip" role="tooltip" style={{ left: tip.left, top: tip.top }}>

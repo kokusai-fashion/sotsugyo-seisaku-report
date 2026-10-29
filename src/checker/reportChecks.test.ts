@@ -139,7 +139,7 @@ describe('checkReport', () => {
     expect(abstractCharCount(r)).toBe(704)
     const short = { ...r, abstract: { paragraphs: [{ type: 'paragraph' as const, id: 'a1', content: [{ type: 'text' as const, text: '短い。' }] }] } }
     const finding = checkReport(short, currentConfig, layout()).find((f) => f.ruleId === 'abstract-length')
-    expect(finding?.detail).toBe('現在 3字（あと597字）')
+    expect(finding?.detail).toBe('現在 3字。あと597字')
     expect(ids(r, layout({ abstractLines: 24 }))).toContain('abstract-lines')
     expect(ids(r, layout({ abstractPages: 2 }))).toContain('abstract-one-page')
   })
@@ -248,7 +248,7 @@ describe('手で書いた図表の番号', () => {
     const r: Report = { ...base, body: base.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p1' && b.type === 'paragraph' ? { ...b, content: [{ type: 'text' as const, text: '袖を大きくした（図１）。' }] } : b)) })) }
     const f = checkReport(r, currentConfig).find((x) => x.ruleId === 'manual-ref')
     expect(f?.severity).toBe('error')
-    expect(f?.detail).toBe('「（図1）」の形で打ち直すと、図1とつながります（つながると、図を足したり消したりしても番号が自動でそろいます）')
+    expect(f?.detail).toBe('この段落を押して書き終えると（Esc・ほかの所を押す）、図1とつながります。「図1」の形でないときは「（図1）」と打ち直します（つながると、番号が自動でそろいます）')
     // 書き直すと（全角の数字のままでも）、図へのつながりになる（2026-10-24 から）
     const fixed = ops.setText(r, 'p1', '袖を大きくした（図１）。')
     expect(fixed.body.flatMap((c) => c.blocks).find((b) => b.id === 'p1')).toMatchObject({ content: expect.arrayContaining([expect.objectContaining({ type: 'ref' })]) })
@@ -532,8 +532,8 @@ describe('学生の試し 2回目（2026-10-29）の直し', () => {
     const r = cleanReport()
     const over = checkReport(r, currentConfig, layout({ abstractLines: 26, abstractPages: 2 }))
     expect(over.filter((f) => f.ruleId.startsWith('abstract-')).map((f) => f.ruleId)).toEqual(['abstract-lines'])
-    expect(over.find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 26行（3行多い。文を短くするか、段落をまとめて減らします）')
-    expect(checkReport(r, currentConfig, layout({ abstractLines: 12 })).find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 12行（あと3行）')
+    expect(over.find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 26行。3行多い。文を短くするか、段落をまとめて減らします')
+    expect(checkReport(r, currentConfig, layout({ abstractLines: 12 })).find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 12行。あと3行')
   })
 
   it('学籍番号の形の要確認に、どの形が正しいかを書く', () => {

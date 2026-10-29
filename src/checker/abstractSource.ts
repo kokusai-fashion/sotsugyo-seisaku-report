@@ -14,6 +14,11 @@ import type { Report } from '../model/types'
 
 /** 重なりがこれより少ない文を知らせる */
 export const ABSTRACT_SOURCE_LIMIT = 0.5
+/**
+ * 重なりがこれより少なく、本文にない数字・カタカナの語がある文も知らせる（本文の文に「頭には金のターバンを巻いた」を足した文・
+ * 「20時間」を「40時間」にした文は、ほかの字が本文と重なって見逃していた：学生の試し 3回目 2026-10-29）
+ */
+const NEW_WORD_LIMIT = 0.85
 /** 比べる文の短さの下限（字。「以上である。」などの短い文は比べない） */
 const MIN_CHARS = 8
 /** 本文がこれより少ない文しかなければ（まだ書いていない）、比べない */
@@ -54,9 +59,13 @@ export function sentencesOf(text: string): { start: number; end: number; text: s
   return out
 }
 
-/** 語のかたまり：漢字2字以上（後ろの送り仮名も、助詞の前まで）・カタカナ2字以上 */
-const words = (text: string) =>
-  [...new Set((text.match(/[一-鿿々]{2,}[ぁ-ん]{0,3}|[ァ-ヴー]{2,}/g) ?? []).map((w) => w.replace(/[をにがはでとのへもやなだ][ぁ-ん]*$/, '')))]
+/**
+ * 語のかたまり：漢字2字以上（すぐ後ろが「染め」「仕上げ」の「め」「げ」などの送り仮名なら、その1字も）・カタカナ2字以上。
+ * 前は助詞の前まで送り仮名を付けていたので、「観客から」「依頼し」と切れていた（学生の試し 3回目 2026-10-29）
+ */
+const words = (text: string) => [...new Set(text.match(/[一-鿿々]{2,}[めげけれえきみりびち]?|[ァ-ヴー]{2,}/g) ?? [])]
+/** 数字（半角にそろえる） */
+const numbers = (text: string) => [...new Set((text.match(/[0-9０-９]+/g) ?? []).map((n) => n.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0))))]
 
 /** 組 grams のうち、本文の2文（いちばん重なる文と、残りがいちばん重なる文）にあるものの割合 */
 function coverage(grams: string[], sets: Set<string>[]): number {
@@ -84,6 +93,12 @@ function openingHead(report: Report, config: YearConfig): string {
   return comparable(example).slice(0, 7)
 }
 
+/**
+ * 書き出しの形の文（「本研究報告書は、」「本報告書は、」「本制作報告書では、」「本稿は、」「この報告書は、」「本研究は、」など。「本制作では、」は本文にもある書き方なので比べる）。
+ * 今年の学科の Word のひな形の書き出しは「本研究報告書は」なので、印が付いていた（学生の試し 3回目 2026-10-29）
+ */
+const OPENING = /^(本|この)(制作|研究)?(報告書|報告|稿)(で)?(は|では|において|について)|^本研究(は|では)/
+
 /** 本文から抜き出していないらしい抄録の文（重なりが ABSTRACT_SOURCE_LIMIT より少ない文）。本文をまだ書いていなければ、ない */
 export function abstractAwayFromBody(report: Report, config: YearConfig): AbstractSentence[] {
   if (report.abstract.started === false) return []
@@ -91,10 +106,14 @@ export function abstractAwayFromBody(report: Report, config: YearConfig): Abstra
   const blocks = report.body.flatMap((c) => c.blocks)
   const bodySentences = blocks.flatMap((b) => (b.type === 'paragraph' ? sentencesOf(contentToText(b.content, num)).map((s) => s.text) : [])).filter((s) => comparable(s).length >= MIN_CHARS)
   if (bodySentences.length < MIN_BODY_SENTENCES) return []
-  const sets = bodySentences.map((s) => new Set(bigrams(s)))
+  // 比べる相手には、表（行ごと・タイトル）と図のタイトルも入れる（素材表をまとめた文に印が付いていた：学生の試し 3回目 2026-10-29）
+  const tableLines = blocks.flatMap((b) => (b.type === 'table' ? [b.caption, ...b.rows.map((r) => r.cells.map((c) => c.text).join('、'))] : b.type === 'figureRow' ? b.figures.map((f) => f.caption) : []))
+  const sets = [...bodySentences, ...tableLines.filter((t) => comparable(t).length >= 4)].map((x) => new Set(bigrams(x)))
   // 本文のどこかにある語か（見出し・図表のタイトル・表の中身・サブタイトルも）
+  // 表紙の題目・サブタイトルも（「卒業イベント」が本文にない語に出ていた）
   const bodyText = comparable(
     [
+      config.commonTitle,
       report.basicInfo.subtitleInput,
       ...report.body.flatMap((c) => [
         c.title,
@@ -113,16 +132,23 @@ export function abstractAwayFromBody(report: Report, config: YearConfig): Abstra
     ].join(''),
   )
   const head = openingHead(report, config)
-  return report.abstract.paragraphs.flatMap((p) => {
+  const bodyNumbers = new Set(numbers(bodyText))
+  return report.abstract.paragraphs.flatMap((p, pi) => {
     const text = contentToText(p.content, num)
-    return sentencesOf(text).flatMap((s): AbstractSentence[] => {
+    return sentencesOf(text).flatMap((s, si): AbstractSentence[] => {
       const plain = comparable(s.text)
-      if (plain.length < MIN_CHARS || (head.length >= 3 && plain.startsWith(head))) return []
+      // 抄録のいちばん初めの文と、書き出しの形の文は比べない
+      if (plain.length < MIN_CHARS || (pi === 0 && si === 0) || OPENING.test(plain) || (head.length >= 3 && plain.startsWith(head))) return []
       const grams = bigrams(s.text)
       const overlap = coverage(grams, sets)
-      if (overlap >= ABSTRACT_SOURCE_LIMIT) return []
+      // 本文にない数字は、ほかが本文と同じでも知らせる（「20時間」を「40時間」にした文）
+      const newNumbers = numbers(s.text).filter((n) => !bodyNumbers.has(n))
+      if (overlap >= NEW_WORD_LIMIT && newNumbers.length === 0) return []
       const newWords = words(s.text).filter((w) => !bodyText.includes(comparable(w.replace(/[ぁ-ん]+$/, ''))))
-      return [{ blockId: p.id, start: s.start, end: s.end, text: s.text, overlap, newWords }]
+      // 重なりが少ない、または、本文にない数字・カタカナの語がある
+      const strong = newNumbers.length > 0 || newWords.some((w) => /^[ァ-ヴー]+$/.test(w))
+      if (overlap >= ABSTRACT_SOURCE_LIMIT && !strong) return []
+      return [{ blockId: p.id, start: s.start, end: s.end, text: s.text, overlap, newWords: [...newNumbers, ...newWords] }]
     })
   })
 }

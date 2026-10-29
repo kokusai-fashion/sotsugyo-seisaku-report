@@ -346,11 +346,13 @@ function LandTip({ hidden }: { hidden: boolean }) {
     }
     const timer = window.setTimeout(() => setDone(true), LAND_TIP_MS)
     // 打ち始めたら消す（iPhone SE の横向きで、書いている行に重なっていた：学生の試し 2026-10-29）
+    // 変換しない字（英数字）は input が来ない書き方もあるので、beforeinput・keydown でも消す（学生の試し 3回目 2026-10-29）
     const typed = () => setDone(true)
-    document.addEventListener('input', typed, true)
+    const kinds = ['input', 'beforeinput', 'keydown'] as const
+    for (const k of kinds) document.addEventListener(k, typed, true)
     return () => {
       window.clearTimeout(timer)
-      document.removeEventListener('input', typed, true)
+      for (const k of kinds) document.removeEventListener(k, typed, true)
     }
   }, [visible])
   if (!visible) return null
@@ -367,10 +369,17 @@ function LandTip({ hidden }: { hidden: boolean }) {
  */
 function AbstractCount({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot }) {
   const n = abstractCharCount(snap.report)
-  const { minChars, maxChars } = editor.abstractLimits
+  const lines = snap.layout?.abstractLines
+  const { minChars, maxChars, minLines, maxLines } = editor.abstractLimits
+  // 行数も出す（字数が範囲に入っていても、行が多いと1ページに入らない。前は「範囲に入っています」のままだった：学生の試し 3回目 2026-10-29）
+  const chars = `${minChars}〜${maxChars}字。`
+  const rows = `${minLines}〜${maxLines}行。`
+  const rest =
+    n < minChars ? <>{chars}あと<b>{minChars - n}</b>字</> : n > maxChars ? <>{chars}<b>{n - maxChars}</b>字多い</> : lines !== undefined && lines > maxLines ? <>{rows}<b>{lines - maxLines}</b>行多い</> : lines !== undefined && lines < minLines ? <>{rows}あと<b>{minLines - lines}</b>行</> : '範囲に入っています'
   return (
     <p className="db-count" aria-live="polite">
-      抄録 <b>{n}字</b>（{minChars}〜{maxChars}字。{n < minChars ? <>あと<b>{minChars - n}</b>字</> : n > maxChars ? <><b>{n - maxChars}</b>字多い</> : '範囲に入っています'}）
+      抄録 <b>{n}字</b>
+      {lines !== undefined && <>・<b>{lines}行</b></>}（{rest}）
     </p>
   )
 }

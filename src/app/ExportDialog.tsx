@@ -427,8 +427,10 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
     const size = `${pdf.pageCount}ページ・${sizeText(pdf.blob.size)}`
     // 直すところ・まだのところが残ったまま保存した：提出用ではないことを知らせる（前は何も言わず、提出用と見分けられなかった：
     // 学生の試し 2026-10-29。依頼者の選択 mockups/v74 ① 案A。透かしは付けない）
-    const leftNote = fixes.length > 0 ? `直すところが${countOf(fixes.length)}` : notYet.length > 0 ? `まだのところが${countOf(notYet.length)}` : ''
-    const leftWarn = leftNote ? (
+    // 直すところ・まだのところの両方を言う（前は直すところだけ：学生の試し 3回目 2026-10-29）
+    const leftNote = [fixes.length > 0 ? `直すところが${countOf(fixes.length)}` : '', notYet.length > 0 ? `まだのところが${countOf(notYet.length)}` : ''].filter(Boolean).join('・')
+    // 保存したあとにだけ出す（iPhone は「保存する」を押す前から、パソコンは「保存の画面を開いています…」の間から出ていた）
+    const leftWarn = leftNote && (mode === 'share' ? saved === 'shared' || saved === 'fallback' : !waiting) ? (
       <p className="pdf-left-warn" role="note">
         <b>{leftNote}残ったまま保存しました。</b>
         提出するときは、直してから、もう一度保存します。

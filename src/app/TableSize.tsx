@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { clampTableSize, TABLE_SIZE } from '../model/table'
 import { Icon } from './icons'
 import { useDialogFocus } from './useDialogFocus'
-import { keepFocus } from './uiShared'
+import { keepFocus, swallowSecondClick } from './uiShared'
 
 /**
  * 表の大きさを、入れる前に選ぶ（mockups/v35 ② 決めていただいた形）。
@@ -106,7 +106,10 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
           aria-label={`${size.columns}列×${size.rows}行`}
           onMouseDown={keepFocus}
           onPointerEnter={() => setHi(size)}
-          onClick={() => onPick(size)}
+          onClick={() => {
+            swallowSecondClick()
+            onPick(size)
+          }}
         />,
       )
     }
@@ -121,7 +124,14 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
         {hi.columns}列×{hi.rows}行<small>1行目は見出し</small>
       </div>
       <div className="tmenu-sep" />
-      <button type="button" onMouseDown={keepFocus} onClick={onMaterial}>
+      <button
+        type="button"
+        onMouseDown={keepFocus}
+        onClick={() => {
+          swallowSecondClick()
+          onMaterial()
+        }}
+      >
         素材表<small>名称・使用箇所・生地見本</small>
       </button>
     </div>

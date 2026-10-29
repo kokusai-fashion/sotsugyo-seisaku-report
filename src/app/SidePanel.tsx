@@ -459,7 +459,8 @@ export function CheckBody({ editor, snap, config, onPick, pc }: { editor: Report
   const count = (n: number, error?: boolean, prefix = '') => pc && !snap.pageChecksPending && n > 0 && <span className={`count-badge${error ? ' e' : ''}`}>{prefix}{n}</span>
   // PC で直すところがあるときは、済んだ行を1行にたたむ（まだ・先生の許可のあとなどの行は、そのまま）
   const fold = !!pc && fixes.length > 0
-  const done = fold ? rows.filter((r) => r.state === 'done') : []
+  // 抄録の行（「648字・18行」）はたたまない（書きながら字数・行数を見るため。要確認が1つあると見えなくなっていた：学生の試し 3回目 2026-10-29）
+  const done = fold ? rows.filter((r) => r.state === 'done' && r.id !== 'abstract') : []
   return (
     <>
       <div className="check-sub" title={pc ? '押すと、その場所へ' : undefined}>
@@ -507,7 +508,8 @@ export function CheckBody({ editor, snap, config, onPick, pc }: { editor: Report
         })
       )}
       {snap.acknowledged.length > 0 && (
-        <details className="acked">
+        // 開いたら、中身が見える所まで動かす（「PDFを書き出す」の陰に入り、「戻す」が見えなかった：学生の試し 3回目 2026-10-29）
+        <details className="acked" onToggle={(e) => e.currentTarget.open && e.currentTarget.scrollIntoView({ block: 'nearest' })}>
           {/* 作品写真の空いた枠（要確認）も入るので「直すところに数えない」（前は「エラーに数えない」：PC・スマホの試し 2026-10-25） */}
           <summary>確認済み {snap.acknowledged.length}件（直すところに数えない）</summary>
           <ul>

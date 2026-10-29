@@ -10,6 +10,18 @@ import { BAND_SIDE_QUERY } from './bandText'
 export const keepFocus = (e: React.MouseEvent) => e.preventDefault()
 
 /**
+ * 押してすぐのもう1回（ダブルクリックの2回目）を、しばらく受け止めて捨てる（画面の上に透明な幕を置く）。
+ * 押したメニューが閉じたあと、2回目が紙面に当たり、開いたばかりの書く欄が閉じていた（表の大きさのます目：学生の試し 3回目 2026-10-29）
+ */
+export function swallowSecondClick(ms = 450): void {
+  const shield = document.createElement('div')
+  shield.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:transparent'
+  shield.addEventListener('mousedown', (e) => e.preventDefault())
+  document.body.append(shield)
+  window.setTimeout(() => shield.remove(), ms)
+}
+
+/**
  * ページの種類ごとの名前と、道具の上に出すひとこと。
  * 道具の幅（1行6字ほど）で、言葉の切れ目で行を分ける（1字だけ次の行に残らないように。目次は前の「見出しから／自動で作られる」が「る」だけの行になっていた：mockups/v41）
  */

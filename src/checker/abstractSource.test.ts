@@ -52,3 +52,22 @@ describe('抄録の文が本文から抜き出したものか（mockups/v75 案A
     expect(abstractAwayFromBody(before, currentConfig)).toEqual([])
   })
 })
+
+describe('3回目の試しの直し（2026-10-29）', () => {
+  const body = demoReport()
+  it('書き出しの形の文（本研究報告書は・本報告書は・本稿は）と、抄録のいちばん初めの文は比べない。「本制作では」は比べる', () => {
+    const r = withAbstract(body, 'まったく本文にない書き出しの文である。', '本研究報告書は、卒業イベントの衣装制作について報告するものである。', '本報告書は、衣装の制作についてまとめたものである。', '本稿は、筆者の制作をまとめたものである。', MADE_UP)
+    expect(abstractAwayFromBody(r, currentConfig).map((a) => a.text)).toEqual([MADE_UP])
+  })
+  it('ほかが本文と同じでも、本文にない数字・カタカナの語があれば知らせる', () => {
+    const p4 = body.body.flatMap((c) => c.blocks).find((b) => b.id === 'p4')
+    const base = p4?.type === 'paragraph' ? p4.content.map((n) => (n.type === 'text' ? n.text : '')).join('').split('。')[0] : ''
+    const r = withAbstract(body, '書き出しの文である。', `${base}、頭には金のターバンを巻いた。`, '刺繍には片袖でおよそ999時間かかった。')
+    const found = abstractAwayFromBody(r, currentConfig)
+    expect(found.map((a) => a.newWords)).toEqual([expect.arrayContaining(['ターバン']), expect.arrayContaining(['999'])])
+  })
+  it('語の切れ方：「観客から」「依頼し」は「観客」「依頼」、「手染め」はそのまま', () => {
+    const r = withAbstract(body, '書き出しの文である。', '観客から依頼し、手染めで仕上げたミラノの布を使った。')
+    expect(abstractAwayFromBody(r, currentConfig)[0].newWords).toEqual(expect.arrayContaining(['観客', '依頼', '手染め', 'ミラノ']))
+  })
+})

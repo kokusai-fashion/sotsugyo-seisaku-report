@@ -1184,6 +1184,16 @@ const WRITTEN_REF = /[（(]\s*([図表])\s*([0-9０-９]+)\s*[）)]|(?<![㐀-鿿
  * 「図を入れる」「表を入れる」で自動で入れた（図n）は除く（「図1に示す（図1）。」と二重にならないように）。
  * 手で書いた番号がなければ null（自動で入れた（図n）のまま）
  */
+/**
+ * ほかの段落に手で書いた、その図表の番号（先に「（図3）」と書いてから、下の段落で「図を入れる」を押した）も、図表へのリンクにする。
+ * その段落には自動の（図n）がないので、手で書いた番号がそのまま残る（同じ図を指す段落が2つになるのは、かまわない）
+ */
+export function linkWrittenRefsElsewhere(report: Report, paragraphId: string, targetId: string): Report {
+  let next = report
+  for (const b of report.body.flatMap((c) => c.blocks)) if (b.type === 'paragraph' && b.id !== paragraphId) next = linkWrittenRef(next, b.id, targetId) ?? next
+  return next
+}
+
 export function linkWrittenRef(report: Report, paragraphId: string, targetId: string): Report | null {
   const paragraph = findParagraph(report, paragraphId)
   const num = numbering(report)

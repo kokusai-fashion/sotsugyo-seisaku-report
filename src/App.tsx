@@ -44,7 +44,7 @@ import { WordImportDialog, WordTodoCard } from './app/WordImport'
 import { useAsk } from './app/ask'
 import { NewVersionBanner, useNewVersion } from './app/newVersion'
 import { useKeepWritingVisible, writingArea } from './app/writingArea'
-import { rememberImportPrints, useWordTodo, wordImportOffered } from './app/useWordTodo'
+import { rememberImportPrints, useWordTodo, wordImportOffered, type WordTodo } from './app/useWordTodo'
 import { HelpView } from './help/HelpView'
 import { STUDENT_TOPICS } from './help/helpTopics'
 import { STUDENT_GUIDE_PATH, STUDENT_HELP_IMAGES } from './help/links'
@@ -129,6 +129,9 @@ async function yearConfigOf(year: number, load: { cached: YearConfig | null; rem
 
 /** Word から読み込む直前の原稿の控えの名前（「バックアップ・作り直す」の控えの一覧に出す） */
 const WORD_SNAPSHOT_LABEL = 'Word を読み込む前'
+
+/** 前の「つぎにすること」の続き（previous）を、depth 個までにする */
+const trimTodoChain = (todo: WordTodo, depth: number): WordTodo => ({ ...todo, previous: depth > 0 && todo.previous ? trimTodoChain(todo.previous, depth - 1) : null })
 /** コースを変えて「下書きを入れ替える」直前の原稿の控えの名前（どの控えに戻せばよいか分かるように） */
 const REPLACE_SNAPSHOT_LABEL = '下書きを入れ替える前'
 
@@ -773,6 +776,9 @@ export default function App() {
         e.preventDefault()
         if (sel.kind === 'photos') editor.removePhoto(sel.page, sel.index!)
         else editor.removeSelected()
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        // 紙面をなぞって選んだまま字を打った：何も起きず、知らせもなかった（学生の試し 3回目 2026-10-29）。選んだ範囲の書き換えはしないので、やり方を知らせる
+        editor.noticeTypingOverRange()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -849,7 +855,8 @@ export default function App() {
       // courseId：確認の窓で、表紙の Word のコースを選んだ（本文は読み込む本文のまま、コースの名前を変える）
       editor.replace(applyWordImport(before, result, courseId ? { courseId, config: configRef.current } : undefined))
       rememberImportPrints(wordPrints(result))
-      // 前の読み込みの「つぎにすること」は、この読み込みを戻したときに、また出す（1つ前の分だけ）
+      // 前の読み込みの「つぎにすること」は、この読み込みを戻したときに、また出す（何回か戻しても、そのつど1つ前の分を出す。
+      // 前は1つ前の分だけで、2回戻すと1回目の分が出なかった：学生の試し 3回目 2026-10-29。たくさん続けて読み込んでも重くならないよう、5つ前まで）
       setWordTodo({
         at: new Date().toISOString(),
         snapshotAt,
@@ -859,7 +866,8 @@ export default function App() {
         pagesSeen: false,
         pagesChecked: false,
         ...(result.problems.length ? { problems: result.problems, problemsChecked: false } : {}),
-        previous: wordTodo ? { ...wordTodo, previous: null } : null,
+        previous: wordTodo ? trimTodoChain(wordTodo, 4) : null,
+        ...(fileName ? { fileName } : {}),
       })
       setDialog(null)
       // 表紙の Word の学籍番号がアカウントと違う：読み込んだすぐあとに、直すかを聞く（依頼者の選択 2026-10-25）
@@ -895,7 +903,8 @@ export default function App() {
     }
     if (!(await ask.confirm(`Word から読み込む前の原稿に戻しますか？${courseChangeNote(configRef.current, editor.getSnapshot().report, kept.report)}\n（今の原稿は自動の控えに残します）`, { ok: '戻す' }))) return
     editor.commitEditing()
-    await keepSnapshot(editor.getSnapshot().report, 'Word から読み込んだ原稿（戻す前）')
+    // 控えの名前に、読み込んだ Word のファイル名を入れる（何回か戻すと、同じ名前の控えが並んでいた：学生の試し 3回目 2026-10-29）
+    await keepSnapshot(editor.getSnapshot().report, wordTodo?.fileName ? `Word（${wordTodo.fileName}）から読み込んだ原稿（戻す前）` : 'Word から読み込んだ原稿（戻す前）')
     editor.replace(kept.report)
     await matchYear(editor, kept.report)
     // 2回目の読み込みを戻した：1回目の「つぎにすること」を、また出す（前は消えていた：学生の試し 2026-10-29）

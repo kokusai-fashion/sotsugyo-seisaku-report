@@ -98,3 +98,26 @@ describe('読み込み直したとき、ツールで書いた章を残す（keep
     expect(lostByImport(report, r2.body, new Set(wordPrints(r1)))).toEqual([])
   })
 })
+
+describe('3回目の試しの直し（2026-10-29）', () => {
+  it('表のタイトルと表のあいだに小見出しがあっても、前のタイトルを表のタイトルにする', async () => {
+    const r = await read(
+      makeDocx({
+        body: [p('Ⅰ．企画・立案'), p('ⅰ．使用素材'), p('表1　使用素材表'), p('ⅱ．配色'), p('　配色は次のとおりである。'), table([['素材', '用途'], ['綿', '身頃']])].join(''),
+      }),
+    )
+    const t = r.body.flatMap((c) => c.blocks).find((b): b is TableBlock => b.type === 'table')
+    expect(t?.caption).toBe('使用素材表')
+    expect(messages(r).some((m) => m.includes('表が見つかりませんでした'))).toBe(false)
+  })
+  it('表の中の表の知らせに、場所（外の表の前の「表n」の行・なければ外の表の初めの字）を付ける', () => {
+    const inner = `<w:tbl><w:tr><w:tc>${p('中')}</w:tc></w:tr></w:tbl>${p('')}`
+    const outer = `<w:tbl><w:tr><w:tc>${p('工程')}</w:tc><w:tc>${inner}</w:tc></w:tr></w:tbl>`
+    expect(documentNotes(xml([p('表2　制作工程表'), outer].join('')))[0]).toMatchObject({ message: '表の中の表は、表の形のままでは写せません', where: '表2　制作工程表' })
+    expect(documentNotes(xml([p('本文。'), outer].join('')))[0].where).toBe('「工程中」で始まる表')
+  })
+  it('参考文献の知らせは、使い方の「引用・参考文献」から入れるように書く', async () => {
+    const r = await read(makeDocx({ body: [p('Ⅰ．企画・立案'), p('　本文の段落である。'), p('参考文献'), p('1) 文化花子『衣装の本』2020年')].join('') }))
+    expect(r.problems.find((x) => x.message.startsWith('参考文献'))?.detail).toContain('「使い方」の「引用・参考文献」')
+  })
+})

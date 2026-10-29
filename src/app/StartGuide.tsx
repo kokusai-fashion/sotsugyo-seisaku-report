@@ -160,6 +160,17 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
     onStep(leftCover ? null : NEXT[step])
   }, [snap.editingId, snap.layout, snap.page, field, step, onStep])
 
+  // 表紙の欄の段階で、ページの絵・ページ送りを押した（ほかのページへ移るつもり）：案内を閉じる。欄を閉じたことだけを見ると、
+  // 打ちかけのときは移る前に次の段階へ進み、表紙へ引き戻していた（学生の試し 3回目 2026-10-29）
+  useEffect(() => {
+    if (!field || step === 'course') return
+    const leave = (e: PointerEvent) => {
+      if (e.target instanceof Element && e.target.closest('.thumb-list, .arrow, .bar-arrow, .pager, .page-band')) onStep(null)
+    }
+    document.addEventListener('pointerdown', leave, true)
+    return () => document.removeEventListener('pointerdown', leave, true)
+  }, [field, step, onStep])
+
   // 光を当てる欄。Word で書き始めているかを聞く段階は、どの欄も指さない（画面の真ん中に出し、紙面は一様に暗くする。mockups/v24 ① 案C）
   const spot = step === 'word' ? null : rect
 
