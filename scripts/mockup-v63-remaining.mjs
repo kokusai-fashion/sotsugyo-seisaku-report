@@ -48,7 +48,7 @@ async function openSample(browser, viewport, phone = false) {
   const page = await context.newPage()
   await page.evaluateOnNewDocument((phone) => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       localStorage.setItem('sotsugyo-seisaku-report-pinch-tip', 'done')
       localStorage.setItem('sotsugyo-seisaku-report-knob-hint', 'done')
       if (!phone) localStorage.setItem('sotsugyo-seisaku-report-zoom-level', '2')

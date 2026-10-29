@@ -6,6 +6,7 @@ import type { OutlineItem, WordImportResult } from '../import/types'
 import type { LostChapter } from '../import/wordImport'
 import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
 import type { Report } from '../model/types'
+import { tidyName } from '../model/personName'
 import { BusyLabel, SlowNote } from './Busy'
 import { checkSummary } from './checkSummary'
 import { countOf } from '../checker/progress'
@@ -14,6 +15,7 @@ import { Modal } from './dialogs'
 import { Icon } from './icons'
 import type { WordTodo } from './useWordTodo'
 import { Keep } from './keepPhrases'
+import { useAsk } from './ask'
 
 /**
  * 今年度だけ：Word のひな形（04_本文.docx・01_表紙.docx）で書き始めた分を、ツールに写す「Wordから読み込む」の画面（mockups/v24）。
@@ -41,8 +43,11 @@ export function WordIcon() {
 const keepIcon = svg(<path d="M5 4.5h14v15H5zM9 4.5v5h6v-5M8.5 14h7M8.5 17h5" />)
 const checkIcon = svg(<path d="M5 12.5l4.5 4.5L19 7.5" />)
 
-/** ファイル名（BIZ UDPゴシックは小さい字で「_」が見えないことがあるため、英数字の書体で出す） */
-const FileName = ({ name }: { name: string }) => <span className="fn">{name}</span>
+/**
+ * ファイル名（BIZ UDPゴシックは小さい字で「_」が見えないことがあるため、英数字の書体で出す）。
+ * 短い名前（ひな形の「04_本文.docx」など）は、途中で折り返さない（「04_／本文.docx」と切れていた：学生の試し 2026-10-29）。長い名前は、狭い画面ではみ出さないよう折り返す
+ */
+const FileName = ({ name }: { name: string }) => <span className={name.length <= 20 ? 'fn nb' : 'fn'}>{name}</span>
 
 /** 文の中のファイル名（例「本文に選んだ「01_表紙.docx」は…」の 01_表紙.docx）も、英数字の書体で出す */
 function WithFileNames({ text }: { text: string }) {
@@ -339,6 +344,7 @@ export function WordImportDialog({ config, report, onImport, onClose, accountStu
           currentCourseId={courseId}
           wordCourseId={mismatch ? wordCourse : undefined}
           accountStudentId={accountStudentId}
+          current={report.basicInfo}
           choice={choice}
           onChoice={(c) => void chooseCourse(c)}
           files={files}
@@ -526,6 +532,7 @@ function WordConfirm({
   currentCourseId,
   wordCourseId,
   accountStudentId,
+  current,
   choice,
   onChoice,
   files,
@@ -547,6 +554,8 @@ function WordConfirm({
   wordCourseId?: string
   /** ログインしたアカウントの学籍番号（学生のとき） */
   accountStudentId?: string | null
+  /** いまの原稿の表紙（Word の値で替わる項目を、赤で知らせる） */
+  current?: Pick<Report['basicInfo'], 'studentId' | 'name' | 'subtitleInput'>
   choice: CourseChoice
   onChoice: (c: Exclude<CourseChoice, null>) => void
   files: Partial<Record<Slot, File>>
@@ -582,6 +591,13 @@ function WordConfirm({
   const idOff = !!accountStudentId && !!cover.studentId?.trim() && cover.studentId.trim().normalize('NFKC').toUpperCase() !== accountStudentId
   // 表紙を読んだか（表紙の Word を選んだか、本文の Word の前に書いた表紙から読めた：依頼者の選択 2026-10-27）
   const coverFromWord = !!files.cover || Object.values(result.cover).some((v) => !!v?.trim())
+  // いまの表紙と違う値（読み込むと替わる。前は、ほかの項目と同じ見た目で並ぶだけで、替わることが目立たなかった：学生の試し 2026-10-29。mockups/v73 ⑧）
+  const was = (now: string | undefined, word: string | undefined, same: (a: string, b: string) => boolean) => (now?.trim() && word?.trim() && !same(now.trim(), word.trim()) ? now.trim() : undefined)
+  const changed: Record<string, string | undefined> = {
+    学籍番号: was(current?.studentId, cover.studentId, (a, b) => a.normalize('NFKC').toUpperCase() === b.normalize('NFKC').toUpperCase()),
+    氏名: was(current?.name, cover.name, (a, b) => tidyName(a) === tidyName(b)),
+    サブタイトル: was(current?.subtitleInput, cover.subtitleInput, (a, b) => a === b),
+  }
   const coverRows: [string, string | undefined, string?][] = [
     // コース：Word と違えば、選ぶまで赤く出す。Word にコースがなければ、いまのツールのコースのまま
     [
@@ -676,6 +692,7 @@ function WordConfirm({
                         {mark === 'ng' && label === 'コース' && <small>（いまのツールと違います）</small>}
                         {mark === 'ng' && label === '学籍番号' && <small>（ログインしたアカウントは {accountStudentId}。読み込んだあと、直してください）</small>}
                         {mark === 'keep' && <small>（Word に見つからないため、いまのまま）</small>}
+                        {changed[label] && <small className="was">（今は「{changed[label]}」。読み込むと替わります）</small>}
                       </dd>
                     ) : (
                       <dd className="miss">（読み取れませんでした）</dd>
@@ -797,6 +814,14 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   const figuresDone = seen >= figures.length
   const steps = [errors === 0, ...(figures.length > 0 ? [figuresDone] : []), todo.pagesChecked, todo.coverChecked]
   const allDone = steps.every(Boolean)
+  const ask = useAsk()
+  // まだ済んでいない項目があるときは、確かめてから閉じる（閉じると「読み込む前の原稿に戻す」も消え、もう出ない。
+  // 前は × ですぐ閉じた：学生の試し 2026-10-29）
+  const closeTodo = async () => {
+    const left = steps.filter((done) => !done).length
+    if (left > 0 && !(await ask.confirm(`まだ確かめていない項目が${left}つあります。閉じると、この一覧と「読み込む前の原稿に戻す」は出なくなります。閉じますか？`, { title: '「つぎにすること」を閉じますか？', ok: '閉じる' }))) return
+    onClose()
+  }
   const when = new Date(todo.at).toLocaleString('ja-JP', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   const [restoring, restore] = useBusy<'restore'>()
 
@@ -839,7 +864,7 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
           Word から写しました
         </b>
         {/* close：スマホのチェックの欄を開いたとき、ここに移らないように（useDialogFocus） */}
-        <button className="x close" aria-label="「つぎにすること」を閉じる" title="閉じる（もう出しません）" onClick={onClose}>
+        <button className="x close" aria-label="「つぎにすること」を閉じる" title="閉じる（もう出しません）" onClick={() => void closeTodo()}>
           ×
         </button>
       </div>

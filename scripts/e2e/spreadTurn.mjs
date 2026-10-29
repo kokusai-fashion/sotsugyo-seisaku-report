@@ -20,7 +20,7 @@ async function open(browser) {
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
-  await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-writing-zoom', '0') } catch {} })
+  await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done'); localStorage.setItem('sotsugyo-seisaku-report-writing-zoom', '0') } catch {} })
   await stubConfig(page)
   await page.setViewport({ width: 1440, height: 900 })
   await page.goto(`${APP}/?nodrive`, { waitUntil: 'networkidle0', timeout: 90000 })

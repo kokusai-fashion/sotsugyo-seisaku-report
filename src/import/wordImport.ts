@@ -970,6 +970,13 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
   // Word でまだ書いていない章は写さない（ツールのひな形の章で続ける）
   const isPlaceholderTitle = (t: string | null) => t !== null && isPlaceholderOnly(t)
   let skippedPlaceholders = 0
+  const placeholderChapters: string[] = []
+  /** 写さなかった行を数え、その章の大見出しを覚える */
+  const skip = (chapter: DraftChapter, lines: number) => {
+    skippedPlaceholders += lines
+    const title = chapter.title?.trim() ?? ''
+    if (lines > 0 && title && !isPlaceholderTitle(title) && !placeholderChapters.includes(title)) placeholderChapters.push(title)
+  }
   const kept: DraftChapter[] = []
   /** 写す章の、Word の中の番目（大見出しの順。書いていない章も数える。大見出しより前の部分は -1。ひな形の章と組にするため：chapterOrder） */
   const keptPositions: number[] = []
@@ -980,13 +987,13 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
     const written = chapter.sections.map((s) => sectionWritten(s, states, templateSubheadings))
     const placeholderLines = chapter.sections.reduce((n, s) => n + s.skipped + (isPlaceholderTitle(s.sub) ? 1 : 0), isPlaceholderTitle(chapter.title) ? 1 : 0)
     if (!titleWritten && !written.some(Boolean)) {
-      skippedPlaceholders += placeholderLines
+      skip(chapter, placeholderLines)
       continue
     }
     // 書いた章の中でも、仮の小見出し（「ⅱ．〇〇〇〇」）の下に何も書いていなければ、その小見出しごと写さない
     const sections = chapter.sections.filter((s, i) => !(isPlaceholderTitle(s.sub) && !written[i]))
     // 写す見出し（仮の名前のままでも、下に書いたものがある見出し）は、写さなかった行に数えない
-    skippedPlaceholders += placeholderLines - (isPlaceholderTitle(chapter.title) ? 1 : 0) - sections.filter((s) => isPlaceholderTitle(s.sub)).length
+    skip(chapter, placeholderLines - (isPlaceholderTitle(chapter.title) ? 1 : 0) - sections.filter((s) => isPlaceholderTitle(s.sub)).length)
     kept.push({ ...chapter, sections })
     keptPositions.push(position)
   }
@@ -1337,6 +1344,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       tables: tableMetas.length,
     },
     skippedPlaceholders,
+    placeholderChapters,
     problems,
   }
 }

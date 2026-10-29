@@ -103,6 +103,9 @@ describe('split / mergeBackward / replaceWithParagraphs', () => {
     expect(text(ops.setText(report, 'a3', '袖を大きくした。。'), 'a3')).toBe('袖を大きくした。')
     expect(ops.withPeriod('本当に？')).toBe('本当に？')
     expect(ops.withPeriod('')).toBe('')
+    // 「．」「.」で終えた文（番号だけの「Ⅲ．」・英文）には足さない
+    expect(ops.withPeriod('Ⅲ．')).toBe('Ⅲ．')
+    expect(ops.withPeriod('It is done.')).toBe('It is done.')
   })
 
   it('文末（「。」のない段落の終わり）に図を入れると、後ろに「。」を付ける', () => {
@@ -137,6 +140,18 @@ describe('split / mergeBackward / replaceWithParagraphs', () => {
     expect(ops.removeEmptyBackward(hinted, after.id, '')).toBeNull()
     // 抄録の段落は消さない
     expect(ops.removeEmptyBackward(ops.setText(report, 'a2', ''), 'a2', '')).toBeNull()
+  })
+
+  it('空の段落・見出しを Backspace で消したとき、すぐ前が図・表なら、タイトルではなく、その前の欄へ移る', () => {
+    const chapter = report.body[0]
+    const at = chapter.blocks.findIndex((b) => b.type === 'figureRow' || b.type === 'table')
+    expect(at).toBeGreaterThan(0)
+    const before = chapter.blocks.slice(0, at).reverse().find((b) => b.type === 'paragraph' || b.type === 'subheading')!
+    const withSub = { ...report, body: report.body.map((c, i) => (i === 0 ? { ...c, blocks: [...c.blocks.slice(0, at + 1), { type: 'subheading' as const, id: 'sx', title: '' }, ...c.blocks.slice(at + 1)] } : c)) }
+    const removed = ops.removeEmptyBackward(withSub, 'sx', '')!
+    expect(removed.what).toBe('小見出し')
+    expect(removed.targetId).toBe(before.id)
+    expect(ops.findEditable(withSub, removed.targetId)?.kind).not.toMatch(/Caption$/)
   })
 
   it('抄録の最初の段落ではつなげない', () => {

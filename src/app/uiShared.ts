@@ -150,7 +150,7 @@ export function useWheelPaging(target: React.RefObject<HTMLElement | null>, scro
         zoomLast = e.timeStamp
         zoomSum += d
         if (Math.abs(zoomSum) < WHEEL_ZOOM_PX) return
-        editor.wheelZoom(zoomSum < 0 ? 1 : -1)
+        editor.wheelZoom(zoomSum < 0 ? 1 : -1, { x: e.clientX, y: e.clientY })
         zoomSum = 0
         return
       }

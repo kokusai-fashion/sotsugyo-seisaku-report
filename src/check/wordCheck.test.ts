@@ -107,7 +107,8 @@ describe('ページ設定がひな形のままか', () => {
   it('余白が違えば、どこが何 mm かと、直し方を出す（エラー・手順書）', async () => {
     const [f] = await settings('body', makeDocx({ body: bodyText, styles: normalStyle(22), sectPr: sectPr({ margins: [1418, 1418, 1418, 1701] }) }))
     expect(f).toMatchObject({ ruleId: 'template-margins', severity: 'error', source: 'guide', title: '余白は、上下 25mm・左右 30mmにする' })
-    expect(f.detail).toBe('今は 右 25mm。Word の「レイアウト → ページ設定」の「余白」で直す（学科の Word のひな形の 上・下・右 25mm、左 35mm のままでもよい）')
+    // 左右の片方だけが違っても、左右とも今の値を出し、2つの直し方を書く（学生の試し 2026-10-29）
+    expect(f.detail).toBe('今は 左 30mm・右 25mm。Word の「レイアウト → ページ設定」の「余白」で、上下 25mm・左右 30mmにするか、学科の Word のひな形のまま（上・下・右 25mm、左 35mm）にする')
   })
   it('表紙のひな形の余白は、上下左右 25mm', async () => {
     expect(await settings('cover', makeDocx({ body: p('表紙'), sectPr: sectPr({ margins: [1418, 1418, 1418, 1418], grid: null }) }))).toEqual([])
@@ -160,13 +161,16 @@ describe('Word のチェック（学生用ツールのセルフチェックと�
     expect(desu.quote?.[0]).toMatch(/^…/)
     expect(desu.snippets?.[0]).toContain('帯を巻きました')
     expect(by(findings, 'body-pages')[0]).toMatchObject({ part: 'body', detail: '現在 3ページ（PDF のページの数）' })
-    expect(by(findings, 'swatch-image')).toHaveLength(3)
-    expect(by(findings, 'swatch-image').map((f) => f.snippets)).toEqual([['綿ブロード上着'], ['サテン帯'], ['麻ズボン']])
+    // 生地見本の写真がないセルは、表ごとに1つ（どの行か・どこに貼るか。学生の試し 2026-10-29）
+    expect(by(findings, 'swatch-image')).toHaveLength(1)
+    expect(by(findings, 'swatch-image')[0].snippets).toEqual(['綿ブロード上着', 'サテン帯', '麻ズボン'])
     // 同じ指摘が並んでも、どのセルか分かる（表の番号・行の最初の文字・見出しの列）
     // 同じセルの「表に空いているセルがある」は出さない
     expect(by(findings, 'table-cell-empty')).toEqual([])
-    expect(by(findings, 'swatch-image').map((f) => f.detail)).toEqual(['表1：「綿ブロード」の行、「生地見本」の列', '表1：「サテン」の行、「生地見本」の列', '表1：「麻」の行、「生地見本」の列'])
-    expect(by(findings, 'template-margins')).toEqual([expect.objectContaining({ part: 'toc', detail: expect.stringContaining('右 25mm') })])
+    expect(by(findings, 'swatch-image')[0].detail).toBe('表1：「綿ブロード」「サテン」「麻」の行の「生地見本」の列。Word の表のマスに、生地の写真を貼り付けます')
+    // ひな形のままの行（「Ⅱ．制作過程」の「ⅰ．〇〇〇〇」「～～～～（図3）。」など）は、エラー（読み込みでは写さない行）
+    expect(by(findings, 'template-lines')).toEqual([expect.objectContaining({ part: 'body', severity: 'error', title: 'ひな形のままの行を書き換える', detail: expect.stringMatching(/^「〇〇〇〇」「～～～～」のような、ひな形のままの行が5行あります（「制作過程」の章）。/) })])
+    expect(by(findings, 'template-margins')).toEqual([expect.objectContaining({ part: 'toc', detail: expect.stringContaining('左 30mm・右 25mm') })])
     expect(by(findings, 'toc-headings')).toEqual([expect.objectContaining({ part: 'toc', severity: 'warning', detail: '目次にだけある：「まとめ」' })])
     expect(covered).toEqual(new Set(['body-pages', 'abstract-one-page']))
   })

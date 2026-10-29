@@ -110,6 +110,12 @@ body.resizing .page-viewport { pointer-events: none; }
 .page-viewport [data-photo-slot].is-selected::after { content: attr(data-photo-label); position: absolute; z-index: 4; left: calc(8px / var(--s)); top: calc(8px / var(--s)); padding: calc(3px / var(--s)) calc(9px / var(--s)); border-radius: 999px; background: var(--accent); color: #fff; font-family: 'BIZ UDPGothic', sans-serif; font-size: calc(12px / var(--s)); font-weight: 700; pointer-events: none; }
 @media print { .page-viewport [data-photo-slot].is-selected::before, .page-viewport [data-photo-slot].is-selected::after { content: none !important; } }
 .page-viewport [data-photo-slot]:empty::before { content: '（クリックして写真を選ぶ）'; position: absolute; inset: 0; display: grid; place-items: center; color: #5f6b95; font-family: 'BIZ UDPGothic', sans-serif; font-size: 11pt; }
+/* パソコン：写真の入っていない枠は、大きな「＋ 写真を選ぶ（ここをクリック）」と点線の枠（前は小さく薄い字だけで、何をすればよいか見えにくかった：
+   学生の試し 2026-10-29。mockups/v73 ⑦）。画面だけ（印刷・PDF には出さない） */
+@media screen {
+  .app:not(.phone) .page-viewport [data-photo-slot]:empty { outline: calc(2px / var(--s)) dashed #9aa3c4; outline-offset: calc(-6px / var(--s)); background: #f4f6fb; }
+  .app:not(.phone) .page-viewport [data-photo-slot]:empty::before { content: '＋\A写真を選ぶ\A（ここをクリック）'; white-space: pre; font-size: 20pt; font-weight: 700; line-height: 1.5; text-align: center; color: #2f3e75; }
+}
 .page-viewport section.references { cursor: pointer; }
 .page-viewport .is-selected { outline: 3px solid var(--accent); outline-offset: 6px; }
 /* 選んだ表の画像（「この画像」の道具）：マスの線に重ならないよう、画像のすぐ外に枠 */
@@ -230,6 +236,16 @@ body.resizing .page-viewport { pointer-events: none; }
 .arrow.next { left: calc(50% + var(--page-w) / 2 + 16px); }
 /* 紙面の右下の道具（app/Palette.tsx の ViewBar）：元に戻す・やり直す と、表示の大きさ（mockups/v47 案C） */
 .view-bar { position: absolute; z-index: 10; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 2px; padding: 3px; background: rgba(255, 255, 255, 0.88); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--float-shadow); }
+/* はじめの1回だけ、表示の帯の上に出す一言（mockups/v73 ④ 案B。app/Palette.tsx の ZoomTip）。三角を「－ ＋」に向ける */
+.zoom-tip { position: absolute; right: 0; bottom: calc(100% + 12px); display: flex; align-items: flex-start; gap: 6px; width: max-content; max-width: min(360px, calc(100vw - 32px)); padding: 10px 6px 10px 14px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 13px; line-height: 1.6; box-shadow: 0 6px 18px rgba(20, 20, 30, 0.2); }
+.zoom-tip::after { content: ''; position: absolute; right: 34px; bottom: -6px; width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg); }
+.zoom-tip p { margin: 0; }
+/* 押せない「図を入れる」「表を入れる」を押したときの吹き出し（app/Palette.tsx。mockups/v73 ⑤ 案A） */
+.why-bubble { position: fixed; z-index: 60; width: 236px; margin: 0; padding: 8px 12px; transform: translateY(-50%); border: 1px solid #d8dbe2; border-radius: 10px; background: #fff; color: var(--ink); font-size: 13px; line-height: 1.6; box-shadow: 0 6px 18px rgba(20, 20, 30, 0.15); pointer-events: none; animation: toc-notice-in 0.15s ease; }
+.why-bubble::before { content: ''; position: absolute; left: -7px; top: calc(50% - 6px); width: 12px; height: 12px; background: #fff; border-left: 1px solid #d8dbe2; border-bottom: 1px solid #d8dbe2; transform: rotate(45deg); }
+.zoom-tip button { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin: -4px 0; padding: 0; border: 0; border-radius: 6px; background: none; color: #fff; font: inherit; font-size: 16px; opacity: 0.85; }
+.zoom-tip button:hover { background: rgba(255, 255, 255, 0.15); opacity: 1; }
+.zoom-tip button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 .view-bar, .view-bar * { box-sizing: border-box; }
 .zoom { display: flex; gap: 2px; }
 /* 元に戻す・やり直す：左の道具のいちばん下（右下の帯から移した：mockups/v65 案B）。道具が台の高さに入りきらないときは、Palette.tsx が印を足して低くする
@@ -353,6 +369,12 @@ body.resizing .page-viewport { pointer-events: none; }
 .export:hover:not(:disabled) { filter: brightness(1.12); }
 .side-foot p { margin: 8px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 .source-notice { display: block; margin-top: 6px; font-size: 10px; color: var(--muted); text-align: center; }
+/* スマホ：見た目は変えずに、押せる範囲を広げる（ソースコードのリンクは字が 10px、使い方の「← 一覧へ」は高さ 29px で、指で押しにくかった：
+   学生の試し 2026-10-29） */
+.app.phone .source-notice { position: relative; }
+.app.phone .source-notice::after { content: ''; position: absolute; inset: -14px 0; }
+.app.phone .help-back { position: relative; }
+.app.phone .help-back::after { content: ''; position: absolute; inset: -8px -6px; }
 
 /* ---- ダイアログ ---- */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(20, 22, 30, 0.35); display: grid; place-items: center; z-index: 50; }
@@ -892,6 +914,8 @@ body.resizing .page-viewport { pointer-events: none; }
 .word-warn .word-dia { width: 16px; height: 16px; margin: 3px 0 0; font-size: 11px; }
 .word-skip { margin: 6px 2px 0; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
 .word-cover { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; margin: 0 0 14px; padding: 9px 12px; border-radius: 10px; background: #f6f4ef; font-size: 13.5px; }
+/* 読み込むと替わる表紙の項目（いまの値を赤で。mockups/v73 ⑧） */
+.word-cover dd small.was { display: block; color: var(--error); font-weight: 700; }
 .word-cover > div { display: contents; }
 .word-cover dt { padding-top: 1px; font-size: 12px; color: var(--muted); }
 .word-cover dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
@@ -1055,8 +1079,11 @@ body.resizing .page-viewport { pointer-events: none; }
 
 /* ---- v32 ② 削除の「戻す」の知らせを PC にも出し、8秒（前は15秒）か次の操作まで出す（mockups/v32 ② 案A。部品は app/UndoBar.tsx） ---- */
 /* PC：紙面の台の下の真ん中（紙面の下に少し重なる）。スマホは前からの .undo-area のまま（下のタブの上） */
-/* 右下の「元に戻す・やり直す」の帯のすぐ上に出す（前は帯に重なって、ボタンを隠していた：PC の試し 2026-10-24、依頼者の選択 mockups/v55 ① 案A） */
-.stage .undo-area.on-stage { position: absolute; left: 50%; right: auto; bottom: 66px; width: min(380px, calc(100% - 32px)); transform: translateX(-50%); }
+/* 紙面の台の上の真ん中に出す（ページの上の余白。前は台の下で紙面の最後の行に重なり、その行を押すと「戻す」が押されてしまった：
+   学生の試し 2026-10-29、依頼者の選択 mockups/v73 ② 案A。その前は右下の帯に重なっていた：mockups/v55 ① 案A） */
+.stage .undo-area.on-stage { position: absolute; left: 50%; right: auto; top: 14px; bottom: auto; width: min(380px, calc(100% - 32px)); transform: translateX(-50%); }
+.stage .undo-area.on-stage .undo-toast { animation-name: toast-down; }
+@keyframes toast-down { from { transform: translateY(-10px); opacity: 0.6; } }
 /* 残りの時間の細い線（右から縮む。マウスを重ねている・中に移っている間は止める） */
 .undo-toast { position: relative; overflow: hidden; }
 .undo-toast .undo-timer { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, 0.16); pointer-events: none; }
@@ -1275,7 +1302,7 @@ p.check-pending { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: va
 .check-sub.fix { margin-top: 14px; }
 /* まだのところ：決まった行の進み具合。灰色の ○（済むと緑の ✓）、先生の許可のあとは点線の ○、目安は小さな点。赤くしない */
 .check-prog { list-style: none; margin: 0; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
-.check-prog .row { box-sizing: border-box; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 9px; align-items: center; width: calc(100% + 8px); margin: 0 -4px; padding: 5px 4px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 12.5px; color: var(--ink); text-align: left; }
+.check-prog .row { box-sizing: border-box; display: grid; grid-template-columns: 16px auto minmax(0, 1fr); column-gap: 9px; align-items: center; width: calc(100% + 8px); margin: 0 -4px; padding: 5px 4px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 12.5px; color: var(--ink); text-align: left; }
 button.row { cursor: pointer; }
 .check-prog button.row:hover { background: var(--chip-bg); }
 .check-prog button.row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -1285,8 +1312,10 @@ button.row { cursor: pointer; }
 .check-prog li.wait .row > i { border-style: dashed; border-color: #c4c0b9; }
 .check-prog li.info .row > i { border: 0; }
 .check-prog li.info .row > i::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #c4c0b9; }
-.check-prog .l { min-width: 0; }
-.check-prog .v { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+/* 名前（「表紙」など）は折り返さない。説明が長いときは、説明の方を「・」の後ろで折り返す（前は「表／紙」と名前が割れた：学生の試し 2026-10-29） */
+.check-prog .l { min-width: 0; white-space: nowrap; }
+.check-prog .v { min-width: 0; font-size: 12px; color: var(--muted); text-align: right; }
+.check-prog .v .nb { white-space: nowrap; }
 .check-prog li.done .v { color: var(--ok); }
 .check-prog li.todo .v b { color: var(--ink); font-size: 12.5px; }
 .check-prog .bar { grid-column: 2 / 4; height: 4px; margin-top: 4px; border-radius: 2px; background: var(--chip-bg); overflow: hidden; }
@@ -1458,7 +1487,7 @@ button.row { cursor: pointer; }
 .count-badge.e { background: var(--error-soft); color: var(--error); }
 /* まだのところの行：14px（右の字 13px）、行の高さ 約32px、印 18px */
 .side .check-prog { padding-bottom: 12px; border-bottom-color: #dcd7cf; }
-.side .check-prog .row { grid-template-columns: 18px minmax(0, 1fr) auto; column-gap: 10px; padding: 7px 4px; font-size: 14px; }
+.side .check-prog .row { grid-template-columns: 18px auto minmax(0, 1fr); column-gap: 10px; padding: 7px 4px; font-size: 14px; }
 .side .check-prog .row > i { width: 18px; height: 18px; }
 .side .check-prog .row > i svg { width: 12px; height: 12px; }
 .side .check-prog .v { font-size: 13px; }
@@ -1648,6 +1677,9 @@ button.row { cursor: pointer; }
 .direct-bar .db-add { padding-bottom: 2px; margin-bottom: 2px; border-bottom: 1px solid var(--line); }
 .direct-bar .db-add button { color: var(--accent); }
 .direct-bar .db-row button.danger { color: var(--error); }
+/* 書いている間の「削除」（段落・見出しごと消す）は、帯の左の端へ（「完了」のすぐ左にあり、360px の画面では間が 2px で押し間違えやすかった。
+   ダブルタップの2回目が次のページへめくることもあった：学生の試し 2026-10-29。依頼者の選択 mockups/v73 ③ 案A） */
+.direct-bar .db-row:not(.db-add):not(.db-table) > button.danger { order: -1; margin-right: auto; }
 .direct-bar .db-row .db-done { margin-left: auto; flex-direction: row; padding: 0 18px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; border-radius: 10px; }
 /* 表の道具の段（mockups/v45 案A）：画面の幅に入る1段（横にずらさない）。行・列を足す・消す・画像・表の形・表を削除を、同じ幅に並べる（どれも 44px 以上）。
    「画像を外す」だけは「画像を／外す」の2行（言葉の切れ目で折り返す） */
@@ -2114,6 +2146,9 @@ p.busy-line { display: flex; }
 /* 小さい画面（360×640）で、直すところの一覧が長いと「PDF を作る」が窓の外に出て、下へずらさないと押せなかった（学生の試し 2026-10-24）。
    窓の中を動かすのは上の文と一覧だけ。段は窓の幅いっぱい・窓の下の端まで（.modal の余白 20px 24px 22px の分を打ち消す） */
 .app.phone .modal > .row-buttons:last-child { position: sticky; bottom: -22px; z-index: 1; margin: 14px -24px -22px; padding: 10px 24px 14px; background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -6px 12px rgba(20, 20, 30, 0.05); }
+/* パソコンでも、Word の中身を確かめる窓は長くなる（コースの違い・サブタイトルの知らせ）ので、「読み込む」「やめる」を窓の下に止める
+   （1366×768 で、窓の中を下まで動かさないと見えなかった：学生の試し 2026-10-29） */
+.modal.word-modal > .row-buttons:last-child { position: sticky; bottom: -22px; z-index: 1; margin: 14px -24px -22px; padding: 10px 24px 14px; background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -6px 12px rgba(20, 20, 30, 0.05); }
 /* 止まる位置は、窓の下の余白の分だけ上になるので（ブラウザは余白の内側で止める）、bottom で余白の分を打ち消す。PDF の窓は余白が狭い（600px 以下） */
 @media (max-width: 600px) { .app.phone .modal.pdf-modal > .row-buttons:last-child { bottom: -20px; margin: 14px -18px -20px; padding-left: 18px; padding-right: 18px; } }
 /* 自動の控え：時刻と札、下に中身の目安（mockups/v53 ④ 案A） */
@@ -2123,8 +2158,6 @@ p.busy-line { display: flex; }
 .snapshots .snap-when small { color: var(--muted); font-size: 11.5px; line-height: 1.5; word-break: auto-phrase; }
 .snapshots li { gap: 10px; }
 .snapshots li button { flex: none; }
-/* 窓が小さいとき（narrow）は ‹ › が右下にあるので、画面の下の知らせはその上に出す（重ならないように） */
-.app:not(.phone) .stage.narrow .undo-area.on-stage { bottom: 124px; }
 /* 行の間が詰まって、上下の行がくっついて見えた所（学籍番号の違いの窓のボタンの説明・確認の窓の2〜3行の見出し・自動の控えの説明。スマホ・PC の試し 2026-10-25） */
 .id-choices button small { line-height: 1.5; }
 .modal h2 { line-height: 1.45; }

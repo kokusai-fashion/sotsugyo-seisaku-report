@@ -898,9 +898,10 @@ await withEdge(async (browser) => {
   check('「。」を付けずに Enter で段落を分けると、前の段落の終わりに「。」が付く', (await paraText(second)) === '次の段落である。そして袖を広げた。', await paraText(second))
   await page.keyboard.press('Backspace')
   await page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 30000 }, second)
-  await page.keyboard.press('Escape')
+  // ほかの所を押して書き終える（Esc・スマホの「完了」で書き終えると「。」が付く：依頼者の選択 2026-10-29）
+  await page.evaluate(() => document.activeElement.blur())
   await ready()
-  check('すぐ Backspace でつなぎ直すと、自動で付けた「。」は取り消される', (await paraText(second)) === '次の段落である。そして袖を広げた', await paraText(second))
+  check('すぐ Backspace でつなぎ直すと、自動で付けた「。」は取り消される（ほかの所を押して書き終えたときは付けない）', (await paraText(second)) === '次の段落である。そして袖を広げた', await paraText(second))
   // 文末に「。」がない段落はエラー。カーソルをその箇所に置くと、右の一覧でその指摘が目立つ
   s = await snap()
   const endFinding = s.findings.find((x) => x.ruleId === 'sentence-end' && x.blockId === second)
@@ -909,7 +910,8 @@ await withEdge(async (browser) => {
   await pause(400)
   const activeTitle = await page.evaluate(() => document.querySelector('.side .issue.active.here .ttl')?.textContent ?? '')
   check('文末に「。」がない段落はエラーになり、カーソルを置くと右の一覧でその指摘が目立つ', !!endFinding && activeTitle.includes('文末に「。」を付ける'), activeTitle)
-  await page.keyboard.press('Escape')
+  // ほかの所を押して書き終える（Esc では「。」が付く）
+  await page.evaluate(() => document.activeElement.blur())
   await ready()
   // 指摘には直し方（段落の終わりに「。」を打つ）が書いてある。指摘を押してその段落へ移り、終わりに「。」を打つ
   const endDetail = await page.evaluate(() => [...document.querySelectorAll('.side .issue')].find((li) => li.textContent.includes('文末に「。」を付ける'))?.querySelector('.detail')?.textContent ?? '')
@@ -1172,7 +1174,8 @@ await withEdge(async (browser) => {
   await page.screenshot({ path: `${OUT}/2-figure.png` })
 
   // ---- 図・表は、文中の入れたい位置で入れる（書いていないときは押せない） ----
-  const toolDisabled = (label) => page.evaluate((label) => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.includes(label))?.disabled, label)
+  // 押せない形（押すと、わけを吹き出しで出す：mockups/v73 ⑤。aria-disabled）
+  const toolDisabled = (label) => page.evaluate((label) => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.includes(label)); return !!b && (b.disabled || b.getAttribute('aria-disabled') === 'true') }, label)
   check('段落を書いていないときは「図を入れる」「表を入れる」を押せない', (await toolDisabled('図を入れる')) === true && (await toolDisabled('表を入れる')) === true)
   const paletteNote = await page.evaluate(() => { const n = [...document.querySelectorAll('.palette .ctx-note')].find((e) => e.textContent.includes('図・表')); return n && getComputedStyle(n).display !== 'none' ? n.textContent : '' })
   check('押せないときは、その理由（入れたい所をクリックしてから）が道具に出る', paletteNote.includes('入れたい所をクリック'), paletteNote)
@@ -1349,7 +1352,8 @@ await withEdge(async (browser) => {
     await page.keyboard.up('Control')
     const inRedo = await page.evaluate(() => ({ text: document.querySelector('.overlay-editor').textContent, editing: window.__editor.getSnapshot().editingId }))
     check('書く欄の中の Ctrl+Z・Ctrl+Y は、書いた文字を戻す・やり直す（書く欄は開いたまま）', typed.endsWith('いろは') && !inUndo.endsWith('いろは') && inRedo.text === typed && inRedo.editing === firstParagraph, JSON.stringify({ typed: typed.slice(-5), inUndo: inUndo.slice(-5), inRedo }))
-    await page.keyboard.press('Escape')
+    // ほかの所を押して書き終える（Esc では「。」が付く：依頼者の選択 2026-10-29）
+    await page.evaluate(() => document.activeElement.blur())
     await ready()
     await page.evaluate(() => window.__editor.undo())
     await ready()
@@ -1598,12 +1602,13 @@ await withEdge(async (browser) => {
         role: area?.getAttribute('role'),
         button: !!toast?.querySelector('button'),
         line: line ? { duration: getComputedStyle(line).animationDuration, scale: new DOMMatrix(getComputedStyle(line).transform).a } : null,
-        centered: !!r && !!p && Math.abs(r.left + r.width / 2 - (p.left + p.width / 2)) < 2 && r.bottom > p.bottom - 80,
+        // 紙面の台の上の真ん中（紙面の最後の行に重なった：学生の試し 2026-10-29。mockups/v73 ② 案A）
+        centered: !!r && !!p && Math.abs(r.left + r.width / 2 - (p.left + p.width / 2)) < 2 && r.top < p.top + 60,
       }
     })
   const barNow = await pcBar()
   await page.screenshot({ path: `${OUT}/2-delete-bar.png` })
-  check('PC でも、段落を削除すると紙面の下の真ん中に「段落を削除しました［戻す］」が出る（残りの時間の線・読み上げにも伝わる）', barNow.text === '段落を削除しました戻す' && barNow.role === 'status' && barNow.button && barNow.line?.duration === '8s' && barNow.centered, JSON.stringify(barNow))
+  check('PC でも、段落を削除すると紙面の台の上の真ん中に「段落を削除しました［戻す］」が出る（残りの時間の線・読み上げにも伝わる）', barNow.text === '段落を削除しました戻す' && barNow.role === 'status' && barNow.button && barNow.line?.duration === '8s' && barNow.centered, JSON.stringify(barNow))
   // 出しておく時間は8秒（前は15秒で長すぎた：依頼者の指摘 2026-10-25）
   await pause0(4000)
   const barLater = await pcBar()
@@ -2367,7 +2372,8 @@ await withEdge(async (browser) => {
     await page.waitForFunction((id) => !document.querySelector('.modal') && window.__editor.getSnapshot().editingId === id, { timeout: 10000 }, keepId).catch(() => {})
     const jumped = await page.evaluate(() => ({ modal: !!document.querySelector('.modal'), editing: window.__editor.getSnapshot().editingId }))
     check('PDF の窓の一覧で直すところを押すと、窓が閉じて、その場所へ移る', !jumped.modal && jumped.editing === keepId, JSON.stringify(jumped))
-    await page.evaluate(() => window.__editor.finishEditing())
+    // ほかの所を押して書き終える（「完了」・Esc では「。」が付き、このあと確かめる「文末に「。」」の指摘が消えるため）
+    await page.evaluate(() => document.activeElement.blur())
     await pause(300)
     await ready()
 
@@ -2557,7 +2563,7 @@ async function photoWholeCheck(browser) {
   page.on('pageerror', (e) => console.log('pageerror(whole):', e.message))
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   await page.setViewport({ width: 1440, height: 900 })
@@ -2738,7 +2744,7 @@ async function pdfSaveCheck(browser) {
   page.on('pageerror', (e) => console.log('pageerror(pdf):', e.message))
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   await (await page.createCDPSession()).send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: resolve(DOWNLOADS), browserContextId: context.id })
@@ -3044,7 +3050,8 @@ async function wordImportCheck(browser) {
     coverRead ? !!b.studentId && !!b.name && !!b.subtitleInput && after.guide === null && after.kind === 'body' : after.guide !== null,
     JSON.stringify({ basicInfo: b, guide: after.guide, page: after.kind }),
   )
-  check('右の欄の上に「Word から写しました」の「つぎにすること」が出る（「メニュー」の「Word で書いた分を読み込む」は隠す）', after.todo.includes('Word から写しました') && after.todo.includes('読み込む前の原稿に戻す') && after.link === false, `${after.link} ${after.todo}`)
+  // 「メニュー」の「Word で書いた分を読み込む」は、読み込み直せるよう残す（学生の試し 2026-10-29。mockups/v73 ⑧）
+  check('右の欄の上に「Word から写しました」の「つぎにすること」が出る（「メニュー」の「Word で書いた分を読み込む」も残す）', after.todo.includes('Word から写しました') && after.todo.includes('読み込む前の原稿に戻す') && after.link === true, `${after.link} ${after.todo}`)
   if (after.guide) {
     await page.evaluate(() => document.querySelector('.g-later')?.click())
     await ready()
@@ -3084,7 +3091,7 @@ async function wordImportCheck(browser) {
   )
   check('Word から読み込んだあと（案内を終えていない）は、指差し確認を出さない', !(await page.$('.tour')))
   // 閉じるまで残る（読み込み直しても）。読み込み直すと指差し確認が出るので、見たことにしておく（指差し確認は上の確かめで見る）
-  await page.evaluate(() => localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'))
+  await page.evaluate(() => { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done') })
   await page.reload({ waitUntil: 'networkidle0' })
   await ready()
   await pause(300)

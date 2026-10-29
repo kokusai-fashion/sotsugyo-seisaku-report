@@ -27,7 +27,7 @@ async function openSample(browser, viewport) {
       return new Real(url, protocols)
     }
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
     /** 要素たちの文字の、行の始まりの文字の位置（ページをまたぐ段落は、ページごとの要素を順に） */
     window.__lineStarts = (els) => {

@@ -26,7 +26,7 @@ async function openSample(browser, { phone = false, viewport = { width: 1600, he
       return new Real(url, protocols)
     }
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
     // コピーしたときに、クリップボードに入れた文字を記録する（編集の中核が入れたあと）
     window.__copied = []
@@ -230,7 +230,8 @@ export async function rangeSelectPc(browser, check) {
   await page.keyboard.press('End')
   await ctrl(page, 'v')
   await wait(400)
-  await page.keyboard.press('Escape')
+  // ほかの所を押して書き終える（Esc では、貼り付けた最後の段落に「。」が付く：依頼者の選択 2026-10-29）
+  await page.evaluate(() => document.activeElement.blur())
   await ready()
   const moved = await state(page)
   const c3 = moved.chapters[2].blocks.map((b) => b.id)

@@ -13,7 +13,7 @@ await withEdge(async (browser) => {
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   await page.setViewport({ width: 1400, height: 900 })

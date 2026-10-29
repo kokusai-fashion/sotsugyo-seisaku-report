@@ -506,7 +506,7 @@ export class ReportEditor {
       onPageBreakKey: (id) => {
         const kind = ops.findEditable(this.report, id)?.kind
         if (kind !== 'paragraph' && kind !== 'chapter' && kind !== 'subheading') return false
-        this.addPageBreak()
+        this.addPageBreak({ byKey: true })
         return true
       },
       // 段落で Tab：Word のつもりで字下げしようとした。1字下げは自動で付くことを、開いている間に1回だけ知らせる
@@ -543,7 +543,7 @@ export class ReportEditor {
           this.headingStepOfNotice.set(step.notice, step)
           return this.noticeHeading(step)
         }
-        this.showNotice(what === 'table' ? '表は「表を入れる」で作ります（貼り付けた表は文になりました）' : 'この欄は1行なので、1行目だけを貼り付けました')
+        this.showNotice(what === 'table' ? '表は「表を入れる」で作ります（貼り付けた表は文になりました）' : 'この欄は1行なので、1行目だけを貼り付けました', { untilMove: true })
       },
       // 書く欄でまだ何も書いていないときの Ctrl+Z：左の道具の「元に戻す」と同じく、直前の操作を戻す（行を足した・図を入れた・段落を見出しにしたなど）。
       // 前は見出しにしたときだけで、ほかはブラウザに任せていたため、同じ書く欄で前に書いていたマスの字（消した字）が、
@@ -1489,17 +1489,27 @@ export class ReportEditor {
     this.notify()
   }
 
-  /** Ctrl＋ホイールで、紙面の大きさを変えられるか（パソコンだけ。スマホは2本の指で広げる。false ならブラウザの拡大・縮小に任せる） */
+  /**
+   * Ctrl＋ホイールで、紙面の大きさを変えられるか（false ならブラウザの拡大・縮小に任せる）。パソコンのほか、スマホの並べ方をマウスで使っているとき
+   * （パソコンの窓が狭い・ブラウザを拡大した。2本の指で広げられないため：学生の試し 2026-10-29。依頼者の選択 mockups/v73 ⑨）。指で触れる端末は2本の指で広げる
+   */
   get wheelZoomable(): boolean {
-    return !this.phone
+    return !this.phone || !matchMedia('(any-pointer: coarse)').matches
   }
 
   /**
    * Ctrl＋ホイール（タッチパッドの2本の指で広げる・狭める）で、紙面の大きさを1段変える（右下の「－ ＋」と同じ段。依頼者の選択 2026-10-28）。
    * 見開きのときに大きくすると、1ページの表示にして1段大きく（見開きには「－ ＋」がないため）。小さくするときは、見開きのまま
    */
-  wheelZoom(dir: 1 | -1): void {
-    if (this.phone) return
+  wheelZoom(dir: 1 | -1, at?: Point): void {
+    // スマホの並べ方（マウス）：2本の指で広げたのと同じく、回した所を中心に 1.25 倍ずつ
+    if (this.phone) {
+      const mid = at ?? { x: innerWidth / 2, y: innerHeight / 2 }
+      if (!this.layout || !this.pinchStart(mid)) return
+      this.pinchMove(dir > 0 ? 1.25 : 0.8, mid)
+      this.pinchEnd()
+      return
+    }
     if (this.stage.spread) {
       if (dir < 0) return
       this.setView('fit')
@@ -1600,7 +1610,13 @@ export class ReportEditor {
   finishEditing(): void {
     const onPaper = this.writingOnPaper
     const sheet = this.overlay.inSheet
-    this.overlay.commit()
+    // 「完了」で書き終えた：段落の終わりに「。」を付ける（Esc と同じ。onCommitEdit）
+    this.finishingByButton = true
+    try {
+      this.overlay.commit()
+    } finally {
+      this.finishingByButton = false
+    }
     // キーボードを閉じる（紙面に重ねた書く欄は閉じて隠れているが、フォーカスが残っていることがあるため）
     if (onPaper && document.activeElement === this.overlay.element) this.overlay.element.blur()
     if (onPaper || sheet) this.setZoom(false)
@@ -1608,12 +1624,18 @@ export class ReportEditor {
 
   /** スマホの道具の「戻す」：書く欄の中で書いた文字を戻す（戻せたら true。なければ、呼び出し側が原稿を戻す） */
   undoTyping(): boolean {
-    return this.overlay.undoTyping()
+    const done = this.overlay.undoTyping()
+    // 道具の「戻す」「やり直す」の押せる・押せないを、すぐ変える（前は、戻したあと「やり直す」が押せない表示のままで、
+    // 押しても何も起きず、戻した文が戻らなかった：学生の試し 2026-10-29）
+    if (done) this.notify()
+    return done
   }
 
   /** スマホの道具の「やり直す」：書く欄の中で戻した文字を、もう一度入れる（入れたら true） */
   redoTyping(): boolean {
-    return this.overlay.redoTyping()
+    const done = this.overlay.redoTyping()
+    if (done) this.notify()
+    return done
   }
 
   /**
@@ -2059,6 +2081,13 @@ export class ReportEditor {
     if (heading) {
       this.pushHistory(committed)
       this.report = heading.report
+    } else if ((byKey || this.finishingByButton) && !this.template && (kindNow === 'paragraph' || kindNow === 'abstractParagraph') && !listItemLine(tidy) && ops.withPeriod(tidy) !== tidy) {
+      // Esc（パソコン）・「完了」（スマホ）で書き終えた：Enter のときと同じく、段落の終わりに「。」を付ける（依頼者の選択 2026-10-29。
+      // 前は Enter のときだけで、学生には付くときと付かないときの違いが分からなかった：学生の試し 2026-10-29）。
+      // ほかの所を押して離れたときは付けない（文の途中で確かめに行くことがあるため）。元に戻すと、まず「。」だけが外れる
+      this.pushHistory(this.report)
+      this.report = ops.setText(this.report, id, ops.withPeriod(tidy))
+      this.noticeClosePeriodOnce()
     }
     this.reportBeforeEdit = null
     this.hideStyle.textContent = ''
@@ -3398,7 +3427,8 @@ export class ReportEditor {
    * 画面の下に出す知らせと、出したときの原稿（ほかを変えたら出さない）。
    * until：原稿が変わっても出しておく知らせ（showNotice。貼り付けた・「。」を付けたなど、書いている途中の知らせ）の、出しておく時刻の終わり
    */
-  private notice: { notice: UndoNotice; report: Report; until?: number } | null = null
+  /** field：短い知らせ（showNotice）を出したときに書いていた欄（ほかの欄を書き始めたら、その知らせは消す） */
+  private notice: { notice: UndoNotice; report: Report; until?: number; field?: string | null } | null = null
   private noticeCount = 0
   /** 元に戻して変わった所（組み直したら、そこへ移って光らせる） */
   private undone: ChangedPlace | null = null
@@ -3417,15 +3447,18 @@ export class ReportEditor {
     // 消したあとも、となりのマスを書き続ける）
     const n = this.notice.notice
     const whileEditing = n.kind === 'info' || tableCutNotice(n)
-    return fresh && (!this.overlay.blockId || whileEditing) ? n : null
+    // 短い知らせは、ほかの欄を書き始めたら消す（前の欄の「1行目だけを貼り付けました」が、次に貼った表のマスのことに読めた：学生の試し 2026-10-29）
+    const moved = n.kind === 'info' && !!this.notice.field && !!this.overlay.blockId && this.overlay.blockId !== this.notice.field
+    return fresh && !moved && (!this.overlay.blockId || whileEditing) ? n : null
   }
 
   /**
    * 戻すもののない短い知らせを、画面の下に出す。原稿が変わっても（書き続けても）、しばらく出しておく
    * （貼り付けたものを、そのままの形では入れなかった・「。」を自動で付けた・引用・参考文献を反映した、など）
    */
-  showNotice(text: string): void {
-    this.notice = { notice: { kind: 'info', text, id: ++this.noticeCount }, report: this.report, until: Date.now() + STICKY_NOTICE_MS }
+  showNotice(text: string, how: { untilMove?: boolean } = {}): void {
+    // untilMove：書いている欄のことを伝える知らせ（貼り付けたものの入れ方など）。ほかの欄を書き始めたら消す
+    this.notice = { notice: { kind: 'info', text, id: ++this.noticeCount }, report: this.report, until: Date.now() + STICKY_NOTICE_MS, field: how.untilMove ? this.overlay.blockId : null }
     this.notify()
   }
 
@@ -3518,6 +3551,16 @@ export class ReportEditor {
   }
   private autoPeriodNoticed = false
 
+  /** Esc・「完了」で書き終えて「。」を付けたことを、開いている間に1回だけ知らせる */
+  private noticeClosePeriodOnce(): void {
+    if (this.closePeriodNoticed) return
+    this.closePeriodNoticed = true
+    this.showNotice(this.phone ? '段落の終わりに「。」を付けました（上の「戻す」で取り消せます）' : '段落の終わりに「。」を付けました（「元に戻す」で取り消せます）')
+  }
+  private closePeriodNoticed = false
+  /** スマホの「完了」で書き終えている途中（finishEditing） */
+  private finishingByButton = false
+
   /** 段落の書き出しに打った空白を入れなかったことを、開いている間に1回だけ知らせる（依頼者の指摘 2026-10-24） */
   private noticeLeadingSpaceOnce(by: 'space' | 'tab' = 'space'): void {
     if (this.leadingSpaceNoticed.has(by)) return
@@ -3535,6 +3578,9 @@ export class ReportEditor {
   private tidyText(id: string, text: string): string {
     // 氏名：姓と名の間の空白を、全角の空白1つにそろえる（model/personName.ts）
     if (id === FIELD_IDS.name) return tidyName(text)
+    // 学籍番号：全角で打っても、半角の英数字（英字は大文字）にそろえ、空白を除く（ログインしたアカウントの学籍番号と同じ形。
+    // 前は全角のまま「表紙ができました」と出て、右の欄に「数字は半角で書く」が並んだ：学生の試し 2026-10-29）
+    if (id === FIELD_IDS.studentId) return text.normalize('NFKC').replace(/\s/g, '').toUpperCase()
     if (id === FIELD_IDS.subtitleInput) {
       const course = findCourse(this.config, this.report.basicInfo.courseId)
       return course ? subtitleInputOnly(course, text) : text
@@ -3712,15 +3758,15 @@ export class ReportEditor {
     return blocks?.length ? blocks[blocks.length - 1].dataset.blockId! : (editing ?? id)
   }
 
-  /** 段落などを足す道具にマウスを重ねたとき、紙面のどこに入るかを線で示す（what：改ページの道具なら 'pageBreak'。段落の頭なら、その段落の上に示す） */
+  /** 段落などを足す道具にマウスを重ねたとき、紙面のどこに入るかを線で示す（what：改ページの道具なら 'pageBreak'。段落の頭・見出しなら、その上に示す：breakPlace） */
   previewInsert(on: boolean, what?: 'pageBreak'): void {
     this.marker.hidden = true
     if (!on) return
     const view = this.renderer.pageView
-    const before = what === 'pageBreak' ? this.breakBeforeParagraph() : null
+    const before = what === 'pageBreak' ? (this.breakPlace()?.before ?? null) : null
     const first = before ? view.fragments(before).find((f) => view.pageIndexOf(f) === this.page) : undefined
     if (first) {
-      const r = ((first.closest('p') as HTMLElement | null) ?? first).getBoundingClientRect()
+      const r = ((first.closest('h1, h2, p') as HTMLElement | null) ?? first).getBoundingClientRect()
       const l = this.layer.getBoundingClientRect()
       Object.assign(this.marker.style, { left: `${r.left - l.left}px`, top: `${r.top - l.top - 4}px`, width: `${r.width}px` })
       this.marker.hidden = false
@@ -3783,33 +3829,69 @@ export class ReportEditor {
   private breakAfterEditing: { id: string; pb: string } | null = null
 
   /**
-   * パソコンで、字のある本文の段落の頭にカーソルを置いているとき：その段落（改ページを、その段落の前に入れる）。
-   * Word と同じく、カーソルの所から次のページになる（前は段落の後ろに入り、その段落は今のページに残った：試し 2026-10-26b）
+   * 改ページを入れる所。after：この後ろに入れる（章の id なら、その章の頭。null なら本文の最後）、before：その前に入れることになる欄（紙面に印を出す）。
+   * null：入れない（本文の最初の大見出しの前。本文は、もともと新しいページから始まる）。
+   * - パソコンで、字のある本文の段落の頭にカーソルを置いているとき：その段落の前。Word と同じく、カーソルの所から次のページになる
+   *   （前は段落の後ろに入り、その段落は今のページに残った：試し 2026-10-26b）
+   * - 見出しを書いているとき（どこにカーソルがあっても）・見出しのすぐ下の段落の頭：その見出しの前。章の最初なら、大見出しの前
+   *   （前は見出しの後ろに入り、見出しだけが前のページの最後に残った：学生の試し 2026-10-29）
    */
-  private breakBeforeParagraph(): string | null {
+  private breakPlace(): { after: string | null; before: string | null } | null {
     const id = this.overlay.blockId
-    if (this.phone || !id || this.overlay.caret !== 0 || !this.overlay.text.trim()) return null
-    return ops.findEditable(this.report, id)?.kind === 'paragraph' ? id : null
+    const kind = id ? ops.findEditable(this.report, id)?.kind : undefined
+    const paragraphHead = !this.phone && kind === 'paragraph' && this.overlay.caret === 0 && !!this.overlay.text.trim()
+    const ci = id && (kind === 'subheading' || kind === 'chapter' || paragraphHead) ? this.report.body.findIndex((c) => c.id === id || c.blocks.some((b) => b.id === id)) : -1
+    if (ci < 0) return { after: this.insertionAnchor(), before: null }
+    const chapter = this.report.body[ci]
+    // 章の見出しなら -1。段落の頭で、すぐ上が小見出しなら、その小見出し
+    let at = chapter.id === id ? -1 : chapter.blocks.findIndex((b) => b.id === id)
+    if (at > 0 && chapter.blocks[at].type === 'paragraph' && chapter.blocks[at - 1].type === 'subheading') at -= 1
+    if (at > 0) return { after: chapter.blocks[at - 1].id, before: chapter.blocks[at].id }
+    // 章の頭：前の章の終わり（前の章が空なら、その章の頭）
+    if (ci === 0) return null
+    const prev = this.report.body[ci - 1]
+    return { after: prev.blocks.at(-1)?.id ?? prev.id, before: chapter.id }
   }
 
-  /** 改ページを入れる（足す位置の後ろ。この後ろは次のページから始まる。段落の頭にカーソルがあれば、その段落の前：breakBeforeParagraph） */
-  addPageBreak(): void {
+  /** ブロックが改ページか（id がなければ false） */
+  private isPageBreak(id: string | null | undefined): boolean {
+    return !!id && this.report.body.some((c) => c.blocks.some((b) => b.id === id && b.type === 'pageBreak'))
+  }
+
+  /**
+   * 改ページを入れる（breakPlace の所。この後ろは次のページから始まる）。
+   * byKey：Ctrl+Enter（⌘+Enter）で入れた。入れたあとも書き続ける（前は書き終えて、続けて打った字がどこにも入らなかった：学生の試し 2026-10-29）。
+   * 段落の終わりで押したときは、改ページの後ろの新しい段落（Word と同じく、次のページの頭）で書き続ける
+   */
+  addPageBreak(how: { byKey?: boolean } = {}): void {
     if (this.settlingRemoval) return
-    const before = this.breakBeforeParagraph()
-    // 段落の前：1つ前のブロックの後ろ（章の最初の段落なら、章の見出しのすぐ後ろ。insertAfter に章の id を渡すと章の先頭に入る）
-    const chapter = before ? this.report.body.find((c) => c.blocks.some((b) => b.id === before)) : undefined
-    const at = chapter ? chapter.blocks.findIndex((b) => b.id === before) : -1
-    const after = chapter ? (at > 0 ? chapter.blocks[at - 1].id : chapter.id) : this.insertionAnchor()
+    const place = this.breakPlace()
+    if (!place) {
+      this.showNotice('本文は、もともと新しいページから始まります（改ページは要りません）')
+      return
+    }
+    const { after } = place
+    // すぐ前・すぐ後ろが改ページなら、入れない（「改ページ」をダブルクリックすると2つ入り、白紙のページができていた：学生の試し 2026-10-29）
+    const chapterOf = after ? this.report.body.find((c) => c.id === after || c.blocks.some((b) => b.id === after)) : this.report.body.at(-1)
+    const next = chapterOf ? (chapterOf.id === after ? chapterOf.blocks[0] : chapterOf.blocks[chapterOf.blocks.findIndex((b) => b.id === after) + 1]) : undefined
+    if (this.isPageBreak(after) || next?.type === 'pageBreak') return
     const id = ops.newId('pb')
     this.marker.hidden = true
-    // スマホで紙面に直接書いている間（キーボードの上の「追加」）：入れたあとも、同じ欄を同じ所から書き続ける（キーボードを閉じない）
-    const keep = this.writingOnPaper && this.overlay.blockId ? { id: this.overlay.blockId, caret: this.overlay.caret } : null
+    // スマホで紙面に直接書いている間（キーボードの上の「追加」）・Ctrl+Enter：入れたあとも、同じ欄を同じ所から書き続ける（キーボードを閉じない）
+    const keep = (this.writingOnPaper || how.byKey) && this.overlay.blockId ? { id: this.overlay.blockId, caret: this.overlay.caret } : null
     if (keep) {
-      this.breakAfterEditing = { id: keep.id, pb: id }
+      const editing = ops.findEditable(this.report, keep.id)
+      // Ctrl+Enter を段落の終わりで押した（改ページは段落の後ろ）：改ページの後ろに段落を足して、そこで書き続ける
+      const newParagraph = how.byKey && !place.before && editing?.kind === 'paragraph' && after === keep.id && keep.caret >= this.overlay.text.length && !!this.overlay.text.trim()
+      if (!how.byKey) this.breakAfterEditing = { id: keep.id, pb: id }
       this.commitForChange()
       this.pushHistory(this.report)
       this.report = ops.insertAfter(this.report, after, { type: 'pageBreak', id })
-      this.reopenAfterRender(keep.id, keep.caret)
+      if (newParagraph) {
+        const pid = ops.newId('p')
+        this.report = ops.insertAfter(this.report, id, { type: 'paragraph', id: pid, content: [{ type: 'text', text: '' }] })
+        this.reopenAfterRender(pid, 0)
+      } else this.reopenAfterRender(keep.id, keep.caret)
       return
     }
     this.update((r) => ops.insertAfter(r, after, { type: 'pageBreak', id }))
@@ -4548,7 +4630,15 @@ export class ReportEditor {
     getSelection()?.removeAllRanges()
     this.selection = null
     this.currentId = null
-    const note = result.keptChapters ? '（大見出しは残しました）' : undefined
+    // 範囲に入っていた図・表も消えたら、そう書く（前は「選んだ文を削除しました」だけで、図も消えたことが分からなかった：学生の試し 2026-10-29）
+    const kept = bodyIds(result.report)
+    const num = ops.numbering(this.report)
+    const gone = this.report.body
+      .flatMap((c) => c.blocks)
+      .flatMap((b) => (b.type === 'figureRow' ? b.figures.map((f) => ({ id: f.id, label: `図${num.numbers.get(f.id) ?? ''}` })) : b.type === 'table' ? [{ id: b.id, label: `表${num.numbers.get(b.id) ?? ''}` }] : []))
+      .filter((x) => !kept.has(x.id))
+      .map((x) => x.label)
+    const note = [gone.length ? `（${gone.join('・')}も）` : '', result.keptChapters ? '（大見出しは残しました）' : ''].join('') || undefined
     this.removeNow(() => result.report, what, note)
     // 段落の中の文字だけを消したとき（消えたブロックがない）も知らせる
     if (this.notice?.notice.kind !== 'removed' || this.notice.report !== this.report) this.noticeRemoved(what, note)

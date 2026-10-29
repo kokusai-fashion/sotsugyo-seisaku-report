@@ -962,7 +962,9 @@ export default function App() {
   const wordOffered = wordImportOffered(config)
   const showNewVersion = newVersion && !newVersionClosed
   // 右の欄（スマホはメニュー）の小さなリンク。写したあとの「つぎにすること」が出ている間は出さない（読み直すときは「読み込む前の原稿に戻す」から）
-  const openWord = wordOffered && !wordTodo ? () => setDialog({ kind: 'word' }) : undefined
+  // 「つぎにすること」が出ている間も、メニューに残す（古い Word を選んでしまった・Word を直して読み込み直したいときの入口がなかった：
+  // 学生の試し 2026-10-29。依頼者の選択 mockups/v73 ⑧）
+  const openWord = wordOffered ? () => setDialog({ kind: 'word' }) : undefined
   const todoCard = (onPick?: () => void) =>
     editor && snap && wordTodo ? (
       <WordTodoCard editor={editor} snap={snap} config={config} todo={wordTodo} onUpdate={setWordTodo} onClose={() => setWordTodo(null)} onRestore={restoreBeforeWord} onPick={onPick} />
@@ -1006,7 +1008,7 @@ export default function App() {
               {Icon.next}
             </button>
             {/* 右下：表示（1ページ／見開き／拡大・－ ％ ＋・拡大中の ‹ ›。元に戻す・やり直すは左の道具の下：mockups/v65 案B） */}
-            <ViewBar editor={editor} snap={snap} />
+            <ViewBar editor={editor} snap={snap} tip={!guide && !tourWanted && !tourOn && !dialog} />
             {/* 削除したあとの「段落を削除しました［戻す］」（紙面の台の下の真ん中。スマホは PhoneChrome の中。mockups/v32 ② 案A） */}
             <UndoBar editor={editor} notice={undoNotice.notice} onClose={undoNotice.close} className="on-stage" />
           </>
@@ -1160,6 +1162,7 @@ export default function App() {
             drivePdf.onBuilt(pdf)
           }}
           drivePdf={drivePdf.state}
+          onReload={() => void reloadTool()}
           onClose={() => {
             setDialog(null)
             pdfCopy.onClosed()

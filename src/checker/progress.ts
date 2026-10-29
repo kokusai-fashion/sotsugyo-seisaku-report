@@ -114,6 +114,8 @@ export interface ProgressRow {
   value: string
   /** value の後ろに太字で出す数（「あと2」の 2） */
   strong?: string
+  /** strong の後ろの字（「あと164字）」の「字）」） */
+  after?: string
   /** 進み具合の棒（0〜1。まだのときだけ） */
   bar?: number
   target?: ProgressTarget
@@ -149,8 +151,9 @@ export function progressRows(findings: ReportFinding[], ctx: ProgressContext, pe
   const lastBody: ProgressTarget = { kind: 'area', area: 'body', last: true }
   if (pending) rows.push({ id: 'bodyPages', label: '本文のページ', state: 'pending', value: '確かめています…', target: lastBody })
   else if (of('body-pages').length && bodyPages < min)
-    rows.push({ id: 'bodyPages', label: '本文のページ', state: 'todo', value: `${bodyPages} / ${min}ページ　あと`, strong: String(min - bodyPages), bar: bodyPages / min, target: lastBody })
-  else rows.push({ id: 'bodyPages', label: '本文のページ', state: 'done', value: `${bodyPages} / ${min}ページ`, target: lastBody })
+    // 「6 / 5ページ」は「5ページ中6ページ（超えている）」とも読めたので、最低の数だと分かる言い方に（学生の試し 2026-10-29。mockups/v73 ⑥）
+    rows.push({ id: 'bodyPages', label: '本文のページ', state: 'todo', value: `${bodyPages}ページ（${min}ページ以上。あと`, strong: String(min - bodyPages), after: '）', bar: bodyPages / min, target: lastBody })
+  else rows.push({ id: 'bodyPages', label: '本文のページ', state: 'done', value: `${bodyPages}ページ（${min}ページ以上）`, target: lastBody })
 
   // 本文の段落（ひな形の段落を、まだ書いていない。何段落あっても1行。図表のすぐ前の段落を書いていないための「図1を入れる」も、ここに含める）
   const empty = of('paragraph-empty')
@@ -184,16 +187,19 @@ export function progressRows(findings: ReportFinding[], ctx: ProgressContext, pe
 
   // 抄録（先生の許可の前は、灰色の「先生の許可のあと」。書き始めたら、字数・行数が足りない間は「あと」）
   const abstractArea: ProgressTarget = { kind: 'area', area: 'abstract' }
-  const { minChars, minLines } = config.abstract
+  const { minChars, maxChars, minLines, maxLines } = config.abstract
   const short = of('abstract-length')[0]
   const fewLines = of('abstract-lines')[0]
   if (report.abstract.started === false) rows.push({ id: 'abstract', label: '抄録', state: 'wait', value: '先生の許可のあと', target: abstractArea })
   else if (short) {
     const chars = abstractCharCount(report)
-    rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${chars} / ${minChars}字　あと`, strong: String(minChars - chars), bar: chars / minChars, target: at(short) })
+    // 「436 / 600字 あと164」が上限に読めた（600は下限、上限は900）ので、範囲を書く（学生の試し 2026-10-29。mockups/v73 ⑥）
+    if (chars > maxChars) rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${chars}字（${minChars}〜${maxChars}字。`, strong: String(chars - maxChars), after: '字多い）', target: at(short) })
+    else rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${chars}字（${minChars}〜${maxChars}字。あと`, strong: String(minChars - chars), after: '字）', bar: chars / minChars, target: at(short) })
   } else if (fewLines && layout) {
     const lines = layout.abstractLines
-    rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${lines} / ${minLines}行　あと`, strong: String(minLines - lines), bar: lines / minLines, target: at(fewLines) })
+    if (lines > maxLines) rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${lines}行（${minLines}〜${maxLines}行。`, strong: String(lines - maxLines), after: '行多い）', target: at(fewLines) })
+    else rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${lines}行（${minLines}〜${maxLines}行。あと`, strong: String(minLines - lines), after: '行）', bar: lines / minLines, target: at(fewLines) })
   } else rows.push({ id: 'abstract', label: '抄録', state: 'done', value: '書いています', target: abstractArea })
 
   return rows

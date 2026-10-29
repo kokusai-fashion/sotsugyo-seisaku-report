@@ -434,7 +434,7 @@ const noHotReload = (page) =>
       return new Real(url, protocols)
     }
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
 

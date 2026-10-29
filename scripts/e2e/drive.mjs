@@ -455,7 +455,7 @@ await withEdge(async (browser) => {
     await late.page.evaluateOnNewDocument(() => {
       window.__fakeExpiresIn = 70
       try {
-        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       } catch {}
     })
     await (await late.page.createCDPSession()).send('Browser.setDownloadBehavior', { behavior: 'deny', browserContextId: late.context.id })
@@ -499,7 +499,7 @@ await withEdge(async (browser) => {
     const local = await device(browser, drive)
     await local.page.evaluateOnNewDocument(() => {
       try {
-        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       } catch {}
     })
     await (await local.page.createCDPSession()).send('Browser.setDownloadBehavior', { behavior: 'deny', browserContextId: local.context.id })
@@ -533,7 +533,7 @@ await withEdge(async (browser) => {
     const off = await device(browser, drive)
     await off.page.evaluateOnNewDocument(() => {
       try {
-        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       } catch {}
     })
     await (await off.page.createCDPSession()).send('Browser.setDownloadBehavior', { behavior: 'deny', browserContextId: off.context.id })
@@ -567,7 +567,7 @@ await withEdge(async (browser) => {
     await iphone.page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')
     await iphone.page.evaluateOnNewDocument(() => {
       try {
-        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+        localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       } catch {}
     })
     await iphone.page.goto(`${APP}/`, { waitUntil: 'networkidle0' })

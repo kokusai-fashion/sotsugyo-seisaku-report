@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { ZOOM_STEPS } from '../editor/pageStage'
 import { figurePairing, figurePlacement, findParagraph, numbering, type FigureMoveBlock } from '../editor/reportOps'
@@ -67,7 +68,7 @@ function Tool({
    * 押せないときに押したら、押せないわけ（title）を知らせる（スマホ：マウスを重ねて title を見られないため。学生の試し 2026-10-24。mockups/v53 ⑧）。
    * 渡したときは、押せない形（薄い）のまま押せるボタンにする
    */
-  onWhy?: (why: string) => void
+  onWhy?: (why: string, button: HTMLElement) => void
   /** 道具が台の高さに入りきらないとき（index.css の fit-3）に、1行で出す短い名前 */
   short?: string
   /** 切り替えのボタン（押した状態を aria-pressed で示す。ひな形を作る画面の段落の種類：mockups/v70 案C） */
@@ -84,9 +85,9 @@ function Tool({
       onMouseDown={keepFocus}
       onMouseEnter={() => onPreview?.(true)}
       onMouseLeave={() => onPreview?.(false)}
-      onClick={() => {
+      onClick={(e) => {
         onPreview?.(false)
-        if (why) return why(title!)
+        if (why) return why(title!, e.currentTarget)
         onClick()
       }}
     >
@@ -98,12 +99,12 @@ function Tool({
 }
 
 /** 表を入れる：ます目で大きさを選んで空の表を入れるか、素材表のひな形を入れる（mockups/v35 ②。メニューの中身は TableSize.tsx） */
-function TableMenu({ editor, disabled, template }: { editor: ReportEditor; disabled: boolean; template?: boolean }) {
+function TableMenu({ editor, disabled, template, onWhy }: { editor: ReportEditor; disabled: boolean; template?: boolean; onWhy?: (why: string, button: HTMLElement) => void }) {
   const [open, setOpen] = useState(false)
   const title = template ? 'この段落のすぐ下に表が入ります（見出しの行を書きます。中身は学生が書きます）' : '書いている文の終わりに「（表n）」が入り、この段落のすぐ下に表が入ります'
   return (
     <div className="menu-wrap">
-      <Tool label="表を入れる" icon={Icon.table} title={title} disabled={disabled} onClick={() => setOpen(!open)} />
+      <Tool label="表を入れる" icon={Icon.table} title={title} disabled={disabled} onWhy={onWhy} onClick={() => setOpen(!open)} />
       {open && !disabled && (
         <TableSizeMenu
           onPick={(size) => {
@@ -195,9 +196,10 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
  * 紙面の右下の道具：表示（1ページ／見開き／拡大・－ ％ ＋・拡大中の ‹ ›。mockups/v35 ③ 案A・v64 案B。見開きは、台が狭いときは出さない）。
  * 学生のツール（App）と、ひな形を作る画面（TemplateApp）で使う
  */
-export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot }) {
+export function ViewBar({ editor, snap, tip = false }: { editor: ReportEditor; snap: EditorSnapshot; tip?: boolean }) {
   return (
     <div className="view-bar">
+      {tip && <ZoomTip snap={snap} />}
       {/* 拡大しているときは、ページ送りの「‹ ›」もこの帯の中に出す（紙面の右下に浮かせていると、200% で本文・写真に重なった：
           試し 2026-10-26。依頼者の選択 mockups/v63 ① 案A。紙面の「‹ ›」は index.css で隠す）。
           帯の左の端に置く（右の端だと、出たときに「＋」が左へずれ、同じ所の2回目で「›」に当たった：試し 2026-10-26b。mockups/v66 ② 案A） */}
@@ -238,6 +240,57 @@ export function ViewBar({ editor, snap }: { editor: ReportEditor; snap: EditorSn
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+const ZOOM_TIP_KEY = 'sotsugyo-seisaku-report-zoom-tip'
+/** 一言を出す画面の高さ（これ以下：ノートパソコンの 1366×768・1280×720 など。1ページの表示では本文の字が 8〜9px ほどになる） */
+const ZOOM_TIP_HEIGHT = 820
+
+/**
+ * はじめの1回だけ、右下の表示の帯の上に出す一言「字が小さいときは…」（ノートパソコンでは、1ページの表示の字が小さい。
+ * 「＋」と Ctrl＋ホイールで大きくできることを、案内していなかった：学生の試し 2026-10-29。依頼者の選択 mockups/v73 ④ 案B）。
+ * × で閉じるか、大きさを変えたら（＋・拡大・Ctrl＋ホイール）、もう出さない
+ */
+function ZoomTip({ snap }: { snap: EditorSnapshot }) {
+  const [closed, setClosed] = useState(() => {
+    try {
+      return localStorage.getItem(ZOOM_TIP_KEY) === 'done'
+    } catch {
+      return false
+    }
+  })
+  const zoomedIn = snap.zoomed || snap.zoomLevel > 1.01
+  useEffect(() => {
+    if (closed || !zoomedIn) return
+    setClosed(true)
+    try {
+      localStorage.setItem(ZOOM_TIP_KEY, 'done')
+    } catch {
+      // この端末に残せなくても、開いている間は出さない
+    }
+  }, [closed, zoomedIn])
+  if (closed || zoomedIn || snap.spread || window.innerHeight > ZOOM_TIP_HEIGHT) return null
+  const close = () => {
+    setClosed(true)
+    try {
+      localStorage.setItem(ZOOM_TIP_KEY, 'done')
+    } catch {
+      // この端末に残せなくても、開いている間は出さない
+    }
+  }
+  return (
+    <div className="zoom-tip" role="note">
+      {/* 言葉の切れ目でだけ折り返す */}
+      <p>
+        <span className="nb">字が小さいときは「＋」か、</span>
+        <span className="nb">紙面の上で Ctrl を押しながら</span>
+        <span className="nb">ホイールを回すと、大きくなります</span>
+      </p>
+      <button type="button" aria-label="この案内を閉じる" onClick={close}>
+        ×
+      </button>
     </div>
   )
 }
@@ -579,6 +632,27 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
   const kind = snap.layout?.kinds[snap.page] ?? 'unknown'
   const context = PAGE_CONTEXT[kind]
   const preview = (on: boolean) => editor.previewInsert(on)
+  // 押せない「図を入れる」「表を入れる」を押したときの吹き出し（ボタンの右。低い画面では道具の説明を隠すので、わけが分からなかった：
+  // 学生の試し 2026-10-29。依頼者の選択 mockups/v73 ⑤ 案A）
+  const [why, setWhy] = useState<{ top: number; left: number } | null>(null)
+  const showWhy = (_: string, button: HTMLElement) => {
+    const r = button.getBoundingClientRect()
+    setWhy({ top: r.top + r.height / 2, left: r.right + 12 })
+  }
+  useEffect(() => {
+    if (!why) return
+    const hide = () => setWhy(null)
+    const timer = window.setTimeout(hide, 5000)
+    window.addEventListener('pointerdown', hide, true)
+    window.addEventListener('keydown', hide, true)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('pointerdown', hide, true)
+      window.removeEventListener('keydown', hide, true)
+    }
+  }, [why])
+  // 書き始めたら（段落をクリックしたら）消す
+  if (why && writing) setWhy(null)
   // 図・表・改ページを選んでいる（表のセルや図のタイトルを書いている）ときは、その物の道具だけを出す
   // （本文に足す道具まで並べると、ノートパソコンの画面では表の「削除」「元に戻す」が下にはみ出して押せなかったため）
   // 入れたばかりの図・表が紙面に出るのを待っている間は、本文の道具のまま（押せない形。図・表が出たら、その物の道具に替わる。mockups/v58 案B）
@@ -605,6 +679,16 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
   }, [kind, onObject, writing, snap.waiting, snap.selection?.kind, snap.editingKind, snap.photoPage, snap.zoomed, snap.spread, snap.canUndo, snap.canRedo])
   return (
     <nav ref={navRef} className={`palette${onObject ? ' compact' : ''}`} aria-label="道具">
+      {/* 画面全体の上に出す（左の道具の中に置くと、道具の幅に狭められて字がはみ出した） */}
+      {why &&
+        createPortal(
+          <p className="why-bubble" role="status" style={{ top: why.top, left: why.left }}>
+            <span className="nb">図・表は、紙面の入れたい所</span>
+            <span className="nb">（段落の中）をクリックしてから</span>
+            <span className="nb">押します</span>
+          </p>,
+          document.body,
+        )}
       {/* 低い画面では、ひとこと（span）を出さず、マウスを乗せると出す（title。index.css の「低い画面の左の道具」） */}
       <div className="p-head" title={(template && TEMPLATE_CONTEXT[kind]) || context.hint}>
         {/* 作品写真が何ページかあるときは「作品写真 2」（mockups/v38 案A） */}
@@ -632,9 +716,10 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
               icon={Icon.figure}
               title={template ? 'この段落のすぐ下に、図の枠が入ります（写真は学生が入れます）' : '書いている文の終わりに「（図n）」が入り、この段落のすぐ下に図が入ります'}
               disabled={!writing}
+              onWhy={showWhy}
               onClick={() => void editor.addFigure()}
             />
-            <TableMenu editor={editor} disabled={!writing} template={template} />
+            <TableMenu editor={editor} disabled={!writing} template={template} onWhy={showWhy} />
             {/* 道具の幅（1行6字ほど）で、言葉の切れ目で折り返す（1字だけ次の行に残らないように） */}
             {!writing && !snap.waiting && (
               <div className="ctx-note">

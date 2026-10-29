@@ -64,7 +64,7 @@ async function openSample(browser, vp) {
   await answerConfirms(page, () => true)
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   if (vp.isMobile) await page.setUserAgent(UA_IPHONE)
@@ -378,7 +378,7 @@ async function driveDevice(browser, drive, vp) {
   await answerConfirms(page, () => true)
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   if (vp.isMobile) await page.setUserAgent(UA_IPHONE)

@@ -26,7 +26,7 @@ async function open(browser, { width = 390, height = 844, fresh = true, landscap
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
-  if (!fresh) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done') } catch {} })
+  if (!fresh) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done') } catch {} })
   // ほかに覚えておくこと（「字を大きくするには」を見た、など）
   await page.evaluateOnNewDocument((storage) => { try { for (const [k, v] of Object.entries(storage)) localStorage.setItem(k, v) } catch {} }, storage)
   await stubConfig(page)

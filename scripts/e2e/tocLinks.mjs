@@ -46,7 +46,7 @@ async function openSample(browser, vp) {
   await answerConfirms(page, () => false)
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   if (vp.isMobile) await page.setUserAgent(UA_IPHONE)

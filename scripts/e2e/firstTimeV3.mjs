@@ -58,7 +58,7 @@ async function openPageOnce(browser, { phone = false, downloads } = {}) {
   asks.set(page, await confirmQueue(page))
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   if (downloads) await (await page.createCDPSession()).send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: resolve(downloads), browserContextId: context.id })

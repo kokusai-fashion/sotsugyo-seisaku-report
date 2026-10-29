@@ -5,6 +5,7 @@ import type { LayoutInfo } from '../layout/measure'
 import type { HeadingText } from '../model/headingText'
 import type { Report, TableBlock, TableRow } from '../model/types'
 import { nameWithoutSpace, untidyNameGap } from '../model/personName'
+import { DEFAULT_STUDENT_ID } from '../model/account'
 import { pagePhotoCount } from '../model/photos'
 import { swatchColumn, unusedRows } from '../model/table'
 import { charCount, checkText, DEFAULT_WORD_CHECKS, EMOJI_TITLE, findEmoji, type TextFinding } from './textRules'
@@ -71,6 +72,16 @@ export function unreferencedDetail(kind: '図' | '表', n: number | undefined): 
 
 function guide(ruleId: string, severity: Severity, title: string, area: Area, extra: Partial<ReportFinding> = {}): ReportFinding {
   return { ruleId, severity, source: 'guide', title, area, ...extra }
+}
+
+/** 学籍番号の形（年度の設定の形。なければ・正しくなければ、アカウントと同じ形） */
+function studentIdPattern(pattern: string | null | undefined): RegExp {
+  try {
+    if (pattern) return new RegExp(pattern)
+  } catch {
+    // 形が正しくなければ、アカウントと同じ形で見る
+  }
+  return DEFAULT_STUDENT_ID
 }
 
 /** 抄録の文字数（空白と改行を除く） */
@@ -298,7 +309,9 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
       }),
     )
   }
-  if (config.studentIdPattern && basicInfo.studentId.trim() && !new RegExp(config.studentIdPattern).test(basicInfo.studentId.trim())) {
+  // 学籍番号の形：年度の設定の形。なければ、ログインしたアカウントから読むときと同じ形（依頼者の選択 2026-10-29。前は設定がないと確かめず、
+  // 「あ」でも表紙が「済み」になった：学生の試し 2026-10-29）
+  if (basicInfo.studentId.trim() && !studentIdPattern(config.studentIdPattern).test(basicInfo.studentId.trim().normalize('NFKC').toUpperCase())) {
     findings.push(guide('student-id-format', 'warning', '学籍番号の形式を確認する', 'cover', { blockId: 'basic:studentId' }))
   }
   // サブタイトルは、枠の1行に入るまで文字を小さくする（document.ts）。いちばん小さくしても入らないとき（組んだ紙面で測る）。

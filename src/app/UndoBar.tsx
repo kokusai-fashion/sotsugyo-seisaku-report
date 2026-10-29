@@ -63,6 +63,22 @@ export function UndoBar({
   useLayoutEffect(() => {
     if (areaRef.current && notice) place?.(areaRef.current)
   })
+  // 知らせを出している間に、下の道具が増えた・減った（書いている間の「追加」を開いた、など）ときも、位置を決め直す
+  // （前は「。」を付けた知らせが、あとから開いた「追加」の大見出し・小見出しに重なり、押した指が知らせに当たった：学生の試し 2026-10-29）
+  useEffect(() => {
+    const area = areaRef.current
+    if (!area || !notice || !place) return
+    let frame = 0
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => place(area))
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+    }
+  }, [notice, place])
   // 時間を止めている知らせ（マウスを重ねている・中に移っている。知らせが替わったら、止めるのもやめる）
   const [holding, setHolding] = useState<number | null>(null)
   const held = !!notice && holding === notice.id

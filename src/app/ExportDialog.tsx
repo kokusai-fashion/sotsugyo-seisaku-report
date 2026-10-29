@@ -157,7 +157,15 @@ interface Props {
   onBuilt?: (pdf: BuiltPdf) => void
   /** 自分のドライブの「卒業制作報告書」フォルダにも置いている途中・置いた（できた窓に1行で出す。置かないときは null） */
   drivePdf?: DrivePdfState
+  /** ページを読み込み直す（書いたものを保存してから。PDF を作る部品を読み込めなかったとき。App.tsx の reloadTool） */
+  onReload?: () => void
 }
+
+/**
+ * PDF を作る部品（あとから読み込む部品）を読み込めなかったか（新しい版を公開した直後・通信が切れたときに起きる）。
+ * このときは「メモリが足りない」ではなく、読み込み直してもらう（学生の試し 2026-10-29）
+ */
+const LOAD_FAILED = /dynamically imported module|Importing a module script failed|error loading dynamically imported|Failed to fetch/i
 
 /** 直すところの一覧で、はじめに見せる数（多いときは「ほか◯件」で開く） */
 const FIXES_SHOWN = 5
@@ -206,7 +214,7 @@ function NotYetList({ rows, editor, onClose }: { rows: ProgressRow[]; editor: Re
   return (
     <ul className="error-list notyet-list">
       {rows.map((row) => {
-        const text = `${row.label}：${row.value}${row.strong ?? ''}`
+        const text = `${row.label}：${row.value}${row.strong ?? ''}${row.after ?? ''}`
         const target = row.target
         return (
           <li key={row.id}>
@@ -230,7 +238,7 @@ function NotYetList({ rows, editor, onClose }: { rows: ProgressRow[]; editor: Re
   )
 }
 
-export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, drivePdf = null }: Props) {
+export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, drivePdf = null, onReload }: Props) {
   // 残っている直すところ（書いた文の間違い。要確認も含む）と、まだのところ（まだの行。抄録の「先生の許可のあと」は数えない）。右の欄と同じ分け方
   const { rows, fixes } = checkSummary(snap, config)
   const notYet = rows.filter((r) => r.state === 'todo')
@@ -475,6 +483,23 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
           <button onClick={onClose}>閉じる</button>
           <button className="primary pdf-open" data-autofocus onClick={() => window.open(pdf.url, '_blank')}>
             {Icon.open}PDF を開く
+          </button>
+        </div>
+      </Modal>
+    )
+  }
+
+  // ---- 作れなかった：部品を読み込めなかったときは、読み込み直してもらう ----
+  if (phase.kind === 'error' && onReload && LOAD_FAILED.test(phase.message)) {
+    return (
+      <Modal key="error" title="PDF を作れませんでした" heading={<><span className="pdf-ng">{Icon.warn}</span>PDF を作れませんでした</>} onClose={onClose} className="pdf-modal">
+        <p className="lead">PDF を作る部品を読み込めませんでした（新しい版が出た直後や、通信が切れたときに起きます）。ページを読み込み直してから、もう一度作ってください。書いた原稿は消えません。</p>
+        <p className="pdf-small">くわしいこと：{phase.message}</p>
+        <div className="row-buttons">
+          <span className="spacer" />
+          <button onClick={start}>もう一度作る</button>
+          <button className="primary pdf-reload" onClick={onReload}>
+            ページを読み込み直す
           </button>
         </div>
       </Modal>

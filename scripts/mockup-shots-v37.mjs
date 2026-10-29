@@ -214,7 +214,7 @@ async function openTool(browser, vp, right) {
       return new Real(url, protocols)
     }
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       if (right) localStorage.setItem('sotsugyo-seisaku-report-panels', JSON.stringify({ left: 124, right }))
     } catch {}
   }, right ?? 0)

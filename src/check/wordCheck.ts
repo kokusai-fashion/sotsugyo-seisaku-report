@@ -118,6 +118,21 @@ export async function readWord(inputs: WordInputs, config: YearConfig): Promise<
       // 「Word で書いた章」だけを確かめる（ツールのひな形から続ける、まだ書いていない章は入れない）
       report.body = applyWordImport(report, result).body.slice(0, result.counts.chapters)
       has.body = true
+      // ひな形のままの行（「〇〇〇〇」「～～～～」だけの行）：読み込みでは写さない行だが、Word のままでは PDF にそのまま出る
+      // （前は、このページでは何も言わず、まとめた PDF に入っていた：学生の試し 2026-10-29）
+      if (result.skippedPlaceholders > 0) {
+        const where = result.placeholderChapters.length ? `（${result.placeholderChapters.map((t) => `「${t}」`).join('')}の章）` : ''
+        extra.push({
+          id: 'docx:body:template-lines',
+          ruleId: 'template-lines',
+          part: 'body',
+          severity: 'error',
+          source: 'supplementary',
+          title: 'ひな形のままの行を書き換える',
+          detail: `「〇〇〇〇」「～～～～」のような、ひな形のままの行が${result.skippedPlaceholders}行あります${where}。自分の文に書き換えるか、要らなければ消します`,
+          snippets: ['〇〇〇〇', '～～～～', '○○○○'],
+        })
+      }
       for (const p of result.problems) {
         const label = /^([図表]\d+)/.exec(p.message)?.[1]
         if (!label) continue
@@ -241,7 +256,7 @@ export function wordFindings(reading: WordReading, config: YearConfig, pdf: PdfL
   const textOf = new Map(list.map((e) => [e.id, e.text]))
   const num = numbering(report)
   /** 表のセルの ID → その表と、行の文字（場所を探すのに使う）と、Word のどこか（「表1：「綿ブロード」の行、「生地見本」の列」） */
-  const cells = new Map<string, { table: string; rowText: string; where: string }>()
+  const cells = new Map<string, { table: string; rowText: string; where: string; row: string; col: string }>()
   for (const b of report.body.flatMap((c) => c.blocks))
     if (b.type === 'table') {
       const header = b.rows[0]?.cells ?? []
@@ -253,13 +268,15 @@ export function wordFindings(reading: WordReading, config: YearConfig, pdf: PdfL
         row.cells.forEach((c, i) => {
           const head = header[i]?.text.trim()
           const colName = r > 0 && head ? `「${head}」の列` : `左から${i + 1}つ目`
-          cells.set(c.id, { table: b.id, rowText, where: `表${num.numbers.get(b.id) ?? ''}：${rowName}、${colName}` })
+          cells.set(c.id, { table: b.id, rowText, where: `表${num.numbers.get(b.id) ?? ''}：${rowName}、${colName}`, row: r > 0 && first ? first : '', col: r > 0 && head ? head : '' })
         })
       })
     }
 
   const findings: CheckFinding[] = []
   const seen = new Map<string, number>()
+  // 生地見本の写真がないセルは、表ごとに1つにまとめる（行ごとに出すと、エラーの数が増えて見えた。どこに貼るかも書く：学生の試し 2026-10-29）
+  const swatches = new Map<string, { finding: CheckFinding; rows: string[]; col: string }>()
   const all = checkReport(report, config, layout)
   // 生地見本の写真がないセルは、「表に空いているセルがある」とは言わない（同じセルの指摘が2つ並ばないように）
   const swatchCells = new Set(all.filter((f) => f.ruleId === 'swatch-image').map((f) => f.blockId))
@@ -304,6 +321,19 @@ export function wordFindings(reading: WordReading, config: YearConfig, pdf: PdfL
       // 同じ表の指摘が並んでも、どのセルか分かるように
       detail = detail ? `${cell.where}。${detail}` : cell.where
     }
+    if (f.ruleId === 'swatch-image' && f.blockId && cells.has(f.blockId)) {
+      const cell = cells.get(f.blockId)!
+      const group = swatches.get(cell.table)
+      if (group) {
+        if (cell.row) group.rows.push(cell.row)
+        group.finding.snippets = [...(group.finding.snippets ?? []), ...snippets]
+        continue
+      }
+      const finding: CheckFinding = { id: `word:swatch-image:${cell.table}`, ruleId: f.ruleId, part: PART_OF_AREA[f.area], severity: 'error', source: f.source, title: f.title, snippets }
+      swatches.set(cell.table, { finding, rows: cell.row ? [cell.row] : [], col: cell.col })
+      findings.push(finding)
+      continue
+    }
     // 選んだ指摘の目印（同じ箇所の同じ指摘が2つあれば、2つ目から番号を付ける）
     const key = `word:${f.ruleId}:${f.blockId ?? ''}:${f.start ?? ''}`
     const n = seen.get(key) ?? 0
@@ -319,6 +349,10 @@ export function wordFindings(reading: WordReading, config: YearConfig, pdf: PdfL
       ...(quote ? { quote } : {}),
       ...(snippets.length ? { snippets } : {}),
     })
+  }
+  for (const [table, { finding, rows, col }] of swatches) {
+    const names = rows.map((r) => `「${r.length > 12 ? `${r.slice(0, 12)}…` : r}」`).join('')
+    finding.detail = `表${num.numbers.get(table) ?? ''}：${names ? `${names}の行の` : ''}「${col || '生地見本'}」の列。Word の表のマスに、生地の写真を貼り付けます`
   }
   return { findings: [...findings, ...reading.extra], covered }
 }

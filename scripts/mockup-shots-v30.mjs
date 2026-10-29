@@ -58,7 +58,7 @@ async function capturePages(browser) {
       return new Real(url, protocols)
     }
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   await page.setViewport(PC)

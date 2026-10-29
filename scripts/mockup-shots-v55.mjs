@@ -17,7 +17,7 @@ async function open(browser, width, height, { scale = 1, panels = null } = {}) {
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
   await page.evaluateOnNewDocument((panels) => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       localStorage.setItem('sotsugyo-seisaku-report-writing-zoom', '0')
       if (panels) localStorage.setItem('sotsugyo-seisaku-report-panels', panels)
     } catch {}

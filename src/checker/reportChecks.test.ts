@@ -114,6 +114,17 @@ describe('checkReport', () => {
     expect(ids({ ...r, basicInfo: { ...r.basicInfo, name: 'Emma Smith' } }, layout())).not.toContain('name-space')
   })
 
+  it('学籍番号の形：年度の設定に形がなければ、アカウントと同じ形（数字2桁＋英字2〜3字＋数字3〜4桁）で確かめる', () => {
+    const withId = (studentId: string) => ({ ...cleanReport(), basicInfo: { ...cleanReport().basicInfo, studentId } })
+    const noPattern = { ...currentConfig, studentIdPattern: null }
+    const idsOf = (studentId: string) => checkReport(withId(studentId), noPattern, layout()).map((f) => f.ruleId)
+    expect(idsOf('あ')).toContain('student-id-format')
+    expect(idsOf('22-ZZ-0123')).toContain('student-id-format')
+    expect(idsOf('23BK0456')).not.toContain('student-id-format')
+    expect(idsOf('00ZZ901')).not.toContain('student-id-format')
+    expect(idsOf('')).not.toContain('student-id-format')
+  })
+
   it('氏名の姓と名の間に空白がなければ、全角の空白を入れるように知らせる（英字・空の欄には出さない）', () => {
     const withName = (name: string) => ({ ...cleanReport(), basicInfo: { ...cleanReport().basicInfo, name } })
     expect(checkReport(withName('文化花子'), currentConfig, layout()).find((x) => x.ruleId === 'name-no-space')).toMatchObject({ severity: 'warning', blockId: 'basic:name', title: '姓と名の間に全角の空白を入れる' })

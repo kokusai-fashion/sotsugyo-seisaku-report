@@ -32,7 +32,7 @@ async function openPage(browser) {
   page.on('pageerror', (e) => console.log('pageerror(teacher-trial):', e.message))
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
   })
   await page.setViewport({ width: 1440, height: 900 })

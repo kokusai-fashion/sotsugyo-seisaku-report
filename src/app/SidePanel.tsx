@@ -256,8 +256,15 @@ function ProgressItem({ row, editor, onPick }: { row: ProgressRow; editor: Repor
       <i aria-hidden="true">{row.state === 'done' && Icon.check}</i>
       <span className="l">{row.label}</span>
       <span className="v">
-        {row.value}
-        {row.strong && <b>{row.strong}</b>}
+        {/* 「学籍番号・氏名・…がまだ」は「・」の後ろ、「485字（600〜900字。あと115字）」は「（」の前でだけ折り返す（字の途中で割らない）。
+            太字の数と後ろの字は、前の字といっしょに */}
+        {row.value.split(/(?<=・)|(?=（)/).map((part, i, parts) => (
+          <span key={i} className="nb">
+            {part}
+            {i === parts.length - 1 && row.strong && <b>{row.strong}</b>}
+            {i === parts.length - 1 && row.after}
+          </span>
+        ))}
       </span>
       {row.bar !== undefined && (
         <span className="bar" aria-hidden="true">

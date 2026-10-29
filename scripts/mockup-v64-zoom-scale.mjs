@@ -29,7 +29,7 @@ await withEdge(async (browser) => {
   const page = await context.newPage()
   await page.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
       localStorage.setItem('sotsugyo-seisaku-report-zoom-level', '1')
     } catch {}
   })

@@ -190,6 +190,8 @@ export function templateFindings(part: WordPart, document: Document, styles: Doc
   const list = sections(document)
   // 余白
   const wrong = new Map<string, number>()
+  /** 違うところのあった区切りの、上・右・下・左の値（左右の片方だけが違うときも、両方の今の値を出すため） */
+  let current: (number | null)[] | null = null
   for (const sect of list) {
     const pgMar = child(sect, 'w', 'pgMar')
     const values = [num(pgMar, 'top'), num(pgMar, 'right'), num(pgMar, 'bottom'), num(pgMar, 'left')]
@@ -198,14 +200,23 @@ export function templateFindings(part: WordPart, document: Document, styles: Doc
     if (fits(template) || (setting && fits(setting))) continue
     // 違うところは、年度の設定の余白と比べて出す（表紙はひな形と）
     const want = setting ?? template
+    current ??= values
     values.forEach((v, i) => {
       if ((v === null || Math.abs(Math.abs(v) - want.margins[i]) > MARGIN_TOLERANCE) && !wrong.has(SIDES[i])) wrong.set(SIDES[i], v === null ? NaN : Math.abs(v))
     })
   }
   if (list.length && wrong.size) {
-    const now = [...wrong.entries()].map(([side, v]) => `${side} ${Number.isNaN(v) ? '（なし）' : `${toMm(v)}mm`}`).join('・')
+    // 上・下・左・右の順。左右の片方だけが違うときも、左右とも今の値を出す（前は「今は 右 25mm」だけで、ひな形の「右 25mm のままでもよい」と矛盾して読めた：学生の試し 2026-10-29）
+    const sideWrong = wrong.has('左') || wrong.has('右')
+    const now = [0, 2, 3, 1]
+      .filter((i) => wrong.has(SIDES[i]) || (sideWrong && (i === 1 || i === 3)))
+      .map((i) => {
+        const v = wrong.get(SIDES[i]) ?? (current?.[i] == null ? NaN : Math.abs(current[i]!))
+        return `${SIDES[i]} ${Number.isNaN(v) ? '（なし）' : `${toMm(v)}mm`}`
+      })
+      .join('・')
     if (part === 'cover') add('template-margins', '余白は、ひな形のまま（上下左右 25mm）にする', `今は ${now}。Word の「レイアウト → ページ設定」の「余白」で直す`)
-    else add('template-margins', `余白は、${marginsText(margins)}にする`, `今は ${now}。Word の「レイアウト → ページ設定」の「余白」で直す（学科の Word のひな形の 上・下・右 25mm、左 35mm のままでもよい）`)
+    else add('template-margins', `余白は、${marginsText(margins)}にする`, `今は ${now}。Word の「レイアウト → ページ設定」の「余白」で、${marginsText(margins)}にするか、学科の Word のひな形のまま（上・下・右 25mm、左 35mm）にする`)
   }
   // 文字数と行数
   const grid = template.grid

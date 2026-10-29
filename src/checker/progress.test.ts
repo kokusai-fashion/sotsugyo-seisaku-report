@@ -136,7 +136,7 @@ describe('まだのところの行', () => {
     expect(notYetCount(list)).toBe(4)
     const min = plainConfig.body.minPages
     expect(list[0].value).toBe('氏名・サブタイトルがまだ')
-    expect(list[1]).toMatchObject({ value: `3 / ${min}ページ　あと`, strong: String(min - 3), target: { kind: 'area', area: 'body', last: true } })
+    expect(list[1]).toMatchObject({ value: `3ページ（${min}ページ以上。あと`, strong: String(min - 3), after: '）', target: { kind: 'area', area: 'body', last: true } })
     expect(list[1].bar).toBeCloseTo(3 / min)
     expect(list[2]).toMatchObject({ value: '書いていない段落 ', strong: String(templateParagraphs(r).length) })
     expect(list[3].value).toBe('まだ')
@@ -176,7 +176,7 @@ describe('まだのところの行', () => {
     const list = rows(r, layout({ bodyPages: min }), false, plainConfig)
     expect(list.slice(0, 4).map((x) => [x.state, x.value])).toEqual([
       ['done', '入れました'],
-      ['done', `${min} / ${min}ページ`],
+      ['done', `${min}ページ（${min}ページ以上）`],
       ['done', 'すべて書きました'],
       ['done', '2枚'],
     ])
@@ -192,7 +192,7 @@ describe('まだのところの行', () => {
   it('書き始めた抄録が短いうちは「あと◯字」', () => {
     const r: Report = { ...fresh(), abstract: { paragraphs: [{ type: 'paragraph', id: 'a1', content: [{ type: 'text', text: 'あ'.repeat(96) + 'である。' }] }], started: true } }
     const min = currentConfig.abstract.minChars
-    expect(row(r, 'abstract')).toMatchObject({ state: 'todo', value: `100 / ${min}字　あと`, strong: String(min - 100), target: { kind: 'finding', finding: { ruleId: 'abstract-length' } } })
+    expect(row(r, 'abstract')).toMatchObject({ state: 'todo', value: `100字（${min}〜${currentConfig.abstract.maxChars}字。あと`, strong: String(min - 100), after: '字）', target: { kind: 'finding', finding: { ruleId: 'abstract-length' } } })
   })
 })
 

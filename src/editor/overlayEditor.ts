@@ -382,7 +382,9 @@ export class OverlayEditor {
     this.element.addEventListener('paste', (e) => this.onPaste(e))
     this.element.addEventListener('blur', (e) => {
       const next = e.relatedTarget instanceof Element ? e.relatedTarget : null
-      if (this.target && next?.closest(KEEP_OPEN)) this.park()
+      // ほかのタブ・アプリへ切り替えた（ページからフォーカスが外れた）：閉じずに待つ。戻ると、ブラウザが同じ欄にフォーカスを戻す
+      // （前は閉じていて、Word からコピーして戻り、続けて貼り付けた・打った字がどこにも入らなかった：学生の試し 2026-10-29）
+      if (this.target && ((next?.closest(KEEP_OPEN)) || (!next && (document.visibilityState === 'hidden' || !document.hasFocus())))) this.park()
       else this.commit()
     })
     this.element.addEventListener('focus', () => {
@@ -1824,9 +1826,12 @@ export class OverlayEditor {
       // 表のセル：Enter・Shift+Enter は改行（続いて来る改行の入力で入れる：onBeforeInput の insertCellBreak）
     } else if (e.key === 'Enter' && (kind === 'paragraph' || this.target.enterCreatesParagraph)) {
       e.preventDefault()
-      // 文字を選んでいるときは、選んだ文字を消して分ける（ふつうの書く欄と同じ）
+      // 段落で文字を選んでいるときは、選んだ文字を消して分ける（ふつうの書く欄と同じ）。
+      // 見出し・図表のタイトル（1行の欄）では消さず、選んだ範囲の後ろで分ける（入れたばかりの表のタイトル「使用素材表」は、打てば置き換わるよう
+      // 全体を選んである。そのまま Enter を押すと、タイトルが消えていた：学生の試し 2026-10-29）
       const { start, end } = this.selectionOffsets()
-      this.handOff(() => this.callbacks.onSplit(blockId, text.slice(0, start), text.slice(end)))
+      const at = kind === 'paragraph' ? start : end
+      this.handOff(() => this.callbacks.onSplit(blockId, text.slice(0, at), text.slice(end)))
     } else if (e.key === 'Tab' && kind === 'cell' && this.callbacks.onTab) {
       e.preventDefault()
       const onTab = this.callbacks.onTab

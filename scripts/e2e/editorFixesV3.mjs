@@ -36,7 +36,7 @@ function hook(config) {
     return realFetch(input, init)
   }
   try {
-    localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+    localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
   } catch {}
   // 「紙面を準備しています…」の文字を、出るたびに記録する
   window.__loadingTexts = []

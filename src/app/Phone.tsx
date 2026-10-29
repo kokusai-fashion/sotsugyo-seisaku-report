@@ -279,7 +279,15 @@ function PinchTip({ hidden }: { hidden: boolean }) {
       setShown(false)
     }
     window.addEventListener('touchmove', onTouch, { passive: true })
+    // マウス：Ctrl＋ホイールで大きさを変えたら閉じる
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      markPinchTip()
+      setShown(false)
+    }
+    window.addEventListener('wheel', onWheel, { passive: true })
     return () => {
+      window.removeEventListener('wheel', onWheel)
       window.removeEventListener('touchmove', onTouch)
       markPinchTip()
     }
@@ -293,7 +301,8 @@ function PinchTip({ hidden }: { hidden: boolean }) {
   return (
     <div className="pinch-tip" ref={ref} role="note">
       <b>字を大きくするには</b>
-      <span>2本の指で広げます（次からも、その大きさで書けます）</span>
+      {/* マウスで使っている（パソコンの窓が狭い・ブラウザを拡大した）ときは、2本の指ではなく Ctrl＋ホイール（mockups/v73 ⑨） */}
+      <span>{matchMedia('(any-pointer: coarse)').matches ? '2本の指で広げます（次からも、その大きさで書けます）' : 'Ctrl を押しながらホイールを回します（次からも、その大きさで書けます）'}</span>
       <button
         type="button"
         aria-label="閉じる"

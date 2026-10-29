@@ -52,7 +52,7 @@ async function openPhone(browser, { ua = IPHONE, query = '' } = {}) {
       return new Real(url, protocols)
     }
     try {
-      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done')
     } catch {}
     /** 要素の i 文字目の画面上の四角（包んだ要素の中の字も数える） */
     window.__charRect = (el, i) => {

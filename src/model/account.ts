@@ -7,7 +7,8 @@
 export const UNIVERSITY_DOMAIN = (import.meta.env.VITE_GOOGLE_DOMAIN as string | undefined) || 'bunka-wu.ac.jp'
 
 /** 学籍番号の形（手順書の例：23FA●●●・22FAC●●●）。管理ページで形式を決めていれば、そちらを使う */
-const DEFAULT_STUDENT_ID = /^\d{2}[A-Z]{2,3}\d{3,4}$/
+/** 学籍番号の形（数字2桁＋英字2〜3字＋数字3〜4桁。年度の設定に形がないとき。表紙の学籍番号の確かめにも使う：checker/reportChecks.ts） */
+export const DEFAULT_STUDENT_ID =/^\d{2}[A-Z]{2,3}\d{3,4}$/
 
 /**
  * 学生のアドレスなら、@ より前を大文字にした学籍番号（先頭の「wu」は除く）。学籍番号の形でなければ（教職員のアカウント）null。

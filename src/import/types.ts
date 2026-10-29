@@ -77,5 +77,7 @@ export interface WordImportResult {
   counts: { chapters: number; subheadings: number; paragraphs: number; figures: number; tables: number }
   /** ひな形のままで写さなかった行（「〇〇〇〇」「～～～」だけの行）の数 */
   skippedPlaceholders: number
+  /** 写さなかったひな形のままの行がある章の、Word の大見出し（仮の名前のままのものは除く。提出前チェックで、どこに残っているかを伝える） */
+  placeholderChapters: string[]
   problems: ImportProblem[]
 }

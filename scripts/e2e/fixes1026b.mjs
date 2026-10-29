@@ -32,7 +32,7 @@ async function open(browser, { phone = false, width = phone ? 390 : 1440, height
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
-  if (tourDone) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-writing-zoom', '0') } catch {} })
+  if (tourDone) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('sotsugyo-seisaku-report-tour', 'done'); localStorage.setItem('sotsugyo-seisaku-report-zoom-tip', 'done'); localStorage.setItem('sotsugyo-seisaku-report-writing-zoom', '0') } catch {} })
   if (phone) await page.setUserAgent(IPHONE)
   await page.setViewport(phone ? { width, height, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { width, height })
   if (drive) await routeGoogle(page, drive, config)
@@ -135,11 +135,11 @@ await withEdge(async (browser) => {
       JSON.stringify({ whileCaption, whileCell, afterClose }),
     )
 
-    // 段落の頭にカーソル → 「改ページ」：その段落の前に入る。マウスを重ねた印も段落の上
-    await goTo(page, ready, 'p6')
-    const p6 = await page.evaluate(() => { const r = [...document.querySelectorAll('.page-viewport.front [data-block-id="p6"]')].find((e) => e.getBoundingClientRect().width > 0).getBoundingClientRect(); return { x: r.left + 40, y: r.top + 8, top: r.top } })
-    await page.mouse.click(p6.x, p6.y)
-    await editingWait(page, 'p6')
+    // 段落の頭にカーソル → 「改ページ」：その段落の前に入る。マウスを重ねた印も段落の上（見出しのすぐ下の段落なら見出しの前：fixes1029）
+    await goTo(page, ready, 'p7')
+    const p7 = await page.evaluate(() => { const r = [...document.querySelectorAll('.page-viewport.front [data-block-id="p7"]')].find((e) => e.getBoundingClientRect().width > 0).getBoundingClientRect(); return { x: r.left + 40, y: r.top + 8, top: r.top } })
+    await page.mouse.click(p7.x, p7.y)
+    await editingWait(page, 'p7')
     await page.keyboard.down('Control')
     await page.keyboard.press('Home')
     await page.keyboard.up('Control')
@@ -151,11 +151,11 @@ await withEdge(async (browser) => {
     await page.mouse.click(breakTool.x, breakTool.y)
     await wait(1200)
     await ready()
-    const order = await page.evaluate(() => { const blocks = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks); const i = blocks.findIndex((b) => b.id === 'p6'); return { before: blocks[i - 1]?.type, after: blocks[i + 1]?.type } })
+    const order = await page.evaluate(() => { const blocks = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks); const i = blocks.findIndex((b) => b.id === 'p7'); return { before: blocks[i - 1]?.type, after: blocks[i + 1]?.type } })
     check(
       '段落の頭にカーソルを置いて「改ページ」：その段落の前に入る（段落は次のページへ）。マウスを重ねた「ここに入ります」の印も段落の上',
-      order.before === 'pageBreak' && order.after !== 'pageBreak' && marker !== null && marker < p6.top + 4,
-      JSON.stringify({ order, marker, top: p6.top }),
+      order.before === 'pageBreak' && order.after !== 'pageBreak' && marker !== null && marker < p7.top + 4,
+      JSON.stringify({ order, marker, top: p7.top }),
     )
     await page.keyboard.press('Escape')
     await wait(500)

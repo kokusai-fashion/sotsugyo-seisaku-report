@@ -153,7 +153,8 @@ export function normalizeParagraph(text: string): string {
  */
 export function withPeriod(text: string): string {
   const t = text.replace(/[\s　]+$/, '')
-  if (!t || /[。！？!?]$/.test(t)) return text
+  // 「．」「.」で終えた文（「Ⅲ．」と番号だけ打った行・英文など）にも、「。」は足さない
+  if (!t || /[。！？!?．.]$/.test(t)) return text
   return /[、，,]$/.test(t) ? `${t.slice(0, -1)}。` : `${t}。`
 }
 
@@ -392,7 +393,9 @@ export function mergeBackward(report: Report, id: string, text: string): { repor
 export function removeEmptyBackward(report: Report, id: string, text: string): { report: Report; targetId: string; caret: number; what: '段落' | '小見出し' | '大見出し（章）' } | null {
   if (text !== '') return null
   const kind = findEditable(report, id)?.kind
-  const prev = neighbor(report, id, 'prev')
+  let prev = neighbor(report, id, 'prev')
+  // すぐ前が図・表のタイトルなら、その前の欄へ移る（タイトルへ移ると、続けて押した Backspace でタイトルの字が削られていた：学生の試し 2026-10-29）
+  while (prev && (prev.kind === 'figureCaption' || prev.kind === 'tableCaption')) prev = neighbor(report, prev.id, 'prev')
   if (!prev || prev.kind === 'field' || prev.kind === 'abstractParagraph') return null
   const to = { targetId: prev.id, caret: prev.text.length }
   // ひな形の段落（先生の「ここに書くこと」が付いた段落）は消さない（書く前に、うっかり Backspace を押して説明ごと消さないように）
