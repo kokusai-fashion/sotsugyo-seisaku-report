@@ -265,18 +265,22 @@ describe('手で書いた図表の番号', () => {
 })
 
 describe('確認済み（補助の指摘を、学生がこのままにする）', () => {
-  it('補助の指摘だけに目印が付き、確認済みにするとエラーに数えない（手順書のルールの指摘は外せない）', () => {
-    // 文末の「。」がない（補助）と、「です」（手順書のルール）
-    const r = ops.setText(demoReport(), 'p1', '衣装を作ったのです')
+  it('補助のチェックの要確認だけに目印が付き、確認済みにすると数えない（手順書のルール・赤いエラー・全角の英字などは外せない。依頼者の判断 2026-10-29）', () => {
+    // 機種依存文字（補助の要確認）・文末の「。」がない（補助のエラー）・全角の英字（補助の要確認だが、そのままにしてよい場面がほぼない）・「です」（手順書のルール）
+    const r = ops.setText(demoReport(), 'p1', '衣装のＤＥＳＩＧＮは①の形で作ったのです')
     const before = checkReport(r, currentConfig).filter((f) => f.blockId === 'p1')
-    const sentenceEnd = before.find((f) => f.ruleId === 'sentence-end')
-    expect(sentenceEnd?.key).toBe('sentence-end|p1|す')
+    const machine = before.find((f) => f.ruleId === 'machine-dependent')
+    expect(machine?.key).toBe('machine-dependent|p1|①')
+    expect(before.find((f) => f.ruleId === 'sentence-end')?.key).toBeUndefined()
+    expect(before.find((f) => f.ruleId === 'fullwidth-alpha')?.key).toBeUndefined()
     expect(before.find((f) => f.ruleId === 'desu-masu')?.key).toBeUndefined()
-    const acked = { ...r, acknowledged: [sentenceEnd!.key!] }
+    // 前に確認済みにした赤いエラーの目印が残っていても、隠れずに数える
+    const acked = { ...r, acknowledged: [machine!.key!, 'sentence-end|p1|す'] }
     const { findings, acknowledged } = checkReportDetailed(acked, currentConfig)
-    expect(findings.some((f) => f.ruleId === 'sentence-end' && f.blockId === 'p1')).toBe(false)
+    expect(findings.some((f) => f.ruleId === 'machine-dependent' && f.blockId === 'p1')).toBe(false)
+    expect(findings.some((f) => f.ruleId === 'sentence-end' && f.blockId === 'p1')).toBe(true)
     expect(findings.some((f) => f.ruleId === 'desu-masu' && f.blockId === 'p1')).toBe(true)
-    expect(acknowledged.map((f) => f.ruleId)).toEqual(['sentence-end'])
+    expect(acknowledged.map((f) => f.ruleId)).toEqual(['machine-dependent'])
   })
 
   it('書き間違えやすい語のエラーは「このままにする」にできない（前に確認済みにしていても隠れず、エラーに数える）。注意の語はできる', () => {
@@ -305,21 +309,21 @@ describe('確認済み（補助の指摘を、学生がこのままにする）'
 })
 
 describe('絵文字・1文の長さ（補助のチェック）', () => {
-  it('絵文字は、表紙・本文・図のタイトル・引用・参考文献のどこでもエラーにする（確認済みにもできる）', () => {
+  it('絵文字は、表紙・本文・図のタイトル・引用・参考文献のどこでもエラーにする（確認済みにはできない。依頼者の判断 2026-10-29）', () => {
     let r = ops.setText(cleanReport(), 'p1', '筆者が担当したのは、主人公の衣装である😊。')
     r = ops.setText(r, 'f1', 'デザイン画✨')
     r = { ...r, basicInfo: { ...r.basicInfo, name: '文化　花子🌸' } }
     r = { ...r, references: [{ type: 'web', id: 'ref2', siteTitle: '衣装の歴史👗まとめ', url: 'https://example.com/', accessedOn: '2026-08-18' }] }
     const emoji = checkReport(r, currentConfig, layout()).filter((f) => f.ruleId === 'emoji')
-    expect(emoji.every((f) => f.severity === 'error' && f.source === 'supplementary' && f.title === '絵文字は使わない' && f.key)).toBe(true)
+    expect(emoji.every((f) => f.severity === 'error' && f.source === 'supplementary' && f.title === '絵文字は使わない' && !f.key)).toBe(true)
     expect(emoji.map((f) => [f.area, f.blockId, f.detail])).toEqual([
       ['cover', 'basic:name', '「🌸」を消す'],
       ['body', 'p1', '「😊」を消す'],
       ['body', 'f1', '「✨」を消す'],
       ['references', undefined, '1つ目の文献の「👗」を消す'],
     ])
-    const acked = { ...r, acknowledged: emoji.map((f) => f.key!) }
-    expect(checkReport(acked, currentConfig, layout()).some((f) => f.ruleId === 'emoji')).toBe(false)
+    const acked = { ...r, acknowledged: ['emoji|p1|😊', 'emoji|ref2|👗'] }
+    expect(checkReport(acked, currentConfig, layout()).filter((f) => f.ruleId === 'emoji')).toHaveLength(4)
   })
 
   it('150字より長い文は、段落だけで警告する（見出し・図のタイトルには当てない）', () => {
@@ -360,7 +364,8 @@ describe('図表の番号の二重（ツールで書いているときだけの�
   it('同じ段落に同じ表への参照が2つあると、エラーにする。添えてあるだけの（表1）に下線を引き、それを消すように書く', () => {
     const r = ops.setText(cleanReport(), 'p3', '使用した素材を（表1）に示す（表1）。')
     const f = checkReportDetailed(r, currentConfig, layout()).findings.find((x) => x.ruleId === 'duplicate-ref')
-    expect(f).toMatchObject({ severity: 'error', blockId: 'p3', start: 14, end: 18, key: 'duplicate-ref|p3|t1' })
+    expect(f).toMatchObject({ severity: 'error', blockId: 'p3', start: 14, end: 18 })
+    expect(f?.key).toBeUndefined()
     expect(f).not.toHaveProperty('replacement')
     expect(f?.title).toBe('同じ段落に「表1」が2つある')
     expect(f?.detail).toContain('下線の（表1）を消して1つにします')
@@ -371,12 +376,11 @@ describe('図表の番号の二重（ツールで書いているときだけの�
     expect(checkReportDetailed(fixed, currentConfig, layout()).findings.some((x) => x.ruleId === 'duplicate-ref')).toBe(false)
   })
 
-  it('文の中の「図1」を2回書くのは、書き手が2回指しているので指摘しない。確認済みにもできる', () => {
+  it('文の中の「図1」を2回書くのは、書き手が2回指しているので指摘しない。添えた（図1）が重なれば指摘し、確認済みにはできない', () => {
     const twice = ops.setText(cleanReport(), 'p2', '図1の左は袖である。図1の右は帯である（図1）。')
     const f = checkReportDetailed(twice, currentConfig, layout()).findings.find((x) => x.ruleId === 'duplicate-ref')
     expect(f).toBeDefined()
-    const acked = { ...twice, acknowledged: [f!.key!] }
-    expect(checkReportDetailed(acked, currentConfig, layout()).findings.some((x) => x.ruleId === 'duplicate-ref')).toBe(false)
+    expect(f?.key).toBeUndefined()
     const plain = ops.setText(cleanReport(), 'p2', '図1の左は袖である。図1の右は帯である。')
     expect(checkReportDetailed(plain, currentConfig, layout()).findings.some((x) => x.ruleId === 'duplicate-ref')).toBe(false)
   })

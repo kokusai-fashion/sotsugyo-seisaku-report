@@ -116,6 +116,15 @@ export function checkReportDetailed(
   return { findings: all.filter((f) => !f.key || !keys.has(f.key)), acknowledged: all.filter((f) => f.key && keys.has(f.key)) }
 }
 
+/**
+ * 文章のルールの指摘のうち、学生が「このままにする（確認済み）」にできるもの：補助のチェックの要確認（黄）で、正しく使っていることがあるもの
+ * （長い文・注意の語・「―」・機種依存文字）。赤いエラー（文末の「。」・「。」が続く・絵文字）と、そのままにしてよい場面がほぼない要確認
+ * （全角の英字・半角カナ・図表の参照の半角の括弧）は、直すまで残す（前は補助のチェックならすべて消せ、赤いエラーも「このままにする」で
+ * 消えていた：学生の試し 2026-10-29。依頼者の判断）。前に確認済みにしたものも、目印がなくなるので、また数える
+ */
+const NOT_ACKABLE_TEXT_RULES = new Set(['fullwidth-alpha', 'halfwidth-kana', 'figure-ref-halfwidth-paren'])
+const ackableText = (f: { ruleId: string; severity: Severity }) => f.severity === 'warning' && !NOT_ACKABLE_TEXT_RULES.has(f.ruleId)
+
 /** 作品写真の見える所が、写真のこの割合より小さければ「大きく切れている」 */
 export const PHOTO_CROP_LIMIT = 0.6
 
@@ -219,12 +228,11 @@ export function toolFindings(report: Report, config: YearConfig): ReportFinding[
         severity: 'error',
         source: 'supplementary',
         title: `同じ段落に「${label}」が2つある`,
-        detail: `${extra ? `下線の（${label}）を消して1つにします。` : 'どちらかを消して1つにします。'}同じ${kind}をわざと2回指しているなら「このままにする」を押します`,
+        detail: extra ? `下線の（${label}）を消して1つにします` : 'どちらかを消して1つにします',
         area: 'body',
         blockId: block.id,
         start: at.start,
         end: at.end,
-        key: `duplicate-ref|${block.id}|${targetId}`,
       })
     }
   }
@@ -265,8 +273,8 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
     const area = AREA_OF_KIND[e.kind]
     for (const { locked, ...f } of checkText(e.text, words) as TextFinding[]) {
       if (SENTENCE_RULES.includes(f.ruleId) && !SENTENCE_KINDS.includes(e.kind)) continue
-      // 書き間違えやすい語のエラー（locked）は「このままにする」にできない（提出の前に直す）
-      const key = f.source === 'supplementary' && !locked ? `${f.ruleId}|${e.id}|${e.text.slice(f.start, f.end)}` : undefined
+      // 「このままにする」にできるのは、補助のチェックの要確認のうち、正しく使っていることがあるものだけ（ACKABLE_TEXT_RULES）
+      const key = f.source === 'supplementary' && !locked && ackableText(f) ? `${f.ruleId}|${e.id}|${e.text.slice(f.start, f.end)}` : undefined
       findings.push({ ...f, area, blockId: e.id, ...(key ? { key } : {}) })
     }
   }
@@ -596,7 +604,6 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
         title: EMOJI_TITLE,
         detail: `${i + 1}つ目の文献の「${emoji}」を消す`,
         area: 'references',
-        key: `emoji|${ref.id}|${emoji}`,
       })
     }
   })
