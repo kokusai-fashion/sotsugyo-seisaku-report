@@ -200,7 +200,7 @@ const FIGURE_MAX_MM = 80
 /** Enter で、後ろに新しい段落を作って書き続ける欄（見出し・図表のタイトル。ほかの1行の欄は書き終える） */
 const ENTER_CREATES_PARAGRAPH = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
 /** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」・氏名の空白〔書き終えたときにそろえる〕）。書いている欄では、書き終えるまで出さない（runChecks） */
-const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty', 'name-space', 'name-no-space'])
+const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty', 'name-space', 'name-no-space', 'abstract-source'])
 /** スマホで書いている間、本文の幅に合わせる倍率のこの倍より大きく広げていたら「幅に合わせる」を出す */
 const OVER_ZOOM = 1.08
 /** 学籍番号を書いている間は出さない指摘（書き終えると、半角・大文字にそろえる：tidyText） */

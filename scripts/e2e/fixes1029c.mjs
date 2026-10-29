@@ -98,6 +98,22 @@ await withEdge(async (browser) => {
       JSON.stringify({ tool, sub, undone: undone?.type, longTool }),
     )
 
+    // 抄録に、本文にない内容らしい文（mockups/v75 案A）
+    const madeUp = '本制作では、ミラノで買い付けたシルクを使い、全体を手染めで仕上げた。'
+    await page.evaluate((madeUp) => {
+      const r = window.__editor.getSnapshot().report
+      const body = r.body.flatMap((c) => c.blocks).filter((b) => b.type === 'paragraph').map((b) => b.content.map((n) => n.text ?? '').join('')).filter((t) => t.length > 20)
+      const picked = body.flatMap((p) => p.split(/(?<=。)/).filter((s) => s.length > 15 && !/[（(][図表]/.test(s))).slice(0, 3)
+      window.__editor.update((x) => ({ ...x, abstract: { ...x.abstract, started: true, paragraphs: [{ type: 'paragraph', id: 'a1', content: [{ type: 'text', text: [...picked, madeUp].join('') }] }] } }))
+    }, madeUp)
+    await wait(1200)
+    await ready()
+    const absSource = await page.evaluate(() => ({
+      found: window.__editor.getSnapshot().findings.filter((f) => f.ruleId === 'abstract-source').map((f) => ({ detail: f.detail, key: !!f.key, len: f.end - f.start })),
+      side: [...document.querySelectorAll('.side .issue')].some((el) => el.textContent.includes('本文にない内容かもしれない文がある')),
+    }))
+    check('抄録に本文にない内容の文があると、要確認「本文にない内容かもしれない文がある」（本文にない語を添える。このままにできる）。本文から抜き出した文には出ない', absSource.found.length === 1 && absSource.found[0].detail.includes('ミラノ') && absSource.found[0].key && absSource.found[0].len === madeUp.length && absSource.side, JSON.stringify(absSource))
+
     // ② 作品写真が大きく切れている
     await cropPhotos(page)
     await wait(1500)

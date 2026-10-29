@@ -11,6 +11,7 @@ import { PHOTO_GAP_MM } from '../layout/documentCss'
 import { swatchColumn, unusedRows } from '../model/table'
 import { charCount, checkText, DEFAULT_WORD_CHECKS, EMOJI_TITLE, findEmoji, type TextFinding } from './textRules'
 import type { Severity } from './types'
+import { abstractAwayFromBody } from './abstractSource'
 
 /**
  * 報告書全体のセルフチェック。
@@ -297,6 +298,23 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
         key: `abstract-figure-ref|${e.id}|${m[0]}`,
       })
     }
+  }
+
+  // 抄録は本文の抜粋（本文にないことを急に書かない：依頼者の指導 2026-10-29。mockups/v75 案A）：本文の文と重なりの少ない文を知らせる
+  // （要確認。言い方を変えたまとめの文などは、正しければ「このままにする」）
+  for (const a of abstractAwayFromBody(report, config)) {
+    findings.push({
+      ruleId: 'abstract-source',
+      severity: 'warning',
+      source: 'supplementary',
+      title: '本文にない内容かもしれない文がある',
+      detail: `「${a.text.slice(0, 14)}…」${a.newWords.length ? `本文にない語：${a.newWords.slice(0, 3).join('・')}。` : ''}抄録は、本文から抜き出して、言い方を少し整えて書きます`,
+      area: 'abstract',
+      blockId: a.blockId,
+      start: a.start,
+      end: a.end,
+      key: `abstract-source|${a.blockId}|${a.text.slice(0, 40)}`,
+    })
   }
 
   // ---- 表紙・基本情報 ----
