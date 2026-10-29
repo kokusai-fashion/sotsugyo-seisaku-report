@@ -1972,6 +1972,11 @@ export class ReportEditor {
     return { minChars, maxChars, minLines, maxLines }
   }
 
+  /** 書いている欄のカーソルの位置（書いていなければ null。確かめの窓を「やめる」で閉じたあと、同じ所で書き続けるため） */
+  get writingCaret(): number | null {
+    return this.overlay.blockId ? this.overlay.caret : null
+  }
+
   /** 表のマスを書いている：次のマスがあるか（スマホの「次のマス」を出す） */
   hasNextCell(): boolean {
     const id = this.overlay.blockId
@@ -4137,28 +4142,32 @@ export class ReportEditor {
   }
 
   /**
-   * 足す道具（小見出し・大見出し）をすばやく2回押した：2回目は足さない（ダブルクリックで、空の見出し・章が2つできていた：学生の試し 3回目 2026-10-29）
+   * 足す道具（小見出し・大見出し）をすばやく2回押した：2回目は足さない（ダブルクリックで、空の見出し・章が2つできていた：学生の試し 3回目 2026-10-29）。
+   * 1回目で足した見出しをまだ書き始めていないときだけ（ほかの所へ移って、すぐ押した2回目は足す）
    */
-  private doubleAdd(kind: 'subheading' | 'chapter'): boolean {
+  private doubleAdd(kind: 'subheading' | 'chapter', id: string): boolean {
     const now = performance.now()
-    const twice = this.lastAdd?.kind === kind && now - this.lastAdd.at < DOUBLE_PRESS_MS
-    this.lastAdd = { kind, at: now }
+    const last = this.lastAdd
+    const at = this.overlay.blockId ?? this.pendingOpen?.id
+    const twice = !!last && last.kind === kind && now - last.at < DOUBLE_PRESS_MS && at === last.id && !ops.findEditable(this.report, last.id)?.text.trim() && !this.overlay.typingHistory.undo
+    if (!twice) this.lastAdd = { kind, at: now, id }
     return twice
   }
-  private lastAdd: { kind: 'subheading' | 'chapter'; at: number } | null = null
+  private lastAdd: { kind: 'subheading' | 'chapter'; at: number; id: string } | null = null
 
   addSubheading(): void {
-    if (this.settlingRemoval || this.doubleAdd('subheading')) return
     const id = ops.newId('s')
+    if (this.settlingRemoval || this.doubleAdd('subheading', id)) return
     this.insertAndEdit({ type: 'subheading', id, title: '' }, id)
   }
 
   addChapter(): void {
-    if (this.settlingRemoval || this.doubleAdd('chapter')) return
+    const chapterId = ops.newId('c')
+    if (this.settlingRemoval || this.doubleAdd('chapter', chapterId)) return
     const after = this.insertionAnchor()
     this.marker.hidden = true
     this.commitForChange()
-    const chapter: Chapter = { id: ops.newId('c'), title: '', blocks: [{ type: 'paragraph', id: ops.newId('p'), content: [{ type: 'text', text: '' }] }] }
+    const chapter: Chapter = { id: chapterId, title: '', blocks: [{ type: 'paragraph', id: ops.newId('p'), content: [{ type: 'text', text: '' }] }] }
     this.pushHistory(this.report)
     this.report = ops.insertChapterAfter(this.report, after, chapter)
     // 入力欄は、前の章の最後のブロックのすぐ下に仮に置く（組み直したら、新しい章の見出しの位置へ）

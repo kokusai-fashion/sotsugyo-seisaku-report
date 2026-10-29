@@ -1416,6 +1416,10 @@ async function firstTimeFixesPhone(browser) {
   // （前は、閉じてから表のタイトル（ページ全体の表示では高さ 7px ほど）をタップするしかなかった）
   const delTool = await page.evaluate(() => { const b = [...document.querySelectorAll('.edit-sheet .es-tools button')].find((x) => x.textContent.includes('この表を削除')); const r = b?.getBoundingClientRect(); return { shown: !!b, h: r ? Math.round(r.height) : 0, danger: !!b?.classList.contains('danger') } })
   await page.evaluate(() => [...document.querySelectorAll('.edit-sheet .es-tools button')].find((b) => b.textContent.includes('この表を削除')).click())
+  // 確かめてから消す（「完了」のすぐ下にあり、押すと確かめずに消えていた：学生の試し 3回目。mockups/v76 ① 案B）
+  await page.waitForSelector('.confirm-modal [data-confirm="ok"]', { timeout: 10000 }).catch(() => {})
+  const tableConfirm = await page.evaluate(() => ({ text: document.querySelector('.confirm-modal')?.dataset.text ?? '', title: document.querySelector('.confirm-modal h2')?.textContent ?? '', ok: document.querySelector('.confirm-modal [data-confirm="ok"]')?.textContent ?? '' }))
+  await page.evaluate(() => document.querySelector('.confirm-modal [data-confirm="ok"]')?.click())
   await ready()
   await wait(300)
   const tableDeleted = await page.evaluate(() => ({
@@ -1430,9 +1434,9 @@ async function firstTimeFixesPhone(browser) {
   await ready()
   const tableBack = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).some((b) => b.id === 'tM'))
   check(
-    'スマホ：表のセルを書いているとき、書く欄の「この表を削除」で表ごと消え、書く欄が閉じて「表を削除しました［戻す］」が出る（［戻す］で戻る。ボタンは高さ 44px 以上）',
-    delTool.shown && delTool.danger && delTool.h >= 44 && tableDeleted.gone && tableDeleted.toast.includes('表を削除しました') && tableDeleted.button && !tableDeleted.sheet && !tableDeleted.zoomed && tableBack,
-    JSON.stringify({ delTool, tableDeleted, tableBack }),
+    'スマホ：表のセルを書いているとき、書く欄の「この表を削除」→「この表を削除しますか？」の「削除する」で表ごと消え、書く欄が閉じて「表を削除しました［戻す］」が出る（［戻す］で戻る。ボタンは高さ 44px 以上）',
+    tableConfirm.title === 'この表を削除しますか？' && tableConfirm.text.includes('表の中の字と画像も') && tableConfirm.ok === '削除する' && delTool.shown && delTool.danger && delTool.h >= 44 && tableDeleted.gone && tableDeleted.toast.includes('表を削除しました') && tableDeleted.button && !tableDeleted.sheet && !tableDeleted.zoomed && tableBack,
+    JSON.stringify({ tableConfirm, delTool, tableDeleted, tableBack }),
   )
   await page.evaluate(() => window.__editor.finishEditing())
   await ready()

@@ -106,8 +106,8 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
           aria-label={`${size.columns}列×${size.rows}行`}
           onMouseDown={keepFocus}
           onPointerEnter={() => setHi(size)}
-          onClick={() => {
-            swallowSecondClick()
+          onClick={(e) => {
+            swallowSecondClick(e)
             onPick(size)
           }}
         />,
@@ -127,8 +127,8 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
       <button
         type="button"
         onMouseDown={keepFocus}
-        onClick={() => {
-          swallowSecondClick()
+        onClick={(e) => {
+          swallowSecondClick(e)
           onMaterial()
         }}
       >

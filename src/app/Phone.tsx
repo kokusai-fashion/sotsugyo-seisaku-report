@@ -6,7 +6,7 @@ import { findEditable, type EditableKind } from '../editor/reportOps'
 import { setWritingZoomOn, writingZoomOn } from '../editor/pinchZoom'
 import { BAND_SIDE_QUERY, forTouch, paragraphHint, photoToolsAtSide } from './bandText'
 import { Icon } from './icons'
-import { useAsk } from './ask'
+import { useAsk, type Ask } from './ask'
 import { SelectionTools } from './Palette'
 import { TableSizeSheet } from './TableSize'
 import { ShapeFace, TableShapeSheet } from './tableShape'
@@ -90,6 +90,20 @@ function Sheet({ title, extra, onClose, children }: { title: string; extra?: Rea
       </section>
     </>
   )
+}
+
+/**
+ * スマホの「表を削除」は、確かめてから消す（「完了」のすぐ下にあり、押すと確かめずに表が消えていた：学生の試し 3回目 2026-10-29。
+ * 依頼者の選択 mockups/v76 ① 案B）
+ */
+const TABLE_REMOVE_CONFIRM = 'この表を削除しますか？\n表の中の字と画像も、いっしょに消えます。\n（画面の上の「戻す」で戻せます）'
+
+/** 確かめてから表を消す。「やめる」なら、書いていた所で書き続ける（確かめの窓を出すと、書く欄が閉じるため） */
+async function removeTableAsked(editor: ReportEditor, ask: Ask, tableId: string): Promise<void> {
+  const id = editor.getSnapshot().editingId
+  const caret = editor.writingCaret ?? 0
+  if (await ask.confirm(TABLE_REMOVE_CONFIRM, { ok: '削除する', danger: true })) return editor.removeTable(tableId)
+  if (id && !editor.getSnapshot().editingId && findEditable(editor.getSnapshot().report, id)) editor.openEditor(id, caret)
 }
 
 /**
@@ -190,7 +204,11 @@ function EditSheet({ editor, snap, hostRef }: { editor: ReportEditor; snap: Edit
               </button>
             )}
             {/* 表ごと消す（画面の下に「表を削除しました［戻す］」）。前は、閉じてから表のタイトル（ページ全体の表示では高さ 7px ほど）をタップするしかなかった */}
-            <button className="danger" onMouseDown={keepFocus} onClick={() => editor.removeTable(tableId)}>
+            <button
+              className="danger"
+              onMouseDown={keepFocus}
+              onClick={() => void removeTableAsked(editor, ask, tableId)}
+            >
               {Icon.remove}この表を削除
             </button>
           </>
@@ -562,7 +580,11 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
                 <ShapeFace />
               </button>
             )}
-            <button className="danger" onMouseDown={keepFocus} onClick={() => editor.removeTable(tableId)}>
+            <button
+              className="danger"
+              onMouseDown={keepFocus}
+              onClick={() => void removeTableAsked(editor, ask, tableId)}
+            >
               {Icon.remove}
               <span>表を削除</span>
             </button>
@@ -703,7 +725,10 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
     setSheet('check')
   }
   // 下の「チェック」の赤い数は、直すところのエラーの数だけ（まだのところは数えない。mockups/v35 ① 案A）
-  const errors = checkSummary(snap, config).errors
+  const { errors, fixes } = checkSummary(snap, config)
+  // 赤いエラーがなく、黄色の要確認だけがあるときは、黄色の小さな点（数は出さない。黄色の要確認だけのときは何も出ず、気づかなかった：
+  // 学生の試し 3回目 2026-10-29。依頼者の選択 mockups/v76 ③ 案A）
+  const warnOnly = errors === 0 && fixes.some((f) => f.severity === 'warning')
   const kind = snap.layout?.kinds[snap.page]
   // 横向きの作品写真のページでは、作品写真の道具は紙面の右の列に出す（mockups/v33 案A。PageBand.tsx）
   const bandSide = useBandSide()
@@ -775,7 +800,8 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
         </button>
         <button className="nav-check" onClick={() => setSheet('check')}>
           {/* 紙面を組み終えるまでは、エラーの数を出さない（ページ数などのチェックが加わって、数が変わるため） */}
-          {PhoneIcon.check}チェック{errors > 0 && !snap.pageChecksPending && <i className="badge">{errors}</i>}
+          {PhoneIcon.check}チェック
+          {!snap.pageChecksPending && (errors > 0 ? <i className="badge">{errors}</i> : warnOnly && <i className="badge warn-dot" role="img" aria-label="要確認があります" />)}
         </button>
         <button className="nav-pdf" onClick={onExport} disabled={exporting}>
           {exporting ? <Spinner /> : Icon.pdf}

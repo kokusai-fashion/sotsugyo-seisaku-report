@@ -10,12 +10,13 @@ import { BAND_SIDE_QUERY } from './bandText'
 export const keepFocus = (e: React.MouseEvent) => e.preventDefault()
 
 /**
- * 押してすぐのもう1回（ダブルクリックの2回目）を、しばらく受け止めて捨てる（画面の上に透明な幕を置く）。
- * 押したメニューが閉じたあと、2回目が紙面に当たり、開いたばかりの書く欄が閉じていた（表の大きさのます目：学生の試し 3回目 2026-10-29）
+ * 押してすぐのもう1回（ダブルクリックの2回目）を、しばらく受け止めて捨てる（押した所のまわりに透明な幕を置く）。
+ * 押したメニューが閉じたあと、2回目が紙面に当たり、開いたばかりの書く欄が閉じていた（表の大きさのます目：学生の試し 3回目 2026-10-29）。
+ * 幕は押した所のまわり（48px 四方）だけ。ほかの所をすぐ押したとき（表のマスなど）は、そのまま届く
  */
-export function swallowSecondClick(ms = 450): void {
+export function swallowSecondClick(at: { clientX: number; clientY: number }, ms = 450): void {
   const shield = document.createElement('div')
-  shield.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:transparent'
+  shield.style.cssText = `position:fixed;left:${at.clientX - 24}px;top:${at.clientY - 24}px;width:48px;height:48px;z-index:2147483647;background:transparent`
   shield.addEventListener('mousedown', (e) => e.preventDefault())
   document.body.append(shield)
   window.setTimeout(() => shield.remove(), ms)

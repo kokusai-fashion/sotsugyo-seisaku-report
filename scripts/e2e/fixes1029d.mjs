@@ -139,6 +139,24 @@ await withEdge(async (browser) => {
     await blur(page)
     check('「小見出し」をダブルクリックしても、小見出しは1つだけ増える', afterDbl === before + 1, JSON.stringify({ before, afterDbl }))
 
+    // 「大見出し」のダブルクリック（ページが2枚増えていた）
+    const chapters = () => page.evaluate(() => window.__editor.getSnapshot().report.body.length)
+    const chBefore = await chapters()
+    await editAt(page, ready, 'p3', 2)
+    const chTool = await page.evaluate(() => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.replace(/\s/g, '').endsWith('大見出し')); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+    await page.mouse.click(chTool.x, chTool.y, { count: 2 })
+    await wait(1500)
+    await ready()
+    const chAfter = await chapters()
+    await blur(page)
+    check('「大見出し」をダブルクリックしても、章は1つだけ増える', chAfter === chBefore + 1, JSON.stringify({ chBefore, chAfter }))
+    // 足した章を戻す（後ろの確かめの章の並びを変えないように）
+    for (let i = 0; i < 3 && (await chapters()) > chBefore; i++) {
+      await page.evaluate(() => window.__editor.undo())
+      await wait(500)
+      await ready()
+    }
+
     // 表の大きさのます目のダブルクリック
     await editAt(page, ready, 'p6', await lengthOf(page, 'p6'))
     const tableTool = await page.evaluate(() => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.includes('表を入れる')); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })

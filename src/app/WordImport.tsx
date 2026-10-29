@@ -830,6 +830,11 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   const coverDone = todo.coverChecked && coverMissing.length === 0
   const steps = [errors === 0, ...(problems.length > 0 ? [problemsDone] : []), todo.pagesChecked, coverDone]
   const allDone = steps.every(Boolean)
+  // 項目の説明は、次にする1つ（と、押して確かめている途中の項目）だけに出す。済んだ・まだ先の項目は名前だけの1行
+  // （一覧が右の欄の半分を占め、セルフチェックが1〜2行しか見えなかった：学生の試し 3回目 2026-10-29。依頼者の選択 mockups/v76 ② 案A）
+  const nextStep = steps.findIndex((done) => !done)
+  const pagesAt = problems.length > 0 ? 2 : 1
+  const say = (at: number, doing = false) => nextStep === at || doing
   const ask = useAsk()
   // まだ済んでいない項目があるときは、確かめてから閉じる（閉じると「読み込む前の原稿に戻す」も消え、もう出ない。
   // 前は × ですぐ閉じた：学生の試し 2026-10-29）
@@ -865,7 +870,8 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   return (
     <section className="word-todo" aria-label="Word から写したあとに、つぎにすること">
       <div className="hd">
-        <b>
+        {/* 写した日時は、マウスを乗せたときだけ（一覧を短くするため：mockups/v76 ② 案A） */}
+        <b title={`${when} に写しました`}>
           <WordIcon />
           Word から写しました
         </b>
@@ -875,7 +881,13 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
         </button>
       </div>
       <p>
-        {when} に写しました。{allDone ? 'すべて済みました。× で閉じてください。' : `次の${steps.length}つを確かめたら、移しかえは終わりです。`}
+        {allDone ? (
+          'すべて済みました。× で閉じてください。'
+        ) : (
+          <>
+            のこり <b>{steps.filter((done) => !done).length}つ</b>。済んだら、移しかえは終わりです
+          </>
+        )}
       </p>
       <ul>
         <li className={errors === 0 ? 'done' : ''}>
@@ -923,7 +935,7 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
           {box(todo.pagesChecked)}
           <div>
             <b>{hasFigures ? '図と改ページの位置を確かめる' : '改ページの位置を確かめる'}</b>
-            {!todo.pagesChecked && (
+            {!todo.pagesChecked && say(pagesAt, todo.pagesSeen) && (
               <small>
                 {todo.pagesSeen
                   ? `最後のページまで見て、${hasFigures ? '図と改ページ' : '改ページ'}の位置がよければ「確かめた」を押します`
@@ -949,7 +961,7 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
           {box(coverDone)}
           <div>
             <b>表紙を確かめる</b>
-            {!coverDone && (
+            {!coverDone && say(pagesAt + 1, todo.coverSeen) && (
               <small>
                 {coverMissing.length > 0 && todo.coverSeen
                   ? `${coverMissing.join('・')}が空です。表紙に入れてから「確かめた」を押します`

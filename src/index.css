@@ -485,6 +485,8 @@ body.resizing .page-viewport { pointer-events: none; }
 .p-nav .add .plus { width: 42px; height: 30px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; }
 .p-nav .add .plus svg { width: 20px; height: 20px; }
 .p-nav .badge { position: absolute; top: 6px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--error); color: #fff; font-size: 10px; font-style: normal; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--panel-bg); }
+/* 黄色の要確認だけのときの点（見本 mockups/v76 ③ 案A の色。紙面の要確認の色（--warn）は小さな点では茶色に見えるため） */
+.p-nav .badge.warn-dot { top: 8px; left: calc(50% + 7px); min-width: 0; width: 11px; height: 11px; padding: 0; background: #e0a100; }
 
 /* 下から出る書く欄（キーボードのすぐ上） */
 .edit-sheet { position: fixed; z-index: 30; left: 0; right: 0; bottom: var(--kb, 0px); display: none; padding-bottom: env(safe-area-inset-bottom); background: #fff; border-radius: 16px 16px 0 0; box-shadow: 0 -8px 24px rgba(30, 25, 20, 0.14); }
@@ -970,8 +972,9 @@ body.resizing .page-viewport { pointer-events: none; }
 .word-todo .hd svg { width: 17px; height: 17px; flex: none; }
 .word-todo .x { position: relative; margin-left: auto; padding: 0 2px; border: 0; background: none; font-size: 18px; line-height: 1; color: var(--muted); }
 /* 狭い欄の文は、言葉の途中で折り返さない（「あり／ます」にしない） */
-.word-todo > p { margin: 2px 0 8px; color: var(--muted); word-break: auto-phrase; text-wrap: pretty; }
-.word-todo ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.word-todo > p { margin: 1px 0 6px; color: var(--muted); word-break: auto-phrase; text-wrap: pretty; }
+.word-todo > p b { color: var(--accent); }
+.word-todo ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .word-todo li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: start; }
 .word-todo .box { display: grid; place-items: center; width: 16px; height: 16px; margin-top: 1px; border: 1.5px solid #aeb3c2; border-radius: 4px; color: #fff; }
 .word-todo .box svg { width: 12px; height: 12px; stroke-width: 2.4; }

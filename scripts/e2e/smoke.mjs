@@ -3070,7 +3070,7 @@ async function wordImportCheck(browser) {
   const coverDone = await coverItem()
   check('表紙のページを開くと「表紙を確かめる」のボタンが「確かめた」になり、押すと ✓ が付く（開いただけでは付かない）', coverOpened.cls !== 'done' && coverOpened.button === '確かめた' && coverDone.cls === 'done', JSON.stringify({ coverOpened, coverDone }))
   // 「改ページの位置を確かめる」：図の大きさが Word と変わり改ページがずれることを知らせ、「本文へ」で本文の最初のページへ。「確かめた」で ✓（依頼者 2026-10-23）
-  const pagesItem = () => page.evaluate(() => { const li = [...document.querySelectorAll('.side .word-todo li')].find((x) => x.textContent.includes('改ページの位置を確かめる')); return { cls: li?.className, button: li?.querySelector('button')?.textContent ?? '', note: li?.querySelector('small')?.textContent ?? '' } })
+  const pagesItem = () => page.evaluate(() => { const li = [...document.querySelectorAll('.side .word-todo li')].find((x) => x.textContent.includes('改ページの位置を確かめる')); const items = [...document.querySelectorAll('.side .word-todo > ul > li')]; return { cls: li?.className, button: li?.querySelector('button')?.textContent ?? '', note: li?.querySelector('small')?.textContent ?? '', earlierLeft: items.slice(0, items.indexOf(li)).some((x) => !x.classList.contains('done')) } })
   const pagesFirst = await pagesItem()
   await clickButton('.side .word-todo .go', '本文へ')
   await pause(700)
@@ -3080,8 +3080,8 @@ async function wordImportCheck(browser) {
   await pause(300)
   const pagesDone = await pagesItem()
   check(
-    '「改ページの位置を確かめる」は、改ページがずれることを知らせ、「本文へ」で本文の最初のページへ移り、「確かめた」で ✓ が付く',
-    /位置がずれることがあります。全ページを見て/.test(pagesFirst.note) && pagesFirst.button === '本文へ' && pagesOpened.kind === 'body' && pagesOpened.button === '確かめた' && pagesOpened.cls !== 'done' && pagesDone.cls === 'done',
+    '「改ページの位置を確かめる」は、次にする項目のときだけ改ページがずれることを知らせ（mockups/v76 ② 案A）、「本文へ」で本文の最初のページへ移り、「確かめた」で ✓ が付く',
+    (pagesFirst.earlierLeft ? pagesFirst.note === '' : /位置がずれることがあります。全ページを見て/.test(pagesFirst.note)) && /最後のページまで見て/.test(pagesOpened.note) && pagesFirst.button === '本文へ' && pagesOpened.kind === 'body' && pagesOpened.button === '確かめた' && pagesOpened.cls !== 'done' && pagesDone.cls === 'done',
     JSON.stringify({ pagesFirst, pagesOpened, pagesDone }),
   )
   check('Word から読み込んだあと（案内を終えていない）は、指差し確認を出さない', !(await page.$('.tour')))
