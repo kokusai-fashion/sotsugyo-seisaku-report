@@ -77,3 +77,14 @@ describe('箇条書きにも使う形の行（listItemLine。PC の試し 2026-1
     for (const line of ['Ⅲ．まとめ', 'ⅱ．袖の刺繍', 'iiiスカート', '第4章 考察', '本文の段落である。']) expect(listItemLine(line), line).toBe(false)
   })
 })
+
+describe('「2-1 仮縫い」の形（学生の試し 2回目 2026-10-29）', () => {
+  it('章-節の番号の行は、打って Enter で小見出しにする。「2.5cm」などの文はしない', () => {
+    expect(typedHeading('2-1 パターンと仮縫い')).toEqual({ level: 2, title: 'パターンと仮縫い' })
+    expect(typedHeading('2.1　仮縫い')).toEqual({ level: 2, title: '仮縫い' })
+    expect(typedHeading('2-1パターン')).toEqual({ level: 2, title: 'パターン' })
+    expect(typedHeading('2.5cm短くした')).toBeNull()
+    expect(typedHeading('2-3cm幅のテープ')).toBeNull()
+    expect(headingFromText('2-1 パターンと仮縫い')).toBeNull()
+  })
+})

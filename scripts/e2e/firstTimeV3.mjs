@@ -371,7 +371,8 @@ export async function firstTimeV3Pc(browser, check) {
   await ready()
   check(
     'はじめて「。」を自動で付けたとき、「段落の終わりに「。」を付けました（Backspace で取り消せます）」と出る（2回目からは出さない）',
-    periodToast === '段落の終わりに「。」を付けました（Backspace で取り消せます）' && secondId === periodId,
+    // 2回目は新しい知らせを出さない（前の知らせは、ほかの欄を書き始めたら消える：学生の試し 2回目 2026-10-29）
+    periodToast === '段落の終わりに「。」を付けました（Backspace で取り消せます）' && (secondId === periodId || secondId === null),
     JSON.stringify({ periodToast, periodId, secondId }),
   )
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p16' && b.type === 'paragraph' ? { ...b, content: [{ type: 'text', text: '制作を通して、舞台衣装は客席からの見え方と演者の動きやすさの両方を考える必要があることを学んだ。この経験を、今後の衣装制作に生かしたい。' }] } : b)) })) })))

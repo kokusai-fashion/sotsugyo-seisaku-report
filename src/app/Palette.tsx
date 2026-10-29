@@ -271,7 +271,8 @@ function ZoomTip({ snap }: { snap: EditorSnapshot }) {
       // この端末に残せなくても、開いている間は出さない
     }
   }, [closed, zoomedIn])
-  if (closed || zoomedIn || snap.spread || window.innerHeight > ZOOM_TIP_HEIGHT) return null
+  // 書いている間は隠す（紙面の最後の2〜3行の右半分に重なっていた：学生の試し 2026-10-29。書き終えたら、また出す）
+  if (closed || zoomedIn || snap.spread || snap.editingId || window.innerHeight > ZOOM_TIP_HEIGHT) return null
   const close = () => {
     setClosed(true)
     try {

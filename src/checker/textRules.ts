@@ -217,7 +217,8 @@ export const TEXT_RULES: TextRule[] = [
     find: (text) => {
       const t = text.replace(/[\s　]+$/, '')
       // 箇条書きの形の行（「1．ミシン」「（1）素材」「①素材」「■まとめ」）は、「。」を付けなくてよい（PC の試し 2026-10-25）
-      if (!t || /[。！？!?]$/.test(t) || LIST_ITEM.test(t)) return []
+      // 「：」（次に並べる行の前置き）・「…」で終えた段落も、「。」を求めない（「完了」・Esc で付ける「。」と同じ：reportOps.ts の withPeriod）
+      if (!t || /[。！？!?：:…‥]$/.test(t) || LIST_ITEM.test(t)) return []
       return [{ start: t.length - 1, end: t.length, replacement: `${t[t.length - 1]}。`, detail: '段落の終わりに「。」を打つ' }]
     },
   },

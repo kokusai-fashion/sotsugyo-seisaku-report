@@ -344,7 +344,13 @@ function LandTip({ hidden }: { hidden: boolean }) {
       // 覚えられなくても動く（次も出る）
     }
     const timer = window.setTimeout(() => setDone(true), LAND_TIP_MS)
-    return () => window.clearTimeout(timer)
+    // 打ち始めたら消す（iPhone SE の横向きで、書いている行に重なっていた：学生の試し 2026-10-29）
+    const typed = () => setDone(true)
+    document.addEventListener('input', typed, true)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('input', typed, true)
+    }
   }, [visible])
   if (!visible) return null
   return (
@@ -398,7 +404,7 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
           </p>
         )}
         {/* 大見出しの入る場所（その章のいちばん後ろ）を書いておく（打って作る「Ⅱ．〇〇」はその場で分かれ、入る場所が違うため。依頼者の選択 2026-10-24 mockups/v53 ⑤ 案B） */}
-        {addOpen && <p className="db-hint db-add-note">大見出しは、この章のいちばん後ろに新しい章を足します（小見出し・改ページは、書いている所の後ろ）</p>}
+        {addOpen && <p className="db-hint db-add-note">大見出しは、この章のいちばん後ろに新しい章を足します（小見出しは書いている所の後ろ。改ページは書いている段落の後ろで、次のページから続けて書けます）</p>}
         {addOpen && (
           <div className="db-row db-add" role="group" aria-label="書いている所の後ろに入れる">
             {/* 大きい順（大見出し → 小見出し）。下のタブの「追加」と同じ並び */}

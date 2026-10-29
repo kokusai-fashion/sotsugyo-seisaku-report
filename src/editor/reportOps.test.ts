@@ -846,3 +846,20 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(order(ops.moveFigureRow(r1, 'f1', 'sectionEnd'))).toEqual(['p1', 'p2', 'p3', 'r1'])
   })
 })
+
+describe('学生の試し 2回目（2026-10-29）の直し', () => {
+  it('「：」「…」で終えた文には「。」を足さない', () => {
+    expect(ops.withPeriod('使った材料は次のとおり：')).toBe('使った材料は次のとおり：')
+    expect(ops.withPeriod('そして…')).toBe('そして…')
+    expect(ops.withPeriod('縫った')).toBe('縫った。')
+  })
+
+  it('すぐ前が改ページの段落（pageBreakBefore）', () => {
+    const r = demoReport()
+    const chapter = r.body[0]
+    const [first, second] = chapter.blocks.filter((b) => b.type === 'paragraph')
+    const withBreak = ops.insertAfter(r, first.id, { type: 'pageBreak', id: 'pb-x' })
+    expect(ops.pageBreakBefore(withBreak, second.id)).toBe(chapter.blocks[chapter.blocks.indexOf(second) - 1].id === first.id ? 'pb-x' : null)
+    expect(ops.pageBreakBefore(r, second.id)).toBeNull()
+  })
+})

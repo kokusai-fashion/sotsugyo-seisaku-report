@@ -24,6 +24,11 @@ export interface OutlineItem {
   tables: string[]
   /** Word ではまだ書いていないため、ツールのひな形から続ける章（大見出しだけ） */
   fromTemplate?: boolean
+  /**
+   * Word ではまだ書いていない章で、ツールで書いた同じ名前の章があるので、ツールで書いたまま残す（fromTemplate と一緒に付く。
+   * 前はひな形に戻り、ツールで書いた分が消えた：学生の試し 2026-10-29）
+   */
+  keptFromTool?: boolean
   /** 読み取れなかった所がある（確認の窓で、その行に印を付ける） */
   problem?: boolean
 }

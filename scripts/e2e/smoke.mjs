@@ -1034,12 +1034,10 @@ await withEdge(async (browser) => {
   check('参照していない図の指摘が出ない', !s.findings.some((x) => x.ruleId === 'figure-unreferenced'))
   await page.keyboard.press('Escape')
   await ready()
-  // 元に戻す1回で、作った段落だけが消える（図とタイトルは残る）
-  await page.evaluate(() => window.__editor.undo())
-  await ready()
+  // 何も書かずに離れると、作った段落だけが消える（図とタイトルは残る。空の段落が図の下に残らない：学生の試し 2回目 2026-10-29）
   s = await snap()
   const undoneFlat = s.report.body.flatMap((c) => c.blocks)
-  check('元に戻す1回で、図のタイトルの Enter で作った段落だけが消える（タイトルは残る）', !undoneFlat.some((b) => b.id === afterFigure?.id) && undoneFlat.find((b) => b.id === group?.id)?.figures[0].caption === 'デザイン画', JSON.stringify(undoneFlat.slice(pIndex, pIndex + 3).map((b) => b.id)))
+  check('図のタイトルの Enter で作った段落に何も書かずに離れると、その段落だけが消える（タイトルは残る）', !undoneFlat.some((b) => b.id === afterFigure?.id) && undoneFlat.find((b) => b.id === group?.id)?.figures[0].caption === 'デザイン画', JSON.stringify(undoneFlat.slice(pIndex, pIndex + 3).map((b) => b.id)))
 
   // 図を選んで「もう1枚」：すぐ後ろに入り、横に並び、本文に（図2）が入る
   const figAt = await page.evaluate(() => {
@@ -1252,9 +1250,7 @@ await withEdge(async (browser) => {
   check('マスが埋まっていれば、表のタイトルで Enter を押すと、表の後ろに新しい段落ができて、そこで書ける', afterTable?.type === 'paragraph' && s.editingId === afterTable.id && tableFlat.find((b) => b.id === tableBlock.id).caption === '使用した生地', JSON.stringify({ editing: s.editingId, after: afterTable?.id }))
   await page.keyboard.press('Escape')
   await ready()
-  await page.evaluate(() => window.__editor.undo())
-  await ready()
-  check('元に戻す1回で、表の後ろに作った段落が消える', !(await snap()).report.body.flatMap((c) => c.blocks).some((b) => b.id === afterTable?.id))
+  check('表の後ろに作った段落に何も書かずに離れると、その段落は消える', !(await snap()).report.body.flatMap((c) => c.blocks).some((b) => b.id === afterTable?.id))
   // ---- ます目で 3列×4行を押して入れる。元に戻す・やり直す（mockups/v35 ④ 案A：道具のいちばん下の2つのボタン・Ctrl+Z／Ctrl+Y／Ctrl+Shift+Z） ----
   {
     const bodyKey = () => snap().then((x) => JSON.stringify(x.report.body))

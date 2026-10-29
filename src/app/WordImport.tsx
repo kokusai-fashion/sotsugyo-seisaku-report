@@ -13,7 +13,7 @@ import { countOf } from '../checker/progress'
 import { useBusy, useSlow } from './useBusy'
 import { Modal } from './dialogs'
 import { Icon } from './icons'
-import type { WordTodo } from './useWordTodo'
+import { importedPrints, type WordTodo } from './useWordTodo'
 import { Keep } from './keepPhrases'
 import { useAsk } from './ask'
 
@@ -233,7 +233,7 @@ interface DialogProps {
    * 「読み込む」：控えを残して原稿に写す（終わったら呼んだ側が窓を閉じる。失敗したら投げる）。
    * courseId：表紙の Word のコースに変えるとき（確認の窓で学生が選んだとき）、そのコース。result は、そのコースで読み取ったもの
    */
-  onImport: (result: WordImportResult, courseId?: string) => Promise<void>
+  onImport: (result: WordImportResult, courseId?: string, fileName?: string) => Promise<void>
   onClose: () => void
   /** ログインしたアカウントの学籍番号（学生のとき）。表紙の Word の学籍番号と違えば、確認の窓で赤く出す */
   accountStudentId?: string | null
@@ -280,9 +280,9 @@ export function WordImportDialog({ config, report, onImport, onClose, accountStu
   /** 読み取る（forCourse：そのコースのひな形・サブタイトルの形で読む） */
   const readAs = async (forCourse: string): Promise<ReadResult | null> => {
     if (!files.body) return null
-    const { readWordFiles, lostByImport } = await loadWordReader()
-    const r = await readWordFiles({ body: files.body, cover: files.cover }, { config, courseId: forCourse })
-    return { result: r, lost: lostByImport(report, r.body) }
+    const { readWordFiles, lostByImport, keepWrittenChapters } = await loadWordReader()
+    const r = keepWrittenChapters(report, await readWordFiles({ body: files.body, cover: files.cover }, { config, courseId: forCourse }))
+    return { result: r, lost: lostByImport(report, r.body, importedPrints()) }
   }
 
   const read = async () => {
@@ -365,7 +365,7 @@ export function WordImportDialog({ config, report, onImport, onClose, accountStu
             setBusy('importing')
             setError(null)
             try {
-              await onImport(result, mismatch && choice === 'word' ? wordCourse : undefined)
+              await onImport(result, mismatch && choice === 'word' ? wordCourse : undefined, files.body?.name)
             } catch (e) {
               // 原稿を入れ替える前に止まったので、原稿はそのまま。この端末の空き容量が足りないときなどに起きる
               setError(`読み込めませんでした（原稿はそのままです）。もう一度「読み込む」を押してください。直らないときは、この端末の空き容量を確かめてください。（くわしく：${e instanceof Error ? e.message : String(e)}）`)
@@ -464,14 +464,16 @@ function Outline({ outline, untitled, lost }: { outline: OutlineItem[]; untitled
         // （前は、いちばん下の囲みにしか書いていなかった。学生の試し 2026-10-24。mockups/v53 ⑧）
         const replaced = !item.fromTemplate && item.level === 1 ? lost.find((l) => l.title.trim() === title) : undefined
         return (
-          <li key={i} className={`${item.level === 1 ? 'ch' : 'sh'}${item.fromTemplate ? ' tpl' : ''}${gone ? ' lost' : ''}${item.problem ? ' problem' : ''}`}>
+          <li key={i} className={`${item.level === 1 ? 'ch' : 'sh'}${item.fromTemplate && !item.keptFromTool ? ' tpl' : ''}${gone ? ' lost' : ''}${item.problem ? ' problem' : ''}`}>
             <span className="ttl">
               {labels[i]}
               {title || <span className="noname">{item.level === 1 ? '（名前のない大見出し）' : '（名前のない小見出し）'}</span>}
             </span>
             {item.fromTemplate ? (
               <span className="cnt">
-                {gone ? (
+                {item.keptFromTool ? (
+                  'ツールで書いたまま残す'
+                ) : gone ? (
                   <>
                     ツールで書いた<span className="nb">{lostCounts(gone)}</span>は消えます
                   </>
@@ -577,7 +579,7 @@ function WordConfirm({
 
   const { counts, cover, problems } = result
   const untitled = new Set(result.figures.filter((f) => !f.caption.trim()).map((f) => f.label))
-  const fromTemplate = result.outline.some((o) => o.fromTemplate)
+  const fromTemplate = result.outline.some((o) => o.fromTemplate && !o.keptFromTool)
   // 本文から写せるものが何もない（表紙の Word を本文に選んだなど）：写すと本文がひな形だけになるので、読み込ませない
   const nothing = !result.outline.some((o) => !o.fromTemplate) && counts.paragraphs === 0 && counts.figures === 0 && counts.tables === 0
   const course = findCourse(config, courseId)
@@ -809,10 +811,27 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   // 下の「直すところ」のエラーの数（下の「チェック」の赤い数と同じ）。前はすべてのエラー（本文のページ・抄録・作品写真など、
   // 「進み具合」の側に出るものも）を数え、「あと6件（下の一覧）」なのに「直すところ 0」と食い違っていた（学生の試し 2026-10-24）
   const errors = checkSummary(snap, config).errors
-  const figures = snap.report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures : []))
+  // 見る図は、写した図だけ（写したあとにツールで足した図は入れない）。紙面の順に並べる
+  const allFigures = snap.report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures : []))
+  const imported = todo.figureIds ? new Set(todo.figureIds) : null
+  const figures = imported ? allFigures.filter((f) => imported.has(f.id)) : allFigures
   const seen = Math.min(todo.figuresSeen, figures.length)
   const figuresDone = seen >= figures.length
-  const steps = [errors === 0, ...(figures.length > 0 ? [figuresDone] : []), todo.pagesChecked, todo.coverChecked]
+  const problems = todo.problems ?? []
+  const problemsDone = !!todo.problemsChecked
+  // 表紙の空いている項目（空のまま「確かめた」で済みにならないように：学生の試し 2026-10-29）
+  const info = snap.report.basicInfo
+  const coverMissing = (
+    [
+      ['学籍番号', info.studentId],
+      ['氏名', info.name],
+      ['サブタイトル', info.subtitleInput],
+    ] as const
+  )
+    .filter(([, v]) => !v.trim())
+    .map(([label]) => label)
+  const coverDone = todo.coverChecked && coverMissing.length === 0
+  const steps = [errors === 0, ...(problems.length > 0 ? [problemsDone] : []), ...(figures.length > 0 ? [figuresDone] : []), todo.pagesChecked, coverDone]
   const allDone = steps.every(Boolean)
   const ask = useAsk()
   // まだ済んでいない項目があるときは、確かめてから閉じる（閉じると「読み込む前の原稿に戻す」も消え、もう出ない。
@@ -877,9 +896,10 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
           <div>
             <b>セルフチェックのエラーを直す</b>
             <small>
+              {/* 下の「直すところ」には要確認（黄）も並ぶので、赤いエラーの数だと分かるように（「あと1件」と「直すところ 3」が食い違って見えた：学生の試し 2026-10-29） */}
               {errors > 0 ? (
                 <>
-                  あと <em>{errors}件</em>（下の「直すところ」）
+                  あと <em>{errors}件</em>（下の「直すところ」の赤いエラー）
                 </>
               ) : (
                 'エラーはありません'
@@ -888,6 +908,36 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
           </div>
           <span />
         </li>
+        {problems.length > 0 && (
+          <li className={problemsDone ? 'done' : ''}>
+            {box(problemsDone)}
+            <div>
+              <b>読み取れなかったところを直す</b>
+              {problemsDone ? (
+                <small>直しました</small>
+              ) : (
+                <details className="todo-problems">
+                  <summary>{countOf(problems.length)}（押して見る）</summary>
+                  <ul>
+                    {problems.map((p, i) => (
+                      <li key={i}>
+                        <WithFileNames text={p.message} />
+                        {p.where && <span className="where">場所：{p.where}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+            {problemsDone ? (
+              <span />
+            ) : (
+              <button className="go problems-ok" onClick={() => onUpdate({ ...todo, problemsChecked: true })}>
+                直した
+              </button>
+            )}
+          </li>
+        )}
         {figures.length > 0 && (
           <li className={figuresDone ? 'done' : ''}>
             {box(figuresDone)}
@@ -931,21 +981,23 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
             </button>
           )}
         </li>
-        <li className={todo.coverChecked ? 'done' : ''}>
-          {box(todo.coverChecked)}
+        <li className={coverDone ? 'done' : ''}>
+          {box(coverDone)}
           <div>
             <b>表紙を確かめる</b>
             <small>
-              {todo.coverChecked
+              {coverDone
                 ? '確かめました'
-                : todo.coverSeen
-                  ? 'コース・学籍番号・氏名・サブタイトルが合っていたら「確かめた」を押します'
-                  : 'コース・学籍番号・氏名・サブタイトルが合っているか'}
+                : coverMissing.length > 0 && todo.coverSeen
+                  ? `${coverMissing.join('・')}が空です。表紙に入れてから「確かめた」を押します`
+                  : todo.coverSeen
+                    ? 'コース・学籍番号・氏名・サブタイトルが合っていたら「確かめた」を押します'
+                    : 'コース・学籍番号・氏名・サブタイトルが合っているか'}
             </small>
           </div>
-          {todo.coverChecked ? (
+          {coverDone ? (
             <span />
-          ) : todo.coverSeen ? (
+          ) : todo.coverSeen && coverMissing.length === 0 ? (
             <button className="go cover-ok" onClick={confirmCover}>
               確かめた
             </button>

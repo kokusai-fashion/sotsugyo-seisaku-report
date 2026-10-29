@@ -136,7 +136,7 @@ describe('まだのところの行', () => {
     expect(notYetCount(list)).toBe(4)
     const min = plainConfig.body.minPages
     expect(list[0].value).toBe('氏名・サブタイトルがまだ')
-    expect(list[1]).toMatchObject({ value: `3ページ（${min}ページ以上。あと`, strong: String(min - 3), after: '）', target: { kind: 'area', area: 'body', last: true } })
+    expect(list[1]).toMatchObject({ value: `3ページ（${min}ページ以上。あと`, strong: String(min - 3), after: 'ページ）', target: { kind: 'area', area: 'body', last: true } })
     expect(list[1].bar).toBeCloseTo(3 / min)
     expect(list[2]).toMatchObject({ value: '書いていない段落 ', strong: String(templateParagraphs(r).length) })
     expect(list[3].value).toBe('まだ')
@@ -235,5 +235,23 @@ describe('作品写真が何ページかあるとき（mockups/v38 案A）', () 
 
   it('どのページにも写真がなければ、今までどおり「まだ」', () => {
     expect(done([{ layout: 4, imageIds: [] }, { layout: 1, imageIds: [] }])).toMatchObject({ state: 'todo', value: 'まだ' })
+  })
+})
+
+describe('抄録の行（学生の試し 2回目 2026-10-29）', () => {
+  const started = (text: string): Report => ({ ...fresh(plainConfig), abstract: { paragraphs: [{ type: 'paragraph', id: 'a1', content: [{ type: 'text', text }] }], started: true } })
+  const abstractRow = (r: Report, l: LayoutInfo) => progressRows(findingsOf(r, l, plainConfig), { report: r, config: plainConfig, layout: l }).find((x) => x.id === 'abstract')!
+  const { minChars, maxChars, minLines, maxLines } = plainConfig.abstract
+  it('範囲に入ったら、字数と行数を出す（✓）', () => {
+    const r = started('あ'.repeat(minChars + 10) + '。')
+    expect(abstractRow(r, layout({ abstractLines: minLines + 1 }))).toMatchObject({ state: 'done', value: `${minChars + 11}字・${minLines + 1}行` })
+  })
+  it('行が多すぎるときは ✓ にせず、何行多いかを出す（数えない）', () => {
+    const r = started('あ'.repeat(minChars + 10) + '。')
+    expect(abstractRow(r, layout({ abstractLines: maxLines + 3, abstractPages: 2 }))).toMatchObject({ state: 'info', value: `${maxLines + 3}行（${minLines}〜${maxLines}行。`, strong: '3', after: '行多い）' })
+  })
+  it('字が多すぎるときも、何字多いかを出す', () => {
+    const r = started('あ'.repeat(maxChars + 4) + '。')
+    expect(abstractRow(r, layout({ abstractLines: minLines + 1 }))).toMatchObject({ state: 'info', strong: '5', after: '字多い）' })
   })
 })

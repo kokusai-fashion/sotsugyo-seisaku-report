@@ -98,7 +98,9 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
   // 紙面の組み直し・画面の大きさ・キーボード・文字の読み込みなどで位置が変わるため、毎フレーム確かめ、変わったときだけ動かす
   useLayoutEffect(() => {
     let frame = 0
-    let last = ''
+    // はじめは null（段階が変わって、光を当てる欄がなくなったときも、前の段階の位置を消す。前は '' と比べて消さず、
+    // 最後の「表紙ができました」が、関係のない表のマスを光らせていた：学生の試し 2026-10-29）
+    let last: string | null = null
     const measure = () => {
       let el: HTMLElement | null | undefined = null
       if (field) {
@@ -148,12 +150,15 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
     if (!narrow && field && step !== 'course') editor.openWhenReady(field)
   }, [editor, narrow, field, step])
 
-  // 案内している欄を書き終えたら（入力欄を閉じたら）、次の段階へ
+  // 案内している欄を書き終えたら（入力欄を閉じたら）、次の段階へ。
+  // ページの絵などで表紙からほかのページへ移って閉じたときは、案内を閉じる（前は次の段階へ進み、表紙へ引き戻していた：学生の試し 2026-10-29）
   useEffect(() => {
     const was = prevEditing.current
     prevEditing.current = snap.editingId
-    if (field && step !== 'course' && was === field && snap.editingId !== field) onStep(NEXT[step])
-  }, [snap.editingId, field, step, onStep])
+    if (!field || step === 'course' || was !== field || snap.editingId === field) return
+    const leftCover = !!snap.layout && snap.layout.kinds[snap.page] !== 'cover'
+    onStep(leftCover ? null : NEXT[step])
+  }, [snap.editingId, snap.layout, snap.page, field, step, onStep])
 
   // 光を当てる欄。Word で書き始めているかを聞く段階は、どの欄も指さない（画面の真ん中に出し、紙面は一様に暗くする。mockups/v24 ① 案C）
   const spot = step === 'word' ? null : rect
@@ -302,8 +307,8 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
                 </span>
               </button>
             </div>
-            {/* パソコンも、右の欄の「メニュー」の中（mockups/v37 案C） */}
-            <span className="g-note">あとからでも、{narrow ? '「メニュー」' : '右上の「メニュー」'}の「Word で書いた分を読み込む」から読み込めます（今年度だけ）。</span>
+            {/* パソコンも、右の欄の「メニュー」の中（mockups/v37 案C）。スマホのメニューは ≡ だけなので、印も書く（学生の試し 2026-10-29） */}
+            <span className="g-note">あとからでも、{narrow ? '右上の ≡（メニュー）' : '右上の「メニュー」'}の「Word で書いた分を読み込む」から読み込めます（今年度だけ）。</span>
           </>
         )
       case 'studentId':

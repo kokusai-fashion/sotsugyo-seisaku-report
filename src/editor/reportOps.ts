@@ -153,8 +153,9 @@ export function normalizeParagraph(text: string): string {
  */
 export function withPeriod(text: string): string {
   const t = text.replace(/[\s　]+$/, '')
-  // 「．」「.」で終えた文（「Ⅲ．」と番号だけ打った行・英文など）にも、「。」は足さない
-  if (!t || /[。！？!?．.]$/.test(t)) return text
+  // 「．」「.」で終えた文（「Ⅲ．」と番号だけ打った行・英文など）にも、「。」は足さない。
+  // 「：」（次に並べる行の前置き）・「…」で終えた文にも足さない（Esc で「材料：。」になっていた：学生の試し 2026-10-29）
+  if (!t || /[。！？!?．.：:…‥]$/.test(t)) return text
   return /[、，,]$/.test(t) ? `${t.slice(0, -1)}。` : `${t}。`
 }
 
@@ -356,6 +357,17 @@ export function headingEndsChapter(report: Report, id: string): boolean {
   const chapter = report.body.find((c) => c.id === id)
   if (chapter) return chapter.blocks.length === 0
   return report.body.some((c) => c.blocks.at(-1)?.type === 'subheading' && c.blocks.at(-1)?.id === id)
+}
+
+/** 本文のブロック id のすぐ前（同じ章の中）が改ページなら、その改ページの ID。なければ null（段落の頭の Backspace で、改ページを消す） */
+export function pageBreakBefore(report: Report, id: string): string | null {
+  for (const c of report.body) {
+    const i = c.blocks.findIndex((b) => b.id === id)
+    if (i < 0) continue
+    const prev = c.blocks[i - 1]
+    return prev?.type === 'pageBreak' ? prev.id : null
+  }
+  return null
 }
 
 /** 段落の先頭で Backspace：前の段落とつなげる。前が段落でなければ null */

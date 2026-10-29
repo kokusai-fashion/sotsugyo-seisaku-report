@@ -442,7 +442,8 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
             />
           </p>
           <DriveLine state={drivePdf} />
-          <button className="primary pdf-save" data-autofocus onClick={() => void share(pdf)}>
+          {/* 保存したあとは「閉じる」を濃くする（濃いボタンが「もう一度保存する」のままで、まだ保存していないように見えた：学生の試し 2026-10-29） */}
+          <button className={saved ? 'pdf-save' : 'primary pdf-save'} data-autofocus={saved ? undefined : true} onClick={() => void share(pdf)}>
             {Icon.share}
             {saved ? 'もう一度保存する' : '保存する'}
           </button>
@@ -451,7 +452,9 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
               PDF を開く
             </button>
             <span className="spacer" />
-            <button onClick={onClose}>閉じる</button>
+            <button className={saved ? 'primary' : undefined} onClick={onClose}>
+              閉じる
+            </button>
           </div>
         </Modal>
       )

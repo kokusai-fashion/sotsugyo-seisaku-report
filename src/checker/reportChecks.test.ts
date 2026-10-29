@@ -521,3 +521,28 @@ describe('本文の段落に、見出しの形で打っている途中（「Ⅲ�
     expect(typedHeadingNumber('Ⅱⅱ', null)).toBeNull()
   })
 })
+
+describe('学生の試し 2回目（2026-10-29）の直し', () => {
+  it('抄録の行が多すぎて1ページに収まらないときは、何行多いかを書いた1件だけ', () => {
+    const r = cleanReport()
+    const over = checkReport(r, currentConfig, layout({ abstractLines: 26, abstractPages: 2 }))
+    expect(over.filter((f) => f.ruleId.startsWith('abstract-')).map((f) => f.ruleId)).toEqual(['abstract-lines'])
+    expect(over.find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 26行（3行多い。文を短くするか、段落をまとめて減らします）')
+    expect(checkReport(r, currentConfig, layout({ abstractLines: 12 })).find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 12行（あと3行）')
+  })
+
+  it('学籍番号の形の要確認に、どの形が正しいかを書く', () => {
+    const r = cleanReport()
+    const bad = { ...r, basicInfo: { ...r.basicInfo, studentId: 'あいう' } }
+    expect(checkReport(bad, currentConfig, layout()).find((f) => f.ruleId === 'student-id-format')?.detail).toBe('大学のメールアドレスの @ の前と同じ形（数字2けた＋英字2〜3字＋数字3〜4けた）か確かめます')
+  })
+
+  it('「：」「…」で終えた段落には「文末に「。」」を言わない', () => {
+    const r = cleanReport()
+    const p = r.body[0].blocks.find((b) => b.type === 'paragraph')!
+    for (const end of ['使った材料は次のとおり：', 'そして…']) {
+      const ended = { ...r, body: r.body.map((c, i) => (i === 0 ? { ...c, blocks: c.blocks.map((b) => (b.id === p.id ? { ...b, content: [{ type: 'text' as const, text: end }] } : b)) } : c)) }
+      expect(checkReport(ended, currentConfig, layout()).some((f) => f.ruleId === 'sentence-end' && f.blockId === p.id)).toBe(false)
+    }
+  })
+})

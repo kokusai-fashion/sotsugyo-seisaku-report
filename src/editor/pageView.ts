@@ -1,5 +1,6 @@
 import { CoreViewer } from '@vivliostyle/core'
 import { pageKind, type PageKind } from '../layout/measure'
+import { includeClosing } from './rangeSelection'
 
 /**
  * 組版エンジン（Vivliostyle）1つ分。報告書の一部（表紙・抄録・目次・本文から後ろ）の HTML 文書を組んで表示する。
@@ -211,8 +212,11 @@ export class PageView {
 
   /** 画面上の点から、ブロック ID と文字位置を求める */
   offsetFromPoint(x: number, y: number): { blockId: string; offset: number } | null {
-    const pos = document.caretPositionFromPoint?.(x, y)
-    const node = pos?.offsetNode
+    const found = document.caretPositionFromPoint?.(x, y)
+    // 文の終わりの「。」などの上・行末にぶら下げた「。」の右を押したら、その字の後ろ（前は「。」の前にカーソルが来て、
+    // 書き足した文が「。」の前に入った：学生の試し 2026-10-29）
+    const pos = found ? includeClosing({ node: found.offsetNode, offset: found.offset }, x, y) : null
+    const node = pos?.node
     const element = node instanceof Element ? node : node?.parentElement
     const block = element?.closest<HTMLElement>('[data-block-id]')
     if (!pos || !node || !block) return null

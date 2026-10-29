@@ -926,6 +926,8 @@ body.resizing .page-viewport { pointer-events: none; }
 .word-figs img, .word-figs .noimg { display: block; width: 100%; aspect-ratio: 3 / 4; border: 1px solid var(--line); border-radius: 6px; background: #f6f4ef; object-fit: contain; }
 .word-figs .noimg { display: grid; place-items: center; padding: 4px; font-size: 11px; text-align: center; color: var(--warn); }
 .word-figs figcaption { margin-top: 4px; font-family: 'BIZ UDMincho', serif; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+/* 図の欄は3つに分けて狭いので、かっこ書き（「（スマホで縦に撮った写真）」）も途中で折り返す（右にはみ出し、窓に横のスクロールバーが出ていた：学生の試し 2026-10-29） */
+.word-figs figcaption .nb { white-space: normal; }
 .word-figs .problem img, .word-figs .problem .noimg { outline: 2px solid var(--warn); outline-offset: 1px; }
 .word-figs .problem figcaption { font-family: 'BIZ UDPGothic', sans-serif; font-weight: 700; color: var(--warn); }
 .word-tbl { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
@@ -975,6 +977,12 @@ body.resizing .page-viewport { pointer-events: none; }
 .word-todo li small em { font-style: normal; font-weight: 700; color: var(--error); }
 .word-todo .go { position: relative; align-self: center; padding: 2px 10px; border: 1px solid var(--accent); border-radius: 999px; background: transparent; color: var(--accent); font-size: 11.5px; white-space: nowrap; }
 .word-todo .go:hover { background: var(--accent); color: var(--accent-ink); }
+/* 読み取れなかったところ（確かめる窓と同じ中身。押すと開く。学生の試し 2026-10-29） */
+.word-todo .todo-problems summary { width: fit-content; font-size: 11.5px; color: var(--accent); cursor: pointer; }
+.word-todo .todo-problems ul { gap: 4px; margin: 4px 0 0; padding-left: 2px; }
+.word-todo .todo-problems li { display: block; font-size: 11.5px; color: var(--ink); }
+.word-todo .todo-problems li::before { content: '・'; }
+.word-todo .todo-problems .where { display: block; padding-left: 1em; color: var(--muted); }
 .word-todo .undo { position: relative; display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 11.5px; text-decoration: underline; text-underline-offset: 3px; }
 .word-todo .undo:hover { color: var(--accent); }
 .word-todo .undo svg { width: 15px; height: 15px; }
@@ -1679,8 +1687,11 @@ button.row { cursor: pointer; }
 .direct-bar .db-row button.danger { color: var(--error); }
 /* 書いている間の「削除」（段落・見出しごと消す）は、帯の左の端へ（「完了」のすぐ左にあり、360px の画面では間が 2px で押し間違えやすかった。
    ダブルタップの2回目が次のページへめくることもあった：学生の試し 2026-10-29。依頼者の選択 mockups/v73 ③ 案A） */
-.direct-bar .db-row:not(.db-add):not(.db-table) > button.danger { order: -1; margin-right: auto; }
+.direct-bar .db-row:not(.db-add):not(.db-table) > button.danger { order: -2; margin-right: auto; }
+/* 「削除」と「戻す」の間を、狭い画面でも 12px あける（Android 360px で 2px だった：学生の試し 2回目 2026-10-29）。その分「完了」の左右を詰める */
+.direct-bar .db-row:not(.db-add):not(.db-table):has(> button.danger)::before { content: ''; order: -1; flex: none; width: 8px; }
 .direct-bar .db-row .db-done { margin-left: auto; flex-direction: row; padding: 0 18px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; border-radius: 10px; }
+@media (max-width: 380px) { .direct-bar .db-row .db-done { padding: 0 10px; } }
 /* 表の道具の段（mockups/v45 案A）：画面の幅に入る1段（横にずらさない）。行・列を足す・消す・画像・表の形・表を削除を、同じ幅に並べる（どれも 44px 以上）。
    「画像を外す」だけは「画像を／外す」の2行（言葉の切れ目で折り返す） */
 .direct-bar .db-table { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; margin-top: 2px; padding-top: 3px; border-top: 1px solid var(--line); }

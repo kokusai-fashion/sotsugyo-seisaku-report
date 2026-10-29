@@ -152,7 +152,7 @@ export function progressRows(findings: ReportFinding[], ctx: ProgressContext, pe
   if (pending) rows.push({ id: 'bodyPages', label: '本文のページ', state: 'pending', value: '確かめています…', target: lastBody })
   else if (of('body-pages').length && bodyPages < min)
     // 「6 / 5ページ」は「5ページ中6ページ（超えている）」とも読めたので、最低の数だと分かる言い方に（学生の試し 2026-10-29。mockups/v73 ⑥）
-    rows.push({ id: 'bodyPages', label: '本文のページ', state: 'todo', value: `${bodyPages}ページ（${min}ページ以上。あと`, strong: String(min - bodyPages), after: '）', bar: bodyPages / min, target: lastBody })
+    rows.push({ id: 'bodyPages', label: '本文のページ', state: 'todo', value: `${bodyPages}ページ（${min}ページ以上。あと`, strong: String(min - bodyPages), after: 'ページ）', bar: bodyPages / min, target: lastBody })
   else rows.push({ id: 'bodyPages', label: '本文のページ', state: 'done', value: `${bodyPages}ページ（${min}ページ以上）`, target: lastBody })
 
   // 本文の段落（ひな形の段落を、まだ書いていない。何段落あっても1行。図表のすぐ前の段落を書いていないための「図1を入れる」も、ここに含める）
@@ -190,6 +190,9 @@ export function progressRows(findings: ReportFinding[], ctx: ProgressContext, pe
   const { minChars, maxChars, minLines, maxLines } = config.abstract
   const short = of('abstract-length')[0]
   const fewLines = of('abstract-lines')[0]
+  // 多すぎる（直すところ）：進み具合は ✓ にせず、何字・何行多いかを出す（数えない。前は「抄録 ✓」のままで、何行減らすか分からなかった：学生の試し 2026-10-29）
+  const tooLong = findings.find((f) => f.ruleId === 'abstract-length' && !test(f))
+  const tooManyLines = findings.find((f) => (f.ruleId === 'abstract-lines' || f.ruleId === 'abstract-one-page') && !test(f))
   if (report.abstract.started === false) rows.push({ id: 'abstract', label: '抄録', state: 'wait', value: '先生の許可のあと', target: abstractArea })
   else if (short) {
     const chars = abstractCharCount(report)
@@ -200,7 +203,17 @@ export function progressRows(findings: ReportFinding[], ctx: ProgressContext, pe
     const lines = layout.abstractLines
     if (lines > maxLines) rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${lines}行（${minLines}〜${maxLines}行。`, strong: String(lines - maxLines), after: '行多い）', target: at(fewLines) })
     else rows.push({ id: 'abstract', label: '抄録', state: 'todo', value: `${lines}行（${minLines}〜${maxLines}行。あと`, strong: String(minLines - lines), after: '行）', bar: lines / minLines, target: at(fewLines) })
-  } else rows.push({ id: 'abstract', label: '抄録', state: 'done', value: '書いています', target: abstractArea })
+  } else if (tooLong) {
+    const chars = abstractCharCount(report)
+    rows.push({ id: 'abstract', label: '抄録', state: 'info', value: `${chars}字（${minChars}〜${maxChars}字。`, strong: String(chars - maxChars), after: '字多い）', target: at(tooLong) })
+  } else if (tooManyLines && layout) {
+    const lines = layout.abstractLines
+    rows.push({ id: 'abstract', label: '抄録', state: 'info', value: `${lines}行（${minLines}〜${maxLines}行。`, strong: String(Math.max(0, lines - maxLines)), after: '行多い）', target: at(tooManyLines) })
+  } else {
+    // 範囲に入った：字数・行数を出す（前は「書いています」だけで、あとどれだけ書けるか分からなかった：学生の試し 2026-10-29）
+    const chars = abstractCharCount(report)
+    rows.push({ id: 'abstract', label: '抄録', state: 'done', value: layout ? `${chars}字・${layout.abstractLines}行` : `${chars}字`, target: abstractArea })
+  }
 
   return rows
 }

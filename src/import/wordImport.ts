@@ -7,7 +7,7 @@ import { abstractEmpty, abstractHint, bodyFromTemplate, courseTemplate, emptyPar
 import { headingFromText, type HeadingText } from '../model/headingText'
 import type { BodyBlock, Chapter, ParagraphBlock, Report, TableBlock, TableRow } from '../model/types'
 import type { FigurePreview, ImportProblem, OutlineItem, TablePreview, WordFiles, WordImportResult } from './types'
-import { documentContext, readDocument, type ImageRef, type TextBox, type WordBlock, type WordTable } from './wordDocument'
+import { attr, documentContext, is, readDocument, type ImageRef, type TextBox, type WordBlock, type WordTable } from './wordDocument'
 import { browserReadable, imageFingerprint, imageInfo, KIND_NAMES, prepareImage, TEMPLATE_IMAGE_FINGERPRINTS } from './wordImages'
 import { openWordFile, WordImportError, type WordPackage } from './wordPackage'
 
@@ -570,9 +570,14 @@ function buildChapters(events: Event[]): DraftChapter[] {
         current().blocks.push(block)
         break
       }
-      case 'table':
-        current().blocks.push({ t: 'table', table: ev.table })
+      case 'table': {
+        // タイトルのない表：同じ見出しの中で、前に表の見つからなかったタイトルがあれば、その表のタイトルにする（タイトルと表の間に
+        // 段落があった。前は「表が見つかりませんでした」と出たのに、表はタイトルなしで写っていた：学生の試し 2026-10-29）
+        const lost = current().lostTableCaptions
+        const caption = ev.table.caption ?? lost.shift() ?? null
+        current().blocks.push({ t: 'table', table: caption === ev.table.caption ? ev.table : { ...ev.table, caption } })
         break
+      }
       case 'boxText':
         current().boxTexts.push(ev.text)
         break
@@ -834,7 +839,11 @@ function readCoverRows(rows: string[][], config: YearConfig, courseId: string, p
   const template = findCourse(config, courseId)?.subtitleTemplate ?? '―{input}―'
   const cover: WordImportResult['cover'] = {}
   const studentId = findStudentId(rows)
-  const name = findName(rows)
+  // 氏名の後ろの読み仮名（「文化　花子（ぶんか　はなこ）」）は、表紙に入れない（前はそのまま表紙に入った：学生の試し 2026-10-29）
+  const named = findName(rows)
+  const reading = named ? /[\s　]*[（(][\s　ぁ-ゖァ-ヺー・]+[）)]$/.exec(named) : null
+  const name = reading && named ? named.slice(0, reading.index).trim() || named : named
+  if (reading && name !== named) problems.push({ message: '氏名の読み仮名は、表紙に入れません', detail: `表紙の氏名は「${name}」にします。`, where: '表紙' })
   const subtitleLine = findSubtitleLine(rows)
   const subtitle = subtitleLine ? subtitleFromWord(subtitleLine, template) : null
   const subtitleInput = subtitle?.input
@@ -933,6 +942,25 @@ export function chapterOrder(word: { title: string; position: number }[], templa
  * 読めないファイルは WordImportError（message は学生に分かる言葉）。
  * images: false：画像を縮めて取り出さない（図に画像があることだけを残す。提出前チェックで、確かめるだけのとき）
  */
+/**
+ * 本文の Word にあって、写さない・形を変えて写すもの（変更履歴・コメント・ふりがな・上付きと下付き・表の中の表）の知らせ。
+ * 前は知らせずに、変更履歴は承諾した形で写し、コメント・ふりがなは落とし、「m²」は「m2」にしていた（学生の試し 2026-10-29）
+ */
+export function documentNotes(doc: Document): ImportProblem[] {
+  const w = (name: string) => [...doc.getElementsByTagNameNS('*', name)].filter((el) => is(el, 'w', name))
+  const notes: ImportProblem[] = []
+  if (['ins', 'del', 'moveFrom', 'moveTo'].some((name) => w(name).length > 0))
+    notes.push({ message: '変更履歴が残っていました', detail: '変更を承諾した形（足した字は足し、消した字は消した形）で写します。違っていたら、読み込んだあとツールで直してください。' })
+  const comments = w('commentReference').length
+  if (comments > 0) notes.push({ message: `コメント（${comments}件）は写していません`, detail: 'Word のコメントは、ツールには入りません。' })
+  if (w('ruby').length > 0) notes.push({ message: 'ふりがな（ルビ）は写していません', detail: 'ふりがなを付けた字は、ふりがなを除いて写します。' })
+  if (w('vertAlign').some((el) => /^(superscript|subscript)$/.test(attr(el, 'val') ?? '')))
+    notes.push({ message: '上付き・下付きの字（m² など）は、ふつうの字で写しました', detail: '「m2」のようになります。読み込んだあと、ツールで「㎡」「平方メートル」などに直してください。' })
+  if (w('tc').some((cell) => [...cell.getElementsByTagNameNS('*', 'tbl')].some((el) => is(el, 'w', 'tbl'))))
+    notes.push({ message: '表の中の表は、表の形のままでは写せません', detail: '中の表の字は、外の表のマスに入ります。読み込んだあと、ツールで表を確かめてください。' })
+  return notes
+}
+
 export async function readWordFiles(files: WordFiles, context: { config: YearConfig; courseId: string; images?: boolean }): Promise<WordImportResult> {
   const { config, courseId } = context
   const problems: ImportProblem[] = []
@@ -1233,7 +1261,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       if (lines.length > 0)
         addProblem(ci, si, {
           message: `見出しの形でない行があります：${lines.slice(0, 2).map((t) => `「${t}」`).join('')}${lines.length > 2 ? `など${lines.length}行` : ''}`,
-          detail: '「Ⅰ．」「ⅰ．」の形でないため、ふつうの段落として写します。小見出しにするときは、読み込んだあと、ツールで直してください。',
+          detail: '「Ⅰ．」「ⅰ．」の形でないため、ふつうの段落として写します。小見出しにするときは、読み込んだあと、その行の終わりを押して Enter を押します。',
         })
       if (section.lostTableCaptions.length > 0)
         addProblem(ci, si, {
@@ -1298,6 +1326,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       detail: 'ひな形のまま（「〇〇〇〇」「～～～」）のようです。読み込むと、本文はツールのひな形になります。',
     })
 
+  problems.push(...documentNotes(bodyPkg.document))
   // 表紙の知らせは、本文の知らせの後ろ
   const orderOf = (p: ImportProblem) => problemOrder.get(p) ?? (p.where === '表紙' ? 2e9 : 1e9)
   problems.sort((a, b) => orderOf(a) - orderOf(b))
@@ -1376,6 +1405,45 @@ export function applyWordImport(report: Report, result: WordImportResult, course
   return abstractEmpty(renamed) ? { ...renamed, abstract: { ...renamed.abstract, paragraphs: [emptyParagraph(abstractHint(course.config, course.courseId))] } } : renamed
 }
 
+/** 章に、ツールで書いた中身（字のある段落・写真のある図・中身の行に字か画像のある表）があるか */
+function chapterWritten(chapter: Chapter): boolean {
+  return chapter.blocks.some((b) =>
+    b.type === 'paragraph'
+      ? !!comparableText(b.content)
+      : b.type === 'figureRow'
+        ? b.figures.some((f) => !!f.imageId)
+        : b.type === 'table' && b.rows.slice(1).some((r) => r.cells.some((c) => c.text.trim() || c.imageId)),
+  )
+}
+
+/**
+ * Word ではまだ書いていない章（ツールのひな形で続ける章）に、いまの原稿で同じ名前の章をツールで書いていれば、その章をそのまま残す。
+ * Ⅰ章だけ書いた Word を読み込み直すと、ツールで書いたⅡ・Ⅲ章がひな形に戻っていた（学生の試し 2026-10-29）
+ */
+export function keepWrittenChapters(report: Report, result: WordImportResult): WordImportResult {
+  const written = new Map(report.body.filter(chapterWritten).map((c) => [comparable(c.title), c]))
+  if (written.size === 0) return result
+  let ci = -1
+  let changed = false
+  const body = [...result.body]
+  const outline = result.outline.map((item) => {
+    if (item.level !== 1) return item
+    ci++
+    const mine = item.fromTemplate ? written.get(comparable(item.title)) : undefined
+    if (!mine || !body[ci]) return item
+    changed = true
+    body[ci] = mine
+    return { ...item, keptFromTool: true }
+  })
+  return changed ? { ...result, body, outline } : result
+}
+
+/** 読み込む本文のうち、Word から読んだ章の印（ツールで書いたまま残す章は入れない：keepWrittenChapters） */
+export function wordPrints(result: WordImportResult): string[] {
+  const kept = result.outline.filter((o) => o.level === 1).map((o) => !!o.keptFromTool)
+  return importPrints(result.body.filter((_, i) => !kept[i]))
+}
+
 /** Word を読み込むと消える、ツールで書いた本文（大見出しごと） */
 export interface LostChapter {
   /** 番号（Ⅰ．）と見出し（例「Ⅱ．制作過程」） */
@@ -1389,18 +1457,33 @@ export interface LostChapter {
 
 /** 比べるための文字（図表の参照・空白・句読点の違いは見ない） */
 const comparableText = (content: ParagraphBlock['content']) => comparable(content.map((n) => (n.type === 'text' ? n.text : '')).join('')).replace(IGNORABLE, '')
+const tableText = (t: TableBlock) => comparable([t.caption, ...t.rows.flatMap((r) => r.cells.map((c) => c.text))].join('|'))
+
+/**
+ * 本文の段落・図のタイトル・表の、比べるための印（lostByImport）。読み込んだ本文の印を覚えておき、次に読み込むときに、
+ * 前に Word から読み込んだものを「ツールで書いた分」に数えないようにする
+ */
+export function importPrints(body: Chapter[]): string[] {
+  return body.flatMap((c) =>
+    c.blocks.flatMap((b) =>
+      b.type === 'paragraph' ? [`p:${comparableText(b.content)}`] : b.type === 'figureRow' ? b.figures.map((f) => `f:${comparable(f.caption)}`) : b.type === 'table' ? [`t:${tableText(b)}`] : [],
+    ),
+  )
+}
 
 /**
  * Word を読み込むと消える、ツールで書いた本文。今の原稿の段落・図・表のうち、読み込む本文（body）にないものを大見出しごとに数える。
  * 本文は Word の中身に入れ替わるため、ツールで書き足した章や、ツールで直した段落は消える（同じ Word を読み込み直したときなど）。
  * 何も書いていない段落（ひな形のまま）と、Word から読み込んだままの段落は数えない。図は写真が入っていてタイトルのあるもの、表は中身で比べる
  */
-export function lostByImport(report: Report, body: Chapter[]): LostChapter[] {
-  const blocks = body.flatMap((c) => c.blocks)
-  const texts = new Set(blocks.flatMap((b) => (b.type === 'paragraph' ? [comparableText(b.content)] : [])))
-  const captions = new Set(blocks.flatMap((b) => (b.type === 'figureRow' ? b.figures.map((f) => comparable(f.caption)) : [])))
-  const tableText = (t: TableBlock) => comparable([t.caption, ...t.rows.flatMap((r) => r.cells.map((c) => c.text))].join('|'))
-  const tables = new Set(blocks.flatMap((b) => (b.type === 'table' ? [tableText(b)] : [])))
+export function lostByImport(report: Report, body: Chapter[], before: ReadonlySet<string> = new Set()): LostChapter[] {
+  const now = new Set(importPrints(body))
+  // 読み込む本文にあるもの・前に Word から読み込んだもの（Word で書き直した段落など。ツールで書いたものではない）は数えない
+  // （2回目の読み込みで、Word で直した段落まで「ツールで書いた2段落・図2枚・表1つは消えます」と出ていた：学生の試し 2026-10-29）
+  const has = (print: string) => now.has(print) || before.has(print)
+  const texts = { has: (t: string) => has(`p:${t}`) }
+  const captions = { has: (c: string) => has(`f:${c}`) }
+  const tables = { has: (t: string) => has(`t:${t}`) }
   return report.body.flatMap((chapter, i): LostChapter[] => {
     let paragraphs = 0
     let figures = 0

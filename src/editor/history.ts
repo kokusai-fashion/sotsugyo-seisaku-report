@@ -53,6 +53,13 @@ export class EditHistory<T, N = unknown> {
     return next
   }
 
+  /** いちばん新しく積んだものが state なら、取り除く（積んだ操作を、なかったことにするとき） */
+  dropLast(state: T): boolean {
+    if (this.past.at(-1) !== state) return false
+    this.past.pop()
+    return true
+  }
+
   /** 両方とも消す（原稿を丸ごと入れ替えたとき） */
   clear(): void {
     this.past = []

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { YearConfig } from '../config'
 import type { EditorSnapshot } from '../editor/reportEditor'
+import type { ImportProblem } from '../import/types'
 import { scoped } from '../model/scope'
 
 /**
@@ -33,6 +34,17 @@ export interface WordTodo {
    * 図の大きさが Word と変わるため、改ページの位置がずれることがある（依頼者 2026-10-23：読み込んだ直後に、必ず確かめて直すように出す）
    */
   pagesChecked: boolean
+  /**
+   * 写した図の ID（「図の位置を確かめる」で見る図。写したあとにツールで足した図は入れない。前は図を足すと ✓ が外れた：学生の試し 2026-10-29）。
+   * 前の版で覚えた「つぎにすること」にはない（そのときは、いまの図をすべて見る）
+   */
+  figureIds?: string[]
+  /** 確かめる窓の「うまく読み取れなかったところ」（読み込んだあとも見られるように。前は窓を閉じると二度と見られなかった：学生の試し 2026-10-29） */
+  problems?: ImportProblem[]
+  /** 読み取れなかったところを直して、学生が「直した」を押した */
+  problemsChecked?: boolean
+  /** この読み込みの前に出ていた「つぎにすること」（2回目の読み込みを「読み込む前の原稿に戻す」で戻したら、また出す） */
+  previous?: WordTodo | null
 }
 
 const TODO_KEY = scoped('sotsugyo-seisaku-report-word-todo')
@@ -41,7 +53,20 @@ function readTodo(): WordTodo | null {
   try {
     const raw = localStorage.getItem(TODO_KEY)
     const t = raw ? (JSON.parse(raw) as Partial<WordTodo>) : null
-    return t && typeof t.at === 'string' ? { at: t.at, snapshotAt: t.snapshotAt ?? null, figuresSeen: t.figuresSeen ?? 0, coverSeen: !!t.coverSeen || !!t.coverChecked, coverChecked: !!t.coverChecked, pagesSeen: !!t.pagesSeen || !!t.pagesChecked, pagesChecked: !!t.pagesChecked } : null
+    return t && typeof t.at === 'string'
+      ? {
+          at: t.at,
+          snapshotAt: t.snapshotAt ?? null,
+          figuresSeen: t.figuresSeen ?? 0,
+          coverSeen: !!t.coverSeen || !!t.coverChecked,
+          coverChecked: !!t.coverChecked,
+          pagesSeen: !!t.pagesSeen || !!t.pagesChecked,
+          pagesChecked: !!t.pagesChecked,
+          ...(Array.isArray(t.figureIds) ? { figureIds: t.figureIds } : {}),
+          ...(Array.isArray(t.problems) ? { problems: t.problems, problemsChecked: !!t.problemsChecked } : {}),
+          ...(t.previous ? { previous: t.previous } : {}),
+        }
+      : null
   } catch {
     return null
   }
@@ -76,4 +101,29 @@ export function useWordTodo(snap: EditorSnapshot | null): { todo: WordTodo | nul
     if (todo && !todo.coverSeen && onCover && prev !== null && prev !== page) update({ ...todo, coverSeen: true })
   }, [page, onCover, todo, update])
   return { todo, update }
+}
+
+const PRINTS_KEY = scoped('sotsugyo-seisaku-report-word-prints')
+
+/**
+ * 前に Word から読み込んだ本文の印（wordImport.ts の importPrints）を、この端末に覚えておく。
+ * 次に読み込むときの「ツールで書いた分は消えます」に、前に Word から読み込んだもの（Word で書き直した段落など）を数えないため
+ */
+export function rememberImportPrints(prints: string[]): void {
+  try {
+    localStorage.setItem(PRINTS_KEY, JSON.stringify(prints))
+  } catch {
+    // 覚えておけなくても読み込める（消える分を、少し多めに知らせるだけ）
+  }
+}
+
+/** 前に Word から読み込んだ本文の印（覚えていなければ空） */
+export function importedPrints(): Set<string> {
+  try {
+    const raw = localStorage.getItem(PRINTS_KEY)
+    const list: unknown = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string') : [])
+  } catch {
+    return new Set()
+  }
 }

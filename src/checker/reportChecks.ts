@@ -312,7 +312,9 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   // 学籍番号の形：年度の設定の形。なければ、ログインしたアカウントから読むときと同じ形（依頼者の選択 2026-10-29。前は設定がないと確かめず、
   // 「あ」でも表紙が「済み」になった：学生の試し 2026-10-29）
   if (basicInfo.studentId.trim() && !studentIdPattern(config.studentIdPattern).test(basicInfo.studentId.trim().normalize('NFKC').toUpperCase())) {
-    findings.push(guide('student-id-format', 'warning', '学籍番号の形式を確認する', 'cover', { blockId: 'basic:studentId' }))
+    // どの形が正しいかを書く（前は題だけで、何を確かめればよいか分からなかった：学生の試し 2026-10-29）
+    const shape = config.studentIdPattern ? '' : '（数字2けた＋英字2〜3字＋数字3〜4けた）'
+    findings.push(guide('student-id-format', 'warning', '学籍番号の形式を確認する', 'cover', { blockId: 'basic:studentId', detail: `大学のメールアドレスの @ の前と同じ形${shape}か確かめます` }))
   }
   // サブタイトルは、枠の1行に入るまで文字を小さくする（document.ts）。いちばん小さくしても入らないとき（組んだ紙面で測る）。
   // 題目は申告書と同じにする決まりなので、短くするようには言わず、確かめ方と相談先を伝える
@@ -351,11 +353,14 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
     )
   }
   if (layout && abstractStarted) {
-    if (layout.abstractPages > 1) {
+    const lines = layout.abstractLines
+    // 行が多すぎて1ページに収まらないときは、「1ページに収める」と「〜行にする」の2件にせず、何行減らすかを書いた1件にする（学生の試し 2026-10-29）
+    if (layout.abstractPages > 1 && lines <= maxLines) {
       findings.push(guide('abstract-one-page', 'error', '抄録は1ページに収める', 'abstract', { detail: `現在 ${layout.abstractPages}ページ` }))
     }
-    if (layout.abstractLines < minLines || layout.abstractLines > maxLines) {
-      findings.push(guide('abstract-lines', 'error', `抄録は${minLines}〜${maxLines}行にする`, 'abstract', { detail: `現在 ${layout.abstractLines}行` }))
+    if (lines < minLines || lines > maxLines) {
+      const more = lines < minLines ? `あと${minLines - lines}行` : `${lines - maxLines}行多い。文を短くするか、段落をまとめて減らします`
+      findings.push(guide('abstract-lines', 'error', `抄録は${minLines}〜${maxLines}行にする`, 'abstract', { detail: `現在 ${lines}行（${more}）` }))
     }
   }
 

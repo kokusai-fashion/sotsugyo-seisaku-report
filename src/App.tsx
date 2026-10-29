@@ -44,7 +44,7 @@ import { WordImportDialog, WordTodoCard } from './app/WordImport'
 import { useAsk } from './app/ask'
 import { NewVersionBanner, useNewVersion } from './app/newVersion'
 import { useKeepWritingVisible, writingArea } from './app/writingArea'
-import { useWordTodo, wordImportOffered } from './app/useWordTodo'
+import { rememberImportPrints, useWordTodo, wordImportOffered } from './app/useWordTodo'
 import { HelpView } from './help/HelpView'
 import { STUDENT_TOPICS } from './help/helpTopics'
 import { STUDENT_GUIDE_PATH, STUDENT_HELP_IMAGES } from './help/links'
@@ -833,21 +833,36 @@ export default function App() {
    * 表紙の項目が読み取れず空のままなら、はじめての案内でその項目から案内する。読み取れていれば案内を閉じ、本文の最初のページへ
    */
   const importWord = useCallback(
-    async (result: WordImportResult, courseId?: string) => {
+    async (result: WordImportResult, courseId?: string, fileName?: string) => {
       if (!editor) return
       // 読み取る部品は、Word を読み取ったときに読み込み済み（使うときに初めて読み込む。WordImport.tsx）
-      const { applyWordImport } = await import('./import/wordImport')
+      const { applyWordImport, wordPrints } = await import('./import/wordImport')
       editor.commitEditing()
       const before = editor.getSnapshot().report
       // 「読み込む前の原稿に戻す」で探せるよう、控えの時刻を覚えておく（keepSnapshot と同じ、押し出されない控え）。
       // 「つぎにすること」を閉じたあとも「バックアップ」の控えの一覧から探せるよう、名前を付ける
       const snapshotAt = new Date().toISOString()
-      await saveSnapshot(before, snapshotAt, true, WORD_SNAPSHOT_LABEL)
+      // 名前に Word のファイル名を付ける（何回か読み込むと「Word を読み込む前」ばかりが並び、見分けられなかった：学生の試し 2026-10-29）
+      await saveSnapshot(before, snapshotAt, true, fileName ? `${WORD_SNAPSHOT_LABEL}（${fileName}）` : WORD_SNAPSHOT_LABEL)
       await Promise.all(result.images.map(putImage))
       editor.addImages(result.images)
       // courseId：確認の窓で、表紙の Word のコースを選んだ（本文は読み込む本文のまま、コースの名前を変える）
       editor.replace(applyWordImport(before, result, courseId ? { courseId, config: configRef.current } : undefined))
-      setWordTodo({ at: new Date().toISOString(), snapshotAt, figuresSeen: 0, coverSeen: false, coverChecked: false, pagesSeen: false, pagesChecked: false })
+      rememberImportPrints(wordPrints(result))
+      const figureIds = editor.getSnapshot().report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures.map((f) => f.id) : []))
+      // 前の読み込みの「つぎにすること」は、この読み込みを戻したときに、また出す（1つ前の分だけ）
+      setWordTodo({
+        at: new Date().toISOString(),
+        snapshotAt,
+        figuresSeen: 0,
+        coverSeen: false,
+        coverChecked: false,
+        pagesSeen: false,
+        pagesChecked: false,
+        figureIds,
+        ...(result.problems.length ? { problems: result.problems, problemsChecked: false } : {}),
+        previous: wordTodo ? { ...wordTodo, previous: null } : null,
+      })
       setDialog(null)
       // 表紙の Word の学籍番号がアカウントと違う：読み込んだすぐあとに、直すかを聞く（依頼者の選択 2026-10-25）
       setWordIdCheck(idMismatch(editor.getSnapshot().report))
@@ -859,7 +874,7 @@ export default function App() {
       // スマホは、チェックの欄を開き、そのいちばん上に「つぎにすること」を出す
       if (narrow) setCheckRequest((n) => n + 1)
     },
-    [editor, setWordTodo, narrow, idMismatch],
+    [editor, wordTodo, setWordTodo, narrow, idMismatch],
   )
   /** Word から読み込んだ表紙の学籍番号が、アカウントと違う（読み込んだすぐあとに聞く） */
   const [wordIdCheck, setWordIdCheck] = useState<{ coverId: string; accountId: string } | null>(null)
@@ -882,10 +897,11 @@ export default function App() {
     }
     if (!(await ask.confirm(`Word から読み込む前の原稿に戻しますか？${courseChangeNote(configRef.current, editor.getSnapshot().report, kept.report)}\n（今の原稿は自動の控えに残します）`, { ok: '戻す' }))) return
     editor.commitEditing()
-    await keepSnapshot(editor.getSnapshot().report, 'Word の前に戻す前')
+    await keepSnapshot(editor.getSnapshot().report, 'Word から読み込んだ原稿（戻す前）')
     editor.replace(kept.report)
     await matchYear(editor, kept.report)
-    setWordTodo(null)
+    // 2回目の読み込みを戻した：1回目の「つぎにすること」を、また出す（前は消えていた：学生の試し 2026-10-29）
+    setWordTodo(wordTodo?.previous ?? null)
     editor.showNotice('Word から読み込む前の原稿に戻しました')
   }, [editor, wordTodo, setWordTodo, matchYear])
 
@@ -1048,7 +1064,7 @@ export default function App() {
           onExport={startExport}
           onWordImport={openWord}
           onReload={() => void reloadTool()}
-          wordTodo={wordTodo ? todoCard : undefined}
+          wordTodo={wordTodo && !guide ? todoCard : undefined}
           checkRequest={checkRequest}
           direct={phoneDirect}
           guiding={!!guide || tourOn}
@@ -1070,7 +1086,7 @@ export default function App() {
           onExport={startExport}
           onWordImport={openWord}
           onReload={() => void reloadTool()}
-          wordTodo={todoCard()}
+          wordTodo={guide ? undefined : todoCard()}
         />
       ) : (
         <aside className="side" />

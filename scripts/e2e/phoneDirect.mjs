@@ -706,12 +706,13 @@ export async function phoneDirectPhone(browser, check) {
     const ed = window.__editor
     const blocks = ed.getSnapshot().report.body.flatMap((c) => c.blocks)
     const i = blocks.findIndex((b) => b.id === 'p10')
-    return { ...window.__state(), next: blocks[i + 1]?.type, rowOpen: !!document.querySelector('.direct-bar .db-add') }
+    return { ...window.__state(), next: blocks[i + 1]?.type, newId: blocks[i + 2]?.type === 'paragraph' ? blocks[i + 2].id : null, rowOpen: !!document.querySelector('.direct-bar .db-add') }
   })
+  // 改ページの後ろの新しい段落（次のページの頭）で書き続ける（前は前の段落のままで、新しいページに書き始められなかった：学生の試し 2回目 2026-10-29）
   check(
-    '「追加」→「改ページ」：書いている段落の後ろに改ページが入り、段は閉じる。同じ段落を書き続けられる（キーボードは閉じない）',
-    afterPb.next === 'pageBreak' && !afterPb.rowOpen && afterPb.editing === 'p10' && afterPb.focused && afterPb.text.includes('続'),
-    JSON.stringify({ next: afterPb.next, rowOpen: afterPb.rowOpen, editing: afterPb.editing, focused: afterPb.focused }),
+    '「追加」→「改ページ」：書いている段落の後ろに改ページが入り、段は閉じる。改ページの後ろの新しい段落で書き続けられる（キーボードは閉じない）',
+    afterPb.next === 'pageBreak' && !afterPb.rowOpen && !!afterPb.newId && afterPb.editing === afterPb.newId && afterPb.focused && afterPb.text === '続',
+    JSON.stringify({ next: afterPb.next, rowOpen: afterPb.rowOpen, editing: afterPb.editing, newId: afterPb.newId, focused: afterPb.focused, text: afterPb.text }),
   )
   await page.tap('.direct-bar button[aria-expanded]')
   await wait(300)
@@ -724,11 +725,11 @@ export async function phoneDirectPhone(browser, check) {
     const ed = window.__editor
     const blocks = ed.getSnapshot().report.body.flatMap((c) => c.blocks)
     const i = blocks.findIndex((b) => b.id === 'p10')
-    return { ...window.__state(), after: blocks.slice(i + 1, i + 3).map((b) => b.type), title: blocks[i + 2]?.title }
+    return { ...window.__state(), after: blocks.slice(i + 1, i + 4).map((b) => b.type), title: blocks[i + 3]?.title }
   })
   check(
-    '「追加」→「小見出し」：書いている所の後ろ（いま入れた改ページがあれば、その後ろ。PC と同じ）に小見出しが入り、すぐ紙面の上で書き始める（キーボードは閉じない）',
-    afterSub.kind === 'subheading' && afterSub.onPaper && afterSub.focused && afterSub.text === '縫製' && JSON.stringify(afterSub.after) === JSON.stringify(['pageBreak', 'subheading']),
+    '「追加」→「小見出し」：書いている所（改ページの後ろの段落）の後ろに小見出しが入り、すぐ紙面の上で書き始める（キーボードは閉じない）',
+    afterSub.kind === 'subheading' && afterSub.onPaper && afterSub.focused && afterSub.text === '縫製' && JSON.stringify(afterSub.after) === JSON.stringify(['pageBreak', 'paragraph', 'subheading']),
     JSON.stringify({ kind: afterSub.kind, onPaper: afterSub.onPaper, focused: afterSub.focused, text: afterSub.text, after: afterSub.after }),
   )
   await page.tap('.direct-bar .db-done')

@@ -3,7 +3,7 @@
 // - 素材表を入れて、選ばれたタイトルのまま Enter：タイトルは消えず、1つ目のマスへ
 // - 空にした小見出しを Backspace で消すと、上の図のタイトルではなく、その前の段落へ移る
 // - 「改ページ」をダブルクリックしても、改ページは1つ（白紙のページを作らない）
-// - 見出しを書いているとき・見出しのすぐ下の段落の頭で改ページ：見出しの前に入る。大見出しなら前の章の終わり。本文の最初の大見出しの前には入れない
+// - 見出しを書いているとき・見出しのすぐ下の段落の頭で改ページ：見出しの前に入る。大見出し（章の頭）には入れない
 // - Ctrl+Enter のあとも書き続ける（段落の終わりなら、改ページの後ろの新しい段落で）
 // - 学籍番号を全角で打っても、半角・大文字にそろえる
 // - 図を含めて範囲を消すと、知らせに「（図1も）」
@@ -160,17 +160,16 @@ await withEdge(async (browser) => {
     const chapterBreak = await blocksOf(page)
     await page.keyboard.press('Escape')
     await wait(300)
-    await page.evaluate(() => window.__editor.undo())
-    await wait(600)
     await ready()
     await editAt(page, ready, chapters[0], 0)
     await ctrlEnter(page)
     const firstChapter = { blocks: await blocksOf(page), toast: await toast(page) }
     await page.keyboard.press('Escape')
     await wait(400)
+    // 2章目からも入れない（どの章も新しいページから始まる。前の章の終わりに入れても紙面は変わらなかった：学生の試し 2回目 2026-10-29）
     check(
-      '大見出しで改ページ：前の章の終わりに入る。本文の最初の大見出しでは入れず、「本文は、もともと新しいページから始まります」',
-      chapterBreak.split(' | ')[0].endsWith('PB') && firstChapter.blocks === base && firstChapter.toast.includes('もともと新しいページから'),
+      '大見出しで改ページ：どの章でも入れず、「章（大見出し）は、もともと新しいページから始まります」',
+      chapterBreak === base && firstChapter.blocks === base && firstChapter.toast.includes('もともと新しいページから'),
       JSON.stringify({ chapterBreak: chapterBreak.split(' | ').slice(0, 2), firstChapter }),
     )
 

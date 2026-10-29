@@ -72,3 +72,16 @@ describe('「元に戻す」「やり直す」の履歴', () => {
     expect([h.canUndo, h.canRedo]).toEqual([false, false])
   })
 })
+
+describe('dropLast（積んだ操作を、なかったことにする）', () => {
+  it('いちばん新しく積んだものが同じときだけ取り除く', () => {
+    const h = new EditHistory<{ n: number }>()
+    const a = { n: 1 }
+    const b = { n: 2 }
+    h.push(a)
+    h.push(b)
+    expect(h.dropLast(a)).toBe(false)
+    expect(h.dropLast(b)).toBe(true)
+    expect(h.last).toBe(a)
+  })
+})

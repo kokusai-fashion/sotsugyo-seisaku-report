@@ -280,23 +280,24 @@ async function wordImport(page, ready, check, who, phone, shot) {
   await page.waitForFunction(() => !document.querySelector('.modal'), { timeout: 60000 })
   const imported = await busyResult(page)
   await ready()
-  // 読み込んだあと：PC は右の欄に「つぎにすること」。スマホは、表紙の項目が空いていれば、はじめての案内がその項目から出る（でなければ、チェックの欄に「つぎにすること」）
+  // 読み込んだあと：表紙の項目が空いていれば、はじめての案内がその項目から出る（その間は「つぎにすること」を出さない：学生の試し 2回目 2026-10-29）。
+  // でなければ、PC は右の欄・スマホはチェックの欄に「つぎにすること」
   const after = await page.evaluate(() => ({ todo: !!document.querySelector('.word-todo'), guide: !!document.querySelector('.guide') }))
   check(
-    `${who}：「読み込む」を押すと、すぐ（100ms 以内）ボタンに回る印と「読み込んでいます…」が出て押せない。読み込んだら${phone ? '、表紙の空いた項目の案内か、' : ''}「Word から写しました」の「つぎにすること」が出る`,
-    quick(imported, '読み込んでいます…') && (after.todo || (phone && after.guide)),
+    `${who}：「読み込む」を押すと、すぐ（100ms 以内）ボタンに回る印と「読み込んでいます…」が出て押せない。読み込んだら、表紙の空いた項目の案内か、「Word から写しました」の「つぎにすること」が出る`,
+    quick(imported, '読み込んでいます…') && (after.todo || after.guide) && !(after.todo && after.guide),
     detail(imported, after),
   )
+  if (after.guide) {
+    await page.evaluate(() => document.querySelector('.g-later')?.click())
+    await page.evaluate(() => window.__editor.finishEditing())
+    await ready()
+  }
   // 「読み込む前の原稿に戻す」（スマホはチェックの欄の中。PC は右の欄）
   if (phone) {
-    if (after.guide) {
-      await page.evaluate(() => document.querySelector('.g-later')?.click())
-      await page.evaluate(() => window.__editor.finishEditing())
-      await ready()
-    }
     if (!(await page.$('.sheet .word-todo'))) await page.evaluate(() => document.querySelector('.p-nav .nav-check').click())
     await page.waitForSelector('.sheet .word-todo .undo', { timeout: 10000 })
-  }
+  } else await page.waitForSelector('.side .word-todo .undo', { timeout: 10000 })
   await watchBusy(page, '.word-todo .undo')
   await clickBusy(page, '.word-todo .undo')
   await page.waitForFunction(() => !document.querySelector('.word-todo'), { timeout: 30000 })

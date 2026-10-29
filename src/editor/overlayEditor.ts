@@ -567,6 +567,9 @@ export class OverlayEditor {
     // 紙面の上の位置と見た目は、写しに合わせておく（段落は、打った字をその場で見せる。ほかの欄は見えない：仮の表示に使う）
     if (this.sheetHost) this.sheetHost.closest('.edit-sheet')?.classList.add('open')
     this.copyStyle(target.styleSource, target.kind)
+    this.lineFontSize = this.box.style.fontSize
+    this.box.style.whiteSpace = ''
+    this.box.style.overflow = ''
     // 後ろに決まった字が続く欄：書く欄の字のすぐ後ろに見せ（index.css の .overlay-editor[data-suffix]）、字は左から並べる（紙面の前の字「―」に続ける）
     if (target.suffix) {
       this.element.dataset.suffix = target.suffix
@@ -580,6 +583,7 @@ export class OverlayEditor {
     this.setFrame(target)
     this.renderText(null, { full: true, page: target.page })
     this.markEmpty()
+    this.fitLine()
     this.moveTo(target)
     // 「表の形を整える」の窓・欄の中をキーボードで使っている（表を変えると、組み直してからセルを開き直す）：そこから動かさない。
     // 書く欄は開いたまま待たせ、窓を閉じて書く欄に戻ったら、このカーソルの位置から書ける（park。app/tableShape.tsx）
@@ -1302,6 +1306,25 @@ export class OverlayEditor {
     else if (this.mirror.hasAttribute('data-typeset')) this.syncMirror(this.text, { full: true })
   }
 
+  /** 書き始めたときの字の大きさ（fitLine） */
+  private lineFontSize = ''
+
+  /**
+   * 後ろに決まった字が続く1行の欄（表紙のサブタイトル「―〇〇の衣装制作―」）：書いている間も1行に収まるよう、字を小さくする
+   * （紙面は、書き終えたあと1行に収まる大きさで組み直す。前は書いている間、2行に折れていた：学生の試し 2026-10-29）
+   */
+  private fitLine(): void {
+    if (!this.target?.suffix || this.sheetHost) return
+    const box = this.box
+    box.style.fontSize = this.lineFontSize
+    box.style.whiteSpace = 'nowrap'
+    // はみ出した字へカーソルを見せるとき、紙面ではなく書く欄の中を動かす（紙面が横に動いて、前の「―」が画面の外へ出ていた）
+    box.style.overflow = 'hidden'
+    const over = this.element.scrollWidth / Math.max(1, this.element.clientWidth)
+    if (over > 1.001) box.style.fontSize = `${parseFloat(this.lineFontSize) / over}px`
+    this.element.scrollLeft = 0
+  }
+
   private copyStyle(source: HTMLElement, kind: OverlayKind): void {
     const computed = getComputedStyle(source)
     for (const key of COPIED_STYLES) this.box.style[key] = computed[key]
@@ -1782,6 +1805,7 @@ export class OverlayEditor {
   private emitInput(): void {
     if (!this.target) return
     this.markEmpty()
+    this.fitLine()
     const text = this.text
     // スマホ：紙面の上の写しにも、書いている字を入れる（段落は、その場で紙面に見せる。ほかの欄は見えない写し：仮の表示に使う）
     if (this.sheetHost) this.liveInput(text)
