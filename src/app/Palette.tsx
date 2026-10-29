@@ -659,6 +659,8 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
 export function Palette({ editor, snap, onReferences, template }: Props) {
   // 図・表は、段落を書いているとき（文中の入れたい位置にカーソルがあるとき）だけ入れられる
   const writing = snap.editingKind === 'paragraph'
+  // Esc などで閉じたあとも、最後に書いていた所に入れられる（キーボードだけでは図・表を入れられなかった：学生の試し 4回目 2026-10-30。mockups/v77 ① 案A）
+  const canInsert = writing || snap.resumable
   const kind = snap.layout?.kinds[snap.page] ?? 'unknown'
   // 指で触る画面（iPad の横向きなど）では「クリック」を「タップ」に（学生の試し 4回目 2026-10-30）
   const context = touchPrimary() ? { ...PAGE_CONTEXT[kind], hint: forTouch(PAGE_CONTEXT[kind].hint) } : PAGE_CONTEXT[kind]
@@ -742,17 +744,28 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
             <Tool label="改ページ" icon={Icon.pageBreak} title="ここで改ページする（この後ろは次のページから始まります。Ctrl+Enter でも）" onPreview={(on) => editor.previewInsert(on, 'pageBreak')} onClick={() => editor.addPageBreak()} />
           </div>
           <div className="group">
+            {!writing && snap.resumable && !snap.waiting && (
+              <div className="ctx-note resume">
+                さっき
+                <br />
+                書いて
+                <br />
+                いた所に
+                <br />
+                入れます
+              </div>
+            )}
             <Tool
               label="図を入れる"
               icon={Icon.figure}
               title={template ? 'この段落のすぐ下に、図の枠が入ります（写真は学生が入れます）' : '書いている文の終わりに「（図n）」が入り、この段落のすぐ下に図が入ります'}
-              disabled={!writing}
+              disabled={!canInsert}
               onWhy={showWhy}
               onClick={() => void editor.addFigure()}
             />
-            <TableMenu editor={editor} disabled={!writing} template={template} onWhy={showWhy} />
+            <TableMenu editor={editor} disabled={!canInsert} template={template} onWhy={showWhy} />
             {/* 道具の幅（1行6字ほど）で、言葉の切れ目で折り返す（1字だけ次の行に残らないように） */}
-            {!writing && !snap.waiting && (
+            {!canInsert && !snap.waiting && (
               <div className="ctx-note">
                 図・表は、
                 <br />

@@ -839,11 +839,11 @@ export default function App() {
   }, [snap])
 
   const restoreFile = useCallback(
-    async (file: File) => {
-      if (!editor || !snap) return
+    async (file: File): Promise<boolean> => {
+      if (!editor || !snap) return false
       try {
         const { report, images, savedAt } = readBackup(await file.text())
-        if (!(await ask.confirm(`${new Date(savedAt).toLocaleString('ja-JP')} に保存したバックアップで、今の原稿を置き換えますか？${courseChangeNote(configRef.current, snap.report, report)}\n（今の原稿は自動の控えに残します）`, { ok: '置き換える' }))) return
+        if (!(await ask.confirm(`${new Date(savedAt).toLocaleString('ja-JP')} に保存したバックアップで、今の原稿を置き換えますか？${courseChangeNote(configRef.current, snap.report, report)}\n（今の原稿は自動の控えに残します）`, { ok: '置き換える' }))) return false
         await keepSnapshot(snap.report, 'バックアップで置き換える前')
         await Promise.all(images.map(putImage))
         editor.addImages(images)
@@ -851,8 +851,10 @@ export default function App() {
         await matchYear(editor, report)
         setDialog(null)
         editor.showNotice('バックアップファイルから戻しました')
+        return true
       } catch (e) {
         void ask.alert(e instanceof Error ? e.message : String(e))
+        return false
       }
     },
     [editor, snap, matchYear],
@@ -1178,6 +1180,7 @@ export default function App() {
           }}
           wordImport={wordOffered}
           onWordImport={() => setDialog({ kind: 'word' })}
+          onRestoreBackup={(file) => void restoreFile(file).then((done) => done && setGuide(null))}
           onFinish={() => {
             // 案内を終えたら、指差し確認を出す（この端末でまだ見ていなければ）
             if (!tourSeen()) setTourWanted(true)
@@ -1231,7 +1234,7 @@ export default function App() {
           driveStopped={driveStopped}
           snapshots={dialog.snapshots}
           onSaveBackup={saveBackup}
-          onRestoreFile={restoreFile}
+          onRestoreFile={async (file) => void (await restoreFile(file))}
           // 今の原稿が控えに残ることも書く（前は書いておらず、戻すと今の原稿が消えるように見えた：PC の試し 2026-10-24）
           confirmRestore={(s) => ask.confirm(`${new Date(s.savedAt).toLocaleString('ja-JP')}${s.label ? `（${s.label}）` : ''} の控えに戻しますか？\n（今の原稿は自動の控えに残すので、あとで戻せます）${courseChangeNote(configRef.current, snap.report, s.report)}`, { ok: '戻す' })}
           onRestoreSnapshot={async (s) => {

@@ -514,7 +514,7 @@ await withEdge(async (browser) => {
   await page.evaluate(() => document.querySelector('.page-viewport.front [data-paper-key="b:basic:studentId"]').focus())
   await page.keyboard.press('Tab')
   let pf = await focused()
-  check('表紙の欄に Tab で移れ、移った欄に目印（藍の枠）が出る（読み上げの名前「氏名」）', pf.key === 'b:basic:name' && pf.label?.startsWith('氏名：') && pf.visible && pf.outline === 'solid', JSON.stringify(pf))
+  check('表紙の欄に Tab で移れ、移った欄に目印（黄色の枠）が出る（読み上げの名前「氏名」）', pf.key === 'b:basic:name' && pf.label?.startsWith('氏名：') && pf.visible && pf.outline === 'solid', JSON.stringify(pf))
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 20000 })
   await page.keyboard.press('Escape')
@@ -1175,7 +1175,16 @@ await withEdge(async (browser) => {
   // ---- 図・表は、文中の入れたい位置で入れる（書いていないときは押せない） ----
   // 押せない形（押すと、わけを吹き出しで出す：mockups/v73 ⑤。aria-disabled）
   const toolDisabled = (label) => page.evaluate((label) => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.includes(label)); return !!b && (b.disabled || b.getAttribute('aria-disabled') === 'true') }, label)
-  check('段落を書いていないときは「図を入れる」「表を入れる」を押せない', (await toolDisabled('図を入れる')) === true && (await toolDisabled('表を入れる')) === true)
+  // 段落を Esc で閉じた直後は、さっき書いていた所に入れられる（mockups/v77 ① 案A）
+  const resumeNote = await page.evaluate(() => document.querySelector('.palette .ctx-note.resume')?.textContent ?? '')
+  check('段落を Esc で閉じた直後は「図を入れる」「表を入れる」を押せて、道具の上に「さっき書いていた所に入れます」', (await toolDisabled('図を入れる')) === false && (await toolDisabled('表を入れる')) === false && resumeNote === 'さっき書いていた所に入れます', resumeNote)
+  // 段落でないもの（大見出し）を書いて閉じたあとは、入れる所がないので押せない
+  const chapterId = (await snap()).report.body[0].id
+  await page.evaluate((id) => window.__editor.openEditor(id, 0), chapterId)
+  await page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 20000 }, chapterId)
+  await page.keyboard.press('Escape')
+  await ready()
+  check('段落を書いていないとき（見出しを書いて閉じたあと）は「図を入れる」「表を入れる」を押せない', (await toolDisabled('図を入れる')) === true && (await toolDisabled('表を入れる')) === true)
   const paletteNote = await page.evaluate(() => { const n = [...document.querySelectorAll('.palette .ctx-note')].find((e) => e.textContent.includes('図・表')); return n && getComputedStyle(n).display !== 'none' ? n.textContent : '' })
   check('押せないときは、その理由（入れたい所をクリックしてから）が道具に出る', paletteNote.includes('入れたい所をクリック'), paletteNote)
   await clickBlock(firstParagraph)

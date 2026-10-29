@@ -1428,11 +1428,15 @@ export class OverlayEditor {
     return first && here ? ((here.top - first.top) / (own || 1)) * scale : 0
   }
 
+  /** 最後に閉じた欄と、閉じたときのカーソルの位置（Esc で閉じたあとの「図を入れる」：書いていた所に入れる。reportEditor.ts の resumeWriting） */
+  lastClosed: { blockId: string; caret: number } | null = null
+
   /** 編集を終えて閉じる（blur でも呼ばれる） */
   commit(): void {
     if (!this.target) return
     const { blockId } = this.target
     const text = this.text
+    this.lastClosed = { blockId, caret: this.caret }
     const byKey = this.closingByKey
     this.closingByKey = false
     // 測り直すのを待っていた所は、写す前に測り直す（書き終えた欄の仮の表示を、紙面と同じ所で折り返すように。スマホの写しも、いま全部測る）

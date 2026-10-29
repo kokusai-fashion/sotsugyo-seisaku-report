@@ -85,9 +85,15 @@ interface Props {
   onWordImport?: () => void
   /** 最後の「表紙ができました」で「本文へ進む」「閉じる」を押した（このあと指差し確認を出す。mockups/v27） */
   onFinish?: () => void
+  /**
+   * コースを選ぶ段階から、バックアップファイルで戻す（作り直したあと・別のパソコンで初めて開いたとき、案内が画面をふさぎ、
+   * メニューのバックアップまで3回押す必要があった：学生の試し 4回目 2026-10-30。依頼者の選択 mockups/v77 ② 案A）
+   */
+  onRestoreBackup?: (file: File) => void
 }
 
-export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish }: Props) {
+export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish, onRestoreBackup }: Props) {
+  const backupRef = useRef<HTMLInputElement>(null)
   const field = FIELD_OF[step]
   const [rect, setRect] = useState<DOMRect | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -326,6 +332,26 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
                 </b>
                 まずコースを選んでください。次の画面で、書いた Word を読み込めます（学籍番号・氏名・サブタイトルも写ります）。
               </div>
+            )}
+            {onRestoreBackup && (
+              <p className="g-backup">
+                前に保存したバックアップファイルがあるとき（別のパソコン・作り直したあと）：
+                <button type="button" className="link" onClick={() => backupRef.current?.click()}>
+                  バックアップから戻す
+                </button>
+                <input
+                  ref={backupRef}
+                  type="file"
+                  accept=".json,application/json"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    // 選び直せるよう空に戻す（確かめる窓で「やめる」を押したあと、同じファイルを選び直せるように）
+                    e.target.value = ''
+                    if (file) onRestoreBackup(file)
+                  }}
+                />
+              </p>
             )}
           </>
         )

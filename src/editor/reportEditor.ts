@@ -112,6 +112,8 @@ export interface EditorSnapshot {
    * 「図を入れる」で写真を選んで取り込んでいる間も含む
    */
   waiting: boolean
+  /** 書いていないとき：「図を入れる」「表を入れる」で、最後に書いていた所に入れられる（Esc で閉じたあと。mockups/v77 ① 案A） */
+  resumable: boolean
   /** 見開き（いまのページと次のページを並べる。1–2、3–4…の組。PC だけ。mockups/v35 ③ 案A）で表示しているか */
   spread: boolean
   /** 紙面の台が、見開きを出せる広さか（狭いときは「見開き」を出さない） */
@@ -789,6 +791,7 @@ export class ReportEditor {
       overZoomed: this.writingOnPaper && this.stage.scale > this.stage.textScale * OVER_ZOOM,
       zoomLevel: this.stage.relativeZoom,
       waiting: this.overlay.waiting || this.insertingFigure,
+      resumable: this.resumable,
       spread: this.stage.spread,
       spreadFits: this.stage.spreadFits,
       turning: this.turning !== null,
@@ -2199,6 +2202,9 @@ export class ReportEditor {
     const tidy = this.tidyText(id, text)
     // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って小見出しにしたもの）を段落に戻す（Enter のときと同じ）
     const kindNow = ops.findEditable(this.report, id)?.kind
+    // 本文の段落を書き終えた：Esc で閉じたあとも、左の道具の「図を入れる」「表を入れる」で、書いていた所に入れられるように覚えておく
+    // （キーボードだけでは図・表を入れられなかった：学生の試し 4回目 2026-10-30。依頼者の選択 mockups/v77 ① 案A）
+    this.lastWriting = kindNow === 'paragraph' ? { id, caret: this.overlay.lastClosed?.blockId === id ? this.overlay.lastClosed.caret : text.length } : null
     const reverted = kindNow === 'paragraph' && tidy !== ops.findEditable(this.reportBeforeEdit ?? this.report, id)?.text ? this.revertListHeading(this.report, id, tidy) : null
     if (reverted) this.showNotice('番号の行が続いたので、見出しにせず箇条書き（段落）にしました')
     const committed = ops.setText(reverted ?? this.report, id, tidy)
@@ -4243,7 +4249,7 @@ export class ReportEditor {
    */
   async addFigure(): Promise<void> {
     if (this.settlingRemoval) return
-    const paragraphId = this.editingParagraph()
+    const paragraphId = this.editingParagraph() ?? (await this.resumeWriting())
     if (paragraphId) return this.insertFigureAtCaret(paragraphId)
   }
 
@@ -4251,6 +4257,25 @@ export class ReportEditor {
   private insertingFigure = false
   /** 写真を選んだ直後（取り込み始める前）にすること（insertFigureAtCaret：打った字をためる欄にカーソルを置く） */
   private afterPick: (() => void) | null = null
+
+  /** 最後に書いていた本文の段落と、閉じたときのカーソルの位置（resumeWriting） */
+  private lastWriting: { id: string; caret: number } | null = null
+
+  /** 書いていないとき：「図を入れる」「表を入れる」を押したら、最後に書いていた段落の、書いていた所に入れられるか */
+  private get resumable(): boolean {
+    return !this.overlay.blockId && !!this.lastWriting && ops.findEditable(this.report, this.lastWriting.id)?.kind === 'paragraph'
+  }
+
+  /** 最後に書いていた段落を、書いていた所で開き直す（そのページへ移る）。開けたら、その段落の ID */
+  private async resumeWriting(): Promise<string | null> {
+    const last = this.lastWriting
+    const p = last ? ops.findEditable(this.report, last.id) : undefined
+    if (!last || p?.kind !== 'paragraph' || this.overlay.blockId) return null
+    const page = this.pageOfBlock(last.id, last.caret)
+    if (page >= 0 && page !== this.page) await this.goToPage(page, 'none')
+    this.openEditor(last.id, Math.min(last.caret, p.text.length))
+    return this.editingParagraph()
+  }
 
   /** 本文の段落を書いているなら、その段落の ID */
   private editingParagraph(): string | null {
@@ -4319,6 +4344,11 @@ export class ReportEditor {
    * size：空の表の大きさ（列・行。行は見出しの行も数える。入れる前に選ぶ：mockups/v35 ②。なければ 2列×2行）
    */
   addTable(kind: 'blank' | 'material', size?: { columns: number; rows: number }): void {
+    // 書いていない（Esc で閉じたあと）：最後に書いていた所を開き直してから入れる
+    if (!this.editingParagraph() && this.resumable) {
+      void this.resumeWriting().then((id) => id && this.addTable(kind, size))
+      return
+    }
     const paragraphId = this.editingParagraph()
     if (!paragraphId || this.settlingRemoval) return
     const caret = this.overlay.caret

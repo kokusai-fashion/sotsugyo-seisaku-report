@@ -221,6 +221,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .lay-grid i { background: #b7b4ae; }
 .lay.on .lay-grid i { background: var(--accent); }
 .ctx-note { font-size: 10px; line-height: 1.5; color: var(--muted); padding: 2px 4px 4px; text-align: center; }
+.palette .ctx-note.resume { margin: 0 4px 6px; padding: 5px 4px; border-radius: 6px; background: #eef1f8; color: var(--accent); font-size: 10.5px; }
 .menu-wrap { position: relative; }
 .side-menu { position: absolute; left: calc(100% + 10px); top: 0; z-index: 20; min-width: 150px; display: grid; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(30, 25, 20, 0.16); }
 .side-menu-title { font-size: 10.5px; color: var(--muted); padding: 2px 8px 4px; }
@@ -847,6 +848,11 @@ body.resizing .page-viewport { pointer-events: none; }
 .link-btn.help-btn svg { color: var(--accent); }
 /* ① はじめての案内：コースを選ぶ段階の「Word のひな形で書き始めている人へ」と、「Word で書き始めていますか？」の段階 */
 .g-word { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 12px; line-height: 1.7; color: #3f4249; }
+/* コースを選ぶ段階から、バックアップファイルで戻す（mockups/v77 ② 案A） */
+.g-backup { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.7; color: var(--muted); word-break: auto-phrase; }
+.g-backup button.link { padding: 0; border: 0; background: none; color: var(--accent); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.app.phone .g-backup button.link { position: relative; }
+.app.phone .g-backup button.link::after { content: ""; position: absolute; inset: -12px -6px; }
 .g-word b { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; font-size: 12.5px; color: var(--accent); }
 .g-word svg { width: 17px; height: 17px; flex: none; }
 .guide.step-word .g-tip::before { display: none; }
@@ -2246,4 +2252,18 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
   .app:not(.phone) .page-viewport [data-placeholder='（クリックして文章を入力）']:empty::before { content: '（タップして文章を入力）'; }
   .app:not(.phone) .page-viewport [data-placeholder='（クリックして抄録を入力）']:empty::before { content: '（タップして抄録を入力）'; }
   .app:not(.phone) .page-viewport [data-photo-slot]:empty::before { content: '＋\A写真を選ぶ\A（ここをタップ）'; }
+}
+
+/* ---- キーボードで移ったときの枠：黄色の太い枠（3px）。紺のボタンの上でも、紙面の上でも見分けられるように
+   （前は 1〜2px の黒・紺の線で、紺のボタンでは見分けにくかった。道具で拡大した紙面では細くなった：学生の試し 4回目 2026-10-30。
+   依頼者の選択 mockups/v77 ③ 案A）。字を書く欄（入力欄・書く欄）は、マウスで押しても枠が出るので含めない。開いたときに移るだけの見出し・欄（tabindex="-1"）も含めない ---- */
+:where(:focus-visible) { outline-offset: 2px; }
+:focus-visible:not(input, textarea, select, [contenteditable], [tabindex="-1"], .overlay-editor, .page-viewport *, .issue .go) { outline-style: solid !important; outline-width: 3px !important; outline-color: #f2b705 !important; }
+.issue:has(.go:focus-visible) { outline: 3px solid #f2b705; }
+@media screen {
+  /* 紙面の欄：紙面は縮めたり広げたりして出すので、画面で 3px 以上になる太さ（--s で割った太さが 2px より細いと、ブラウザが 1px に丸めていた） */
+  .page-viewport [data-paper-key]:focus-visible:not(.is-selected, figure > *, .page-break, [data-photo-slot]),
+  .page-viewport figure:not(.is-selected):has(> [data-paper-key]:focus-visible) { outline: max(3px, calc(3px / var(--s))) solid #f2b705 !important; outline-offset: max(3px, calc(3px / var(--s))) !important; }
+  .page-viewport .page-break:not(.is-selected):focus-visible::after { outline: max(3px, calc(3px / var(--s))) solid #f2b705; }
+  .page-viewport [data-photo-slot]:not(.is-selected):focus-visible::after { border: max(3px, calc(3px / var(--s))) solid #f2b705; }
 }
