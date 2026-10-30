@@ -191,8 +191,10 @@ function UndoRedo({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot
   )
   return (
     <div className="group undo-redo">
-      {button('元に戻す', Icon.undo, UNDO_TIP, 'Control+Z Meta+Z', snap.canUndo, () => !editor.toolsJustChanged && editor.undo())}
-      {button('やり直す', Icon.redo, REDO_TIP, 'Control+Y Control+Shift+Z Meta+Shift+Z', snap.canRedo, () => editor.redo())}
+      {/* 書いている間は、Ctrl+Z・スマホの「戻す」と同じく、書く欄の中で打った字から戻す（押すと、その欄で打った分がまとめて消えていた。
+          Ctrl+Z のあと「やり直す」が押せなかった：学生の試し 7回目 2026-10-30） */}
+      {button('元に戻す', Icon.undo, UNDO_TIP, 'Control+Z Meta+Z', snap.canUndo || snap.typingUndo, () => !editor.toolsJustChanged && (editor.undoTyping() || editor.undo()))}
+      {button('やり直す', Icon.redo, REDO_TIP, 'Control+Y Control+Shift+Z Meta+Shift+Z', snap.canRedo || snap.typingRedo, () => editor.redoTyping() || editor.redo())}
       {tip && (
         <div className="ur-tip" role="tooltip" style={{ left: tip.left, top: tip.top }}>
           {tip.lines.map((line) => (

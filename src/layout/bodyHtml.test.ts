@@ -90,6 +90,21 @@ describe('buildBodyDocument', () => {
     expect(text(html)).toContain('表1.使用素材表')
   })
 
+  it('短い表（6行まで）は、ページの終わりで分けない印（keep）を付ける。長い表は分けてよい（学生の試し 7回目 2026-10-30）', () => {
+    const table = (id: string, count: number) => ({
+      type: 'table' as const,
+      id,
+      caption: '',
+      widths: 'equal' as const,
+      heights: 'auto' as const,
+      rows: Array.from({ length: count }, (_, i) => ({ id: `${id}r${i}`, cells: [{ id: `${id}c${i}`, text: String(i), imageId: null }] })),
+    })
+    const doc = buildBodyDocument([{ id: 'c', title: '企画', blocks: [table('short', 6), table('long', 7)] }], options)
+    expect(doc).toContain('<div class="data-table keep" data-table-id="short">')
+    expect(doc).toMatch(/<div class="data-table( chapter-last)?" data-table-id="long">/)
+    expect(doc).toMatch(/\.data-table\.keep\s*\{\s*break-inside: avoid;/)
+  })
+
   it('表のセルの画像：ふつうは全体を入れ、切り抜いた画像は印（crop）と見える位置を付ける（依頼者の選択 2026-10-23 案A）', () => {
     const doc = buildBodyDocument(
       [

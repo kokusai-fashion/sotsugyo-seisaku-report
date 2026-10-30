@@ -176,6 +176,11 @@ figcaption,
   margin: 0 0 ${LINE_PITCH_PT}pt;
 }
 
+/* 短い表（bodyHtml.ts の KEEP_TABLE_ROWS 行まで）は、ページの終わりで分けずに、まるごと次のページへ送る */
+.data-table.keep {
+  break-inside: avoid;
+}
+
 /* 章の中身の最後の表・図のまとまり（bodyHtml.ts の lastBlockHtml）：下の余白をなくす（次の章は新しいページから始まる。余白のせいで、章の終わりの目印だけが次のページへ送られ、空のページができないように） */
 .data-table.chapter-last,
 .figure-group.chapter-last {

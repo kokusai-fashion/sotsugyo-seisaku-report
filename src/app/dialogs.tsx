@@ -8,6 +8,7 @@ import type { Reference, Report } from '../model/types'
 import { BusyLabel, SlowNote, Spinner } from './Busy'
 import { useBusy, useDoneNote } from './useBusy'
 import { Icon } from './icons'
+import { useBackToClose } from './useBackToClose'
 import { useDialogFocus } from './useDialogFocus'
 import { useAsk } from './ask'
 import { reportSummary } from '../model/reportSummary'
@@ -39,6 +40,8 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null)
   const stay = keepOpen || busy
   useDialogFocus(ref, stay ? undefined : onClose)
+  // スマホの「戻る」で閉じる（Esc で閉じられる窓だけ。PDF の窓などで「戻る」を押すと、ツールの外へ出ていた：学生の試し 7回目 2026-10-30）
+  useBackToClose(onClose, !stay)
   return (
     <div className="modal-backdrop" onMouseDown={(e) => !stay && e.target === e.currentTarget && onClose()}>
       <div className={`modal${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} aria-busy={busy || undefined} ref={ref}>

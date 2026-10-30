@@ -170,8 +170,16 @@ function renderTable(block: TableBlock, number: number, options: BodyRenderOptio
   const tr = rows && fit?.row ? `<tr style="height:${ptText(fit.row)}">` : '<tr>'
   const thead = head ? `<thead><tr>${head.cells.map((c) => cellHtml(c, true)).join('')}</tr></thead>` : ''
   const tbody = `<tbody>${body.map((r) => `${tr}${r.cells.map((c) => cellHtml(c, false)).join('')}</tr>`).join('')}</tbody>`
-  return `<div class="data-table" data-table-id="${escapeHtml(block.id)}"><p class="table-caption">${captionHtml('表', number, block.caption, block.id)}</p><table class="${classes}">${colgroup}${thead}${tbody}</table></div>`
+  // 短い表（見出しの行も入れて KEEP_TABLE_ROWS 行まで）は、ページの終わりで分けずに、まるごと次のページへ送る（.keep。reportCss.ts）
+  const keep = block.rows.length <= KEEP_TABLE_ROWS ? ' keep' : ''
+  return `<div class="data-table${keep}" data-table-id="${escapeHtml(block.id)}"><p class="table-caption">${captionHtml('表', number, block.caption, block.id)}</p><table class="${classes}">${colgroup}${thead}${tbody}</table></div>`
 }
+
+/**
+ * これより行の少ない表は、ページをまたいで分けない（4行の表が2行ずつに分かれ、次のページが表の2行だけになっていた：学生の試し 7回目 2026-10-30。
+ * 依頼者の選択：6行まで）。長い表は、今までどおりページをまたぐ（見出しの行は次のページにも出る）
+ */
+export const KEEP_TABLE_ROWS = 6
 
 /** 表のセルの左右の余白と枠線（pt。reportCss.ts の .data-table th, td） */
 const CELL_CHROME_PT = 4 * 2 + 0.75

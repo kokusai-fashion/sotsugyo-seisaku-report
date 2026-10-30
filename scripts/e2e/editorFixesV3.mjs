@@ -383,8 +383,9 @@ export async function editorFixesV3Pc(browser, check) {
     await page.screenshot({ path: `${OUT}/smoke-9-float-${rows}-${lead}.png` })
   }
   check(
-    '段落のすぐ下に入りきらない図を次のページの上へ送っても、後ろの素材表が図の前後に分かれない（送ると分かれるときは送らず、表は図の後ろから始まる）',
-    floats.every((f) => !f.inside && f.tables[0] === f.group),
+    '段落のすぐ下に入りきらない図を次のページの上へ送っても、後ろの素材表が図の前後に分かれない（送ると分かれるときは送らず、表は図の後ろから始まる。6行までの短い表は、入りきらなければ、まるごと次のページへ）',
+    // 6行までの短い表（写真の入った4行）は分けない（依頼者の選択：学生の試し 7回目 2026-10-30。bodyHtml.ts の KEEP_TABLE_ROWS）：図のページに入りきらなければ、まるごと次のページ
+    floats.every((f) => !f.inside && (f.tables[0] === f.group || (f.tables.length === 1 && f.tables[0] === f.group + 1))),
     JSON.stringify(floats),
   )
 

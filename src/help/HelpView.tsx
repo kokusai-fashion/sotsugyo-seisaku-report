@@ -3,6 +3,7 @@ import { Icon } from '../app/icons'
 import { keepParts } from '../app/keepPhrases'
 import { useBackToClose } from '../app/useBackToClose'
 import { imeKey, useDialogFocus } from '../app/useDialogFocus'
+import { ON_MAC } from '../editor/selectionBar'
 import { deviceName } from '../drive/device'
 import { groupVideos, lengthText, topicOfVideo, topicVideos, videosOf, type HelpVideo } from './videos'
 import { TROUBLE_GROUP, type HelpDevice, type HelpTopic } from './helpTopics'
@@ -47,10 +48,21 @@ function currentDevice(): HelpDevice['id'] {
 }
 
 /**
+ * Mac では、使い方の文のキーの書き方を Mac の形にする（道具の説明は Mac の形なのに、使い方は Windows のままだった：学生の試し 7回目 2026-10-30）
+ */
+function forMac(text: string): string {
+  return text
+    .replace(/Ctrl を押しながらホイールを回す/g, 'トラックパッドを2本の指で広げる・縮める')
+    .replace(/Ctrl\+/g, '⌘+')
+    .replace(/Delete/g, 'delete')
+}
+
+/**
  * 言葉の入っているところに印（黄色）を付けて出す。短いかっこ書き・ボタンの名前（かぎかっこの語）は折り返さない
  * （「「横に｜並べる」」「（横に｜2枚まで）」と切れていた：PC の試し 2026-10-24。app/keepPhrases.tsx）
  */
-function Hl({ text, terms }: { text: string; terms: string[] }) {
+function Hl({ text: original, terms }: { text: string; terms: string[] }) {
+  const text = ON_MAC ? forMac(original) : original
   const marked = (s: string) =>
     highlightParts(s, terms).map((p, i) =>
       p.hit ? (

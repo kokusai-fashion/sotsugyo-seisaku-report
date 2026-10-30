@@ -2638,11 +2638,25 @@ export class ReportEditor {
     if (this.phone) {
       if (!this.stage.zoomed) this.stage.setZoom(true)
       this.revealEditing()
-    }
+    } else if (this.stage.zoomed) this.revealOffscreen()
     // 開いた段落の「空の段落がある」を消す（書いている間は言わない。runChecks）
     this.runChecks()
     this.noticeSwatchOnce(id)
     this.notify()
+  }
+
+  /**
+   * パソコンで拡大しているとき：開いた欄が、見えている所からすっかり外れていれば、上から3分の1の高さまで紙面を動かす
+   * （拡大したまま、ページの下のほうに図を入れると、タイトルの欄が画面の下に隠れ、打っても見えなかった：学生の試し 7回目 2026-10-30）。
+   * 少しでも見えていれば動かさない（押した段落が急に動かないように）
+   */
+  private revealOffscreen(): void {
+    requestAnimationFrame(() => {
+      if (!this.overlay.blockId) return
+      const r = this.overlay.element.getBoundingClientRect()
+      const s = this.scroller.getBoundingClientRect()
+      if (r.height > 0 && (r.top >= s.bottom - 4 || r.bottom <= s.top + 4)) this.scroller.scrollTop += r.top - (s.top + s.height / 3)
+    })
   }
 
   /**
@@ -4093,6 +4107,12 @@ export class ReportEditor {
         const blocks = this.report.body.flatMap((c) => c.blocks)
         if (blocks[blocks.findIndex((b) => b.id === editing) + 1]?.id === pb.pb) return pb.pb
       }
+      // 図・表のタイトル・見出しの Enter で作った、まだ何も書いていない段落：確定すると消えるので、その前（図・表・見出し）の後ろに足す
+      // （図のタイトルで Enter → すぐ「小見出し」で、見出しが本文のいちばん後ろに入っていた：学生の試し 7回目 2026-10-30）
+      if (this.captionParagraph?.id === editing && !this.overlay.text.trim()) {
+        const blocks = this.report.body.flatMap((c) => c.blocks)
+        return blocks[blocks.findIndex((b) => b.id === editing) - 1]?.id ?? editing
+      }
       return editing
     }
     const id = this.currentId
@@ -4258,11 +4278,13 @@ export class ReportEditor {
       } else this.reopenAfterRender(keep.id, keep.caret)
       return
     }
-    // 書いていないとき：最後に触った所の後ろに入れる。どこに入ったかを知らせる（知らせなしで入り、どこに入ったか分からなかった：学生の試し 4回目 2026-10-30）
-    const where = this.placeName(after)
+    // 書いていないとき：最後に触った所の後ろに入れる。どこに入ったかを知らせる（知らせなしで入り、どこに入ったか分からなかった：学生の試し 4回目 2026-10-30）。
+    // 見出しの頭などを書いている間（PC）に押したときは、入れた所だけを言う（「ほかの所に入れるときは…」が、まちがえたように読めた：学生の試し 7回目 2026-10-30）
+    const writing = !!this.overlay.blockId
+    const where = writing && place.before ? `${this.placeName(place.before)}の前に` : `${this.placeName(after)}の後ろに`
     this.update((r) => ops.insertAfter(r, after, { type: 'pageBreak', id }))
     this.currentId = id
-    this.showNotice(`${where}の後ろに、改ページを入れました（ほかの所に入れるときは、その段落を書いている間に「改ページ」）`)
+    this.showNotice(writing ? `${where}、改ページを入れました` : `${where}、改ページを入れました（ほかの所に入れるときは、その段落を書いている間に「改ページ」）`)
   }
 
   /** 知らせに書く、ブロックの名前（「「最初に生地の…」」・図・表など） */
@@ -4782,7 +4804,14 @@ export class ReportEditor {
     const at = this.currentCell(tableId)
     if (!at?.cellId) return
     const imageId = await this.importImage('swatch')
-    if (imageId) this.changeTable(tableId, (t) => setCellImage(t, at.cellId, imageId), at.cellId)
+    if (!imageId) return
+    this.changeTable(tableId, (t) => setCellImage(t, at.cellId, imageId), at.cellId)
+    // 入れ方の知らせ（noticeSwatchOnce）は、入れたら消す（入れたあとも紙面に重なって残っていた：学生の試し 7回目 2026-10-30）
+    const shown = this.notice?.notice
+    if (shown?.kind === 'info' && shown.text.startsWith('生地見本の写真は')) {
+      this.notice = null
+      this.notify()
+    }
   }
 
   removeCellImage(tableId: string): void {
