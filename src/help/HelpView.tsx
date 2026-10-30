@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../app/icons'
 import { keepParts } from '../app/keepPhrases'
-import { useDialogFocus } from '../app/useDialogFocus'
+import { useBackToClose } from '../app/useBackToClose'
+import { imeKey, useDialogFocus } from '../app/useDialogFocus'
 import { deviceName } from '../drive/device'
 import { groupVideos, lengthText, topicOfVideo, topicVideos, videosOf, type HelpVideo } from './videos'
 import { TROUBLE_GROUP, type HelpDevice, type HelpTopic } from './helpTopics'
@@ -93,6 +94,8 @@ export function HelpView({ topics, who, imageBase, guides, variant, onClose, onT
   const escape = () => (zoom ? setZoom(null) : onClose())
   // スマホ（画面いっぱいの欄）は窓として扱う（中に移り、Tab で外に出ず、閉じると元の場所に戻る）
   useDialogFocus(sheet ? rootRef : noRef, escape)
+  // スマホ：ブラウザの「戻る」で使い方を閉じる（前はツールから出ていた：学生の試し 6回目 2026-10-30）
+  useBackToClose(onClose, sheet)
 
   // PC・管理ページ：開いたら、使い方の見出しに移る（読み上げで、初めから読まれるように）
   useEffect(() => {
@@ -133,7 +136,7 @@ export function HelpView({ topics, who, imageBase, guides, variant, onClose, onT
 
   const onKeyDown = (e: KeyboardEvent) => {
     // スマホは useDialogFocus が Esc を受ける
-    if (sheet || e.key !== 'Escape') return
+    if (sheet || e.key !== 'Escape' || imeKey(e.nativeEvent)) return
     e.preventDefault()
     escape()
   }

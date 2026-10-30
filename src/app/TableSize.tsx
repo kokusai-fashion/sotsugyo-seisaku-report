@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { clampTableSize, TABLE_SIZE } from '../model/table'
 import { Icon } from './icons'
+import { useBackToClose } from './useBackToClose'
 import { useDialogFocus } from './useDialogFocus'
 import { keepFocus, swallowSecondClick } from './uiShared'
 
@@ -191,6 +192,7 @@ export function TableSizeSheet({ onInsert, onMaterial, onClose }: { onInsert: (s
   const [size, setSize] = useState<TableSize>(USUAL)
   const ref = useRef<HTMLElement>(null)
   useDialogFocus(ref, onClose)
+  useBackToClose(onClose)
   const step = (dc: number, dr: number) => setSize((s) => clampTableSize(s.columns + dc, s.rows + dr))
   return (
     <>

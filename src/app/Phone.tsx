@@ -9,6 +9,8 @@ import { Icon } from './icons'
 import { useAsk, type Ask } from './ask'
 import { SelectionTools } from './Palette'
 import { TableSizeSheet } from './TableSize'
+import { ON_MAC } from '../editor/selectionBar'
+import { useBackToClose } from './useBackToClose'
 import { ShapeFace, TableShapeSheet } from './tableShape'
 import { SHAPE_TEXTS } from './tableShapeTexts'
 import { BackupLabel } from './dialogs'
@@ -73,6 +75,7 @@ type SheetKind = 'pages' | 'add' | 'check' | 'menu' | null
 function Sheet({ title, extra, onClose, children }: { title: string; extra?: ReactNode; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLElement>(null)
   useDialogFocus(ref, onClose)
+  useBackToClose(onClose)
   return (
     <>
       <div className="scrim" onClick={onClose} />
@@ -321,7 +324,7 @@ function PinchTip({ hidden }: { hidden: boolean }) {
     <div className="pinch-tip" ref={ref} role="note">
       <b>字を大きくするには</b>
       {/* マウスで使っている（パソコンの窓が狭い・ブラウザを拡大した）ときは、2本の指ではなく Ctrl＋ホイール（mockups/v73 ⑨） */}
-      <span>{matchMedia('(any-pointer: coarse)').matches ? '2本の指で広げます（次からも、その大きさで書けます）' : 'Ctrl を押しながらホイールを回します（次からも、その大きさで書けます）'}</span>
+      <span>{matchMedia('(any-pointer: coarse)').matches ? '2本の指で広げます（次からも、その大きさで書けます）' : ON_MAC ? 'トラックパッドを2本の指で広げます（次からも、その大きさで書けます）' : 'Ctrl を押しながらホイールを回します（次からも、その大きさで書けます）'}</span>
       <button
         type="button"
         aria-label="閉じる"
@@ -615,7 +618,7 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
 }
 
 /** 「追加」の欄：本文のページなら段落・見出し・図・表を足す */
-function AddTools({ editor, snap, onDone, onTable, direct }: { editor: ReportEditor; snap: EditorSnapshot; onDone: () => void; onTable: () => void; direct?: boolean }) {
+function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap: EditorSnapshot; onDone: () => void; direct?: boolean }) {
   // 開いた直後で、まだ紙面が出ていない：どのページかが分からないので「本文のページで足せます」とは言わない（本文のページを開いていた学生が迷っていた）
   if (!snap.layout) return <p className="sheet-hint">紙面を準備しています。準備ができたら、ここから段落や見出しを足せます。</p>
   const kind = snap.layout.kinds[snap.page] ?? 'unknown'
@@ -627,10 +630,9 @@ function AddTools({ editor, snap, onDone, onTable, direct }: { editor: ReportEdi
       </p>
     )
   }
-  const tool = (label: string, icon: ReactNode, run: () => void, off = false) => (
+  const tool = (label: string, icon: ReactNode, run: () => void) => (
     <button
       className="tb"
-      disabled={off}
       onClick={(e) => {
         // すばやく2回押した2回目は、閉じたこの欄の下の紙面に当てない（書き始めた見出しが閉じ、下の別の見出しが開いて、打った字がそこに入った：
         // 学生の試し 4回目 2026-10-30）
@@ -654,13 +656,11 @@ function AddTools({ editor, snap, onDone, onTable, direct }: { editor: ReportEdi
         {tool('大見出し', Icon.heading1, () => editor.addChapter())}
         {tool('小見出し', Icon.heading2, () => editor.addSubheading())}
         {tool('改ページ', Icon.pageBreak, () => editor.addPageBreak())}
-        {/* 書く欄を閉じたあとも、さっき書いていた所に図・表を入れる（スマホの形では、書いている間のキーボードの上の道具しかなかった。
-            ブラウザを拡大したパソコンでは、キーボードだけで入れられなかった：学生の試し 5回目 2026-10-30。依頼者の選択 mockups/v78 ① 案A） */}
-        {tool('図', Icon.figure, () => void editor.addFigure(), !snap.resumable)}
-        {tool('表', Icon.table, onTable, !snap.resumable)}
       </div>
+      {/* 図・表は、入れたい所を押してから入れる（書く欄を閉じたあとも入れられる形は、仕組みが複雑で分かりにくくなるのでやめた：依頼者の判断 2026-10-30）。
+          ブラウザを拡大したパソコンには画面のキーボードがないので「キーボードの上」とは言わない（学生の試し 6回目 2026-10-30） */}
       <p className="sheet-hint">
-        {snap.resumable && snap.resumeLabel ? `図・表は、さっき書いていた所（「${snap.resumeLabel}」の段落）に入ります。ほかの所に入れるときは、` : '図・表は、'}文中の入れたい位置を{touchPrimary() ? 'タップ' : 'クリック'}して、{direct ? 'キーボードの上' : '書く欄'}の{direct ? '「図」「表」' : '「図を入れる」「表を入れる」'}で入れます（素材表も{direct ? '「表」' : '「表を入れる」'}から）。
+        図・表は、文中の入れたい位置を{touchPrimary() ? 'タップ' : 'クリック'}して、{direct ? (touchPrimary() ? 'キーボードの上' : '書いている間に出る道具') : '書く欄'}の{direct ? '「図」「表」' : '「図を入れる」「表を入れる」'}で入れます（素材表も{direct ? '「表」' : '「表を入れる」'}から）。
       </p>
       {/* 引用・参考文献は、使い方の「引用・参考文献」から入れる（mockups/v35 ①。入れた後は、そのページをタップして直す） */}
     </>
@@ -728,8 +728,6 @@ interface Props {
 /** スマホ版の、紙面のまわりの部品（紙面そのものは App の .stage） */
 export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, sheetHostRef, onWordImport, onReload, wordTodo, checkRequest, direct, guiding = false }: Props) {
   const [sheet, setSheet] = useState<SheetKind>(null)
-  /** 「追加」の「表」：表の大きさを選ぶ欄（さっき書いていた所に入れる。mockups/v78 ① 案A） */
-  const [addTable, setAddTable] = useState(false)
   const close = () => setSheet(null)
   // checkRequest が増えたら、チェックの欄を開く（描く途中で合わせる。React の「前の値と比べて state を変える」書き方）
   const [handledRequest, setHandledRequest] = useState(checkRequest)
@@ -836,30 +834,8 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
       )}
       {sheet === 'add' && (
         <Sheet title="追加" onClose={close}>
-          <AddTools
-            editor={editor}
-            snap={snap}
-            onDone={close}
-            onTable={() => {
-              close()
-              setAddTable(true)
-            }}
-            direct={direct}
-          />
+          <AddTools editor={editor} snap={snap} onDone={close} direct={direct} />
         </Sheet>
-      )}
-      {addTable && (
-        <TableSizeSheet
-          onInsert={(size) => {
-            setAddTable(false)
-            editor.addTable('blank', size)
-          }}
-          onMaterial={() => {
-            setAddTable(false)
-            editor.addTable('material')
-          }}
-          onClose={() => setAddTable(false)}
-        />
       )}
       {sheet === 'check' && (
         <Sheet title="セルフチェック" extra={<Tally snap={snap} config={config} />} onClose={close}>

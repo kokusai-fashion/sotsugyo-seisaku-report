@@ -50,7 +50,14 @@ const loadWord = () => import('./wordCheck')
 const loadPhoto = () => import('./photo')
 const loadSaver = () => import('../pdf/exportPdf')
 
-const LOAD_ERROR = '読む部品を読み込めませんでした。インターネットにつながっているかを確かめ、ページを読み込み直してください。'
+/**
+ * 読む部品を読み込めなかったときの言葉。通信が切れているときは、読み込み直すと入れたファイルが外れるので、つながってから入れ直してもらう
+ * （つながってから同じファイルを入れ直せば読めた：学生の試し 6回目 2026-10-30）
+ */
+const loadError = () =>
+  navigator.onLine
+    ? '読む部品を読み込めませんでした。インターネットにつながっているかを確かめ、ページを読み込み直してください。'
+    : '通信が切れているため、読む部品を読み込めませんでした。インターネットにつながってから、もう一度入れてください。'
 
 // ---- 入れたファイル ----
 
@@ -331,7 +338,7 @@ export function CheckApp() {
           }
         }
       } catch {
-        warn(`「${file.name}」：${LOAD_ERROR}`)
+        warn(`「${file.name}」：${loadError()}`)
         refused++
         setReading({ done: i + 1, total: list.length })
         continue
@@ -579,7 +586,7 @@ export function CheckApp() {
           wordErrors = reading.errors
           info = { studentId: reading.studentId, name: reading.name }
         } catch {
-          wordErrors = Object.fromEntries(Object.keys(words).map((p) => [p, LOAD_ERROR]))
+          wordErrors = Object.fromEntries(Object.keys(words).map((p) => [p, loadError()]))
         }
       }
       // 入れた場所と中身が違うファイル・Word より古い PDF（間違った PDF のまま、まとめないように）
@@ -673,7 +680,7 @@ export function CheckApp() {
     try {
       modules = await Promise.all([loadMerge(), loadSaver()])
     } catch {
-      setPhase({ kind: 'error', message: LOAD_ERROR })
+      setPhase({ kind: 'error', message: loadError() })
       return
     }
     const [{ mergeParts }, save] = modules
@@ -1011,7 +1018,7 @@ export function CheckApp() {
             </ul>
           )}
           {/* ページの絵の上に出す（下にあると、1366×768 で下の帯に隠れていた：学生の試し 5回目 2026-10-30） */}
-          {empty && <p className="c-cap">この順に並べて、1つの PDF にまとめます。入れたファイルは、名前を見て自動で分けます。ページを読み込み直すと、入れたファイルは外れます。</p>}
+          {empty && <p className="c-cap">この順に並べて、1つの PDF にまとめます。入れたファイルは、名前を見て自動で分けます。</p>}
           <div className="c2-doc" id="doc" ref={docRef} style={{ '--tw': `${grid.tw}px` } as React.CSSProperties}>
             {narrow ? (
               <div className="card pp-list">

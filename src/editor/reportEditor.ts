@@ -24,11 +24,11 @@ import { PageStage, ZOOM_STEPS } from './pageStage'
 import { loadWritingZoom, PinchZoom, saveWritingZoom, type Point } from './pinchZoom'
 import { blockPaperKey, fixedTitleNote, markFocusable, PAPER_FOCUSABLE, paperElement, paperKeyOf, paperOrder, rememberTabStop, setTabStop } from './paperFocus'
 import * as ops from './reportOps'
-import { ReportRenderer, type FirstShow, type PageEffect } from './reportRenderer'
+import { fontsFailed, ReportRenderer, type FirstShow, type PageEffect } from './reportRenderer'
 import { PLACEHOLDER_ATTR } from './pageView'
 import { copyRange, deleteRange, pasteClip, rangePieces, resolveRange, sameClipText, type Clip, type ModelPoint, type ModelRange } from './rangeOps'
 import { caretAt, caretBefore, domPoint, includeClosing, markHangingSelection, paperPoint, type Caret } from './rangeSelection'
-import { SelectionBar, type Bounds } from './selectionBar'
+import { BACKSPACE_KEY, DELETE_KEY, SelectionBar, type Bounds } from './selectionBar'
 import { changedEnd, changedPlace, headingNotice, tableCutNotice, type ChangedPlace, type NoticeBody, type RemovedWhat, type UndoNotice } from './undoNotice'
 import { submissionTitle } from '../model/fileName'
 
@@ -113,10 +113,6 @@ export interface EditorSnapshot {
    * 「図を入れる」で写真を選んで取り込んでいる間も含む
    */
   waiting: boolean
-  /** 書いていないとき：「図を入れる」「表を入れる」で、最後に書いていた所に入れられる（Esc で閉じたあと。mockups/v77 ① 案A） */
-  resumable: boolean
-  /** resumable のとき、その段落の書き出し（「「配色と素材は…」」。スマホの「追加」の図・表：mockups/v78 ① 案A） */
-  resumeLabel: string | null
   /** 見開き（いまのページと次のページを並べる。1–2、3–4…の組。PC だけ。mockups/v35 ③ 案A）で表示しているか */
   spread: boolean
   /** 紙面の台が、見開きを出せる広さか（狭いときは「見開き」を出さない） */
@@ -597,6 +593,9 @@ export class ReportEditor {
         // 最後の行を見出しにしたときは、その見出しの終わりで書き続ける（Enter で、見出しの後ろに段落ができる）
         const caret = last ? (ops.findEditable(this.report, last)?.text.length ?? 0) : caretInLast
         this.reopenAfterRender(last ?? result.lastId, caret, { id, place: 'after' })
+        // 段落ごと（終わりの改行まで）貼って、その後ろに作った空の段落：何も書かずに離れたら消す（図のタイトルの Enter と同じ。
+        // 段落の終わり・空の段落に貼るたびに、空の段落が残っていた：学生の試し 6回目 2026-10-30）
+        if (!last && paragraphs.length > 1 && paragraphs[paragraphs.length - 1] === '') this.captionParagraph = { id: result.lastId, titled: null }
         if (headed) this.noticeHeading(headed.step)
       },
       // 段落の書き出しに打った空白を入れなかった：1字下げは自動で付くことを、開いている間に1回だけ知らせる
@@ -826,8 +825,6 @@ export class ReportEditor {
       overZoomed: this.writingOnPaper && this.stage.scale > this.stage.textScale * OVER_ZOOM,
       zoomLevel: this.stage.relativeZoom,
       waiting: this.overlay.waiting || this.insertingFigure,
-      resumable: this.resumable,
-      resumeLabel: this.resumable && this.lastWriting ? this.resumeLabel(this.lastWriting.id) : null,
       spread: this.stage.spread,
       spreadFits: this.stage.spreadFits,
       turning: this.turning !== null,
@@ -916,9 +913,11 @@ export class ReportEditor {
    */
   private alertUnreadable(names: string[]): void {
     if (!names.length) return
+    // 通信が切れていて、iPhone の写真（HEIC）を読む部品を取りに行けなかった：壊れていると言わない（学生の試し 6回目 2026-10-30）
+    const offline = !navigator.onLine && names.some((n) => /\.hei[cf]$/i.test(n))
     this.alert(
       `${names.map((n) => `「${n}」`).join('')}を写真として読み込めませんでした。\n` +
-        'ファイルが壊れているか、読めない形式です。JPEG か PNG にしてから選んでください。',
+        (offline ? '通信が切れているため、iPhone の写真を読む部品を読み込めませんでした。インターネットにつながってから、もう一度選んでください。' : 'ファイルが壊れているか、読めない形式です。JPEG か PNG にしてから選んでください。'),
     )
   }
 
@@ -1073,6 +1072,9 @@ export class ReportEditor {
    * （途中の状態がちらっと見えないように。書き終えた欄の文字は、組み直した紙面が出るまで仮に表示している：freezeEdited）。
    * 打っている途中の組み直し（scheduleRender）は急ぎでない：組んでいる間にまた打っても、組み終えた紙面を出す（ページの終わりで、続きのページへ移れるように）
    */
+  /** 書体を読み込めなかったことを知らせた（render。一度だけ） */
+  private fontNoticed = false
+
   async render(urgent = true): Promise<void> {
     clearTimeout(this.renderTimer)
     if (this.rendering) {
@@ -1143,6 +1145,11 @@ export class ReportEditor {
         // 書き終えた欄の仮の表示を外す（その変更を含む紙面が出た）
         this.clearFrozen(seq)
         this.pagesLeft = null
+        // 書体の一部を読み込めなかった（回線が切れたなど）：紙面は手元の書体で組んだので、一度だけ知らせる（学生の試し 6回目 2026-10-30）
+        if (fontsFailed() && !this.fontNoticed) {
+          this.fontNoticed = true
+          this.noticeInfo('通信が切れて、書体の一部を読み込めませんでした。つながってから、ページを読み込み直してください（書いたものは残ります）')
+        }
         // 原稿を丸ごと入れ替えた：入れ替えた原稿の紙面が出た
         if (this.replacing !== null && seq >= this.replacing) this.replacing = null
       }
@@ -1820,6 +1827,8 @@ export class ReportEditor {
   private revealAt: number | null = null
   /** 紙面で直接書く：紙面を押した点と時刻（押して書き始めたとき、押した行を指の下に置くため） */
   private lastTap: { x: number; y: number; time: number } | null = null
+  /** スマホで紙面を押した時刻（すぐあとの2回目では、書く欄を閉じない：onClick） */
+  private paperTapAt = 0
   /** 紙面で直接書く：入れたばかりの図・表のタイトル（紙面に出たら、図・表と一緒に見せる：settleContinued） */
   private revealObjectFor: string | null = null
   /**
@@ -2246,9 +2255,6 @@ export class ReportEditor {
     const tidy = this.tidyText(id, text)
     // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って小見出しにしたもの）を段落に戻す（Enter のときと同じ）
     const kindNow = ops.findEditable(this.report, id)?.kind
-    // 本文の段落を書き終えた：Esc で閉じたあとも、左の道具の「図を入れる」「表を入れる」で、書いていた所に入れられるように覚えておく
-    // （キーボードだけでは図・表を入れられなかった：学生の試し 4回目 2026-10-30。依頼者の選択 mockups/v77 ① 案A）
-    this.lastWriting = kindNow === 'paragraph' ? { id, caret: this.overlay.lastClosed?.blockId === id ? this.overlay.lastClosed.caret : text.length } : null
     const reverted = kindNow === 'paragraph' && tidy !== ops.findEditable(this.reportBeforeEdit ?? this.report, id)?.text ? this.revertListHeading(this.report, id, tidy) : null
     if (reverted) this.showNotice('番号の行が続いたので、見出しにせず箇条書き（段落）にしました')
     const committed = ops.setText(reverted ?? this.report, id, tidy)
@@ -3184,6 +3190,10 @@ export class ReportEditor {
     const { clientX: x, clientY: y } = touch ?? e
     const target = (touch?.target ?? e.target) as HTMLElement
     if (this.writingOnPaper && this.overlay.element.contains(target)) return
+    // スマホ：押して書き始めたすぐあと（0.35秒）の2回目（ほかのアプリの「2回押して拡大」のつもり）：書く欄を閉じない
+    // （1回目で拡大して書き始め、2回目で閉じてページ全体に戻っていた：学生の試し 6回目 2026-10-30）
+    if (this.direct && keyHit === undefined && this.overlay.blockId && performance.now() - this.paperTapAt < 350) return
+    if (this.direct && keyHit === undefined) this.paperTapAt = performance.now()
     // スマホで紙面に直接書く：押した点（書き始めるとき、押した行をその高さに置く。覚えた大きさで広げるとき、押した点を指の下に置く）
     this.lastTap = this.direct && keyHit === undefined ? { x, y, time: performance.now() } : null
     // 見開き：並べている隣のページを押した：紙面はそのままで、そのページで書く（このあとは、そのページを押したときと同じ）
@@ -3601,7 +3611,12 @@ export class ReportEditor {
     this.tableCutFrom = null
     const writing = !!this.overlay.blockId
     const was = this.overlay.blockId ? { id: this.overlay.blockId, caret: this.overlay.caret } : null
+    // 書く欄の中で戻した字（書く欄を閉じると、その欄のやり直しの分は消える）
+    const undoneTyping = was && this.history.canUndo ? this.overlay.undoneText() : null
     this.commitForChange()
+    // 書く欄の中で戻した字があるまま、原稿の「元に戻す」へ進んだ：やり直していけば、その字まで戻るように積んでおく
+    // （↓・Tab で欄を移りながら書いたあと、元に戻す2回 → やり直す2回で、最後の欄で打った字が戻らなかった：学生の試し 6回目 2026-10-30）
+    if (was && undoneTyping !== null && ops.findEditable(this.report, was.id)) this.history.pushRedo(ops.setText(this.report, was.id, this.tidyText(was.id, undoneTyping)))
     // 書いている間に入れた改ページなどを、書いたまま戻した：する前に書いていた所で書き続ける（書いた字を確定して積んだときは、その字を先に戻す）
     const writingFrom = writing && this.history.last ? this.writingBefore.get(this.history.last) : undefined
     // 段落を見出しにしたのを戻す（知らせの「戻す」でも、Ctrl+Z・道具の「元に戻す」でも）：打ったままの段落に戻る
@@ -3867,7 +3882,7 @@ export class ReportEditor {
     this.autoPeriodNoticed = true
     // スマホのキーボードには「Backspace」の字がないので、消すキー（⌫）と言う（学生の試し 2026-10-24）
     // 次の段落を書いている間は出しておき、ほかの欄を書き始めたら消す
-    this.showNotice(this.phone ? '段落の終わりに「。」を付けました（キーボードの ⌫ で取り消せます）' : '段落の終わりに「。」を付けました（Backspace で取り消せます）', { untilMove: true })
+    this.showNotice(this.phone ? '段落の終わりに「。」を付けました（キーボードの ⌫ で取り消せます）' : `段落の終わりに「。」を付けました（${BACKSPACE_KEY} で取り消せます）`, { untilMove: true })
   }
   private autoPeriodNoticed = false
 
@@ -4322,7 +4337,7 @@ export class ReportEditor {
    */
   async addFigure(): Promise<void> {
     if (this.settlingRemoval) return
-    const paragraphId = this.editingParagraph() ?? (await this.resumeWriting())
+    const paragraphId = this.editingParagraph()
     if (paragraphId) return this.insertFigureAtCaret(paragraphId)
   }
 
@@ -4364,37 +4379,17 @@ export class ReportEditor {
     const table: TableBlock = { type: 'table', id: tableId, caption: '', widths: 'equal', heights: 'auto', rows: rows.map((r) => ({ id: ops.newId('tr'), cells: Array.from({ length: columns }, (_, i) => ({ id: ops.newId('tc'), text: (r[i] ?? '').trim(), imageId: null })) })) }
     this.pushHistory(this.report)
     const [first, ...rest] = pasted.ids
-    this.report = { ...this.report, body: this.report.body.map((c) => ({ ...c, blocks: c.blocks.flatMap((b) => (b.id === first ? [table] : rest.includes(b.id) ? [] : [b])) })) }
+    // すぐ前の、書いてある段落の終わりの文に「（表n）」を入れる（段落の終わりで「表を入れる」を押したときと同じ。前は入れず、
+    // 知らせの「本文に「（表n）」も入れます」が、だれが入れるのか・n がいくつか分からなかった：学生の試し 6回目 2026-10-30）
+    const chapter = this.report.body.find((c) => c.blocks.some((b) => b.id === first))
+    const prev = chapter?.blocks[chapter.blocks.findIndex((b) => b.id === first) - 1]
+    const withTable: Report = { ...this.report, body: this.report.body.map((c) => ({ ...c, blocks: c.blocks.flatMap((b) => (b.id === first ? [table] : rest.includes(b.id) ? [] : [b])) })) }
+    const refIn = prev?.type === 'paragraph' && !ops.paragraphEmpty(withTable, prev.id) ? prev.id : null
+    this.report = refIn ? ops.insertRef(withTable, refIn, Infinity, tableId) : withTable
+    const n = ops.numbering(this.report).numbers.get(tableId)
     // 表のタイトルを書き始める（表を入れたときと同じ）
     this.reopenAfterRender(tableId, 0)
-    this.showNotice('表にしました。表のタイトルを書きます（本文に「（表n）」も入れます）')
-  }
-
-  /** 最後に書いていた本文の段落と、閉じたときのカーソルの位置（resumeWriting） */
-  private lastWriting: { id: string; caret: number } | null = null
-
-  /** 書いていないとき：「図を入れる」「表を入れる」を押したら、最後に書いていた段落の、書いていた所に入れられるか */
-  private get resumable(): boolean {
-    const last = this.lastWriting
-    if (this.overlay.blockId || !last || ops.findEditable(this.report, last.id)?.kind !== 'paragraph') return false
-    // 見ているページ（見開きなら2ページ）にあるときだけ（ほかのページを見ながら押すと、写真を選ぶ前に前のページへ飛んで、どこに入るか分からなかった：学生の試し 5回目 2026-10-30）
-    return this.isVisiblePage(this.pageOfBlock(last.id, last.caret))
-  }
-
-  private resumeLabel(id: string): string {
-    const text = ops.findEditable(this.report, id)?.text.trim() ?? ''
-    return text.length > 8 ? `${text.slice(0, 8)}…` : text
-  }
-
-  /** 最後に書いていた段落を、書いていた所で開き直す（そのページへ移る）。開けたら、その段落の ID */
-  private async resumeWriting(): Promise<string | null> {
-    const last = this.lastWriting
-    const p = last ? ops.findEditable(this.report, last.id) : undefined
-    if (!last || p?.kind !== 'paragraph' || this.overlay.blockId) return null
-    const page = this.pageOfBlock(last.id, last.caret)
-    if (page >= 0 && page !== this.page) await this.goToPage(page, 'none')
-    this.openEditor(last.id, Math.min(last.caret, p.text.length))
-    return this.editingParagraph()
+    this.showNotice(refIn ? `表にしました。前の段落の終わりに「（表${n}）」を入れました。表のタイトルを書きます` : `表にしました。表のタイトルを書きます。本文に「（表${n}）」を書き足します`)
   }
 
   /** 本文の段落を書いているなら、その段落の ID */
@@ -4464,11 +4459,6 @@ export class ReportEditor {
    * size：空の表の大きさ（列・行。行は見出しの行も数える。入れる前に選ぶ：mockups/v35 ②。なければ 2列×2行）
    */
   addTable(kind: 'blank' | 'material', size?: { columns: number; rows: number }): void {
-    // 書いていない（Esc で閉じたあと）：最後に書いていた所を開き直してから入れる
-    if (!this.editingParagraph() && this.resumable) {
-      void this.resumeWriting().then((id) => id && this.addTable(kind, size))
-      return
-    }
     const paragraphId = this.editingParagraph()
     if (!paragraphId || this.settlingRemoval) return
     const caret = this.overlay.caret
@@ -5087,7 +5077,7 @@ export class ReportEditor {
   /** 紙面をなぞって選んだまま字を打った：書き換えはしないので、やり方を知らせる（選んでいなければ何もしない） */
   noticeTypingOverRange(): void {
     if (this.overlay.blockId || !this.hasPaperSelection() || !this.paperRange()) return
-    this.showNotice('選んだ文は書き換えられません。消すときは Delete、書くときは書きたい所を押します')
+    this.showNotice(`選んだ文は書き換えられません。消すときは ${DELETE_KEY}、書くときは書きたい所を押します`)
   }
 
   /** 削除（Delete・Backspace）：紙面で選んだ範囲を消す（1回で元に戻せる）。範囲がなければ false（ほかに任せる） */

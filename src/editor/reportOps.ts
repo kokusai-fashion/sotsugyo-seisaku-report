@@ -406,8 +406,10 @@ export function removeEmptyBackward(report: Report, id: string, text: string): {
   if (text !== '') return null
   const kind = findEditable(report, id)?.kind
   let prev = neighbor(report, id, 'prev')
-  // すぐ前が図・表のタイトルなら、その前の欄へ移る（タイトルへ移ると、続けて押した Backspace でタイトルの字が削られていた：学生の試し 2026-10-29）
-  while (prev && (prev.kind === 'figureCaption' || prev.kind === 'tableCaption')) prev = neighbor(report, prev.id, 'prev')
+  // 見出し：すぐ前が図・表のタイトルなら、その前の欄へ移る（タイトルへ移ると、続けて押した Backspace でタイトルの字が削られていた：学生の試し 2026-10-29）。
+  // 段落は、タイトルの終わりへ戻る（図のタイトルで Enter → すぐ Backspace で、図の上の段落へ飛び、続けて押すとその段落の字が消えた。
+  // 見出しで Enter → Backspace なら見出しに戻るのと、そろえる：学生の試し 6回目 2026-10-30）
+  if (kind !== 'paragraph') while (prev && (prev.kind === 'figureCaption' || prev.kind === 'tableCaption')) prev = neighbor(report, prev.id, 'prev')
   if (!prev || prev.kind === 'field' || prev.kind === 'abstractParagraph') return null
   const to = { targetId: prev.id, caret: prev.text.length }
   // ひな形の段落（先生の「ここに書くこと」が付いた段落）は消さない（書く前に、うっかり Backspace を押して説明ごと消さないように）

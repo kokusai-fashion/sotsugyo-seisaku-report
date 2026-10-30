@@ -1175,9 +1175,8 @@ await withEdge(async (browser) => {
   // ---- 図・表は、文中の入れたい位置で入れる（書いていないときは押せない） ----
   // 押せない形（押すと、わけを吹き出しで出す：mockups/v73 ⑤。aria-disabled）
   const toolDisabled = (label) => page.evaluate((label) => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.includes(label)); return !!b && (b.disabled || b.getAttribute('aria-disabled') === 'true') }, label)
-  // 段落を Esc で閉じた直後は、さっき書いていた所に入れられる（mockups/v77 ① 案A）
-  const resumeNote = await page.evaluate(() => document.querySelector('.palette .ctx-note.resume')?.textContent ?? '')
-  check('段落を Esc で閉じた直後は「図を入れる」「表を入れる」を押せて、道具の上に「さっき書いていた所に入れます」', (await toolDisabled('図を入れる')) === false && (await toolDisabled('表を入れる')) === false && resumeNote === 'さっき書いていた所に入れます', resumeNote)
+  // 段落を Esc で閉じた直後も押せない（さっき書いていた所に入れる形は、仕組みが複雑で分かりにくくなるのでやめた：依頼者の判断 2026-10-30）
+  check('段落を Esc で閉じた直後は「図を入れる」「表を入れる」を押せない', (await toolDisabled('図を入れる')) === true && (await toolDisabled('表を入れる')) === true)
   // 段落でないもの（大見出し）を書いて閉じたあとは、入れる所がないので押せない
   const chapterId = (await snap()).report.body[0].id
   await page.evaluate((id) => window.__editor.openEditor(id, 0), chapterId)
@@ -1300,8 +1299,8 @@ await withEdge(async (browser) => {
     await ready()
     const redone34 = await urState()
     check(
-      '「元に戻す」で表が消え、「やり直す」で戻る（マウスを乗せると「やり直す（Ctrl+Y）／Mac は ⌘+Shift+Z」がボタンの右に出る）',
-      !undone34.has && undone34.buttons === '元に戻す○,やり直す○' && tip?.text === 'やり直す（Ctrl+Y）Mac は ⌘+Shift+Z' && tip.right && redone34.has && !redone34.canRedo && before34 !== (await bodyKey()),
+      '「元に戻す」で表が消え、「やり直す」で戻る（マウスを乗せると「やり直す（Ctrl+Y）」がボタンの右に出る。Mac では「⌘+Shift+Z」：fixes1030e）',
+      !undone34.has && undone34.buttons === '元に戻す○,やり直す○' && tip?.text === 'やり直す（Ctrl+Y）' && tip.right && redone34.has && !redone34.canRedo && before34 !== (await bodyKey()),
       JSON.stringify({ undone34, tip, redone34 }),
     )
     await page.mouse.move(5, 5)

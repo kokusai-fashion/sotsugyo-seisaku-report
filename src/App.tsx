@@ -332,7 +332,11 @@ export default function App() {
   // ただし、このタブで書いている途中に読み込み直したときは出さない（次に開いたときに出す。tourMemory.ts の firstOpenInTab）。
   // 案内を閉じず・終えずに読み込み直した（タブを閉じた）原稿は、表紙の項目がまだ空いていれば、案内の続きから出す
   // （「Word で書き始めていますか？」の途中ならそこから、ほかは空いている最初の項目から。tourMemory.ts の guideLeftAt）
+  /** このタブで、バックアップファイルから戻した（startGuide） */
+  const restoredRef = useRef(false)
   const startGuide = useCallback((cfg: YearConfig, report: Report, isNew: boolean) => {
+    // 開いて準備している間に、バックアップファイルから戻した：戻した原稿の上に案内を出さない（restoreFile）
+    if (restoredRef.current) return
     if (!findCourse(cfg, report.basicInfo.courseId)) setGuide('course')
     else if (isNew) setGuide(wordImportOffered(cfg) ? 'word' : report.basicInfo.studentId.trim() ? 'name' : 'studentId')
     else {
@@ -536,7 +540,7 @@ export default function App() {
         const saved = await loadReport()
         markOpen('report')
         localAtStart.current = saved
-        // はじめて開いた（この端末に原稿がない）ときだけ、「（初回は数秒かかります）」と出す
+        // はじめて開いた（この端末に原稿がない）ときだけ、「（はじめて開くときは、1分ほどかかることもあります）」と出す（前は「初回は数秒」。混んだ回線では1分以上かかった：学生の試し 6回目 2026-10-30）
         if (!saved) setFirstOpen(true)
         // 2回目から（この端末に原稿と、前に読み込んだ設定の控えがある）は、控えの設定ですぐ開き、窓口の返事はあとで確かめる（refreshConfig）。
         // はじめて・控えがない・控えでドライブ保存を止めていた（Google の障害など）ときは、今までどおり窓口の返事を待つ
@@ -663,6 +667,26 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [imageWork])
 
+  // 写真などのファイルを紙面へドラッグして落とした：ブラウザがそのファイルを開いてツールから出ないよう止め、入れ方を知らせる
+  // （Mac の Finder・写真アプリから落としても入らず、ツールから出るおそれがあった：学生の試し 6回目 2026-10-30）
+  useEffect(() => {
+    const files = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files')
+    const over = (e: DragEvent) => {
+      if (files(e)) e.preventDefault()
+    }
+    const drop = (e: DragEvent) => {
+      if (!files(e)) return
+      e.preventDefault()
+      editor?.showNotice(`写真は、文中の入れたい所を${touchPrimary() ? 'タップ' : 'クリック'}してから${narrow ? '「図」' : '「図を入れる」'}で入れます`)
+    }
+    window.addEventListener('dragover', over)
+    window.addEventListener('drop', drop)
+    return () => {
+      window.removeEventListener('dragover', over)
+      window.removeEventListener('drop', drop)
+    }
+  }, [editor, narrow])
+
   // 別の端末が、この端末より後にドライブに保存した：どちらで続けるかを選んでもらう
   const driveStatus = driveState?.status.kind
   useEffect(() => {
@@ -750,7 +774,9 @@ export default function App() {
       }
       // ログインするまでは、何もできないようにする（指差し確認の間も）
       if (!editor || gate || tabLock.locked || tourOn) return
-      if (e.ctrlKey || e.metaKey) {
+      // Mac の ⌘+delete（Finder で消すときの押し方）は、delete と同じに（選んだ図を消そうとして、何も起きなかった：学生の試し 6回目 2026-10-30）
+      const macDelete = e.metaKey && !e.ctrlKey && e.key === 'Backspace'
+      if ((e.ctrlKey || e.metaKey) && !macDelete) {
         const key = e.key.toLowerCase()
         // ⌘+Y は Mac のブラウザの履歴なので使わない（Mac は ⌘+Shift+Z）
         const redo = (key === 'z' && e.shiftKey) || (key === 'y' && e.ctrlKey && !e.shiftKey)
@@ -851,6 +877,10 @@ export default function App() {
         editor.replace(report)
         await matchYear(editor, report)
         setDialog(null)
+        // 案内は出さない・閉じる（開いて準備している間に戻すと、戻した原稿の上に「コースを選んでください」が出て、
+        // そのとおりに押すと下書きの入れ替えを聞かれた：学生の試し 6回目 2026-10-30）
+        restoredRef.current = true
+        setGuide(null)
         editor.showNotice('バックアップファイルから戻しました')
         return true
       } catch (e) {
@@ -1082,7 +1112,7 @@ export default function App() {
               {/* 狭い画面では「（」の前で折り返す（1字だけ次の行に残らないように） */}
               <span>
                 <span className="nb">紙面を準備しています…</span>
-                <span className="nb">{firstOpen ? '（初回は数秒かかります）' : snap?.pagesLeft ? `（あと${snap.pagesLeft}ページほど）` : ''}</span>
+                <span className="nb">{firstOpen ? '（はじめて開くときは、1分ほどかかることもあります）' : snap?.pagesLeft ? `（あと${snap.pagesLeft}ページほど）` : ''}</span>
               </span>
             </span>
           </div>
@@ -1182,13 +1212,6 @@ export default function App() {
           }}
           wordImport={wordOffered}
           onWordImport={() => setDialog({ kind: 'word' })}
-          onRestoreBackup={(file) =>
-            void restoreFile(file).then((done) => {
-              if (!done) return
-              setGuide(null)
-              requestAnimationFrame(focusPaper)
-            })
-          }
           onFinish={() => {
             // 案内を終えたら、指差し確認を出す（この端末でまだ見ていなければ）
             if (!tourSeen()) setTourWanted(true)
@@ -1263,7 +1286,8 @@ export default function App() {
             await matchYear(editor, fresh)
             prefillStudentId(editor)
             setDialog(null)
-            // 作り直したら、はじめての案内からやり直す（年度を切り替えたあとの設定で）
+            // 作り直したら、はじめての案内からやり直す（年度を切り替えたあとの設定で。前にバックアップから戻していても）
+            restoredRef.current = false
             startGuide(configRef.current, editor.getSnapshot().report, true)
           }}
           onClose={() => setDialog(null)}

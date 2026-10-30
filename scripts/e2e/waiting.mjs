@@ -134,11 +134,11 @@ async function firstOpen(browser, vp, check, who, shot) {
   const started = Date.now()
   await page.goto(`${APP}/?nodrive`, { waitUntil: 'domcontentloaded', timeout: 90000 })
   const text = await page
-    .waitForFunction(() => { const l = document.querySelector('.loading'); return l?.querySelector('.busy-spin') && l.textContent.includes('初回') ? l.textContent : null }, { timeout: 60000, polling: 20 })
+    .waitForFunction(() => { const l = document.querySelector('.loading'); return l?.querySelector('.busy-spin') && l.textContent.includes('はじめて開くとき') ? l.textContent : null }, { timeout: 60000, polling: 20 })
     .then((h) => h.jsonValue(), () => '')
   await page.screenshot({ path: `${OUT}/${shot}` })
   await page.waitForFunction(() => window.__editor?.getSnapshot()?.layout && !document.querySelector('.loading'), { timeout: 90000 })
-  check(`${who}：はじめて開いたとき、紙面を準備している間は、回る印と「紙面を準備しています…（初回は数秒かかります）」`, text === '紙面を準備しています…（初回は数秒かかります）', JSON.stringify({ text, dur: Date.now() - started }))
+  check(`${who}：はじめて開いたとき、紙面を準備している間は、回る印と「紙面を準備しています…（はじめて開くときは、1分ほどかかることもあります）」`, text === '紙面を準備しています…（はじめて開くときは、1分ほどかかることもあります）', JSON.stringify({ text, dur: Date.now() - started }))
   await context.close()
 }
 

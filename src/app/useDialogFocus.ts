@@ -3,6 +3,12 @@ import { useEffect, useRef, type RefObject } from 'react'
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /**
+ * 日本語の変換中に押したキーか。Mac の Chrome・Safari は、変換をやめる Esc も 'Escape' として届けるので、窓を閉じる・案内を進めるなどに数えない
+ * （変換をやめただけで、使い方が閉じた・はじめての案内が次の欄をとばした：学生の試し 6回目 2026-10-30）
+ */
+export const imeKey = (e: { isComposing?: boolean; keyCode: number }): boolean => !!e.isComposing || e.keyCode === 229
+
+/**
  * 窓（ダイアログ）をキーボードでも使えるようにする。
  * - 開いたら、窓の中の最初の操作できるもの（閉じる「×」を除く。data-autofocus があればそれ）に移る
  * - Tab で窓の外に出ない（最後の次は最初に戻る）
@@ -43,7 +49,7 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, onEscape?: ()
     openDialogs.push(el)
     const onKey = (e: KeyboardEvent) => {
       if (openDialogs[openDialogs.length - 1] !== el) return
-      if (e.key === 'Escape' && escape.current) {
+      if (e.key === 'Escape' && escape.current && !imeKey(e)) {
         e.preventDefault()
         e.stopPropagation()
         escape.current()

@@ -718,12 +718,27 @@ function numberPages(pages: HTMLElement[], skip: ReadonlySet<HTMLElement> = new 
   })
 }
 
+/** 書体を読み込めなかったことがあるか（fontsFailed） */
+let fontTrouble = false
+
+/** 書体の一部を読み込めなかった（回線が切れたなど）。紙面は手元の書体で組んである（読み込み直すと直る。reportEditor が一度だけ知らせる） */
+export function fontsFailed(): boolean {
+  return fontTrouble
+}
+
 /** 組む文書の文字のうち、まだ読み込んでいない文字の書体を読み込む */
 async function loadFonts(html: string): Promise<void> {
   const text = html.replace(/<[^>]+>/g, '') + '0123456789'
   const fresh = [...new Set(text)].filter((c) => !loadedChars.has(c)).join('')
   if (!fresh) return
-  await Promise.all([document.fonts.load(`${FONT_SIZE_PT}pt "BIZ UDMincho"`, fresh), document.fonts.load(`${FONT_SIZE_PT}pt "BIZ UDPGothic"`, fresh)])
+  try {
+    await Promise.all([document.fonts.load(`${FONT_SIZE_PT}pt "BIZ UDMincho"`, fresh), document.fonts.load(`${FONT_SIZE_PT}pt "BIZ UDPGothic"`, fresh)])
+  } catch {
+    // 読み込めなかった文字は、手元の書体で組んで先へ進む（前は失敗のまま止まり、そのあと紙面が書き換わらなくなった。
+    // はじめて開く途中で回線が一瞬切れたとき：学生の試し 6回目 2026-10-30）。一度失敗した書体は、ブラウザが読み直さない
+    fontTrouble = true
+    return
+  }
   for (const c of fresh) loadedChars.add(c)
 }
 

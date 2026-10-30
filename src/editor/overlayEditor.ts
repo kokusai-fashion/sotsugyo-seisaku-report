@@ -317,6 +317,8 @@ export class OverlayEditor {
   private lastEdit: { kind: 'insert' | 'delete'; at: number } | null = null
   /** 日本語の変換を始める前の文字と範囲（変換を終えたら、元に戻す1回分にする） */
   private beforeComposition: TextState | null = null
+  /** 変換中に幅・書体が変わった（変換を終えてから組み直す：rerender） */
+  private rerenderAfterComposition = false
   /** いまの書く欄の中身の、句読点の包み方の記録と、そのときの文字（書き換えたら、変わった所の近くだけを測り直すため） */
   private plan: SpacingPlan | null = null
   private renderedText: string | null = null
@@ -360,8 +362,15 @@ export class OverlayEditor {
       if (this.typeset) this.syncFromDom(this.beforeComposition)
       else this.emitInput()
       this.beforeComposition = null
+      // 変換中に幅・書体が変わっていた：変換を終えたので、いま組み直す（rerender）
+      if (this.rerenderAfterComposition) {
+        this.rerenderAfterComposition = false
+        this.rerender()
+      }
     })
-    this.element.addEventListener('input', () => {
+    this.element.addEventListener('input', (e) => {
+      // 表のマス・見出しなど：打った字を覚える（ブラウザの「元に戻す」「やり直す」で変わったときは覚えない。undoneText）
+      if (!this.typeset && !(e as InputEvent).inputType?.startsWith('history')) this.latestPlain = this.text
       this.markEmpty()
       if (this.composingNow) {
         // スマホ：日本語の変換中の字も、紙面の上の写しに出す（原稿には、変換を終えてから入れる）
@@ -946,6 +955,7 @@ export class OverlayEditor {
     this.redoStack = []
     this.lastEdit = null
     this.beforeComposition = null
+    this.latestPlain = null
   }
 
   /** 入力欄の幅（縮小前の px） */
@@ -1167,6 +1177,12 @@ export class OverlayEditor {
   /** 選んでいる範囲を保ったまま、書く欄の中身を組み直す（幅・書体が変わったとき） */
   private rerender(): void {
     if (!this.typeset || !this.target) return
+    // 日本語の変換中は作り直さず、変換を終えてから（作り直すと変換が途切れて、そのあと確定した字が原稿に入らなかった。
+    // Android で変換中にキーボードの高さが変わった・横向きにしたとき：学生の試し 6回目 2026-10-30）
+    if (this.composingNow) {
+      this.rerenderAfterComposition = true
+      return
+    }
     const focused = document.activeElement === this.element
     this.renderText(focused ? this.selectionOffsets() : null, { full: true })
   }
@@ -1277,8 +1293,11 @@ export class OverlayEditor {
       this.copyStyle(styleSource, this.target.kind)
       // 紙面に出た段落の中身を写す（文字が違えば、測って組み直す）
       if (this.typeset) {
-        const focused = document.activeElement === this.element
-        this.renderText(focused ? this.selectionOffsets() : null, { full: true, page })
+        if (this.composingNow) this.rerenderAfterComposition = true
+        else {
+          const focused = document.activeElement === this.element
+          this.renderText(focused ? this.selectionOffsets() : null, { full: true, page })
+        }
       } else if (this.sheetHost) this.syncMirror(this.text, { full: true, page })
     }
   }
@@ -1432,15 +1451,11 @@ export class OverlayEditor {
     return first && here ? ((here.top - first.top) / (own || 1)) * scale : 0
   }
 
-  /** 最後に閉じた欄と、閉じたときのカーソルの位置（Esc で閉じたあとの「図を入れる」：書いていた所に入れる。reportEditor.ts の resumeWriting） */
-  lastClosed: { blockId: string; caret: number } | null = null
-
   /** 編集を終えて閉じる（blur でも呼ばれる） */
   commit(): void {
     if (!this.target) return
     const { blockId } = this.target
     const text = this.text
-    this.lastClosed = { blockId, caret: this.caret }
     const byKey = this.closingByKey
     this.closingByKey = false
     // 測り直すのを待っていた所は、写す前に測り直す（書き終えた欄の仮の表示を、紙面と同じ所で折り返すように。スマホの写しも、いま全部測る）
@@ -1985,6 +2000,19 @@ export class OverlayEditor {
     return true
   }
 
+  /**
+   * 書く欄の中で戻した字があるとき、戻す前のいちばん新しい字（なければ null）。原稿の「元に戻す」へ進むと書く欄が閉じて、
+   * やり直せなくなるため、呼び出し側が原稿のやり直しの分に積む（reportEditor.ts の undo）
+   */
+  undoneText(): string | null {
+    if (!this.target) return null
+    const latest = this.typeset ? (this.redoStack[0]?.text ?? null) : this.latestPlain
+    return latest !== null && latest !== this.text ? latest : null
+  }
+
+  /** 紙面と同じ組み方で書いていない欄（表のマス・見出しなど）で、いちばん新しく打った字（ブラウザの「元に戻す」で戻す前。undoneText） */
+  private latestPlain: string | null = null
+
   /** 書く欄の中で、戻せる・やり直せる文字があるか */
   get typingHistory(): { undo: boolean; redo: boolean } {
     // 紙面と同じ組み方で書いていない欄（表のセル・見出しなど）：開いてから字を書き換えていれば戻せる（undoPlain）
@@ -2081,8 +2109,9 @@ export class OverlayEditor {
     if (wrap.joined) queueMicrotask(() => this.callbacks.onPasteNote?.('joined'))
     const before = text.slice(0, start)
     const after = text.slice(end)
-    // 書いてある段落の終わりに、1行目が見出し・箇条の形の下書きを貼った：前の段落にくっつけず、新しい段落から（学生の試し 5回目）
-    const ownLine = before.trim() !== '' && after === '' && (!!typedHeading(lines[0]) || listishLine(lines[0]))
+    // 書いてある段落の終わりに、1行目が見出し・箇条の形の下書きや表を貼った：前の段落にくっつけず、新しい段落から
+    // （学生の試し 5回目。表は 6回目 2026-10-30：表の1行目が前の段落につながり、「表にする」も出なかった）
+    const ownLine = before.trim() !== '' && after === '' && (table || !!typedHeading(lines[0]) || listishLine(lines[0]))
     const paragraphs = ownLine ? [before, ...lines] : [before + lines[0], ...lines.slice(1)]
     let caretInLast: number
     if (/\n\s*$/.test(pasted)) {

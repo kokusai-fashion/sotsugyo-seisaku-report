@@ -403,7 +403,8 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
     return (
       <Modal key="build" title="PDF を作っています" onClose={onClose} className="pdf-modal">
         <p className="lead">この画面のまま、お待ちください。</p>
-        <div className="pdf-progress" role="progressbar" aria-valuemin={0} aria-valuemax={phase.total} aria-valuenow={thumbs.length} aria-label="できたページの数">
+        {/* 開いたら、ここに移る（下の「やめる」に移ると、ページの多い原稿では窓が下までスクロールして、進み具合が見えなかった：学生の試し 6回目 2026-10-30） */}
+        <div className="pdf-progress" tabIndex={-1} data-autofocus role="progressbar" aria-valuemin={0} aria-valuemax={phase.total} aria-valuenow={thumbs.length} aria-label="できたページの数">
           <div className="bar">
             <i style={{ width: `${(thumbs.length / Math.max(1, phase.total)) * 100}%` }} />
           </div>
@@ -412,7 +413,7 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
           </span>
         </div>
         <Thumbs urls={thumbs} total={phase.total} />
-        <p className="pdf-small">写真が多いと、少し時間がかかります（20ページで10秒ほど。スマホはもう少し）。</p>
+        <p className="pdf-small">写真が多いと、少し時間がかかります（20ページで10秒〜1分ほど）。</p>
         <div className="row-buttons">
           <span className="spacer" />
           <button onClick={cancel}>やめる</button>
@@ -507,16 +508,26 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
 
   // ---- 作れなかった：部品を読み込めなかったときは、読み込み直してもらう ----
   if (phase.kind === 'error' && onReload && LOAD_FAILED.test(phase.message)) {
+    // 通信が切れている：読み込み直すとツールの画面ごと消えるので、つながってから作り直してもらう（学生の試し 6回目 2026-10-30）
+    const offline = !navigator.onLine
     return (
       <Modal key="error" title="PDF を作れませんでした" heading={<><span className="pdf-ng">{Icon.warn}</span>PDF を作れませんでした</>} onClose={onClose} className="pdf-modal">
-        <p className="lead">PDF を作る部品を読み込めませんでした（新しい版が出た直後や、通信が切れたときに起きます）。ページを読み込み直してから、もう一度作ってください。書いた原稿は消えません。</p>
+        <p className="lead">
+          {offline
+            ? '通信が切れているため、PDF を作る部品を読み込めませんでした。インターネットにつながってから、もう一度作ってください。書いた原稿は消えません。'
+            : 'PDF を作る部品を読み込めませんでした（新しい版が出た直後や、通信が切れたときに起きます）。ページを読み込み直してから、もう一度作ってください。書いた原稿は消えません。'}
+        </p>
         <p className="pdf-small">くわしいこと：{phase.message}</p>
         <div className="row-buttons">
           <span className="spacer" />
-          <button onClick={start}>もう一度作る</button>
-          <button className="primary pdf-reload" onClick={onReload}>
-            ページを読み込み直す
+          <button className={offline ? 'primary' : undefined} onClick={start}>
+            もう一度作る
           </button>
+          {!offline && (
+            <button className="primary pdf-reload" onClick={onReload}>
+              ページを読み込み直す
+            </button>
+          )}
         </div>
       </Modal>
     )

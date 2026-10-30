@@ -6,7 +6,7 @@ import { figurePairing, figurePlacement, findEditable, findParagraph, numbering,
 import { subheadingTitle } from '../model/headingText'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
-import { SELECTION_TEXTS } from '../editor/selectionBar'
+import { ON_MAC, SELECTION_TEXTS, shortcut } from '../editor/selectionBar'
 import { Icon } from './icons'
 import { useAsk } from './ask'
 import { TableSizeMenu } from './TableSize'
@@ -142,8 +142,11 @@ const FIGURE_MOVE_WHY: Record<FigureMoveBlock, (dir: 'up' | 'down', n?: number) 
   order: (dir) => `${dir === 'up' ? '上' : '下'}の図を越えると、図の順番が本文で出てくる順と入れ替わるので、動かせません`,
 }
 
-const UNDO_TIP = ['元に戻す（Ctrl+Z）']
-const REDO_TIP = ['やり直す（Ctrl+Y）', 'Mac は ⌘+Shift+Z']
+// キーの書き方は、Mac では Mac の形（⌘・トラックパッド）に（Windows の書き方が混ざっていた：学生の試し 6回目 2026-10-30）
+const UNDO_TIP = [`元に戻す（${shortcut('Z')}）`]
+const REDO_TIP = [ON_MAC ? 'やり直す（⌘+Shift+Z）' : 'やり直す（Ctrl+Y）']
+/** 紙面の大きさを変える押し方（Mac はトラックパッドを2本の指で広げる・縮める） */
+const ZOOM_GESTURE = ON_MAC ? 'トラックパッドを2本の指で広げても' : 'Ctrl＋ホイールでも'
 
 /**
  * 「元に戻す」「やり直す」（左の道具のいちばん下。v47 案C で右下の帯へ移したが、表示の道具と並んで、表示を戻すつもりで原稿を戻すおそれがあったので戻した：
@@ -232,7 +235,7 @@ export function ViewBar({ editor, snap, tip = false }: { editor: ReportEditor; s
             {Icon.spread}見開き
           </button>
         )}
-        <button className={snap.zoomed ? 'on' : ''} aria-pressed={snap.zoomed} title="文字を大きく表示（マウスのホイールで上下に動かす）" onClick={() => editor.setView('zoom')}>
+        <button className={snap.zoomed ? 'on' : ''} aria-pressed={snap.zoomed} title={ON_MAC ? '文字を大きく表示（上下に動かして読む）' : '文字を大きく表示（マウスのホイールで上下に動かす）'} onClick={() => editor.setView('zoom')}>
           {Icon.zoom}拡大
         </button>
       </div>
@@ -240,11 +243,11 @@ export function ViewBar({ editor, snap, tip = false }: { editor: ReportEditor; s
           前は拡大しているときだけ出し、100% が「拡大」の大きさだった：v59 案A）。見開きのときは出さない */}
       {!snap.spread && (
         <div className="zoom-step" role="group" aria-label="表示の大きさ">
-          <button title="小さく（1段下げる。100% は「1ページ」の大きさ。紙面の上で Ctrl＋ホイールでも）" aria-label="小さく" disabled={!snap.zoomed} onClick={() => editor.zoomStep(-1)}>
+          <button title={`小さく（1段下げる。100% は「1ページ」の大きさ。紙面の上で${ON_MAC ? '' : ' '}${ZOOM_GESTURE}）`} aria-label="小さく" disabled={!snap.zoomed} onClick={() => editor.zoomStep(-1)}>
             －
           </button>
           <b aria-live="polite">{Math.round(snap.zoomLevel * 100)}%</b>
-          <button title="大きく（1段上げる。紙面の上で Ctrl＋ホイールでも）" aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01} onClick={() => editor.zoomStep(1)}>
+          <button title={`大きく（1段上げる。紙面の上で${ON_MAC ? '' : ' '}${ZOOM_GESTURE}）`} aria-label="大きく" disabled={snap.zoomLevel >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01} onClick={() => editor.zoomStep(1)}>
             ＋
           </button>
         </div>
@@ -295,8 +298,17 @@ function ZoomTip({ snap }: { snap: EditorSnapshot }) {
       {/* 言葉の切れ目でだけ折り返す */}
       <p>
         <span className="nb">字が小さいときは「＋」か、</span>
-        <span className="nb">紙面の上で Ctrl を押しながら</span>
-        <span className="nb">ホイールを回すと、大きくなります</span>
+        {ON_MAC ? (
+          <>
+            <span className="nb">紙面の上でトラックパッドを</span>
+            <span className="nb">2本の指で広げると、大きくなります</span>
+          </>
+        ) : (
+          <>
+            <span className="nb">紙面の上で Ctrl を押しながら</span>
+            <span className="nb">ホイールを回すと、大きくなります</span>
+          </>
+        )}
       </p>
       <button type="button" aria-label="この案内を閉じる" onClick={close}>
         ×
@@ -658,9 +670,8 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
 
 export function Palette({ editor, snap, onReferences, template }: Props) {
   // 図・表は、段落を書いているとき（文中の入れたい位置にカーソルがあるとき）だけ入れられる
+  // （Esc などで閉じたあとも、さっき書いていた所に入れられる形は、仕組みが複雑で分かりにくくなるのでやめた：依頼者の判断 2026-10-30）
   const writing = snap.editingKind === 'paragraph'
-  // Esc などで閉じたあとも、最後に書いていた所に入れられる（キーボードだけでは図・表を入れられなかった：学生の試し 4回目 2026-10-30。mockups/v77 ① 案A）
-  const canInsert = writing || snap.resumable
   const kind = snap.layout?.kinds[snap.page] ?? 'unknown'
   // 指で触る画面（iPad の横向きなど）では「クリック」を「タップ」に（学生の試し 4回目 2026-10-30）
   const context = touchPrimary() ? { ...PAGE_CONTEXT[kind], hint: forTouch(PAGE_CONTEXT[kind].hint) } : PAGE_CONTEXT[kind]
@@ -741,31 +752,20 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
             {/* 大きい順（大見出し → 小見出し）に並べる（依頼者の判断 2026-10-21） */}
             <Tool label="大見出し" icon={Icon.heading1} title="大見出し（Ⅰ．）を足す" onPreview={preview} onClick={() => editor.addChapter()} />
             <Tool label="小見出し" icon={Icon.heading2} title="小見出し（ⅰ．）を足す" onPreview={preview} onClick={() => editor.addSubheading()} />
-            <Tool label="改ページ" icon={Icon.pageBreak} title="ここで改ページする（この後ろは次のページから始まります。Ctrl+Enter でも）" onPreview={(on) => editor.previewInsert(on, 'pageBreak')} onClick={() => editor.addPageBreak()} />
+            <Tool label="改ページ" icon={Icon.pageBreak} title={`ここで改ページする（この後ろは次のページから始まります。${shortcut('Enter')} でも）`} onPreview={(on) => editor.previewInsert(on, 'pageBreak')} onClick={() => editor.addPageBreak()} />
           </div>
           <div className="group">
-            {!writing && snap.resumable && !snap.waiting && (
-              <div className="ctx-note resume">
-                さっき
-                <br />
-                書いて
-                <br />
-                いた所に
-                <br />
-                入れます
-              </div>
-            )}
             <Tool
               label="図を入れる"
               icon={Icon.figure}
               title={template ? 'この段落のすぐ下に、図の枠が入ります（写真は学生が入れます）' : '書いている文の終わりに「（図n）」が入り、この段落のすぐ下に図が入ります'}
-              disabled={!canInsert}
+              disabled={!writing}
               onWhy={showWhy}
               onClick={() => void editor.addFigure()}
             />
-            <TableMenu editor={editor} disabled={!canInsert} template={template} onWhy={showWhy} />
+            <TableMenu editor={editor} disabled={!writing} template={template} onWhy={showWhy} />
             {/* 道具の幅（1行6字ほど）で、言葉の切れ目で折り返す（1字だけ次の行に残らないように） */}
-            {!canInsert && !snap.waiting && (
+            {!writing && !snap.waiting && (
               <div className="ctx-note">
                 図・表は、
                 <br />

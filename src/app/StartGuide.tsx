@@ -4,7 +4,8 @@ import { findCourse } from '../config'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { FIELD_IDS } from '../layout/document'
 import { BAND_SIDE_QUERY } from './bandText'
-import { useDialogFocus } from './useDialogFocus'
+import { imeKey, useDialogFocus } from './useDialogFocus'
+import { ENTER_KEY } from '../editor/selectionBar'
 import { WordIcon } from './WordImport'
 
 /**
@@ -85,15 +86,11 @@ interface Props {
   onWordImport?: () => void
   /** 最後の「表紙ができました」で「本文へ進む」「閉じる」を押した（このあと指差し確認を出す。mockups/v27） */
   onFinish?: () => void
-  /**
-   * コースを選ぶ段階から、バックアップファイルで戻す（作り直したあと・別のパソコンで初めて開いたとき、案内が画面をふさぎ、
-   * メニューのバックアップまで3回押す必要があった：学生の試し 4回目 2026-10-30。依頼者の選択 mockups/v77 ② 案A）
-   */
-  onRestoreBackup?: (file: File) => void
 }
 
-export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish, onRestoreBackup }: Props) {
-  const backupRef = useRef<HTMLInputElement>(null)
+// （コースを選ぶ画面の「バックアップから戻す」は、使う学生が少なく、はじめの画面が込み入るのでやめた：依頼者の判断 2026-10-30。
+//  バックアップファイルからは、メニューの「バックアップ・作り直す」で戻す）
+export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish }: Props) {
   const field = FIELD_OF[step]
   const [rect, setRect] = useState<DOMRect | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -172,7 +169,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
     escaped.current = false
     if (!field || step === 'course') return
     const esc = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape' && editor.getSnapshot().editingId === field) escaped.current = true
+      if (e.key === 'Escape' && !imeKey(e) && editor.getSnapshot().editingId === field) escaped.current = true
     }
     document.addEventListener('keydown', esc, true)
     return () => document.removeEventListener('keydown', esc, true)
@@ -190,7 +187,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
     if (step !== 'done') return
     tipRef.current?.querySelector<HTMLButtonElement>('.g-actions .primary')?.focus()
     const esc = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || imeKey(e)) return
       e.preventDefault()
       onStep(null)
       onFinishRef.current?.()
@@ -334,26 +331,6 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
                 まずコースを選んでください。次の画面で、書いた Word を読み込めます（学籍番号・氏名・サブタイトルも写ります）。
               </div>
             )}
-            {onRestoreBackup && (
-              <p className="g-backup">
-                前に保存したバックアップファイルがあるとき（別のパソコン・作り直したあと）：
-                <button type="button" className="link" onClick={() => backupRef.current?.click()}>
-                  バックアップから戻す
-                </button>
-                <input
-                  ref={backupRef}
-                  type="file"
-                  accept=".json,application/json"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    // 選び直せるよう空に戻す（確かめる窓で「やめる」を押したあと、同じファイルを選び直せるように）
-                    e.target.value = ''
-                    if (file) onRestoreBackup(file)
-                  }}
-                />
-              </p>
-            )}
           </>
         )
       case 'word':
@@ -386,14 +363,14 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
         return (
           <>
             <h2 id={titleId}>学籍番号を入力してください</h2>
-            <p>{tap ? '光っている欄をタップして入力し、「完了」を押します。' : '入力したら Enter で次へ進みます。'}</p>
+            <p>{tap ? '光っている欄をタップして入力し、「完了」を押します。' : `入力したら ${ENTER_KEY} で次へ進みます。`}</p>
           </>
         )
       case 'name':
         return (
           <>
             <h2 id={titleId}>氏名を入力してください</h2>
-            <p>姓と名の間は、全角の空白を入れます（例：文化　花子）。{tap ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}</p>
+            <p>姓と名の間は、全角の空白を入れます（例：文化　花子）。{tap ? '欄をタップして入力します。' : `入力したら ${ENTER_KEY} で次へ進みます。`}</p>
           </>
         )
       case 'subtitle':
@@ -403,7 +380,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             <p>
               「{subtitleBefore}〇〇{subtitleAfter}」の〇〇の部分だけを入力します。前後は自動で付きます。
               {/* PC は学籍番号の段がとばされることが多く、「Enter で次へ」を見ないまま進んでいた（PC の試し 2026-10-25） */}
-              {tap ? '欄をタップして入力します。' : '入力したら Enter で次へ進みます。'}
+              {tap ? '欄をタップして入力します。' : `入力したら ${ENTER_KEY} で次へ進みます。`}
             </p>
           </>
         )

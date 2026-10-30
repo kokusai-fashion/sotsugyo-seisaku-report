@@ -363,7 +363,9 @@ button.pg { cursor: pointer; }
   .pp-strip .pg .pin { box-shadow: 0 0 0 2px #fff; }
   .pp .p-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; margin: 0 14px 0 0; padding: 7px 10px; font-size: 13px; }
   .pp .p-note > span { flex: 1; min-width: 0; }
-  .pp .p-note .link { flex-basis: 100%; margin-left: 21px; text-align: left; font-size: 13px; }
+  /* 「PDF を入れ替える」：見た目はそのまま、押せる所を上下に広げる（高さ 20px で押しにくかった：学生の試し 6回目 2026-10-30） */
+  .pp .p-note .link { position: relative; flex-basis: 100%; margin-left: 21px; text-align: left; font-size: 13px; }
+  .pp .p-note .link::after { content: ''; position: absolute; inset: -12px -6px; }
   .c2-side { position: static; max-height: none; overflow: visible; }
   .c2-side.more::after { display: none; }
   .c2-legend { font-size: 13px; }

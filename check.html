@@ -7,10 +7,13 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 紙面はいつも白（Android の Chrome の「ウェブサイトにダークテーマを適用」で、紙面が黒地に白い字になっていた：学生の試し 6回目 2026-10-30） -->
+    <meta name="color-scheme" content="only light" />
     <title>提出前チェック｜卒業制作報告書</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- 読み込んでいる間も、何かが出ているように（学生の試し 6回目 2026-10-30）。プログラムが動き始めると、この中身は入れ替わる -->
+    <div id="root"><p style="margin: 0; padding-top: 42vh; text-align: center; font: 15px/1.6 sans-serif; color: #77736b">読み込んでいます…</p></div>
     <script type="module" src="/src/check/main.tsx"></script>
   </body>
 </html>

@@ -17,6 +17,16 @@ export function shortcut(key: string): string {
 /** 削除のキーの名前（Mac は delete） */
 export const DELETE_KEY = MAC ? 'delete' : 'Delete'
 
+/**
+ * Mac のキーボードか（画面の言葉を Mac のキー・トラックパッドに合わせる。Windows の書き方が混ざっていた：学生の試し 6回目 2026-10-30）。
+ * Mac には Backspace がなく delete、Enter は return、ホイールの代わりにトラックパッド
+ */
+export const ON_MAC = MAC
+/** 前の字を消すキーの名前（Mac は delete） */
+export const BACKSPACE_KEY = MAC ? 'delete' : 'Backspace'
+/** 改行・確定のキーの名前（Mac は return） */
+export const ENTER_KEY = MAC ? 'return' : 'Enter'
+
 const svg = (d: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`
 /** アイコン（app/icons.tsx の copy・cut・remove・paste と同じ線） */
 const ICON = {

@@ -1,6 +1,6 @@
 // 学生の試し 5回目の B（見た目が変わる直し。依頼者の選択 mockups/v78：① 案A・② 案B・③ 案A・④ 案A）。
 // これだけを流すときは node scripts/e2e/run.mjs fixes1030d
-// ① スマホの形の「追加」に「図」「表」（さっき書いていた所に入れる）
+// ① スマホの形の「追加」に「図」「表」は出さない（書く欄を閉じたあとも入れられる形はやめた：依頼者の判断 2026-10-30）
 // ② 章の順番の入れ替えは、使い方に手順（単体テスト：help/search.test.ts）
 // ③ 貼った表は、知らせの「表にする」で表になる（元に戻すと文に戻る）
 // ④ 提出前チェック：保存したあとの画面に「ファイルを足す・入れ替える」
@@ -46,7 +46,7 @@ async function open(browser, { phone = false } = {}) {
 const ids = (page) => page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).map((b) => `${b.type}:${b.id}`))
 
 await withEdge(async (browser) => {
-  // ---- ① スマホの「追加」の「図」「表」 ----
+  // ---- ① スマホの「追加」に「図」「表」は出さない（入れたい所をタップしてから入れる。依頼者の判断 2026-10-30） ----
   {
     const { context, page, ready } = await open(browser, { phone: true })
     await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p6'), 'none'))
@@ -61,21 +61,10 @@ await withEdge(async (browser) => {
     await page.waitForSelector('.sheet .add-grid', { timeout: 10000 })
     await wait(400)
     const sheet = await page.evaluate(() => ({
-      tools: [...document.querySelectorAll('.sheet .add-grid button')].map((b) => `${b.querySelector('span')?.textContent.trim()}${b.disabled ? '（押せない）' : ''}`),
+      tools: [...document.querySelectorAll('.sheet .add-grid button')].map((b) => b.querySelector('span')?.textContent.trim()),
       hint: [...document.querySelectorAll('.sheet .sheet-hint')].map((p) => p.textContent).join(' '),
     }))
-    check('スマホ：書く欄を閉じたあとの「追加」に「図」「表」があり、さっき書いていた段落（「配色と素材…」）に入ると書いてある', sheet.tools.join() === '大見出し,小見出し,改ページ,図,表' && /さっき書いていた所（「.+」の段落）に入ります/.test(sheet.hint), JSON.stringify(sheet))
-    const before = await ids(page)
-    await page.evaluate(() => [...document.querySelectorAll('.sheet .add-grid button')].find((b) => b.textContent.trim() === '表').click())
-    await page.waitForSelector('.sheet.table-size', { timeout: 10000 })
-    await wait(400)
-    await page.evaluate(() => [...document.querySelectorAll('.sheet.table-size button')].find((b) => /入れる/.test(b.textContent) && !b.disabled)?.click())
-    await wait(1500)
-    await ready()
-    const after = await ids(page)
-    const added = after.find((x) => x.startsWith('table:') && !before.includes(x))
-    const placed = added ? after[after.indexOf(added) - 1] : null
-    check('スマホ：「追加」→「表」→ 大きさを選んで入れると、さっき書いていた段落のすぐ下に表が入る', !!added && placed === 'paragraph:p6', JSON.stringify({ added, placed }))
+    check('スマホ：書く欄を閉じたあとの「追加」は「大見出し」「小見出し」「改ページ」だけで、図・表は入れたい位置をタップしてから入れると書いてある', sheet.tools.join() === '大見出し,小見出し,改ページ' && /入れたい位置をタップして、キーボードの上の「図」「表」で入れます/.test(sheet.hint) && !sheet.hint.includes('さっき'), JSON.stringify(sheet))
     await context.close()
   }
 

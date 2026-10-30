@@ -154,6 +154,16 @@ describe('split / mergeBackward / replaceWithParagraphs', () => {
     expect(ops.findEditable(withSub, removed.targetId)?.kind).not.toMatch(/Caption$/)
   })
 
+  it('図・表のすぐ後ろの空の段落を Backspace で消すと、図・表のタイトルの終わりへ戻る（見出しで Enter → Backspace と同じ）', () => {
+    const chapter = report.body[0]
+    const at = chapter.blocks.findIndex((b) => b.type === 'figureRow' || b.type === 'table')
+    const withPara = { ...report, body: report.body.map((c, i) => (i === 0 ? { ...c, blocks: [...c.blocks.slice(0, at + 1), { type: 'paragraph' as const, id: 'px', content: [] }, ...c.blocks.slice(at + 1)] } : c)) }
+    const removed = ops.removeEmptyBackward(withPara, 'px', '')!
+    expect(removed.what).toBe('段落')
+    expect(ops.findEditable(withPara, removed.targetId)?.kind).toMatch(/Caption$/)
+    expect(removed.caret).toBe(ops.findEditable(withPara, removed.targetId)!.text.length)
+  })
+
   it('抄録の最初の段落ではつなげない', () => {
     expect(ops.mergeBackward(report, 'a1', 'x')).toBeNull()
   })

@@ -9,6 +9,9 @@
 .side, .side *, .palette, .palette *, .arrow, .zoom, .zoom *, .modal-backdrop, .modal-backdrop *, .popover-backdrop, .popover-backdrop *, .overlay-editor, .insert-marker { box-sizing: border-box; }
 
 html, body, #root { width: 100%; height: 100%; margin: 0; }
+/* 画面の端まで動かしたときに、ブラウザの「前のページへ戻る」（Mac の2本指で横）・「読み込み直す」（Android で下に引っぱる）にしない
+   （右の欄・左の道具の上で横に動かすと、ツールから出ることがあった：学生の試し 6回目 2026-10-30） */
+html, body { overscroll-behavior: none; }
 body { font-family: 'BIZ UDPGothic', sans-serif; color: var(--ink); background: var(--stage-bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
 button { font: inherit; cursor: pointer; }
 button:disabled { cursor: default; opacity: 0.4; }
@@ -221,7 +224,6 @@ body.resizing .page-viewport { pointer-events: none; }
 .lay-grid i { background: #b7b4ae; }
 .lay.on .lay-grid i { background: var(--accent); }
 .ctx-note { font-size: 10px; line-height: 1.5; color: var(--muted); padding: 2px 4px 4px; text-align: center; }
-.palette .ctx-note.resume { margin: 0 4px 6px; padding: 5px 4px; border-radius: 6px; background: #eef1f8; color: var(--accent); font-size: 10.5px; }
 .menu-wrap { position: relative; }
 .side-menu { position: absolute; left: calc(100% + 10px); top: 0; z-index: 20; min-width: 150px; display: grid; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(30, 25, 20, 0.16); }
 .side-menu-title { font-size: 10.5px; color: var(--muted); padding: 2px 8px 4px; }
@@ -849,10 +851,6 @@ body.resizing .page-viewport { pointer-events: none; }
 /* ① はじめての案内：コースを選ぶ段階の「Word のひな形で書き始めている人へ」と、「Word で書き始めていますか？」の段階 */
 .g-word { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 12px; line-height: 1.7; color: #3f4249; }
 /* コースを選ぶ段階から、バックアップファイルで戻す（mockups/v77 ② 案A） */
-.g-backup { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.7; color: var(--muted); word-break: auto-phrase; }
-.g-backup button.link { padding: 0; border: 0; background: none; color: var(--accent); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.app.phone .g-backup button.link { position: relative; }
-.app.phone .g-backup button.link::after { content: ""; position: absolute; inset: -12px -6px; }
 .g-word b { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; font-size: 12.5px; color: var(--accent); }
 .g-word svg { width: 17px; height: 17px; flex: none; }
 .guide.step-word .g-tip::before { display: none; }

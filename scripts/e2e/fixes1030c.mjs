@@ -255,15 +255,13 @@ await withEdge(async (browser) => {
     await page.keyboard.press('Escape')
     await settle(page, ready)
 
-    // Esc のあと、ほかのページを見ているときは「図を入れる」を押せない
+    // Esc のあとは「図を入れる」を押せない（入れたい所を押してから。書く欄を閉じたあとも入れられる形はやめた：依頼者の判断 2026-10-30）
     await editAt(page, ready, 'p1', 3)
     await page.keyboard.press('Escape')
     await settle(page, ready)
     const sameEnabled = await page.evaluate(() => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.includes('図を入れる')); return !(b.disabled || b.getAttribute('aria-disabled') === 'true') })
-    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p6'), 'none'))
-    await ready()
-    const otherEnabled = await page.evaluate(() => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.includes('図を入れる')); return !(b.disabled || b.getAttribute('aria-disabled') === 'true') })
-    check('Esc のあとの「図を入れる」は、書いていた段落が見えているページでだけ押せる（ほかのページでは押せない）', sameEnabled && !otherEnabled, JSON.stringify({ sameEnabled, otherEnabled }))
+    const note = await page.evaluate(() => [...document.querySelectorAll('.palette .ctx-note')].map((n) => n.textContent).join(' '))
+    check('Esc のあとの「図を入れる」は押せず、道具に「入れたい所をクリックしてから押します」', !sameEnabled && note.includes('入れたい所を') && !note.includes('さっき'), JSON.stringify({ sameEnabled, note }))
     await context.close()
   }
 })

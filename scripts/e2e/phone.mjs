@@ -2130,10 +2130,10 @@ async function quickOpenCheck(browser) {
   })
   await ready()
   const freshSum = await sum()
-  check('はじめて開いたとき（この端末に原稿がない）は「紙面を準備しています…（初回は数秒かかります）」と出る', firstTexts.some((t) => t.includes('初回は数秒かかります')), JSON.stringify(firstTexts))
+  check('はじめて開いたとき（この端末に原稿がない）は「紙面を準備しています…（はじめて開くときは、1分ほどかかることもあります）」と出る', firstTexts.some((t) => t.includes('はじめて開くときは、1分ほど')), JSON.stringify(firstTexts))
   check(
     '2回目から（読み込み直したとき）は、最後に見ていたページを、全部組み終える前に先に見せ、「初回」とは出さない（ページ送りも、そのページを指す）',
-    early.page === target && !early.laidOut && early.rendering && early.pager.includes(`${target + 1} /`) && !early.loading && !after.texts.some((t) => t.includes('初回')),
+    early.page === target && !early.laidOut && early.rendering && early.pager.includes(`${target + 1} /`) && !early.loading && !after.texts.some((t) => t.includes('はじめて開くとき')),
     JSON.stringify({ target, early, texts: after.texts }),
   )
   check('先に見せている間にそのページで書いた文字は、組み終えたあとも原稿と紙面に残る', typed && after.text && after.onPaper, JSON.stringify({ typed, after }))
