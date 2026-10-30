@@ -2,8 +2,9 @@
  * 見出しの形の行（手順書の番号の形：「Ⅲ．まとめ」「ⅱ．袖の刺繍」「II. 制作過程」など。番号はローマ数字）を見分ける。
  * - Word から読み込むとき・Word のファイルのチェック（import/wordImport.ts・check/）：headingFromText
  * - 段落に見出しの形で打ったとき（Enter・書き終えたとき）と、何行かの文を貼り付けたときに、見出しにする（editor/reportEditor.ts）：typedHeading
- * 算用数字などの形（「3．スカート」「（1）素材」「①素材」「■まとめ」「第4章 考察」）は、段落に打ったときだけ見出しにする（typedHeading の arabicHeading。
- * 番号はツールの形（ⅲ．など）に替わる。依頼者の選択 2026-10-24 mockups/v53 ② 案B）。Word から読み込むときは、今までどおり見出しにしない
+ * 算用数字などの形（「3．スカート」「2-1 仮縫い」「第4章 考察」）は、段落に打ったときだけ見出しにする（typedHeading の arabicHeading。
+ * 番号はツールの形（ⅲ．など）に替わる。依頼者の選択 2026-10-24 mockups/v53 ② 案B）。Word から読み込むときは、今までどおり見出しにしない。
+ * 「（1）素材」「①素材」「■まとめ」は見出しにしない（箇条書きの印として扱うだけ。依頼者の選択 2026-10-31）
  */
 
 /** 空白（全角も） */
@@ -53,32 +54,43 @@ function romanBeforeJapanese(raw: string): HeadingText | null {
   return { level: numeral === numeral.toUpperCase() ? 1 : 2, title: m[2].trim() }
 }
 
+const DIGITS = '[0-9０-９]{1,2}'
 /**
- * 算用数字・丸数字・記号で始まる見出しのつもりの行（学生の試し 2026-10-24：「3．スカート」と打つと段落のまま「。」が付き、体言止めの指摘が出ていた）。
- * 「第4章 考察」は大見出し、ほか（「3．スカート」「3.スカート」「2-1 仮縫い」「（1）素材」「①素材」「■まとめ」）は小見出し。
+ * 算用数字・丸数字・記号で始まる行の形。heading：段落に打ったときに見出しにする形か。
+ * 「（1）素材」「①素材」「■まとめ」は見出しにしない（箇条書きの印として、文末の「。」を付けない・続けて並べば箇条書き、にだけ使う。依頼者の選択 2026-10-31）
+ */
+const ARABIC_FORMS: { re: RegExp; level: 1 | 2; heading: boolean }[] = [
+  { re: new RegExp(`^第${SP}*[0-9０-９一二三四五六七八九十]{1,3}${SP}*章(?:${HEADING_SEP}|${SP}*)(\\S.*)$`), level: 1, heading: true },
+  // 「2-1 パターンと仮縫い」「2.1 仮縫い」（章-節の番号）。後ろは空白か日本語（「2.5cm」「2-3cm幅」は文）。Word から読み込んだ段落を、
+  // 行の終わりで Enter を押して小見出しにできるように（学生の試し 2026-10-29：小見出しへの直し方が分からなかった）
+  { re: new RegExp(`^${DIGITS}${SP}*[-－‐−.．]${SP}*${DIGITS}(?:${SP}+|(?=[^\\x00-\\x7f０-９]))(\\S.*)$`), level: 2, heading: true },
+  { re: new RegExp(`^${DIGITS}${SP}*[．.、，,:：)）]${SP}*(\\S.*)$`), level: 2, heading: true },
+  { re: new RegExp(`^[（(]${SP}*${DIGITS}${SP}*[)）]${SP}*(\\S.*)$`), level: 2, heading: false },
+  { re: new RegExp(`^[①-⑳]${SP}*(\\S.*)$`), level: 2, heading: false },
+  { re: new RegExp(`^[■□●◆◇▼▽★☆▶►]${SP}*(\\S.*)$`), level: 2, heading: false },
+]
+
+/**
+ * 算用数字・丸数字・記号で始まる、見出しのつもりの行か箇条書きの行（学生の試し 2026-10-24：「3．スカート」と打つと段落のまま「。」が付き、体言止めの指摘が出ていた）。
+ * 「第4章 考察」は大見出し、ほか（「3．スカート」「3.スカート」「2-1 仮縫い」「（1）素材」「①素材」「■まとめ」）は小見出しの大きさ。
  * 文を見出しにしないよう、名前は 20字まで・数字で始まらない（「2.5cm短くした」）・「、」がない・文の終わりの形（〜た・〜る・〜つ・〜です・〜ます など。ひらがなで終わるもの）でないものだけ
  */
-function arabicHeading(raw: string): HeadingText | null {
+function arabicForm(raw: string): (HeadingText & { heading: boolean }) | null {
   const t = raw.replace(/[\n\t]/g, '').trim()
-  const DIGITS = '[0-9０-９]{1,2}'
-  const forms: [RegExp, 1 | 2][] = [
-    [new RegExp(`^第${SP}*[0-9０-９一二三四五六七八九十]{1,3}${SP}*章(?:${HEADING_SEP}|${SP}*)(\\S.*)$`), 1],
-    // 「2-1 パターンと仮縫い」「2.1 仮縫い」（章-節の番号）。後ろは空白か日本語（「2.5cm」「2-3cm幅」は文）。Word から読み込んだ段落を、
-    // 行の終わりで Enter を押して小見出しにできるように（学生の試し 2026-10-29：小見出しへの直し方が分からなかった）
-    [new RegExp(`^${DIGITS}${SP}*[-－‐−.．]${SP}*${DIGITS}(?:${SP}+|(?=[^\\x00-\\x7f０-９]))(\\S.*)$`), 2],
-    [new RegExp(`^${DIGITS}${SP}*[．.、，,:：)）]${SP}*(\\S.*)$`), 2],
-    [new RegExp(`^[（(]${SP}*${DIGITS}${SP}*[)）]${SP}*(\\S.*)$`), 2],
-    [new RegExp(`^[①-⑳]${SP}*(\\S.*)$`), 2],
-    [new RegExp(`^[■□●◆◇▼▽★☆▶►]${SP}*(\\S.*)$`), 2],
-  ]
-  for (const [re, level] of forms) {
+  for (const { re, level, heading } of ARABIC_FORMS) {
     const m = re.exec(t)
     if (!m) continue
     const title = m[1].trim()
     if (title.length > 20 || /^[0-9０-９]/.test(title) || /[、，,]/.test(title) || /(う|く|ぐ|す|つ|ぬ|ぶ|む|る|た|だ|です|ます|ない|ません)$/.test(title)) return null
-    return { level, title }
+    return { level, title, heading }
   }
   return null
+}
+
+/** 段落に打ったときに見出しにする、算用数字などの形（「（1）」「①」「■」は除く） */
+function arabicHeading(raw: string): HeadingText | null {
+  const found = arabicForm(raw)
+  return found?.heading ? { level: found.level, title: found.title } : null
 }
 
 /** 段落に打った見出しの名前の長さの上限（これより長い行は、文として段落のままにする） */
@@ -97,7 +109,7 @@ const TYPED_TITLE_MAX = 40
  */
 export function listItemLine(line: string): boolean {
   if (headingFromText(line) || romanBeforeJapanese(line)) return false
-  return arabicHeading(line)?.level === 2
+  return arabicForm(line)?.level === 2
 }
 
 /** 小見出しにできる段落の長さの上限（左の道具の「小見出しにする」を出す） */
@@ -110,14 +122,26 @@ const SUBHEADING_MAX = 30
 export function subheadingTitle(text: string): string | null {
   const t = text.replace(/[\n\t]/g, '').trim()
   if (!t || t.length > SUBHEADING_MAX || /[。！？!?]/.test(t)) return null
-  const found = typedHeading(t)
+  const found = numberedLine(t)
   return found?.level === 2 ? found.title : t
 }
 
-export function typedHeading(line: string): HeadingText | null {
-  const found = headingFromText(line) ?? romanBeforeJapanese(line) ?? arabicHeading(line)
+/** 名前として使えるか（文字か数字が1つ以上・40字まで・文の終わりの形でない） */
+function usableTitle(found: HeadingText | null): HeadingText | null {
   if (!found) return null
   const title = found.title
   if (!/[\p{L}\p{Nd}]/u.test(title) || title.length > TYPED_TITLE_MAX || /[。！？!?]$/.test(title)) return null
   return found
+}
+
+export function typedHeading(line: string): HeadingText | null {
+  return usableTitle(headingFromText(line) ?? romanBeforeJapanese(line) ?? arabicHeading(line))
+}
+
+/**
+ * 番号・印で始まる行（見出しにしない「（1）」「①」「■」も）の、番号を除いた名前。見出しの欄に番号ごと貼ったときと、
+ * 段落を自分で「小見出しにする」ときに、番号を外すのに使う（番号は自動で付くので、二重にしない）
+ */
+export function numberedLine(line: string): HeadingText | null {
+  return usableTitle(headingFromText(line) ?? romanBeforeJapanese(line) ?? arabicForm(line))
 }

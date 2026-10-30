@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headingFromText, listItemLine, typedHeading } from './headingText'
+import { headingFromText, listItemLine, numberedLine, subheadingTitle, typedHeading } from './headingText'
 
 describe('段落に打った見出しの形（typedHeading）', () => {
   it('大見出し：「Ⅲ．まとめ」、英字の「I.」「II.」、全角の英字の「Ｉ．」。番号は除き、名前だけにする', () => {
@@ -20,17 +20,30 @@ describe('段落に打った見出しの形（typedHeading）', () => {
     expect(typedHeading('ｉｉｉ．使用素材')).toEqual({ level: 2, title: '使用素材' })
   })
 
-  it('算用数字・丸数字・記号の形も見出しにする（「第4章」は大見出し、ほかは小見出し。番号は除く。依頼者の選択 2026-10-24 mockups/v53 ② 案B）', () => {
+  it('算用数字の形も見出しにする（「第4章」は大見出し、ほかは小見出し。番号は除く。依頼者の選択 2026-10-24 mockups/v53 ② 案B）', () => {
     expect(typedHeading('3．スカート')).toEqual({ level: 2, title: 'スカート' })
     expect(typedHeading('3.スカート')).toEqual({ level: 2, title: 'スカート' })
     expect(typedHeading('1. はじめに')).toEqual({ level: 2, title: 'はじめに' })
     expect(typedHeading('１２）縫製')).toEqual({ level: 2, title: '縫製' })
-    expect(typedHeading('（1）素材について')).toEqual({ level: 2, title: '素材について' })
-    expect(typedHeading('(2) 素材')).toEqual({ level: 2, title: '素材' })
-    expect(typedHeading('①素材')).toEqual({ level: 2, title: '素材' })
-    expect(typedHeading('■まとめ')).toEqual({ level: 2, title: 'まとめ' })
+    expect(typedHeading('2-1 仮縫い')).toEqual({ level: 2, title: '仮縫い' })
     expect(typedHeading('第4章　考察')).toEqual({ level: 1, title: '考察' })
     expect(typedHeading('第十章 考察')).toEqual({ level: 1, title: '考察' })
+  })
+
+  it('「（1）」「①」「■」などの形は見出しにしない（箇条書きの印。依頼者の選択 2026-10-31）', () => {
+    for (const t of ['（1）素材について', '(2) 素材', '①素材', '⑳素材', '■まとめ', '●まとめ', '★ポイント']) expect(typedHeading(t), t).toBeNull()
+  })
+
+  it('見出しの欄に貼ったとき・「小見出しにする」で外す番号（numberedLine）は、「（1）」「①」「■」も外す', () => {
+    expect(numberedLine('（1）素材について')?.title).toBe('素材について')
+    expect(numberedLine('①素材')?.title).toBe('素材')
+    expect(numberedLine('■まとめ')?.title).toBe('まとめ')
+    expect(numberedLine('Ⅱ．制作過程')?.title).toBe('制作過程')
+    expect(numberedLine('2-1 仮縫い')?.title).toBe('仮縫い')
+    expect(numberedLine('素材について')).toBeNull()
+    expect(subheadingTitle('（1）素材')).toBe('素材')
+    expect(subheadingTitle('①素材')).toBe('素材')
+    expect(subheadingTitle('素材')).toBe('素材')
   })
 
   it('算用数字などで始まる文は見出しにしない（長い・「、」がある・文の終わりの形・数字の続き・英字の番号）', () => {

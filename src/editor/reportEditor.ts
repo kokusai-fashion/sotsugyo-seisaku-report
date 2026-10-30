@@ -3,7 +3,7 @@ import { checkReportDetailed, type ReportFinding } from '../checker/reportChecks
 import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
-import { listItemLine, subheadingTitle, typedHeading, type HeadingText } from '../model/headingText'
+import { listItemLine, numberedLine, subheadingTitle, typedHeading, type HeadingText } from '../model/headingText'
 import { listishLine } from './pasteText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
 import { tidyName } from '../model/personName'
@@ -568,7 +568,7 @@ export class ReportEditor {
       pasteLine: (id, pasted) => {
         // 見出しの欄に、番号ごと貼った（「Ⅱ．制作過程」「2-1 パターンと仮縫い」）：番号は自動で付くので外す（番号が二重になっていた：学生の試し 5回目 2026-10-30）
         const kind = ops.findEditable(this.report, id)?.kind
-        const heading = kind === 'chapter' || kind === 'subheading' ? typedHeading(pasted.trim()) : null
+        const heading = kind === 'chapter' || kind === 'subheading' ? numberedLine(pasted.trim()) : null
         if (!heading?.title || heading.title === pasted.trim()) return pasted
         const number = pasted.trim().slice(0, Math.max(0, pasted.trim().indexOf(heading.title))).trim()
         this.showNotice(`見出しの番号は自動で付くので、貼り付けた${number ? `「${number}」` : '番号'}を外しました`, { untilMove: true })
