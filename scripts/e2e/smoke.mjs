@@ -2320,7 +2320,7 @@ await withEdge(async (browser) => {
   const keepId = await page.evaluate(() => {
     const ed = window.__editor
     const target = ed.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.type === 'paragraph')
-    ed.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === target.id ? { ...b, content: [{ type: 'text', text: '袖を①の形に大きく広げた' }] } : b)) })) }))
+    ed.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === target.id ? { ...b, content: [{ type: 'text', text: '袖を3㎝大きく広げた' }] } : b)) })) }))
     return target.id
   })
   await pause(300)
@@ -2453,7 +2453,7 @@ await withEdge(async (browser) => {
     await pause0(300)
   }
 
-  // ---- 補助のチェックの要確認（機種依存文字の「①」）は「このままにする（確認済み）」にでき、「戻す」で元に戻る（mockups/v22 ① 案A）。
+  // ---- 補助のチェックの要確認（機種依存文字の「㎝」）は「このままにする（確認済み）」にでき、「戻す」で元に戻る（mockups/v22 ① 案A）。
   // 赤いエラー（文末の「。」）は、確認済みにできない（依頼者の判断 2026-10-29） ----
   const keepKey = `machine-dependent|${keepId}|`
   const keepClicked = await page.evaluate((key) => {

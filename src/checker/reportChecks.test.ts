@@ -268,10 +268,10 @@ describe('手で書いた図表の番号', () => {
 describe('確認済み（補助の指摘を、学生がこのままにする）', () => {
   it('補助のチェックの要確認だけに目印が付き、確認済みにすると数えない（手順書のルール・赤いエラー・全角の英字などは外せない。依頼者の判断 2026-10-29）', () => {
     // 機種依存文字（補助の要確認）・文末の「。」がない（補助のエラー）・全角の英字（補助の要確認だが、そのままにしてよい場面がほぼない）・「です」（手順書のルール）
-    const r = ops.setText(demoReport(), 'p1', '衣装のＤＥＳＩＧＮは①の形で作ったのです')
+    const r = ops.setText(demoReport(), 'p1', '衣装のＤＥＳＩＧＮは㎝の形で作ったのです')
     const before = checkReport(r, currentConfig).filter((f) => f.blockId === 'p1')
     const machine = before.find((f) => f.ruleId === 'machine-dependent')
-    expect(machine?.key).toBe('machine-dependent|p1|①')
+    expect(machine?.key).toBe('machine-dependent|p1|㎝')
     expect(before.find((f) => f.ruleId === 'sentence-end')?.key).toBeUndefined()
     expect(before.find((f) => f.ruleId === 'fullwidth-alpha')?.key).toBeUndefined()
     expect(before.find((f) => f.ruleId === 'desu-masu')?.key).toBeUndefined()
@@ -501,7 +501,9 @@ describe('本文の段落に、見出しの形で打っている途中（「Ⅲ�
   })
 
   it('番号のほかの機種依存文字・見出しにならない文は、打っている途中でも指摘する', () => {
-    expect(machine('Ⅲ．①の工程')).toEqual(['①'])
+    expect(machine('Ⅲ．㎝の工程')).toEqual(['㎝'])
+    // 丸数字（①〜⑳）は指摘しない（使うことがある：依頼者の判断 2026-10-31）
+    expect(machine('①の工程で、②の布を使った。')).toEqual([])
     // 見出しの名前に入る2つ目の番号（見出しになっても消えない）
     expect(machine('Ⅲⅱ．まとめ')).toEqual(['ⅱ'])
     expect(machine('Ⅲ．これは見出しではなく、文として書いたものである。')).toEqual(['Ⅲ'])

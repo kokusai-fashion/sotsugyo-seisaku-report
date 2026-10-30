@@ -298,7 +298,8 @@ export const TEXT_RULES: TextRule[] = [
     find: (text) =>
       // 見出しの番号（Ⅰ．ⅰ．）は組版で付けるため、ここで見つかるのは学生が入力したものだけ
       // 「㈱」「㌢」などの括弧付き・組み文字も（出ていなかった：学生の試し 5回目 2026-10-30）
-      matches(text, /[㎜㎝㎞㎏㎡①-⑳Ⅰ-Ⅹⅰ-ⅹ㈠-㉃㊀-㊰㌀-㍗]/g).map(({ match, start, end }) => {
+      // 丸数字（①〜⑳）は、使うことがあるので指摘しない（依頼者の判断 2026-10-31）
+      matches(text, /[㎜㎝㎞㎏㎡Ⅰ-Ⅹⅰ-ⅹ㈠-㉃㊀-㊰㌀-㍗]/g).map(({ match, start, end }) => {
         const replacement = match[0].normalize('NFKC')
         return { start, end, replacement, detail: `「${match[0]}」→「${replacement}」` }
       }),
