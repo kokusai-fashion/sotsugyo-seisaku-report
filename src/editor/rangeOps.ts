@@ -227,6 +227,8 @@ export interface Clip {
   chapters: number
   /** コピーしたときの図表の番号の文字（図表の ID → 「図1」など。抄録へ貼り付けるとき・図表が見つからないときに使う） */
   labels: Record<string, string>
+  /** 1つの段落の文を、頭から終わりまで全部選んだ（段落の頭・終わりに貼ると、段落のまま入れる：学生の試し 5回目 2026-10-30） */
+  wholeParagraph?: boolean
 }
 
 const clone = <T>(x: T): T => structuredClone(x)
@@ -247,7 +249,8 @@ export function copyRange(report: Report, range: ModelRange): Clip {
   if (only && !ATOMIC.includes(only.item.kind)) {
     const p = only.item.kind === 'paragraph' || only.item.kind === 'abstractParagraph' ? paragraphOf(only.item) : undefined
     const inline = p ? sliceContent(p.content, only.from, only.to, num) : [{ type: 'text' as const, text: only.item.text.slice(only.from, only.to) }]
-    return { ...base, kind: 'inline', inline, text: only.item.text.slice(only.from, only.to) }
+    const wholeParagraph = only.item.kind === 'paragraph' && only.from === 0 && only.to >= only.item.text.length && only.item.text.trim() !== ''
+    return { ...base, kind: 'inline', inline, text: only.item.text.slice(only.from, only.to), ...(wholeParagraph ? { wholeParagraph } : {}) }
   }
   if (only && (only.item.kind === 'figure' || only.item.kind === 'table') && !only.whole && !range.whole) {
     const text = only.item.text.slice(only.from, only.to)
@@ -319,7 +322,7 @@ export interface RangeRemoval {
 }
 
 /** 選んだ範囲を消す（何も消えなければ、同じ原稿を返す） */
-export function deleteRange(report: Report, range: ModelRange): RangeRemoval {
+export function deleteRange(report: Report, range: ModelRange, how: { keepRefs?: boolean } = {}): RangeRemoval {
   const num = numbering(report)
   const pieces = rangePieces(report, range)
   const figures: string[] = []
@@ -426,8 +429,11 @@ export function deleteRange(report: Report, range: ModelRange): RangeRemoval {
         }),
       })),
     }
-    for (const id of figures) next = withoutRefsTo(next, id, '図')
-    for (const id of tables) next = withoutRefsTo(next, id, '表')
+    // 切り取り（貼り付けて動かす）：範囲の外の文の参照は残す（貼り付けると、同じ図・表につながり直す。前は「（図1）」が消えて戻らなかった：学生の試し 5回目 2026-10-30）
+    if (!how.keepRefs) {
+      for (const id of figures) next = withoutRefsTo(next, id, '図')
+      for (const id of tables) next = withoutRefsTo(next, id, '表')
+    }
   }
   return { report: next, figures, tables, keptChapters }
 }
@@ -519,6 +525,14 @@ export function pasteClip(report: Report, paragraphId: string, offset: number, c
 
   if (clip.kind === 'inline') {
     const inline = forAbstract(relink(clip.inline))
+    // 段落を丸ごと切り取って、別の段落の頭か終わりに貼った：つなげず、段落のまま前・後ろに入れる（2つの段落が1つにつながっていた：学生の試し 5回目）
+    const atStart = emptyContent(left) && !emptyContent(right)
+    const atEnd = !emptyContent(left) && emptyContent(right)
+    if (clip.wholeParagraph && !inAbstract && (atStart || atEnd)) {
+      const added: ParagraphBlock = { type: 'paragraph', id: newId('p'), content: mergeTexts(inline) }
+      const next = replaceParagraph(report, paragraphId, atStart ? [added, target] : [target, added], false)
+      return { report: next, caret: { id: added.id, offset: contentToText(added.content, numbering(next)).length }, skippedChapters, droppedForAbstract: false, removedRefs, keptRefs }
+    }
     const content = mergeTexts([...left, ...inline, ...right])
     const updated: ParagraphBlock = { ...target, content }
     const next = replaceParagraph(report, paragraphId, [updated], inAbstract)

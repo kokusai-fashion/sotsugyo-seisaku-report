@@ -271,6 +271,7 @@ export function CheckApp() {
     let refused = 0
     /** 同じ名前の新しいファイルに入れ替えたもの（1行にまとめて知らせる） */
     const renewed: string[] = []
+    const same: string[] = []
     const warn = (text: string) => out.push({ text })
     const info = (text: string) => out.push({ text, info: true })
     /** この回に入れた場所（同じ場所に2つ入ったら、新しいほうを使って知らせる） */
@@ -384,6 +385,7 @@ export function CheckApp() {
         if (old.photos) info(`作品写真の写真${old.photos.length}枚を外して、「${file.name}」にしました。`)
         else if (file.lastModified + 2000 < old.file.lastModified)
           warn(`${labelThen}を「${file.name}」に入れ替えました。前の「${old.file.name}」（${timeText(old.file.lastModified)}）より古いファイルです（${timeText(file.lastModified)}）。`)
+        else if (old.file.name === file.name && old.file.size === file.size && old.file.lastModified === file.lastModified) same.push(file.name)
         else if (old.file.name === file.name) renewed.push(file.name)
         else info(`${labelThen}を「${old.file.name}」から「${file.name}」に入れ替えました。`)
       }
@@ -395,6 +397,8 @@ export function CheckApp() {
     }
     setReading(null)
     // 同じ名前の新しいファイル（直して、入れ直した）は、1行にまとめる
+    // 同じファイルを、もう一度入れた：入れ替えたとは言わない（学生の試し 5回目 2026-10-30）
+    if (same.length) info(`「${same.join('」「')}」は、もう入っています（同じファイルなので、そのままです）。`)
     if (renewed.length === 1) info(`「${renewed[0]}」を、新しいものに入れ替えました。`)
     else if (renewed.length > 1) info(`${renewed.length}個のファイルを、同じ名前の新しいものに入れ替えました。`)
     setNotes(out)
@@ -430,7 +434,8 @@ export function CheckApp() {
     if (!gone) return
     releasePhoto(gone)
     void setPhotos(have.filter((p) => p.id !== id))
-    setNotes([])
+    // 外したことは、画面にも出す（読み上げだけだった：学生の試し 5回目 2026-10-30）
+    setNotes([{ text: `「${gone.file.name}」を外しました。`, info: true }])
     setAnnounce(`「${gone.file.name}」を外しました`)
   }
   /** 作品写真の写真の順番を変える（dir：-1 は前へ、1 は後ろへ） */
@@ -453,7 +458,7 @@ export function CheckApp() {
     delete next[key]
     commit(next)
     filesChanged()
-    setNotes([])
+    setNotes([{ text: `「${e.file.name}」を外しました。`, info: true }])
     setAnnounce(`「${e.file.name}」を外しました`)
   }
 
@@ -679,7 +684,14 @@ export function CheckApp() {
         const e = mergeEntry(slotsRef.current, p.id)
         if (!e) continue
         if (e.photos) items.push({ type: 'photos', photos: e.photos.map((p) => ({ bytes: p.photo.bytes, format: 'jpg' as const, width: p.photo.width, height: p.photo.height })) })
-        else items.push({ type: 'pdf', bytes: new Uint8Array(await e.file.arrayBuffer()) })
+        else {
+          // 入れたあとに、同じ名前で保存し直したファイルは読めない（読み直すには、もう一度ここに入れる）。どのファイルかを言う（学生の試し 5回目 2026-10-30。
+          // 前は「保存し直してから、もう一度試して」と出て、そのとおりにしても直らなかった）
+          const bytes = await e.file.arrayBuffer().catch(() => {
+            throw new Error(`「${e.file.name}」が、ここに入れたあとに変わりました（Word から保存し直したなど）。もう一度、ここに入れてください。`)
+          })
+          items.push({ type: 'pdf', bytes: new Uint8Array(bytes) })
+        }
       }
       const { bytes, pageCount } = await mergeParts(items, fileName.replace(/\.pdf$/, ''))
       const blob = new Blob([bytes.slice()], { type: 'application/pdf' })
@@ -691,8 +703,9 @@ export function CheckApp() {
       setNotes([])
       setAnnounce(mode === 'download' ? `保存しました：${fileName}` : `PDF ができました。「保存する」を押してください`)
       if (mode === 'download') save.downloadPdf(pdf)
-    } catch {
-      setPhase({ kind: 'error', message: 'まとめられませんでした。入れた PDF を、Word から保存し直してから、もう一度試してください。' })
+    } catch (err) {
+      const changed = err instanceof Error && err.message.includes('ここに入れたあとに変わりました')
+      setPhase({ kind: 'error', message: changed ? err.message : 'まとめられませんでした。入れた PDF を、Word から保存し直して、もう一度ここに入れてから試してください。' })
     }
   }
 
@@ -936,7 +949,7 @@ export function CheckApp() {
         <b>
           {p.name}
           <small>
-            （つづき）{s.items[0].no ? `${s.items[0].k}〜${s.items[n - 1].k}ページ目` : ''}
+            （つづき）{s.items[0].no ? (s.items[0].k === s.items[n - 1].k ? `${s.items[0].k}ページ目` : `${s.items[0].k}〜${s.items[n - 1].k}ページ目`) : ''}
           </small>
         </b>
       </header>
@@ -997,6 +1010,8 @@ export function CheckApp() {
               ))}
             </ul>
           )}
+          {/* ページの絵の上に出す（下にあると、1366×768 で下の帯に隠れていた：学生の試し 5回目 2026-10-30） */}
+          {empty && <p className="c-cap">この順に並べて、1つの PDF にまとめます。入れたファイルは、名前を見て自動で分けます。ページを読み込み直すと、入れたファイルは外れます。</p>}
           <div className="c2-doc" id="doc" ref={docRef} style={{ '--tw': `${grid.tw}px` } as React.CSSProperties}>
             {narrow ? (
               <div className="card pp-list">
@@ -1023,7 +1038,6 @@ export function CheckApp() {
               ))
             )}
           </div>
-          {empty && <p className="c-cap">この順に並べて、1つの PDF にまとめます。入れたファイルは、名前を見て自動で分けます。</p>}
         </div>
         <CheckPanel
           ref={sideRef}
@@ -1391,7 +1405,7 @@ function CheckPanel({ check, checking, empty, anyPdf, pdfCount, noWord, slots, e
           ) : readErrors.length > 0 ? null : (
             <p className="empty-ok">
               <Ok />
-              指摘はありません。{anyPdf ? '1つの PDF にまとめられます。' : ''}
+              指摘はありません。{anyPdf ? '1つの PDF にまとめられます。' : 'PDF を入れると、ページの数なども確かめます。'}
             </p>
           )
         ) : (
@@ -1500,7 +1514,7 @@ function MergeBar({ fileName, placeholder, ready, empty, anyPdf, totalPages, mis
                 {ask.studentId && (
                   <label>
                     学籍番号
-                    <input value={manual.studentId} inputMode="text" autoComplete="off" onChange={(e) => onManual({ ...manual, studentId: e.target.value.replace(/[\s/\\:*?"<>|]/g, '') })} />
+                    <input value={manual.studentId} inputMode="text" autoComplete="off" onChange={(e) => onManual({ ...manual, studentId: e.target.value.normalize('NFKC').toUpperCase().replace(/[\s/\\:*?"<>|]/g, '') })} />
                   </label>
                 )}
                 {ask.name && (
@@ -1712,7 +1726,9 @@ function PhotoMenu({ photos, max, rect, onMove, onRemove, onAdd, onClose }: { ph
     const margin = 8
     el.style.left = `${Math.max(margin, Math.min(rect.left, window.innerWidth - el.offsetWidth - margin))}px`
     const below = rect.bottom + 6
-    el.style.top = `${below + el.offsetHeight > window.innerHeight - margin ? Math.max(margin, rect.top - el.offsetHeight - 6) : below}px`
+    // 下にも上にも入らないとき（写真が多い）は、画面の上の端から（高さは画面までにして、中を動かす：check.css。学生の試し 5回目 2026-10-30）
+    const above = rect.top - el.offsetHeight - 6
+    el.style.top = `${below + el.offsetHeight <= window.innerHeight - margin ? below : above >= margin ? above : margin}px`
   }, [rect, photos.length])
   return (
     <div className="popover-backdrop" onMouseDown={onClose}>
@@ -1796,7 +1812,7 @@ function MoveMenu({ entry, from, rect, onMove, onRemove, onClose }: { entry: Ent
               onMove(p.id)
             }}
           >
-            {slotLabel(p.id, fromSlot)}に移す
+            {slotLabel(p.id, fromSlot)} に移す
           </button>
         ))}
         <button

@@ -203,7 +203,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2
 .c2-saved .r-lead { margin-bottom: 10px; font-size: 14px; }
 .c2-saved .row-buttons { margin-top: 10px; }
 .c-saved:focus, .c2-saved:focus { outline: none; }
-.c-cap { margin-top: 18px; text-align: center; font-size: 13.5px; color: var(--muted); }
+.c-cap { margin: 14px 0 10px; text-align: center; font-size: 13.5px; color: var(--muted); }
 /* ページは、まとめる順に左から並べる。入りきらなければ次の段へ（pageGrid.ts） */
 .c2-doc { display: grid; gap: 12px; margin-top: 16px; --tw: 96px; --g: 8px; --gg: 20px; }
 .c-row { display: flex; align-items: flex-start; gap: var(--gg); }
@@ -378,7 +378,7 @@ button.pg { cursor: pointer; }
   .pdf-file b, .pdf-file small, .pdf-file .again { font-size: 13px; }
   .r-lead { font-size: 14px; }
   .c2-saved .row-buttons .link { padding: 12px 4px; font-size: 14px; }
-  .popover { left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom)) !important; min-width: 0; padding: 8px; border-radius: 16px; }
+  .popover { left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom)) !important; min-width: 0; padding: 8px; border-radius: 16px; max-height: calc(100dvh - 16px - env(safe-area-inset-bottom)); overflow-y: auto; }
   .popover-backdrop { background: rgba(20, 20, 25, 0.28); }
   .popover-title { font-size: 13px; }
   .popover button { padding: 13px 12px; font-size: 15px; }
@@ -401,7 +401,8 @@ button.pg { cursor: pointer; }
 .sev-legend b { font-weight: 400; color: inherit; }
 .unchecked-part { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; padding: 8px 12px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 13px; line-height: 1.6; }
 .unchecked-part .st { margin-top: 3px; }
-.photo-menu { width: 320px; }
+/* 写真が多いときも、窓は画面に収め、中を動かす（16枚で下の写真・「写真を足す」に届かなかった：学生の試し 5回目 2026-10-30） */
+.photo-menu { width: 320px; max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
 .photo-menu .popover-title b { margin-right: 8px; color: var(--ink); font-size: 13px; }
 .photo-menu ol { margin: 0; padding: 0; list-style: none; }
 .photo-menu li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto auto; align-items: center; gap: 4px; padding: 4px 4px 4px 6px; border-radius: 8px; }

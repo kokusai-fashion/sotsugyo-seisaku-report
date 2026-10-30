@@ -15,7 +15,7 @@ import { BackupLabel } from './dialogs'
 import { Spinner } from './Busy'
 import { CheckBody, CourseNotice, DeadlineChip, DriveStoppedNote, ExportNote, HelpButton, PageThumbs, SaveChip, SourceNotice, Tally } from './SidePanel'
 import { checkSummary } from './checkSummary'
-import { keepFocus, PAGE_CONTEXT, pageName, swallowSecondClick, useBandSide, useTouchLandscape } from './uiShared'
+import { keepFocus, PAGE_CONTEXT, pageName, swallowSecondClick, touchPrimary, useBandSide, useTouchLandscape } from './uiShared'
 import { DriveChip, DriveMenu, type DriveControls } from './DriveUi'
 import type { SaveState } from './useAutosave'
 import { useDialogFocus } from './useDialogFocus'
@@ -218,7 +218,7 @@ function EditSheet({ editor, snap, hostRef }: { editor: ReportEditor; snap: Edit
             className="danger"
             onMouseDown={keepFocus}
             onClick={async () => {
-              if (snap.editingKind === 'chapter' && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
+              if (snap.editingKind === 'chapter' && editor.chapterWritten(id!) && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
               editor.removeBlock(id!)
             }}
           >
@@ -445,7 +445,7 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
   // すばやく2回押した2回目は、閉じたこの段の下（紙面）に当てない（書き始めた見出しが閉じ、下の別の見出しが開いて、打った字がそこに入った：
   // 学生の試し 4回目 2026-10-30）
   const addThen = (run: () => void) => (e: React.MouseEvent) => {
-    swallowSecondClick(e)
+    swallowSecondClick(e, 1000)
     setAddFor(null)
     run()
   }
@@ -522,7 +522,7 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
               className="danger"
               onMouseDown={keepFocus}
               onClick={async () => {
-                if (snap.editingKind === 'chapter' && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
+                if (snap.editingKind === 'chapter' && editor.chapterWritten(id!) && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
                 editor.removeBlock(id)
               }}
             >
@@ -633,7 +633,7 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
       onClick={(e) => {
         // すばやく2回押した2回目は、閉じたこの欄の下の紙面に当てない（書き始めた見出しが閉じ、下の別の見出しが開いて、打った字がそこに入った：
         // 学生の試し 4回目 2026-10-30）
-        swallowSecondClick(e)
+        swallowSecondClick(e, 1000)
         // 紙面で直接書く：足した見出しは、紙面の上ですぐ書き始める。先にこの欄を閉じ終えてから足す
         // （閉じるときにフォーカスが下の「追加」に戻り、書き始めた見出しが閉じてしまうため）
         if (direct) flushSync(onDone)
@@ -655,7 +655,7 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
         {tool('改ページ', Icon.pageBreak, () => editor.addPageBreak())}
       </div>
       <p className="sheet-hint">
-        図・表は、文中の入れたい位置をタップして、{direct ? 'キーボードの上' : '書く欄'}の{direct ? '「図」「表」' : '「図を入れる」「表を入れる」'}で入れます（素材表も{direct ? '「表」' : '「表を入れる」'}から）。
+        図・表は、文中の入れたい位置を{touchPrimary() ? 'タップ' : 'クリック'}して、{direct ? 'キーボードの上' : '書く欄'}の{direct ? '「図」「表」' : '「図を入れる」「表を入れる」'}で入れます（素材表も{direct ? '「表」' : '「表を入れる」'}から）。
       </p>
       {/* 引用・参考文献は、使い方の「引用・参考文献」から入れる（mockups/v35 ①。入れた後は、そのページをタップして直す） */}
     </>

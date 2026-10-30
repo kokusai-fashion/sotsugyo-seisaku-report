@@ -22,24 +22,49 @@ export function swallowSecondClick(at: { clientX: number; clientY: number }, ms 
   window.setTimeout(() => shield.remove(), ms)
 }
 
-/** F6 で順に移る所（ページの一覧・道具・紙面・右の欄。見えているものだけ） */
-const REGIONS = ['.thumb-list', '.palette', '.stage', 'aside.side']
+/** F6 で順に移る所（パソコン：ページの一覧・道具・紙面・右の欄。スマホの形：上の帯・紙面・下の帯。見えているものだけ） */
+const REGIONS = ['.p-top', '.thumb-list', '.palette', '.stage', 'aside.side', '.p-nav']
 const REGION_FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+
+/** 区画の中で、F6 で移る先（見えているものだけ。ページの一覧は見ているページ、紙面は見えているページの欄） */
+function regionTarget(region: HTMLElement): HTMLElement | null {
+  const visible = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(el).visibility !== 'hidden'
+  }
+  if (region.matches('.stage')) {
+    const keys = [...region.querySelectorAll<HTMLElement>('.page-viewport.front [data-paper-key]')].filter(visible)
+    return keys.find((el) => el.tabIndex === 0) ?? keys[0] ?? null
+  }
+  if (region.matches('.thumb-list')) {
+    const current = region.querySelector<HTMLElement>('[aria-current="page"]')
+    if (current) return current
+  }
+  return [...region.querySelectorAll<HTMLElement>(REGION_FOCUSABLE)].find(visible) ?? null
+}
+
+/** 紙面（見えているページの欄）にフォーカスを置く（画面の案内・はじめての案内を閉じたあと、フォーカスがなくなっていた：学生の試し 5回目 2026-10-30） */
+export function focusPaper(): void {
+  const stage = document.querySelector<HTMLElement>('.stage')
+  if (stage && !stage.contains(document.activeElement)) regionTarget(stage)?.focus({ preventScroll: true })
+}
 
 /**
  * F6・Shift+F6：ページの一覧・道具・紙面・右の欄を順に移る（キーボードで、右の欄の「PDFを書き出す」まで Tab で39回かかった：学生の試し 4回目 2026-10-30）。
- * 紙面は、Tab で止まる欄（なければ、見えているページのいちばん上の欄）へ
+ * 移る先のない区画（押せるボタンのない道具など）は飛ばす（止まっていた：学生の試し 5回目）
  */
 export function moveRegion(step: 1 | -1): void {
   const regions = REGIONS.map((s) => document.querySelector<HTMLElement>(s)).filter((el): el is HTMLElement => !!el && el.getClientRects().length > 0)
   if (regions.length === 0) return
   const at = regions.findIndex((el) => el.contains(document.activeElement))
-  const next = regions[at < 0 ? (step > 0 ? 0 : regions.length - 1) : (at + step + regions.length) % regions.length]
-  const visible = (el: HTMLElement) => el.getClientRects().length > 0
-  const target = next.matches('.stage')
-    ? (next.querySelector<HTMLElement>('.page-viewport.front [data-paper-key][tabindex="0"]') ?? [...next.querySelectorAll<HTMLElement>('.page-viewport.front [data-paper-key]')].find(visible))
-    : [...next.querySelectorAll<HTMLElement>(REGION_FOCUSABLE)].find(visible)
-  target?.focus()
+  for (let k = 1; k <= regions.length; k++) {
+    const i = at < 0 ? (step > 0 ? k - 1 : regions.length - k) : (((at + step * k) % regions.length) + regions.length) % regions.length
+    const target = regionTarget(regions[i])
+    if (target) {
+      target.focus()
+      return
+    }
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useDialogFocus } from './useDialogFocus'
-import { forTouch } from './bandText'
+import { forClick, forTouch } from './bandText'
 import { touchPrimary } from './uiShared'
 
 /**
@@ -85,6 +85,9 @@ const PC_STEPS = (drive: boolean): Step[] => [
   // 「？ 使い方」は、右の欄の「メニュー」の中（mockups/v37 案C）。光はメニューのボタンに当てる
   { title: '？ 使い方', text: '困ったときの「？ 使い方」は、右上の「メニュー」の中です。使い方の動画（6本）もあり、言葉で探せます。', targets: first('.side .menu-btn'), sides: ['left', 'below'] },
 ]
+/** スマホの形の指差し確認。マウスの端末（ブラウザを拡大したパソコン）では「タップ」を「クリック」に（学生の試し 5回目 2026-10-30） */
+const phoneSteps = (drive: boolean, direct: boolean): Step[] => (touchPrimary() ? PHONE_STEPS(drive, direct) : PHONE_STEPS(drive, direct).map((s) => ({ ...s, text: typeof s.text === 'string' ? forClick(s.text) : s.text })))
+
 const PHONE_STEPS = (drive: boolean, direct: boolean): Step[] => [
   // 紙面で直接書く（スマホのふつう）。予備の ?direct=0 の端末では、下から書く欄が出る（app/phoneDirect.ts）
   { title: '紙面', text: direct ? '文をタップすると、大きくなって、その場で書けます。「完了」で、ページ全体に戻ります。' : '文をタップすると、書く欄が出ます。', targets: phonePaper, sides: ['below', 'above'] },
@@ -170,7 +173,7 @@ export function Tour({ narrow, drive, direct = true, onDone }: Props) {
   // 始めたときに、場所が見つかる段だけにする。使い方を閉じてすぐ（右の欄が戻る前）にも始めるため、画面ができてから（次のフレームで）調べる
   const [steps, setSteps] = useState<Step[] | null>(null)
   useLayoutEffect(() => {
-    const frame = requestAnimationFrame(() => setSteps((narrow ? PHONE_STEPS(drive, direct) : pcSteps(drive)).filter((s) => rectOf(s))))
+    const frame = requestAnimationFrame(() => setSteps((narrow ? phoneSteps(drive, direct) : pcSteps(drive)).filter((s) => rectOf(s))))
     return () => cancelAnimationFrame(frame)
   }, [narrow, drive, direct])
   // 見せる場所が1つもなければ、すぐ終える

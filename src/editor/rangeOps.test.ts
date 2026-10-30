@@ -228,3 +228,30 @@ describe('貼り付け', () => {
     expect(sameClipText('あ\nう', 'あ\nい')).toBe(false)
   })
 })
+
+describe('5回目の試しの直し（2026-10-30）', () => {
+  it('切り取り（keepRefs）では、範囲の外の文の（図1）を残す。貼り付けると、同じ図につながり直す', () => {
+    const r = sample()
+    // p2 の（図1）は範囲の外。図1（r1 の f1）だけを選んで切り取る
+    const cut = deleteRange(r, range(r, pt('f1', 0, true), pt('f1', 2)), { keepRefs: true })
+    expect(cut.figures).toEqual(['f1'])
+    const refs = (rep: Report) => ops.findParagraph(rep, 'p2')!.content.filter((n) => n.type === 'ref').length
+    expect(refs(cut.report)).toBe(1)
+    const removed = deleteRange(r, range(r, pt('f1', 0, true), pt('f1', 2)))
+    expect(refs(removed.report)).toBe(0)
+  })
+  it('段落を丸ごと選んでコピーし、別の段落の頭に貼ると、段落のまま前に入る（2つの段落がつながらない）', () => {
+    const r = sample()
+    const whole = text(r, 'p1')!
+    const clip = copyRange(r, range(r, pt('p1', 0), pt('p1', whole.length)))
+    expect(clip).toMatchObject({ kind: 'inline', wholeParagraph: true })
+    const out = pasteClip(r, 'p4', 0, clip)
+    const ids = blocks(out.report).map((b) => b.id)
+    const at = ids.indexOf('p4')
+    expect(text(out.report, ids[at - 1])).toBe(whole)
+    expect(text(out.report, 'p4')).toBe(text(r, 'p4'))
+    // 途中に貼ると、文としてその場に入る（いままでどおり）
+    const mid = pasteClip(r, 'p4', 3, clip)
+    expect(text(mid.report, 'p4')).toBe(text(r, 'p4')!.slice(0, 3) + whole + text(r, 'p4')!.slice(3))
+  })
+})

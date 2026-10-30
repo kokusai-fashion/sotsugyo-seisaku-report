@@ -86,6 +86,11 @@ export function todoBand(todo: BandTodo, rest: number): { text: string; sub: str
  * スマホ（指で押す）の画面に出す言葉：「クリック」を「タップ」にする（PC の言葉はそのまま）。
  * 紙面の中の仮の文字（「（クリックして入力）」など）は、index.css の「v32 の直し」で、スマホのときだけ同じように替える
  */
+/** マウス・キーボードの端末（ブラウザを拡大したパソコンでスマホの形になったとき）：「タップ」を「クリック」にする（学生の試し 5回目 2026-10-30） */
+export function forClick(text: string): string {
+  return text.replace(/タップ/g, 'クリック')
+}
+
 export function forTouch(text: string): string {
   return text.replace(/クリック/g, 'タップ')
 }

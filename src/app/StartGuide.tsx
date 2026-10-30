@@ -214,7 +214,8 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
   const spot = step === 'word' ? null : rect
 
   // スマホで欄を書いている間（紙面の上で書いている。予備の端末では、下から書く欄が出ている）
-  const typingOnPhone = narrow && !!field && snap.editingId === field
+  // マウス・キーボードの端末（ブラウザを拡大したパソコン）は、欄を書いている間も案内を隠さない（200% で案内の言葉が隠れ、何をすればよいか分からなかった：学生の試し 5回目 2026-10-30）
+  const typingOnPhone = tap && !!field && snap.editingId === field
   // 画面の大きさ・キーボードが変わったら、スマホの案内の置き方を決め直す
   const [viewportTick, setViewportTick] = useState(0)
   useEffect(() => {

@@ -28,6 +28,8 @@
  */
 
 import { planFromDom, reshapeSpacing, shiftPlan, typesetSpacing, typesetSteps, type SpacingPlan } from './textSpacing'
+import { joinWrappedLines, listishLine, tidyPasted } from './pasteText'
+import { typedHeading } from '../model/headingText'
 
 /** 句読点・括弧（書き換えたあとに測り直す所に、これがいくつあるかで、すぐ測るか、打つ手が止まってから測るかを決める） */
 const PUNCTUATION = /[\p{Ps}\p{Pe}\p{Pf}\p{Pi}、。，．]/gu
@@ -69,7 +71,7 @@ export interface OverlayCallbacks {
   /** 1行目で Shift+↑、最終行で Shift+↓ を押した（anchor：選び始めた所。選ぶ範囲を、紙面の前・次の欄へ広げる。広げられなければ false） */
   onExtend?(blockId: string, text: string, anchor: number, direction: 'prev' | 'next'): boolean
   /** 複数行を貼り付けた（行ごとに段落にする） */
-  onPasteParagraphs(blockId: string, paragraphs: string[], caretInLast: number): void
+  onPasteParagraphs(blockId: string, paragraphs: string[], caretInLast: number, typed?: string): void
   /**
    * 紙面で選んでコピーしたまとまり（段落・図・表など）の貼り付け。matches：クリップボードの文字が、最後にコピーしたものと同じか。
    * paste：段落 blockId（書いている文字 text の start から end までを置き換える）に、まとまりのまま入れる
@@ -77,11 +79,13 @@ export interface OverlayCallbacks {
   onPasteClip?: { matches(pasted: string): boolean; paste(blockId: string, text: string, start: number, end: number): void }
   /** 段落に貼り付ける、ふつうの文字を変える（抄録：図表の参照の括弧を除く。変えたら、呼び出し側が知らせる）。返した文字を入れる */
   pasteText?(blockId: string, pasted: string): string
+  /** 1行の欄（見出し・表紙の項目・タイトル）に貼る文字を変える（見出しの欄に貼った「Ⅱ．」「2-1」などの番号を外す：学生の試し 5回目 2026-10-30） */
+  pasteLine?(blockId: string, pasted: string): string
   /**
    * 貼り付けたものを、そのままの形では入れなかった（画面の下に短く知らせる）。
    * firstLine：1行の欄（表紙の項目・見出しなど）に複数行を貼り付けたので、1行目だけを入れた／table：表を貼り付けたので、文にした
    */
-  onPasteNote?(what: 'firstLine' | 'table'): void
+  onPasteNote?(what: 'firstLine' | 'table' | 'joined'): void
   /** 段落の書き出しに打った空白を入れなかった（1字下げは自動で付く） */
   onLeadingSpace?(): void
   /** 表のセルで Tab（Shift+Tab）を押した（隣のセルへ移る）。ほかの欄では、tabMoves が true のときだけ呼ぶ */
@@ -1515,6 +1519,12 @@ export class OverlayEditor {
     this.select(0, this.text.length)
   }
 
+  /** 書く欄の字の start から end までを選ぶ（セルフチェックの指摘を押したとき、直す語を選んで開く） */
+  selectText(start: number, end: number): void {
+    const n = this.text.length
+    this.select(Math.max(0, Math.min(start, n)), Math.max(0, Math.min(end, n)))
+  }
+
   setCaret(offset: number): void {
     const at = Math.max(0, Math.min(offset, this.text.length))
     this.select(at, at)
@@ -2011,7 +2021,10 @@ export class OverlayEditor {
   }
 
   private onPaste(e: ClipboardEvent): void {
-    let pasted = e.clipboardData?.getData('text/plain') ?? ''
+    const html = e.clipboardData?.getData('text/html') ?? ''
+    // 見えない字・ウェブのふりがなを、入れる前にそろえる（pasteText.ts。学生の試し 5回目 2026-10-30）
+    const original = e.clipboardData?.getData('text/plain') ?? ''
+    let pasted = tidyPasted(original, html)
     if (!this.target) return
     // 1行の欄（表紙の項目・見出し・図表のタイトル）に、複数行を貼り付けた：1行目（空でない最初の行）だけを入れる。
     // 前は、氏名の欄に「文化 花子」と「学籍番号 00ZZ0123」の2行を貼り付けると、1行につながって入り、表紙の枠からはみ出していた
@@ -2019,11 +2032,12 @@ export class OverlayEditor {
       e.preventDefault()
       const lines = pasted.split(/\r?\n|\r/).map((l) => l.trim()).filter((l) => l !== '')
       if (lines.length === 0) return
-      document.execCommand('insertText', false, lines[0])
+      document.execCommand('insertText', false, this.callbacks.pasteLine?.(this.target.blockId, lines[0]) ?? lines[0])
       if (lines.length > 1) this.callbacks.onPasteNote?.('firstLine')
       return
     }
     const { blockId } = this.target
+    if (this.target.kind === 'line' && this.callbacks.pasteLine) pasted = this.callbacks.pasteLine(blockId, pasted)
     const text = this.text
     // 選んでいる文字は、貼り付けた文字に置き換える
     const { start, end } = this.selectionOffsets()
@@ -2035,11 +2049,13 @@ export class OverlayEditor {
       return
     }
     // Word などの表を貼り付けた：表は「表を入れる」で作るので、文になったことを知らせる（文は、そのまま入れる）
-    const table = this.target.kind === 'paragraph' && /<table[\s>]/i.test(e.clipboardData?.getData('text/html') ?? '')
+    const table = this.target.kind === 'paragraph' && /<table[\s>]/i.test(html)
     if (table) queueMicrotask(() => this.callbacks.onPasteNote?.('table'))
     // 段落：入れる文字を、呼び出し側が変える（抄録には、図表の参照の括弧を入れない）
-    const raw = pasted
+    const raw = original
     if (this.target.kind === 'paragraph' && this.callbacks.pasteText) pasted = this.callbacks.pasteText(blockId, pasted)
+    // 表のマスに、Excel などの2マスを貼った：マスの区切り（タブ）は全角の空白に（タブのまま残っていた：学生の試し 5回目 2026-10-30）
+    if (this.target.kind === 'cell') pasted = pasted.replace(/[ \t]*\t[ \t]*/g, '　')
     if (this.target.kind !== 'paragraph' || !/\n/.test(pasted)) {
       // 1行の文字：紙面と同じ組み方で書いているとき・文字を変えたときは、ここで入れる（ほかは、ブラウザがそのまま入れる）
       if (this.typeset) {
@@ -2055,12 +2071,25 @@ export class OverlayEditor {
     }
     e.preventDefault()
     // 複数行：1行目は今の段落のカーソルの前に、残りの行は新しい段落にする（空の行は除く）
-    const lines = pasted.split(/\r?\n|\r/).map((l) => l.trim()).filter((l) => l !== '')
+    // PDF などの行の折り返しの改行（文の途中の改行）は、つないで1段落にする（行ごとに段落が切れていた：学生の試し 5回目 2026-10-30）
+    const wrap = joinWrappedLines(pasted.split(/\r?\n|\r/).map((l) => l.trim()).filter((l) => l !== ''))
+    const lines = wrap.lines
     if (lines.length === 0) return
-    const paragraphs = [...lines]
-    paragraphs[0] = text.slice(0, start) + paragraphs[0]
-    const caretInLast = paragraphs[paragraphs.length - 1].length
-    paragraphs[paragraphs.length - 1] += text.slice(end)
-    this.handOff(() => this.callbacks.onPasteParagraphs(blockId, paragraphs, caretInLast))
+    if (wrap.joined) queueMicrotask(() => this.callbacks.onPasteNote?.('joined'))
+    const before = text.slice(0, start)
+    const after = text.slice(end)
+    // 書いてある段落の終わりに、1行目が見出し・箇条の形の下書きを貼った：前の段落にくっつけず、新しい段落から（学生の試し 5回目）
+    const ownLine = before.trim() !== '' && after === '' && (!!typedHeading(lines[0]) || listishLine(lines[0]))
+    const paragraphs = ownLine ? [before, ...lines] : [before + lines[0], ...lines.slice(1)]
+    let caretInLast: number
+    if (/\n\s*$/.test(pasted)) {
+      // 段落の終わりの改行ごとコピーした（Word で段落ごと選んだ）：後ろの文は次の段落にし、その頭で書き続ける（Word と同じ。前は次の文とつながった）
+      paragraphs.push(after)
+      caretInLast = 0
+    } else {
+      caretInLast = paragraphs[paragraphs.length - 1].length
+      paragraphs[paragraphs.length - 1] += after
+    }
+    this.handOff(() => this.callbacks.onPasteParagraphs(blockId, paragraphs, caretInLast, text))
   }
 }

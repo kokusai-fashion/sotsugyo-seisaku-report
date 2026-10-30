@@ -612,7 +612,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
   // 紙面でコピーしたまとまりがあるときの「貼り付け」（Ctrl+V と同じ。コピーしていないときは出さない）
   const paste = snap.pasteReady && <Tool label={SELECTION_TEXTS.paste.label} icon={Icon.paste} title={SELECTION_TEXTS.paste.title()} onClick={() => editor.pasteFromTool()} />
   const remove = async () => {
-    if (editingKind === 'chapter' && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（「元に戻す」で戻せます）', { ok: '削除する', danger: true }))) return
+    if (editingKind === 'chapter' && editor.chapterWritten(editingId) && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（「元に戻す」で戻せます）', { ok: '削除する', danger: true }))) return
     editor.removeBlock(editingId)
   }
   if (editingKind === 'paragraph') {
@@ -717,7 +717,7 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
         createPortal(
           <p className="why-bubble" role="status" style={{ top: why.top, left: why.left }}>
             <span className="nb">図・表は、紙面の入れたい所</span>
-            <span className="nb">（段落の中）をクリックしてから</span>
+            <span className="nb">（段落の中）を{touchPrimary() ? 'タップ' : 'クリック'}してから</span>
             <span className="nb">押します</span>
           </p>,
           document.body,
@@ -771,7 +771,7 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
                 <br />
                 入れたい所を
                 <br />
-                クリックして
+                {touchPrimary() ? 'タップして' : 'クリックして'}
                 <br />
                 から押します
               </div>

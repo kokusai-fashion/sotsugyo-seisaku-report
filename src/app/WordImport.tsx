@@ -836,8 +836,9 @@ export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, on
   const pagesAt = problems.length > 0 ? 2 : 1
   const say = (at: number, doing = false) => nextStep === at || doing
   // 確かめている途中の項目：ほかの項目を確かめ始めたら、そちらだけ（済んでいれば、もう一方も）
-  const pagesDoing = todo.pagesSeen && (todo.doing !== 'cover' || coverDone)
-  const coverDoing = todo.coverSeen && (todo.doing !== 'pages' || todo.pagesChecked)
+  // （表紙を確かめ終えても、本文はまだ見ていなければ「本文へ」のまま：学生の試し 5回目 2026-10-30）
+  const pagesDoing = todo.pagesSeen && (todo.doing === undefined || todo.doing === 'pages')
+  const coverDoing = todo.coverSeen && (todo.doing === undefined || todo.doing === 'cover')
   const ask = useAsk()
   // まだ済んでいない項目があるときは、確かめてから閉じる（閉じると「読み込む前の原稿に戻す」も消え、もう出ない。
   // 前は × ですぐ閉じた：学生の試し 2026-10-29）

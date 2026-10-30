@@ -27,7 +27,7 @@ import { PhoneChrome } from './app/Phone'
 import { isIos, readPhoneDirect, useNoFocusZoom } from './app/phoneDirect'
 import { UndoBar } from './app/UndoBar'
 import { useUndoNotice } from './app/useUndoNotice'
-import { moveRegion, scrollPaperKey, touchPrimary, useKeyboardInset, useNarrow, useSwipe, useTouchLandscape, useWheelPaging } from './app/uiShared'
+import { focusPaper, moveRegion, scrollPaperKey, touchPrimary, useKeyboardInset, useNarrow, useSwipe, useTouchLandscape, useWheelPaging } from './app/uiShared'
 import { topicsForTouch } from './app/bandText'
 import { SidePanel, PageColumn } from './app/SidePanel'
 import { StartGuide, type GuideStep } from './app/StartGuide'
@@ -299,7 +299,8 @@ export default function App() {
   // 2本の指で紙面を広げられない・表に「次のマス」がない。学生の試し 4回目 2026-10-30。依頼者の選択：縦向きを勧める）
   const editingNow = snap?.editingId ?? null
   useEffect(() => {
-    if (!editor || !editingNow || narrow || !touchPrimary() || innerWidth <= innerHeight) return
+    // はじめての案内の間は出さない（案内の途中で出て、一度きりを使い切っていた：学生の試し 5回目 2026-10-30）
+    if (!editor || !editingNow || guide || narrow || !touchPrimary() || innerWidth <= innerHeight) return
     try {
       if (localStorage.getItem(TABLET_TIP_KEY)) return
       localStorage.setItem(TABLET_TIP_KEY, 'done')
@@ -307,7 +308,7 @@ export default function App() {
       return
     }
     editor.showNotice('iPad などは、縦向きにすると書きやすくなります（キーボードの上に道具が出て、2本の指で紙面を広げられます）')
-  }, [editor, editingNow, narrow])
+  }, [editor, editingNow, guide, narrow])
   const panels = usePanelWidths()
   const hasLayout = !!snap?.layout
   useKeyboardInset()
@@ -974,6 +975,7 @@ export default function App() {
     markTourSeen()
     setTourWanted(false)
     setTourOn(false)
+    requestAnimationFrame(focusPaper)
   }, [])
   const reloginShown = !!drive && !gate && !driveDialog && !reloginLater && driveState?.status.kind === 'expired'
   // パソコン：許可が切れる少し前にクリックしたら、許可を延ばす（ログインにかかわる窓が開いているとき・別のタブで開いているときは延ばさない）
@@ -1180,7 +1182,13 @@ export default function App() {
           }}
           wordImport={wordOffered}
           onWordImport={() => setDialog({ kind: 'word' })}
-          onRestoreBackup={(file) => void restoreFile(file).then((done) => done && setGuide(null))}
+          onRestoreBackup={(file) =>
+            void restoreFile(file).then((done) => {
+              if (!done) return
+              setGuide(null)
+              requestAnimationFrame(focusPaper)
+            })
+          }
           onFinish={() => {
             // 案内を終えたら、指差し確認を出す（この端末でまだ見ていなければ）
             if (!tourSeen()) setTourWanted(true)

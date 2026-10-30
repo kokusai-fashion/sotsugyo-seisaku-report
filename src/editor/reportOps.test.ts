@@ -878,3 +878,14 @@ describe('先に書いた「（図n）」をつなぐ（学生の試し 3回目 
     expect(after?.type === 'paragraph' && after.content.some((x) => x.type === 'ref' && x.targetId === figId)).toBe(true)
   })
 })
+
+describe('同じ名前の空の大見出し（学生の試し 5回目 2026-10-30）', () => {
+  it('下書きを貼って同じ名前の章ができたとき、何も書いていないほうの章を選ぶ', () => {
+    const r = demoReport()
+    const written = r.body[0]
+    const empty = { id: 'c-empty', title: written.title, blocks: [{ type: 'paragraph' as const, id: 'p-empty', content: [{ type: 'text' as const, text: '' }] }] }
+    const report = { ...r, body: [...r.body, empty] }
+    expect(ops.emptyTwinChapters(report)).toEqual(['c-empty'])
+    expect(ops.emptyTwinChapters(r)).toEqual([])
+  })
+})

@@ -198,3 +198,11 @@ describe('1つの PDF にまとめる', () => {
     expect(await mergeProblem(await makePdf([{ text: 'ok' }]))).toBeNull()
   })
 })
+
+describe('横向きのページ（学生の試し 5回目 2026-10-30）', () => {
+  it('横向き（回したページ・横長の用紙）を要確認で言う', () => {
+    const body = { pages: [fakePage(['a'], { pageNumber: '1' }), fakePage(['b'], { widthPt: 841.89, heightPt: 595.28, pageNumber: '2' })] }
+    const f = pdfFindings({ body }, currentConfig).find((x) => x.ruleId === 'pdf-landscape')
+    expect(f).toMatchObject({ severity: 'warning', page: 2, title: '横向きのページがある' })
+  })
+})

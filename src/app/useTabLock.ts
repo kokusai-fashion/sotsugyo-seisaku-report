@@ -9,6 +9,8 @@ import { scoped } from '../model/scope'
  */
 
 const LOCK_NAME = scoped('sotsugyo-seisaku-report-writer')
+/** 空いたロックを取りに行くまで待つ時間（書いていたタブが読み込み直しているなら、その間にまた持つ） */
+const RELOAD_GRACE_MS = 1500
 
 /** このタブで書けるか。onLost：ほかのタブに取り上げられたとき（送っていない変更を保存する） */
 export function useTabLock(onLost: () => void): { locked: boolean; takeOver: () => void } {
@@ -31,12 +33,25 @@ export function useTabLock(onLost: () => void): { locked: boolean; takeOver: () 
           setLocked(true)
           // もう一方のタブが閉じたら（ロックが空いたら）、読み込み直して、このタブで書く（このタブでは書いていないので、読み込み直しても消えるものはない）。
           // タブを閉じてすぐ開き直すと、前のタブがまだ閉じ終わっておらず、ほかのタブがないのに書けない窓が出たまま消えなかった（学生の試し 4回目 2026-10-30）
-          locks
-            .request(LOCK_NAME, { signal: waiting.signal }, () => {
-              location.reload()
-              return new Promise<void>(() => {})
-            })
-            .catch(() => {})
+          // 空いても、書いていたタブが読み込み直しただけなら、すぐまた持つ。少し待って、まだ空いていたら読み込み直す
+          // （空いたとたんに読み込み直すと、読み込み直したタブより先にこちらが持ち、使っていたタブが書けない窓になった：学生の試し 5回目 2026-10-30）
+          const waitThenTake = () => {
+            locks
+              .request(LOCK_NAME, { signal: waiting.signal }, () => undefined)
+              .then(() => {
+                if (waiting.signal.aborted) return
+                window.setTimeout(() => {
+                  if (waiting.signal.aborted) return
+                  void locks.request(LOCK_NAME, { ifAvailable: true }, (free) => {
+                    if (!free) return waitThenTake()
+                    location.reload()
+                    return new Promise<void>(() => {})
+                  })
+                }, RELOAD_GRACE_MS)
+              })
+              .catch(() => {})
+          }
+          waitThenTake()
           return
         }
         return new Promise<void>((resolve) => {

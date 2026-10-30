@@ -161,7 +161,7 @@ export function staleFinding(part: Exclude<PartId, 'photo'>, word: { lastModifie
     severity: 'warning',
     source: 'supplementary',
     title: 'Word を直したら、PDF も作り直す',
-    detail: `PDF が Word より古いようです（Word：${timeText(word.lastModified)}、PDF：${timeText(pdf.lastModified)}）。まとめるのは PDF です`,
+    detail: `PDF が Word より古いようです（Word：${timeText(word.lastModified)}、PDF：${timeText(pdf.lastModified)}）。まとめるのは PDF です。Word の中身を変えずに保存しただけなら、このままで大丈夫です`,
   }
 }
 

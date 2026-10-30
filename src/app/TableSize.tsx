@@ -107,7 +107,8 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
     for (let c = 1; c <= TABLE_SIZE.maxColumns; c++) {
       // 1行目に乗せたときも、見出しともう1行（2行）にする
       const size = clampTableSize(c, r)
-      const on = c <= hi.columns && r <= hi.rows
+      // キーボードで「素材表」を選んでいる間は、ます目に色を付けない（どちらが入るか分かりにくかった：学生の試し 5回目 2026-10-30）
+      const on = !onMat && c <= hi.columns && r <= hi.rows
       cells.push(
         <button
           key={`${r}-${c}`}
@@ -135,7 +136,15 @@ export function TableSizeMenu({ onPick, onMaterial, onClose }: { onPick: (size: 
         {cells}
       </div>
       <div className="tgrid-label" aria-live="polite">
-        {hi.columns}列×{hi.rows}行<small>1行目は見出し</small>
+        {onMat ? (
+          <>
+            素材表<small>名称・使用箇所・生地見本</small>
+          </>
+        ) : (
+          <>
+            {hi.columns}列×{hi.rows}行<small>1行目は見出し</small>
+          </>
+        )}
       </div>
       <div className="tmenu-sep" />
       <button

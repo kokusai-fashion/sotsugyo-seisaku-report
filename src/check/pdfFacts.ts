@@ -247,6 +247,9 @@ export function pdfFindings(pdfs: Partial<Record<PartId, PdfFacts>>, config: Yea
       const p = facts.pages[notA4[0] - 1]
       add({ ruleId: 'pdf-a4', part, severity: 'error', title: '用紙は A4 にする', detail: `A4 でないページ：${pageList(notA4)}（${mm(p.widthPt)}×${mm(p.heightPt)}mm）`, page: notA4[0] })
     }
+    // 横向きのページ（ページを回した・横長の用紙。まとめた PDF にも横のまま入っていた：学生の試し 5回目 2026-10-30）
+    const landscape = facts.pages.flatMap((p, i) => (p.widthPt > p.heightPt + 1 ? [i + 1] : []))
+    if (landscape.length) add({ ruleId: 'pdf-landscape', part, severity: 'warning', title: '横向きのページがある', detail: `横向きのページ：${pageList(landscape)}。Word のページの向きを「縦」にして、PDF を保存し直します`, page: landscape[0] })
     if (part === 'photo') {
       // 作品写真は何ページかでもよい（mockups/v38：依頼者の判断）。学科の設定でページ数の上限があるときだけ確かめる
       const max = config.workPhotos?.maxPages ?? null

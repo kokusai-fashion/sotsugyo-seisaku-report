@@ -1220,3 +1220,19 @@ export function linkWrittenRef(report: Report, paragraphId: string, targetId: st
   const kept = content.filter((x, i) => !(x.type === 'ref' && x.targetId === targetId && x.withParens && paragraph.content.includes(x) && parenthetical(content, i)))
   return mapBody(report, (b) => (b.id === paragraphId ? { ...paragraph, content: mergeTexts(kept) } : b))
 }
+
+/** 書いた中身のない章（段落はどれも空。小見出しは「〇〇〇〇」などの仮の名前だけ。図・表はない） */
+export function chapterUnwritten(chapter: Chapter): boolean {
+  return chapter.blocks.every(
+    (b) => (b.type === 'paragraph' && b.content.every((n) => n.type === 'text' && !n.text.trim())) || (b.type === 'subheading' && /^[〇○◯\s]*$/.test(b.title)) || b.type === 'pageBreak',
+  )
+}
+
+/**
+ * 同じ名前の章がほかにあり、こちらには何も書いていない章。下書きの全部を、ひな形の大見出しのある原稿に貼り付けると、
+ * 大見出しが二重になっていた（「Ⅰ．企画・立案（中身なし）／Ⅱ．企画・立案／…／Ⅴ．制作過程（空）」：学生の試し 5回目 2026-10-30）
+ */
+export function emptyTwinChapters(report: Report): string[] {
+  const key = (t: string) => t.normalize('NFKC').replace(/\s/g, '')
+  return report.body.filter((c) => chapterUnwritten(c) && report.body.some((o) => o !== c && key(o.title) === key(c.title) && !chapterUnwritten(o))).map((c) => c.id)
+}
