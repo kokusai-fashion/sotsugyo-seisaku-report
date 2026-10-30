@@ -30,6 +30,8 @@ export type NoticeBody =
   | { kind: 'heading'; level: 1 | 2; label: string }
   | { kind: 'headings'; count: number; note?: string }
   | { kind: 'unheaded' }
+  /** Word などの表を貼り付けて、行ごとの段落になった（知らせの「表にする」で表にする：mockups/v78 ③ 案A） */
+  | { kind: 'pastedTable'; rows: number }
 
 /** 画面の下に出す知らせ。id：知らせごとに変わる番号（出しておく時間を、知らせごとに数え直すため） */
 export type UndoNotice = NoticeBody & { id: number }
@@ -86,6 +88,8 @@ export function noticeText(notice: NoticeBody): string {
       return `見出しに${notice.count}つしました${notice.note ?? ''}`
     case 'unheaded':
       return '見出しにする前に戻しました'
+    case 'pastedTable':
+      return `貼り付けた表は、文（${notice.rows}つの段落）になりました`
   }
 }
 

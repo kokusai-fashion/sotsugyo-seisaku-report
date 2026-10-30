@@ -28,7 +28,7 @@
  */
 
 import { planFromDom, reshapeSpacing, shiftPlan, typesetSpacing, typesetSteps, type SpacingPlan } from './textSpacing'
-import { joinWrappedLines, listishLine, tidyPasted } from './pasteText'
+import { joinWrappedLines, listishLine, tableRows, tidyPasted } from './pasteText'
 import { typedHeading } from '../model/headingText'
 
 /** 句読点・括弧（書き換えたあとに測り直す所に、これがいくつあるかで、すぐ測るか、打つ手が止まってから測るかを決める） */
@@ -85,7 +85,7 @@ export interface OverlayCallbacks {
    * 貼り付けたものを、そのままの形では入れなかった（画面の下に短く知らせる）。
    * firstLine：1行の欄（表紙の項目・見出しなど）に複数行を貼り付けたので、1行目だけを入れた／table：表を貼り付けたので、文にした
    */
-  onPasteNote?(what: 'firstLine' | 'table' | 'joined'): void
+  onPasteNote?(what: 'firstLine' | 'table' | 'joined', rows?: string[][]): void
   /** 段落の書き出しに打った空白を入れなかった（1字下げは自動で付く） */
   onLeadingSpace?(): void
   /** 表のセルで Tab（Shift+Tab）を押した（隣のセルへ移る）。ほかの欄では、tabMoves が true のときだけ呼ぶ */
@@ -2050,7 +2050,10 @@ export class OverlayEditor {
     }
     // Word などの表を貼り付けた：表は「表を入れる」で作るので、文になったことを知らせる（文は、そのまま入れる）
     const table = this.target.kind === 'paragraph' && /<table[\s>]/i.test(html)
-    if (table) queueMicrotask(() => this.callbacks.onPasteNote?.('table'))
+    if (table) {
+      const rows = tableRows(html)
+      queueMicrotask(() => this.callbacks.onPasteNote?.('table', rows))
+    }
     // 段落：入れる文字を、呼び出し側が変える（抄録には、図表の参照の括弧を入れない）
     const raw = original
     if (this.target.kind === 'paragraph' && this.callbacks.pasteText) pasted = this.callbacks.pasteText(blockId, pasted)

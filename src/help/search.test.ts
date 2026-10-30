@@ -143,8 +143,8 @@ describe('言葉で探す：印を付ける', () => {
 describe('使い方の項目', () => {
   const all = [...STUDENT_TOPICS, ...TEACHER_TOPICS]
 
-  it('学生用は18項目、先生用は12項目。id は重ならない', () => {
-    expect(STUDENT_TOPICS).toHaveLength(18)
+  it('学生用は19項目、先生用は12項目。id は重ならない', () => {
+    expect(STUDENT_TOPICS).toHaveLength(19)
     expect(TEACHER_TOPICS).toHaveLength(13)
     expect(new Set(all.map((t) => t.id)).size).toBe(all.length)
   })
@@ -193,8 +193,8 @@ describe('目次（mockups/v41：目次は本文の見出しから自動で作�
 describe('試し 2026-10-26b で見つからなかった言葉・関係のない項目', () => {
   it('「表の見出し」：「表」が「表示」「表紙」には当たらず、表の項目だけが出る', () => {
     const { hits } = searchTopics(STUDENT_TOPICS, '表の見出し')
-    // 前は「表示」「表紙」にも当たって5件。いまは、表と見出しのある2つと、動画「表・作品写真」のある作品写真の項目
-    expect(ids(hits)).toEqual(['figure', 'write', 'photos'])
+    // 前は「表示」「表紙」にも当たって5件。いまは、表と見出しのある2つと、見出し（大見出し）のある章の入れ替え（5回目の試し 2026-10-30）、動画「表・作品写真」のある作品写真の項目
+    expect(ids(hits)).toEqual(['figure', 'write', 'chapter-order', 'photos'])
     expect(marked(highlightParts('表示の大きさ・表紙・素材表・表の見出し', ['表']))).toEqual(['表'])
   })
 

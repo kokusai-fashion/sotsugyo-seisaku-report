@@ -615,7 +615,7 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
 }
 
 /** 「追加」の欄：本文のページなら段落・見出し・図・表を足す */
-function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap: EditorSnapshot; onDone: () => void; direct?: boolean }) {
+function AddTools({ editor, snap, onDone, onTable, direct }: { editor: ReportEditor; snap: EditorSnapshot; onDone: () => void; onTable: () => void; direct?: boolean }) {
   // 開いた直後で、まだ紙面が出ていない：どのページかが分からないので「本文のページで足せます」とは言わない（本文のページを開いていた学生が迷っていた）
   if (!snap.layout) return <p className="sheet-hint">紙面を準備しています。準備ができたら、ここから段落や見出しを足せます。</p>
   const kind = snap.layout.kinds[snap.page] ?? 'unknown'
@@ -627,9 +627,10 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
       </p>
     )
   }
-  const tool = (label: string, icon: ReactNode, run: () => void) => (
+  const tool = (label: string, icon: ReactNode, run: () => void, off = false) => (
     <button
       className="tb"
+      disabled={off}
       onClick={(e) => {
         // すばやく2回押した2回目は、閉じたこの欄の下の紙面に当てない（書き始めた見出しが閉じ、下の別の見出しが開いて、打った字がそこに入った：
         // 学生の試し 4回目 2026-10-30）
@@ -653,9 +654,13 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
         {tool('大見出し', Icon.heading1, () => editor.addChapter())}
         {tool('小見出し', Icon.heading2, () => editor.addSubheading())}
         {tool('改ページ', Icon.pageBreak, () => editor.addPageBreak())}
+        {/* 書く欄を閉じたあとも、さっき書いていた所に図・表を入れる（スマホの形では、書いている間のキーボードの上の道具しかなかった。
+            ブラウザを拡大したパソコンでは、キーボードだけで入れられなかった：学生の試し 5回目 2026-10-30。依頼者の選択 mockups/v78 ① 案A） */}
+        {tool('図', Icon.figure, () => void editor.addFigure(), !snap.resumable)}
+        {tool('表', Icon.table, onTable, !snap.resumable)}
       </div>
       <p className="sheet-hint">
-        図・表は、文中の入れたい位置を{touchPrimary() ? 'タップ' : 'クリック'}して、{direct ? 'キーボードの上' : '書く欄'}の{direct ? '「図」「表」' : '「図を入れる」「表を入れる」'}で入れます（素材表も{direct ? '「表」' : '「表を入れる」'}から）。
+        {snap.resumable && snap.resumeLabel ? `図・表は、さっき書いていた所（「${snap.resumeLabel}」の段落）に入ります。ほかの所に入れるときは、` : '図・表は、'}文中の入れたい位置を{touchPrimary() ? 'タップ' : 'クリック'}して、{direct ? 'キーボードの上' : '書く欄'}の{direct ? '「図」「表」' : '「図を入れる」「表を入れる」'}で入れます（素材表も{direct ? '「表」' : '「表を入れる」'}から）。
       </p>
       {/* 引用・参考文献は、使い方の「引用・参考文献」から入れる（mockups/v35 ①。入れた後は、そのページをタップして直す） */}
     </>
@@ -723,6 +728,8 @@ interface Props {
 /** スマホ版の、紙面のまわりの部品（紙面そのものは App の .stage） */
 export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, sheetHostRef, onWordImport, onReload, wordTodo, checkRequest, direct, guiding = false }: Props) {
   const [sheet, setSheet] = useState<SheetKind>(null)
+  /** 「追加」の「表」：表の大きさを選ぶ欄（さっき書いていた所に入れる。mockups/v78 ① 案A） */
+  const [addTable, setAddTable] = useState(false)
   const close = () => setSheet(null)
   // checkRequest が増えたら、チェックの欄を開く（描く途中で合わせる。React の「前の値と比べて state を変える」書き方）
   const [handledRequest, setHandledRequest] = useState(checkRequest)
@@ -829,8 +836,30 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
       )}
       {sheet === 'add' && (
         <Sheet title="追加" onClose={close}>
-          <AddTools editor={editor} snap={snap} onDone={close} direct={direct} />
+          <AddTools
+            editor={editor}
+            snap={snap}
+            onDone={close}
+            onTable={() => {
+              close()
+              setAddTable(true)
+            }}
+            direct={direct}
+          />
         </Sheet>
+      )}
+      {addTable && (
+        <TableSizeSheet
+          onInsert={(size) => {
+            setAddTable(false)
+            editor.addTable('blank', size)
+          }}
+          onMaterial={() => {
+            setAddTable(false)
+            editor.addTable('material')
+          }}
+          onClose={() => setAddTable(false)}
+        />
       )}
       {sheet === 'check' && (
         <Sheet title="セルフチェック" extra={<Tally snap={snap} config={config} />} onClose={close}>

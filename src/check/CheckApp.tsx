@@ -995,7 +995,7 @@ export function CheckApp() {
         <div className="c2-main">
           <div className="c-top">
             {phase.kind === 'done' ? (
-              <Saved phase={phase} ref={savedRef} onOpen={() => window.open(phase.pdf.url, '_blank')} onAgain={() => saver.current?.downloadPdf(phase.pdf)} onShare={() => void share(phase.pdf)} onStartOver={() => setAskStartOver(true)} />
+              <Saved phase={phase} ref={savedRef} onOpen={() => window.open(phase.pdf.url, '_blank')} onAgain={() => saver.current?.downloadPdf(phase.pdf)} onShare={() => void share(phase.pdf)} onStartOver={() => setAskStartOver(true)} onAddFiles={() => pick()} />
             ) : (
               <DropArea big={empty} dragging={dragging} reading={reading} onPick={() => pick()} />
             )}
@@ -1562,6 +1562,7 @@ function Saved({
   onAgain,
   onShare,
   onStartOver,
+  onAddFiles,
 }: {
   phase: Extract<Phase, { kind: 'done' }>
   ref: React.Ref<HTMLDivElement>
@@ -1569,8 +1570,15 @@ function Saved({
   onAgain: () => void
   onShare: () => void
   onStartOver: () => void
+  /** 直したファイルだけを入れ直す（ファイルを選ぶ画面を開く。入れると、いつもの画面に戻る。依頼者の選択 mockups/v78 ④ 案A） */
+  onAddFiles: () => void
 }) {
   const { pdf, mode, size, saved } = phase
+  const addFiles = (
+    <button type="button" className="btn" onClick={onAddFiles}>
+      ファイルを足す・入れ替える
+    </button>
+  )
   if (mode === 'share')
     return (
       <div className="card c2-saved" ref={ref} tabIndex={-1} role="region" aria-label="PDF ができました">
@@ -1592,6 +1600,7 @@ function Saved({
             PDF を開く
           </button>
           <span className="spacer" />
+          {addFiles}
           <button type="button" className="btn" onClick={onStartOver}>
             はじめから
           </button>
@@ -1608,6 +1617,7 @@ function Saved({
           保存されていないときは、もう一度保存
         </button>
       </FileBox>
+      {addFiles}
       <button type="button" className="btn" onClick={onStartOver}>
         はじめから
       </button>

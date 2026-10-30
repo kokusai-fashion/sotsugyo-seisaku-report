@@ -97,7 +97,7 @@ export function UndoBar({
     }
   }, [notice, held, onClose])
   // 止めるのは「戻す」のある知らせと、わけを伝える知らせだけ（「戻しました」は、押す物がないので、マウスが乗っていても少しの間で消す）
-  const hold = (on: boolean) => !!notice && (undoable(notice) || notice.kind === 'info') && setHolding(on ? notice.id : null)
+  const hold = (on: boolean) => !!notice && (undoable(notice) || notice.kind === 'info' || notice.kind === 'pastedTable') && setHolding(on ? notice.id : null)
   return (
     <div className={`undo-area${className ? ` ${className}` : ''}`} role="status" ref={areaRef}>
       {notice && (
@@ -119,6 +119,14 @@ export function UndoBar({
               <span className="undo-timer" aria-hidden="true">
                 <span style={{ animationDuration: `${REMOVED_MS}ms` }} />
               </span>
+            </>
+          ) : notice.kind === 'pastedTable' ? (
+            // 貼り付けた表：「表にする」で、行ごとの段落を表にする（mockups/v78 ③ 案A）
+            <>
+              <NoticeWords notice={notice} />
+              <button onMouseDown={keepFocus} onClick={() => editor.tableFromPaste()}>
+                {Icon.table}表にする
+              </button>
             </>
           ) : notice.kind === 'info' ? (
             // 戻すもののない知らせ（表の行・列を消せないわけなど）：言葉だけ

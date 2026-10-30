@@ -11,7 +11,7 @@ import { putImage, type StoredImage } from '../model/storage'
 import { skippedPages } from '../pdf/exportPages'
 import { applyCourseTemplate, bodyWritten } from '../model/template'
 import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, spillPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
-import { addColumn, addRow, blankTable, cellPosition, colWidthsOf, columnCount, equalColumnWidths, materialTable, normalizeColumnWidths, removeColumn, removeRow, setCellCrop, setCellImage, swatchColumn } from '../model/table'
+import { addColumn, addRow, blankTable, cellPosition, colWidthsOf, columnCount, equalColumnWidths, materialTable, normalizeColumnWidths, removeColumn, removeRow, setCellCrop, setCellImage, swatchColumn, TABLE_SIZE } from '../model/table'
 import type { BodyBlock, Chapter, PhotoPosition, Report, TableBlock, TableCell, WorkPhotoLayout } from '../model/types'
 import { abstractPasteNotice, stripFigureRefs } from './abstractRefs'
 import { ColumnHandles, type ColumnTarget } from './columnHandles'
@@ -115,6 +115,8 @@ export interface EditorSnapshot {
   waiting: boolean
   /** 書いていないとき：「図を入れる」「表を入れる」で、最後に書いていた所に入れられる（Esc で閉じたあと。mockups/v77 ① 案A） */
   resumable: boolean
+  /** resumable のとき、その段落の書き出し（「「配色と素材は…」」。スマホの「追加」の図・表：mockups/v78 ① 案A） */
+  resumeLabel: string | null
   /** 見開き（いまのページと次のページを並べる。1–2、3–4…の組。PC だけ。mockups/v35 ③ 案A）で表示しているか */
   spread: boolean
   /** 紙面の台が、見開きを出せる広さか（狭いときは「見開き」を出さない） */
@@ -587,6 +589,7 @@ export class ReportEditor {
         this.pushHistory(before)
         this.writingBefore.set(before, { id, caret: ops.findEditable(before, id)?.text.length ?? 0 })
         const result = ops.replaceWithParagraphs(before, id, paragraphs)
+        this.lastPastedIds = result.ids
         this.report = result.report
         // 本文の段落に貼り付けた行のうち、見出しの形の行（「Ⅰ．企画・立案」など）は見出しにする（Word から読み込むときと同じ）
         const headed = this.pasteHeadings(result.ids)
@@ -599,7 +602,9 @@ export class ReportEditor {
       // 段落の書き出しに打った空白を入れなかった：1字下げは自動で付くことを、開いている間に1回だけ知らせる
       onLeadingSpace: () => this.noticeLeadingSpaceOnce(),
       // 貼り付けたものを、そのままの形では入れなかった（1行の欄の2行目から・表）：画面の下に知らせる
-      onPasteNote: (what) => {
+      onPasteNote: (what, rows) => {
+        // 表を貼った：貼った行の段落が表の行と同じなら、知らせに「表にする」を出す（mockups/v78 ③ 案A）
+        if (what === 'table' && rows && this.offerPastedTable(rows)) return
         // 貼り付けた行を見出しにした知らせが出ていれば、その知らせに添える（「戻す」を残す）
         const shown = this.currentNotice
         const step = this.shownHeadingStep
@@ -822,6 +827,7 @@ export class ReportEditor {
       zoomLevel: this.stage.relativeZoom,
       waiting: this.overlay.waiting || this.insertingFigure,
       resumable: this.resumable,
+      resumeLabel: this.resumable && this.lastWriting ? this.resumeLabel(this.lastWriting.id) : null,
       spread: this.stage.spread,
       spreadFits: this.stage.spreadFits,
       turning: this.turning !== null,
@@ -3757,7 +3763,7 @@ export class ReportEditor {
     // 消したあとも、となりのマスを書き続ける）
     const n = this.notice.notice
     // 元に戻して、変わった所で書き続けている（placeAfterHistory）：打ち始めるまでは「〜を戻しました」を出す（学生の試し 4回目 2026-10-30）
-    const whileEditing = n.kind === 'info' || tableCutNotice(n) || (this.notice.input !== undefined && this.notice.input === this.inputSeq)
+    const whileEditing = n.kind === 'info' || n.kind === 'pastedTable' || tableCutNotice(n) || (this.notice.input !== undefined && this.notice.input === this.inputSeq)
     // 短い知らせは、ほかの欄を書き始めたら消す（前の欄の「1行目だけを貼り付けました」が、次に貼った表のマスのことに読めた：学生の試し 2026-10-29）
     const moved = n.kind === 'info' && !!this.notice.field && !!this.overlay.blockId && this.overlay.blockId !== this.notice.field
     // ほかの欄を書き始めたら、その知らせは終わり（その欄を閉じたあとに、関係のない知らせが出し直されていた：学生の試し 5回目 2026-10-30）
@@ -4325,6 +4331,45 @@ export class ReportEditor {
   /** 写真を選んだ直後（取り込み始める前）にすること（insertFigureAtCaret：打った字をためる欄にカーソルを置く） */
   private afterPick: (() => void) | null = null
 
+  /** 最後に貼り付けて作った段落（貼った表を表にする：offerPastedTable） */
+  private lastPastedIds: string[] = []
+  /** 貼った表の行の段落と、表のマスの字（知らせの「表にする」で表にする） */
+  private pastedTable: { ids: string[]; rows: string[][] } | null = null
+
+  /** 貼った行の段落が、表の行と同じ字か。同じなら、知らせに「表にする」を出して true */
+  private offerPastedTable(rows: string[][]): boolean {
+    const norm = (s: string) => s.replace(/[\s　]+/g, '　').trim()
+    const texts = rows.map((r) => norm(r.filter((c) => c.trim()).join('　')))
+    const pasted = this.lastPastedIds.map((id) => ({ id, text: norm(ops.findEditable(this.report, id)?.text ?? '') }))
+    const start = pasted.findIndex((p) => p.text === texts[0])
+    const ids = start >= 0 ? pasted.slice(start, start + texts.length) : []
+    if (rows.length < 2 || ids.length !== texts.length || ids.some((p, i) => p.text !== texts[i])) return false
+    this.pastedTable = { ids: ids.map((p) => p.id), rows }
+    this.notice = { notice: { kind: 'pastedTable', rows: rows.length, id: ++this.noticeCount }, report: this.report, until: Date.now() + STICKY_NOTICE_MS }
+    this.notify()
+    return true
+  }
+
+  /** 知らせの「表にする」：貼った行の段落を、表にする（元に戻すで、文に戻る） */
+  tableFromPaste(): void {
+    const pasted = this.pastedTable
+    this.pastedTable = null
+    if (!pasted || this.settlingRemoval) return
+    this.commitForChange()
+    if (pasted.ids.some((id) => ops.findEditable(this.report, id)?.kind !== 'paragraph')) return this.noticeInfo('貼り付けたあとに直したので、表にできません。「表を入れる」で作ります')
+    const columns = Math.min(TABLE_SIZE.maxColumns, Math.max(...pasted.rows.map((r) => r.length)))
+    const rows = pasted.rows.slice(0, TABLE_SIZE.maxRows)
+    if (columns < 1 || pasted.rows.length > TABLE_SIZE.maxRows || Math.max(...pasted.rows.map((r) => r.length)) > TABLE_SIZE.maxColumns) return this.noticeInfo(`表は${TABLE_SIZE.maxColumns}列×${TABLE_SIZE.maxRows}行までなので、表にできません。文のまま、または分けて作ります`)
+    const tableId = ops.newId('t')
+    const table: TableBlock = { type: 'table', id: tableId, caption: '', widths: 'equal', heights: 'auto', rows: rows.map((r) => ({ id: ops.newId('tr'), cells: Array.from({ length: columns }, (_, i) => ({ id: ops.newId('tc'), text: (r[i] ?? '').trim(), imageId: null })) })) }
+    this.pushHistory(this.report)
+    const [first, ...rest] = pasted.ids
+    this.report = { ...this.report, body: this.report.body.map((c) => ({ ...c, blocks: c.blocks.flatMap((b) => (b.id === first ? [table] : rest.includes(b.id) ? [] : [b])) })) }
+    // 表のタイトルを書き始める（表を入れたときと同じ）
+    this.reopenAfterRender(tableId, 0)
+    this.showNotice('表にしました。表のタイトルを書きます（本文に「（表n）」も入れます）')
+  }
+
   /** 最後に書いていた本文の段落と、閉じたときのカーソルの位置（resumeWriting） */
   private lastWriting: { id: string; caret: number } | null = null
 
@@ -4334,6 +4379,11 @@ export class ReportEditor {
     if (this.overlay.blockId || !last || ops.findEditable(this.report, last.id)?.kind !== 'paragraph') return false
     // 見ているページ（見開きなら2ページ）にあるときだけ（ほかのページを見ながら押すと、写真を選ぶ前に前のページへ飛んで、どこに入るか分からなかった：学生の試し 5回目 2026-10-30）
     return this.isVisiblePage(this.pageOfBlock(last.id, last.caret))
+  }
+
+  private resumeLabel(id: string): string {
+    const text = ops.findEditable(this.report, id)?.text.trim() ?? ''
+    return text.length > 8 ? `${text.slice(0, 8)}…` : text
   }
 
   /** 最後に書いていた段落を、書いていた所で開き直す（そのページへ移る）。開けたら、その段落の ID */

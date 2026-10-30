@@ -64,3 +64,11 @@ export function listishLine(line: string): boolean {
   const t = line.trim()
   return listItemLine(t) || /^[①-⑳]/.test(t)
 }
+
+/** コピーの HTML の、最初の表のマスの字（行ごと）。表がなければ空（貼った表を表にする：mockups/v78 ③ 案A） */
+export function tableRows(html: string): string[][] {
+  if (typeof DOMParser === 'undefined') return []
+  const table = new DOMParser().parseFromString(html, 'text/html').querySelector('table')
+  if (!table) return []
+  return [...table.querySelectorAll('tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((td) => (td.textContent ?? '').replace(/\s+/g, ' ').trim()))
+}

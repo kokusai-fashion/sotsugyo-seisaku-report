@@ -393,8 +393,8 @@ await withEdge(async (browser) => {
     paper: !!document.querySelector('.palette'),
   }))
   check(
-    '「？ 使い方」で、右の欄が使い方に替わる（書く順の4段＋いちばん下の「困ったとき」7項目、全部で項目18。動画は段の見出しの横。見出しに移る・紙面と道具はそのまま・いちばん下に印刷用の手引き（PDF））',
-    helpOpen.topics === 18 && /^1はじめる動画\d:\d\d／2書く動画3本／3確かめる・直す動画\d:\d\d／4PDF を出す動画\d:\d\d$/.test(helpOpen.steps.join('／')) && helpOpen.trouble === 7 && !helpOpen.check && helpOpen.focus && helpOpen.paper && helpOpen.pdf === './guides/student-guide.pdf',
+    '「？ 使い方」で、右の欄が使い方に替わる（書く順の4段＋いちばん下の「困ったとき」7項目、全部で項目19。動画は段の見出しの横。見出しに移る・紙面と道具はそのまま・いちばん下に印刷用の手引き（PDF））',
+    helpOpen.topics === 19 && /^1はじめる動画\d:\d\d／2書く動画3本／3確かめる・直す動画\d:\d\d／4PDF を出す動画\d:\d\d$/.test(helpOpen.steps.join('／')) && helpOpen.trouble === 7 && !helpOpen.check && helpOpen.focus && helpOpen.paper && helpOpen.pdf === './guides/student-guide.pdf',
     JSON.stringify(helpOpen),
   )
   // 段の見出しの横の「動画」：1本ならその場で再生、2本以上（書く）なら、その段の動画の一覧（そこから開いた動画の「戻る」は、その一覧へ）
