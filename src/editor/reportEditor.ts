@@ -4462,13 +4462,16 @@ export class ReportEditor {
    * 返り値：図・表のタイトルの入力欄を、紙面に出るまで仮に置く目印
    */
   private placeObject(paragraphId: string, caret: number, objectId: string, block: BodyBlock, below: (report: Report) => Report): InsertNear {
+    // 空の段落で入れたときも、ほかの段落に先に書いておいた「（図1）」を、入れた図へのリンクにする（「…考えた（図1）。」→ Enter → 「図を入れる」で、
+    // 「図の番号を手で書いている」のエラーが残り、その段落を開いて閉じるまで消えなかった：学生の試し 2026-10-31）
+    const linkElsewhere = (r: Report) => (this.template ? r : ops.linkWrittenRefsElsewhere(r, paragraphId, objectId))
     if (ops.isBlankParagraph(this.report, paragraphId)) {
-      this.report = ops.replaceBlock(this.report, paragraphId, block)
+      this.report = linkElsewhere(ops.replaceBlock(this.report, paragraphId, block))
       return { id: paragraphId, place: 'over' }
     }
     // ひな形を作る画面：段落の字は学生に薄く出す説明なので、「（図n）」は足さずに、段落の下に置く
     if (ops.paragraphEmpty(this.report, paragraphId) || this.template) {
-      this.report = below(this.report)
+      this.report = linkElsewhere(below(this.report))
       return { id: paragraphId, place: 'after' }
     }
     const next = below(ops.insertRef(this.report, paragraphId, caret, objectId))

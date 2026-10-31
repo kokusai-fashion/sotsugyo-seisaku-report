@@ -29,7 +29,18 @@ export async function withEdge(fn) {
   )
   try {
     await waitForDevtools()
-    const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${PORT}` })
+    // 起動の直後は、まれにつなぐ所で切られる（「other side closed」。2026-10-31）。少し待って、つなぎ直す
+    let browser
+    for (let i = 0; ; i++) {
+      try {
+        browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${PORT}` })
+        break
+      } catch (e) {
+        if (i >= 4) throw e
+        await new Promise((r) => setTimeout(r, 1500))
+        await waitForDevtools()
+      }
+    }
     try {
       return await fn(browser)
     } finally {
