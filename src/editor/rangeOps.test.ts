@@ -126,6 +126,14 @@ describe('削除・切り取り', () => {
     expect(text(deleteRange(r, range(r, pt('f1', 0), pt('f1', 4))).report, 'f1')).toBe('画')
     expect(text(deleteRange(r, range(r, pt('c3', 0), pt('c3', 2))).report, 'c3')).toBe('め')
   })
+  it('消した所：残った段落の、消した位置（段落ごと消えたとき・見出しの中は、なし）', () => {
+    const r = sample()
+    expect(deleteRange(r, range(r, pt('p6', 2), pt('p6', 5))).caret).toEqual({ id: 'p6', offset: 2 })
+    expect(deleteRange(r, range(r, pt('p1', 5), pt('p3', 3))).caret).toEqual({ id: 'p1', offset: 5 })
+    expect(deleteRange(r, range(r, pt('a1', 3), pt('a2', 2))).caret).toEqual({ id: 'a1', offset: 3 })
+    expect(deleteRange(r, range(r, pt('p4', 0), pt('p5', text(r, 'p5')!.length))).caret).toBeNull()
+    expect(deleteRange(r, range(r, pt('c3', 0), pt('c3', 2))).caret).toBeNull()
+  })
   it('抄録の段落をまたいで消すと、つながる（最後の1段落は残す）', () => {
     const r = sample()
     const out = deleteRange(r, range(r, pt('a1', 3), pt('a2', 2)))

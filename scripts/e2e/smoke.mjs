@@ -772,8 +772,9 @@ await withEdge(async (browser) => {
   const startBox = await startBoxOf()
   await page.mouse.click(startBox.x, startBox.y)
   await page.waitForFunction(() => window.__editor.getSnapshot().report.abstract.started === true, { timeout: 30000 })
-  await ready()
-  // 押すと、画面の下に「抄録を書き始めました［戻す］」が出る（書く欄は開かない。開くと知らせが隠れるため）。［戻す］で書き始める前に戻る
+  // 押すと、画面の下に「抄録を書き始めました［戻す］」が出る（書く欄は開かない。開くと知らせが隠れるため）。［戻す］で書き始める前に戻る。
+  // 知らせは3秒で消えるので、組み直すのを待たずに確かめて、［戻す］を押す
+  await page.waitForSelector('.undo-toast button', { timeout: 3000 }).catch(() => {})
   const startToast = await page.evaluate(() => ({ text: document.querySelector('.undo-toast')?.textContent ?? '', button: !!document.querySelector('.undo-toast button'), editing: window.__editor.getSnapshot().editingId }))
   check('「先生の許可が出た」を押すと、抄録を書き始められ、画面の下に「抄録を書き始めました［戻す］」が出る', (await snap()).report.abstract.started === true && startToast.text.includes('抄録を書き始めました') && startToast.button && !startToast.editing, JSON.stringify(startToast))
   await page.click('.undo-toast button')

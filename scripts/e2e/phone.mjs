@@ -1620,8 +1620,8 @@ async function firstTimeFixesPhone(browser) {
   await wait(400)
   await page.tap('.page-band button')
   await page.waitForFunction(() => window.__editor.getSnapshot().report.abstract.started === true, { timeout: 20000 })
-  await ready()
-  await wait(300)
+  // 知らせは3秒で消えるので、組み直すのを待たずに確かめて、［戻す］を押す
+  await page.waitForSelector('.undo-toast button', { timeout: 3000 }).catch(() => {})
   const startNote = await page.evaluate(() => ({ text: document.querySelector('.undo-toast')?.textContent ?? '', button: !!document.querySelector('.undo-toast button'), sheet: !!document.querySelector('.edit-sheet.open') }))
   await page.screenshot({ path: `${OUT}/18d-abstract-started.png` })
   await page.tap('.undo-toast button')

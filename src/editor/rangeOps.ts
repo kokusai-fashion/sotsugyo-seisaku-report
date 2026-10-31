@@ -319,6 +319,8 @@ export interface RangeRemoval {
   tables: string[]
   /** 範囲に大見出しがかかったが、大見出しは残した */
   keptChapters: boolean
+  /** 消した所（残った段落の、消した位置）。段落の中・段落をまたいで消したときだけ（段落ごと消えたときなどは null） */
+  caret: { id: string; offset: number } | null
 }
 
 /** 選んだ範囲を消す（何も消えなければ、同じ原稿を返す） */
@@ -331,6 +333,8 @@ export function deleteRange(report: Report, range: ModelRange, how: { keepRefs?:
   const change = new Map<string, BodyBlock | ParagraphBlock | null>()
   const title = new Map<string, string>()
   let keptChapters = false
+  /** 消した所：残る段落と、その前の部分（位置は、消したあとの番号で数える） */
+  let caretAt: { id: string; before: InlineNode[] } | null = null
   const blockOf = (id: string) => report.body.flatMap((c) => c.blocks).find((b) => b.id === id)
   const paragraphOf = (item: FlowItem): ParagraphBlock => (item.kind === 'abstractParagraph' ? report.abstract.paragraphs.find((p) => p.id === item.id)! : (blockOf(item.id) as ParagraphBlock))
 
@@ -345,6 +349,7 @@ export function deleteRange(report: Report, range: ModelRange, how: { keepRefs?:
       const p = paragraphOf(item)
       const content = removeContent(p.content, from, to, num)
       change.set(item.id, single.whole && emptyContent(content) ? null : { ...p, content })
+      caretAt = { id: item.id, before: sliceContent(p.content, 0, from, num) }
     }
   } else {
     const first = pieces[0]
@@ -377,7 +382,10 @@ export function deleteRange(report: Report, range: ModelRange, how: { keepRefs?:
             const keep = merge && emptyContent(left) ? paragraphOf(last.item) : p
             change.set(item.id, null)
             if (merge) change.set(last.item.id, null)
-            if (!emptyContent(content)) change.set(keep.id, { ...keep, content })
+            if (!emptyContent(content)) {
+              change.set(keep.id, { ...keep, content })
+              caretAt = { id: keep.id, before: left }
+            }
           } else if (isLast && merge) {
             // 前の段落とつないだ（上で決めた）
           } else if (isLast) {
@@ -435,7 +443,10 @@ export function deleteRange(report: Report, range: ModelRange, how: { keepRefs?:
       for (const id of tables) next = withoutRefsTo(next, id, '表')
     }
   }
-  return { report: next, figures, tables, keptChapters }
+  const n2 = numbering(next)
+  const kept = caretAt ? [...next.abstract.paragraphs, ...next.body.flatMap((c) => c.blocks)].find((b) => b.id === caretAt!.id && b.type === 'paragraph') : undefined
+  const caret = caretAt && kept && kept.type === 'paragraph' ? { id: caretAt.id, offset: Math.min(contentToText(caretAt.before, n2).length, contentToText(kept.content, n2).length) } : null
+  return { report: next, figures, tables, keptChapters, caret }
 }
 
 // ---- 貼り付け ----

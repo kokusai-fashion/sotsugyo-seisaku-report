@@ -3721,7 +3721,9 @@ export class ReportEditor {
     const after = bodyIds(this.report)
     for (const id of before) if (!after.has(id)) this.removed.add(id)
     this.hideRemoved()
-    this.notice = next.note ? { notice: { ...next.note, id: ++this.noticeCount }, report: this.report } : null
+    // 書いている間にやり直したときも、打ち始めるまでは知らせを出す（元に戻すと同じ。選んだ文を消すと書く欄が開くため、
+    // 消す → ［戻す］→ やり直すで「選んだ文を削除しました」が出なかった）
+    this.notice = next.note ? { notice: { ...next.note, id: ++this.noticeCount }, report: this.report, input: this.inputSeq } : null
     if (heading) {
       this.headingNoticeAt = { history: this.historySeq, input: this.inputSeq }
       this.shownHeadingStep = heading
@@ -5190,6 +5192,14 @@ export class ReportEditor {
     this.removeNow(() => result.report, what, note)
     // 段落の中の文字だけを消したとき（消えたブロックがない）も知らせる
     if (this.notice?.notice.kind !== 'removed' || this.notice.report !== this.report) this.noticeRemoved(what, note)
+    // 選んだ文を消した（PC）：消した所で書き続ける（続けて Delete で次の段落とつなぐ・そのまま打てる。Word と同じ）。
+    // 前は書く欄が開かず、続けて Delete を押しても次の段落とつながらなかった（学生の試し 5回目 2026-11-01）。
+    // 「選んだ文を削除しました［戻す］」は、打ち始めるまで出しておく。切り取りは、ほかへ貼り付けるので開かない
+    const caret = result.caret
+    if (what === '選んだ文' && !this.phone && caret && ops.findEditable(this.report, caret.id)) {
+      if (this.notice?.notice.kind === 'removed') this.notice.input = this.inputSeq
+      this.openSoon(caret.id, caret.offset)
+    }
   }
 
   /**

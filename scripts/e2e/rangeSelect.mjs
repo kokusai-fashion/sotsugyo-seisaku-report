@@ -568,6 +568,9 @@ export async function periodSelectPc(browser, check) {
   await wait(300)
   await ready()
   check('文の終わりの「。」：切り取り・削除は、元に戻すで元の原稿に戻る', (await state(page)).body === original.body)
+  // 選んだ文を消すと、消した所で書く欄が開く（元に戻しても開いたまま）：書き終えてから、次をなぞる
+  await page.evaluate(() => document.activeElement?.blur())
+  await ready()
 
   // ---- Shift+クリック（選んだあと・書く欄から）でも、「。」の点の上なら「。」まで ----
   await showBlock(page, ready, 'p4')
@@ -878,7 +881,11 @@ async function selectionButtonsPc(browser, check) {
     await ready()
     await ctrl(page, 'z')
     await ready()
-    return { body: after.body, notice: after.notice, undone: (await state(page)).body === original.body }
+    const undone = (await state(page)).body === original.body
+    // 選んだ文を消すと、消した所で書く欄が開く（元に戻しても開いたまま）：書き終えてから、次をなぞる
+    await page.evaluate(() => document.activeElement?.blur())
+    await ready()
+    return { body: after.body, notice: after.notice, undone }
   }
   const cutKey = await runAndUndo(() => ctrl(page, 'x'))
   const cutBar = await runAndUndo(() => page.click('.range-bar button.cut'))

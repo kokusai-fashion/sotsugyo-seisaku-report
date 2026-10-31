@@ -1,4 +1,4 @@
-// 学生の試し（2026-10-31。録画つきの学生役 2回目。poc-output/trial-1031b/journal.md）の直し。
+// 学生の試し（2026-10-31〜11-01。録画つきの学生役 2〜5回目。poc-output/trial-1031b〜e/journal.md）の直し。
 // これだけを流すときは node scripts/e2e/run.mjs fixes1031
 import { resolve } from 'node:path'
 import { withEdge } from '../poc/edge.mjs'
@@ -160,6 +160,47 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  // 紙面でなぞって選んだ文を Delete で消す：消した所で書く欄が開き、続けて Delete で次の段落とつながる・そのまま打てる（学生の試し 5回目 2026-11-01）
+  {
+    const { context, page, ready } = await open(browser)
+    const paraText = (id) => page.evaluate((id) => { const p = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === id); return p ? p.content.map((n) => n.text ?? '').join('') : null }, id)
+    const [p1, p2] = [await paraText('p1'), await paraText('p2')]
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p1'), 'none'))
+    await ready()
+    // 段落の最後から「場面ごとに」の前まで、後ろから前へなぞる（学生の試しと同じ向き）
+    const pts = await page.evaluate(() => {
+      const el = document.querySelector('.page-viewport.front [data-vivliostyle-page-container].is-current [data-block-id="p1"]')
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      const nodes = []
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n)
+      const all = nodes.map((n) => n.textContent).join('')
+      const charRect = (k) => { let at = k; for (const n of nodes) { if (at < n.textContent.length) { const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + 1); return r.getBoundingClientRect() } at -= n.textContent.length } return null }
+      const a = charRect(all.length - 1)
+      const b = charRect(all.indexOf('場面ごとに'))
+      return { from: { x: a.right + 2, y: a.top + a.height / 2 }, to: { x: b.left + 1, y: b.top + b.height / 2 } }
+    })
+    await page.mouse.move(pts.from.x, pts.from.y)
+    await page.mouse.down()
+    for (let i = 1; i <= 10; i++) await page.mouse.move(pts.from.x + ((pts.to.x - pts.from.x) * i) / 10, pts.from.y + ((pts.to.y - pts.from.y) * i) / 10)
+    await page.mouse.up()
+    await page.waitForFunction(() => !document.querySelector('.range-bar').hidden, { timeout: 10000 })
+    await page.keyboard.press('Delete')
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p1', { timeout: 20000 }).catch(() => {})
+    await wait(300)
+    const opened = await page.evaluate(() => ({ editing: window.__editor.getSnapshot().editingId, notice: document.body.innerText.includes('選んだ文を削除しました') }))
+    await page.keyboard.press('Delete')
+    await wait(1200)
+    await page.keyboard.type('★')
+    await page.keyboard.press('Escape')
+    await ready()
+    await wait(500)
+    const head = p1.slice(0, p1.indexOf('場面ごとに'))
+    const got = { p1: await paraText('p1'), p2: await paraText('p2') }
+    check('紙面で選んだ文を Delete で消すと、消した所で書く欄が開く（「選んだ文を削除しました」も出ている）', opened.editing === 'p1' && opened.notice, JSON.stringify(opened))
+    check('続けて Delete で次の段落とつながり、そのまま打てる', got.p1 === `${head}★${p2}` && got.p2 === null, JSON.stringify(got))
+    await context.close()
+  }
+
   // 紙面で文をなぞって選び、帯の「コピー」：少しの間「✓ コピーしました」になり、元に戻る（mockups/v82 案A）。抄録の行数は上限なし（1ページに収める）
   {
     const { context, page, ready } = await open(browser)
@@ -275,9 +316,9 @@ await withEdge(async (browser) => {
     await ready()
     const abs = await page.evaluate(() => {
       const p = window.__editor.getSnapshot().report.abstract.paragraphs
-      return { count: p.length, text: p[0].content.map((n) => n.text ?? '').join(''), shown: document.querySelector(`.page-viewport.front [data-block-id="${p[0].id}"]`)?.textContent ?? '' }
+      return { count: p.length, text: p[0].content.map((n) => n.text ?? '').join(''), shown: document.querySelector(`.page-viewport.front [data-block-id="${p[0].id}"]`)?.textContent ?? '', end: window.__editor.getSnapshot().findings.filter((f) => f.ruleId === 'sentence-end' && f.blockId === p[0].id).length }
     })
-    check('抄録：「先生の許可が出た」を押すと、最初の段落に書き出しの文「本制作報告書は、」が字で入る', abs.count === 1 && abs.text === '本制作報告書は、' && abs.shown.includes('本制作報告書は、'), JSON.stringify(abs))
+    check('抄録：「先生の許可が出た」を押すと、最初の段落に書き出しの文「本制作報告書は、」が字で入る（「文末に「。」を付ける」は出ない）', abs.count === 1 && abs.text === '本制作報告書は、' && abs.shown.includes('本制作報告書は、') && abs.end === 0, JSON.stringify(abs))
     await context.close()
   }
 })

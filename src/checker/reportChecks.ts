@@ -273,11 +273,18 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   // 書き間違えやすい語：年度の設定にあればそれを、なければツールに入っている一覧を使う
   const words = config.wordChecks ?? DEFAULT_WORD_CHECKS
 
+  // 抄録の書き出しの文（「先生の許可が出た」で入る「本制作報告書は、」。model/template.ts の abstractOpening と同じ）。
+  // 入ったままの段落には「文末に「。」を付ける」を出さない（書き始める前から「直すところ」に出て、続きを打つ間も赤い印が残っていた：学生の試し 5回目 2026-11-01）
+  const courseExample = findCourse(config, report.basicInfo.courseId)?.abstractExample
+  const opening = ((typeof courseExample === 'string' && courseExample.trim()) || config.abstract.openingExample || '').trim()
+
   // ---- 文章のルール ----
   for (const e of list) {
     const area = AREA_OF_KIND[e.kind]
+    const openingOnly = e.kind === 'abstractParagraph' && !!opening && e.text.trim() === opening
     for (const { locked, ...f } of checkText(e.text, words) as TextFinding[]) {
       if (SENTENCE_RULES.includes(f.ruleId) && !SENTENCE_KINDS.includes(e.kind)) continue
+      if (openingOnly && f.ruleId === 'sentence-end') continue
       // 「このままにする」にできるのは、補助のチェックの要確認のうち、正しく使っていることがあるものだけ（ACKABLE_TEXT_RULES）
       const key = f.source === 'supplementary' && !locked && ackableText(f) ? `${f.ruleId}|${e.id}|${e.text.slice(f.start, f.end)}` : undefined
       findings.push({ ...f, area, blockId: e.id, ...(key ? { key } : {}) })

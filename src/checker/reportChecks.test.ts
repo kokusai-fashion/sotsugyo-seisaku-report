@@ -4,6 +4,7 @@ import * as ops from '../editor/reportOps'
 import type { LayoutInfo } from '../layout/measure'
 import { demoReport } from '../model/demoReport'
 import { typedHeading } from '../model/headingText'
+import { abstractOpening } from '../model/template'
 import type { Report } from '../model/types'
 import { abstractCapacity, abstractCharCount, checkReport, checkReportDetailed, typedHeadingNumber } from './reportChecks'
 
@@ -546,6 +547,16 @@ describe('学生の試し 2回目（2026-10-29）の直し', () => {
     const r = cleanReport()
     const bad = { ...r, basicInfo: { ...r.basicInfo, studentId: 'あいう' } }
     expect(checkReport(bad, currentConfig, layout()).find((f) => f.ruleId === 'student-id-format')?.detail).toBe('大学のメールアドレスの @ の前と同じ形（数字2けた＋英字2〜3字＋数字3〜4けた）か確かめます')
+  })
+
+  it('抄録の書き出しの文（「本制作報告書は、」）が入ったままの段落には「文末に「。」」を言わない（続きを書いて「。」がなければ言う）', () => {
+    const r = cleanReport()
+    const a1 = r.abstract.paragraphs[0]
+    const withText = (text: string) => ({ ...r, abstract: { ...r.abstract, paragraphs: [{ ...a1, content: [{ type: 'text' as const, text }] }, ...r.abstract.paragraphs.slice(1)] } })
+    const end = (text: string) => checkReport(withText(text), currentConfig, layout()).some((f) => f.ruleId === 'sentence-end' && f.blockId === a1.id)
+    const opening = abstractOpening(currentConfig, r.basicInfo.courseId)
+    expect(end(opening)).toBe(false)
+    expect(end(`${opening}卒業イベントの衣装について`)).toBe(true)
   })
 
   it('「：」「…」で終えた段落には「文末に「。」」を言わない', () => {
