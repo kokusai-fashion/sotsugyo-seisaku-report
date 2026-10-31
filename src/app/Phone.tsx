@@ -391,12 +391,12 @@ function LandTip({ hidden }: { hidden: boolean }) {
 function AbstractCount({ editor, snap }: { editor: ReportEditor; snap: EditorSnapshot }) {
   const n = abstractCharCount(snap.report)
   const lines = snap.layout?.abstractLines
-  const { minChars, maxChars, minLines, maxLines } = editor.abstractLimits
-  // 行数も出す（字数が範囲に入っていても、行が多いと1ページに入らない。前は「範囲に入っています」のままだった：学生の試し 3回目 2026-10-29）
+  const { minChars, maxChars, minLines, capacity } = editor.abstractLimits
+  // 行数も出す（字数が範囲に入っていても、行が多いと1ページに入らない。前は「範囲に入っています」のままだった：学生の試し 3回目 2026-10-29）。
+  // 行数の上限はなく、1ページに入る行数まで（依頼者の判断 2026-10-31）
   const chars = `${minChars}〜${maxChars}字。`
-  const rows = `${minLines}〜${maxLines}行。`
   const rest =
-    n < minChars ? <>{chars}あと<b>{minChars - n}</b>字</> : n > maxChars ? <>{chars}<b>{n - maxChars}</b>字多い</> : lines !== undefined && lines > maxLines ? <>{rows}<b>{lines - maxLines}</b>行多い</> : lines !== undefined && lines < minLines ? <>{rows}あと<b>{minLines - lines}</b>行</> : '範囲に入っています'
+    n < minChars ? <>{chars}あと<b>{minChars - n}</b>字</> : n > maxChars ? <>{chars}<b>{n - maxChars}</b>字多い</> : lines !== undefined && lines > capacity ? <>{`1ページに${capacity}行まで。`}<b>{lines - capacity}</b>行多い</> : lines !== undefined && lines < minLines ? <>{`${minLines}行以上。`}あと<b>{minLines - lines}</b>行以上</> : '範囲に入っています'
   return (
     <p className="db-count" aria-live="polite">
       抄録 <b>{n}字</b>

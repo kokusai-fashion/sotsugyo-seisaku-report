@@ -7,7 +7,8 @@ import type { Report, TableBlock, TableRow } from '../model/types'
 import { nameWithoutSpace, untidyNameGap } from '../model/personName'
 import { DEFAULT_STUDENT_ID } from '../model/account'
 import { pagePhotoCount, photoCrop, photoGrid, photoSlotName, shownPhotos } from '../model/photos'
-import { PHOTO_GAP_MM } from '../layout/documentCss'
+import { abstractLineCapacity, PHOTO_GAP_MM } from '../layout/documentCss'
+import { marginsOf } from '../layout/pageGeometry'
 import { swatchColumn, unusedRows } from '../model/table'
 import { charCount, checkText, DEFAULT_WORD_CHECKS, EMOJI_TITLE, findEmoji, type TextFinding } from './textRules'
 import type { Severity } from './types'
@@ -87,6 +88,9 @@ function studentIdPattern(pattern: string | null | undefined): RegExp {
   }
   return DEFAULT_STUDENT_ID
 }
+
+/** 抄録のページに入る行数（年度の設定の余白から。行数の上限の代わりに、1ページに収めるための目安にする） */
+export const abstractCapacity = (config: YearConfig): number => abstractLineCapacity(marginsOf(config))
 
 /** 抄録の文字数（空白と改行を除く） */
 export function abstractCharCount(report: Report): number {
@@ -396,7 +400,7 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   // 抄録は、先生の許可が出てから書く。書き始めるまでは字数・行数を確かめず、まだ書いていないことだけを知らせる。
   // 抄録のない報告書は提出できないので、エラーにする（まだのところの「先生の許可のあと」。途中の PDF は書き出せて、抄録のページは入らない）
   const chars = abstractCharCount(report)
-  const { minChars, maxChars, minLines, maxLines } = config.abstract
+  const { minChars, maxChars, minLines } = config.abstract
   const abstractStarted = report.abstract.started !== false
   if (!abstractStarted) {
     findings.push(
@@ -414,14 +418,13 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   }
   if (layout && abstractStarted) {
     const lines = layout.abstractLines
-    // 行が多すぎて1ページに収まらないときは、「1ページに収める」と「〜行にする」の2件にせず、何行減らすかを書いた1件にする（学生の試し 2026-10-29）
-    if (layout.abstractPages > 1 && lines <= maxLines) {
-      findings.push(guide('abstract-one-page', 'error', '抄録は1ページに収める', 'abstract', { detail: `現在 ${layout.abstractPages}ページ` }))
+    // 行数の上限はなく、1ページに収める（依頼者の判断 2026-10-31。前は手順書の 15〜23行）。はみ出したら、1ページに入る行数と、何行減らすかを書く
+    if (layout.abstractPages > 1) {
+      const capacity = abstractCapacity(config)
+      const detail = lines > capacity ? `現在 ${lines}行（1ページは${capacity}行まで）。${lines - capacity}行多い。文を短くするか、段落をまとめて減らします` : `現在 ${layout.abstractPages}ページ`
+      findings.push(guide('abstract-one-page', 'error', '抄録は1ページに収める', 'abstract', { detail }))
     }
-    if (lines < minLines || lines > maxLines) {
-      const more = lines < minLines ? `あと${minLines - lines}行` : `${lines - maxLines}行多い。文を短くするか、段落をまとめて減らします`
-      findings.push(guide('abstract-lines', 'error', `抄録は${minLines}〜${maxLines}行にする`, 'abstract', { detail: `現在 ${lines}行。${more}` }))
-    }
+    if (lines < minLines) findings.push(guide('abstract-lines', 'error', `抄録は${minLines}行以上にする`, 'abstract', { detail: `現在 ${lines}行。あと${minLines - lines}行以上` }))
   }
 
   // ---- 本文 ----

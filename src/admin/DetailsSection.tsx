@@ -101,10 +101,10 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
               <NumberInput label="抄録の字数（最多）" value={draft.abstract.maxChars} onChange={(v) => set({ abstract: { ...draft.abstract, maxChars: v } })} />字
             </span>
           </Row>
-          <Row label="抄録の行数" htmlFor="d-minLines" changed={changed('abstract.minLines') || changed('abstract.maxLines')} field="abstract.lines">
+          {/* 行数は最少だけ。上限はなく、1ページに収める（依頼者の判断 2026-10-31） */}
+          <Row label="抄録の行数" htmlFor="d-minLines" changed={changed('abstract.minLines')} field="abstract.lines">
             <span className="range">
-              <NumberInput id="d-minLines" label="抄録の行数（最少）" value={draft.abstract.minLines} onChange={(v) => set({ abstract: { ...draft.abstract, minLines: v } })} />〜
-              <NumberInput label="抄録の行数（最多）" value={draft.abstract.maxLines} onChange={(v) => set({ abstract: { ...draft.abstract, maxLines: v } })} />行
+              <NumberInput id="d-minLines" label="抄録の行数（最少）" value={draft.abstract.minLines} onChange={(v) => set({ abstract: { ...draft.abstract, minLines: v } })} />行以上（1ページに収める）
             </span>
           </Row>
           <Row label="本文" htmlFor="d-minPages" changed={changed('body.minPages')} field="body.minPages">

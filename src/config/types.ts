@@ -44,8 +44,10 @@ export interface YearConfig {
     openingExample: string
     minChars: number
     maxChars: number
+    /** 抄録の行数の最少。上限はなく、1ページに収める（入る行数は余白から：layout/documentCss.ts の abstractLineCapacity） */
     minLines: number
-    maxLines: number
+    /** 前の年度の設定に残っている行数の上限（使わない。依頼者の判断 2026-10-31：上限は要らず、1ページに収めればよい） */
+    maxLines?: number
   }
   body: {
     /** 本文の最低ページ数（引用・参考文献のページは含めない） */

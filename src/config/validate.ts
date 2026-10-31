@@ -139,9 +139,9 @@ function wordShapeProblem(w: unknown): string | null {
 /** コースの名前（問題の説明に使う） */
 /**
  * ページの余白の誤り（なければ null。省略ははじめの値なので誤りではない）。数でない・範囲の外（左右は 30mm まで：1行に38字が入る幅）・
- * 上下の余白が大きく、抄録の最多の行数（maxAbstractLines）が1ページに入らないとき
+ * 上下の余白が大きく、抄録の最少の行数（abstractLines）が1ページに入らないとき（行数の上限はなく、1ページに収める）
  */
-export function marginsProblem(margins: unknown, maxAbstractLines?: unknown): string | null {
+export function marginsProblem(margins: unknown, abstractLines?: unknown): string | null {
   if (margins === undefined || margins === null) return null
   if (!isObject(margins)) return 'ページの余白の形が正しくありません'
   for (const [key, label] of [
@@ -153,8 +153,8 @@ export function marginsProblem(margins: unknown, maxAbstractLines?: unknown): st
     const [min, max] = MARGIN_RANGE[key]
     if (!(isNumber(v) && v >= min && v <= max)) return `ページの余白（${label}）は${min}〜${max}mmにしてください${key === 'side' ? '（30mmまでなら、1行に38字が入ります）' : ''}`
   }
-  if (isNumber(maxAbstractLines) && abstractLineCapacity(margins as unknown as PageMargins) < maxAbstractLines)
-    return `上下の余白が大きく、抄録の${maxAbstractLines}行が1ページに入りません。上下の余白を小さくしてください`
+  if (isNumber(abstractLines) && abstractLineCapacity(margins as unknown as PageMargins) < abstractLines)
+    return `上下の余白が大きく、抄録の${abstractLines}行が1ページに入りません。上下の余白を小さくしてください`
   return null
 }
 
@@ -234,10 +234,11 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
   if (!filled(a.heading)) error('abstract.heading', '抄録の見出しを入力してください')
 
   if (!(isNumber(a.minChars) && isNumber(a.maxChars) && a.minChars > 0 && a.maxChars >= a.minChars)) error('abstract.chars', '抄録の文字数の範囲を確認してください')
-  if (!(isNumber(a.minLines) && isNumber(a.maxLines) && a.minLines > 0 && a.maxLines >= a.minLines)) error('abstract.lines', '抄録の行数の範囲を確認してください')
+  // 行数は最少だけ（上限はなく、1ページに収める）。最少の行数が1ページに入らない余白は、余白の項目で知らせる
+  if (!(isNumber(a.minLines) && a.minLines > 0)) error('abstract.lines', '抄録の行数（最少）を確認してください')
   const body: Partial<YearConfig['body']> = isObject(config.body) ? config.body : {}
   if (!(isNumber(body.minPages) && body.minPages > 0)) error('body.minPages', '本文の最低ページ数を入力してください')
-  const margins = marginsProblem(config.margins, a.maxLines)
+  const margins = marginsProblem(config.margins, a.minLines)
   if (margins) error('margins', margins)
   const photos: Partial<YearConfig['workPhotos']> = isObject(config.workPhotos) ? config.workPhotos : {}
   // 作品写真のページ数の上限：空（null）は上限なし。入れるなら1以上の整数
@@ -332,7 +333,7 @@ export function repairConfig(config: YearConfig): YearConfig {
   const maxPages: unknown = isObject(config.workPhotos) ? config.workPhotos.maxPages : undefined
   repaired.workPhotos = { maxPages: isNumber(maxPages) && Number.isInteger(maxPages) && maxPages > 0 ? maxPages : null }
   // ページの余白：崩れている・範囲の外なら、はじめの値（上下 25mm・左右 30mm）で組む
-  if (marginsProblem(config.margins, isObject(config.abstract) ? config.abstract.maxLines : undefined)) delete repaired.margins
+  if (marginsProblem(config.margins, isObject(config.abstract) ? config.abstract.minLines : undefined)) delete repaired.margins
   // 手順書のリンク：https:// で始まらないものは出さない（「手順書」ボタンを出さない）
   if (filled(config.handbookUrl) && !isHttpsUrl(config.handbookUrl)) delete repaired.handbookUrl
   if (wordChecks) repaired.wordChecks = wordChecks

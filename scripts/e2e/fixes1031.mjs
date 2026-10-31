@@ -157,6 +157,49 @@ await withEdge(async (browser) => {
     check('本文：次が図のときは、Delete を押してもつながず、図も消えない', fig.p3 === `${p3}★。` && fig.r1, JSON.stringify(fig))
     await context.close()
   }
+
+  // 紙面で文をなぞって選び、帯の「コピー」：少しの間「✓ コピーしました」になり、元に戻る（mockups/v82 案A）。抄録の行数は上限なし（1ページに収める）
+  {
+    const { context, page, ready } = await open(browser)
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p1'), 'none'))
+    await ready()
+    const pts = await page.evaluate(() => {
+      const el = document.querySelector('.page-viewport.front [data-vivliostyle-page-container].is-current [data-block-id="p1"]')
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      const nodes = []
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n)
+      const all = nodes.map((n) => n.textContent).join('')
+      const charRect = (k) => { let at = k; for (const n of nodes) { if (at < n.textContent.length) { const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + 1); return r.getBoundingClientRect() } at -= n.textContent.length } return null }
+      const a = charRect(all.indexOf('物語'))
+      const b = charRect(all.indexOf('衣装である') + 4)
+      return { from: { x: a.left + 1, y: a.top + a.height / 2 }, to: { x: b.right - 1, y: b.top + b.height / 2 } }
+    })
+    await page.mouse.move(pts.from.x, pts.from.y)
+    await page.mouse.down()
+    for (let i = 1; i <= 10; i++) await page.mouse.move(pts.from.x + ((pts.to.x - pts.from.x) * i) / 10, pts.from.y + ((pts.to.y - pts.from.y) * i) / 10)
+    await page.mouse.up()
+    await page.waitForFunction(() => !document.querySelector('.range-bar').hidden, { timeout: 10000 })
+    const btn = await page.evaluate(() => { const r = document.querySelector('.range-bar .copy').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+    await page.mouse.click(btn.x, btn.y)
+    await wait(300)
+    const during = await page.evaluate(() => { const b = document.querySelector('.range-bar .copy'); return { text: b.textContent, done: b.classList.contains('done'), palette: [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.includes('コピー'))?.textContent ?? null } })
+    await wait(2200)
+    const after = await page.evaluate(() => { const b = document.querySelector('.range-bar .copy'); return { text: b.textContent, done: b.classList.contains('done') } })
+    check('帯の「コピー」を押すと、少しの間「✓ コピーしました」になり、元の「コピー」に戻る', during.text === 'コピーしました' && during.done && after.text === 'コピー' && !after.done, JSON.stringify({ during, after }))
+    // 左の道具の「選んだ文」の「コピー」も、押した所が「コピーしました」になる
+    const tool = await page.evaluate(() => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.trim() === 'コピー'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+    let toolDuring = null
+    if (tool) {
+      await page.mouse.click(tool.x, tool.y)
+      await wait(300)
+      toolDuring = await page.evaluate(() => ({ palette: [...document.querySelectorAll('.palette .tb.done')].map((x) => x.textContent), bar: document.querySelector('.range-bar .copy').textContent }))
+    }
+    check('左の道具の「コピー」も「コピーしました」になる（帯も同じ）', !!toolDuring && toolDuring.palette.join('') === 'コピーしました' && toolDuring.bar === 'コピーしました', JSON.stringify(toolDuring))
+    // 抄録の行数：上限（前の 23行）はなく、1ページに収まっていれば直すところにしない。右の欄は「〇字・〇行」
+    const abs = await page.evaluate(() => { const s = window.__editor.getSnapshot(); return { lines: s.layout.abstractLines, pages: s.layout.abstractPages, findings: s.findings.filter((f) => f.ruleId.startsWith('abstract-')).map((f) => f.ruleId) } })
+    check('抄録の行数の決まり：上限の指摘はなく、見本の抄録は直すところなし', abs.pages === 1 && abs.findings.length === 0, JSON.stringify(abs))
+    await context.close()
+  }
 })
 
 const failed = results.filter((ok) => !ok).length

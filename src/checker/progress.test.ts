@@ -5,7 +5,7 @@ import type { LayoutInfo } from '../layout/measure'
 import { createReport } from '../model/newReport'
 import type { Report } from '../model/types'
 import { exportNote, notYetCount, NOT_YET_RULES, progressRows, splitFindings } from './progress'
-import { checkReportDetailed } from './reportChecks'
+import { abstractCapacity, checkReportDetailed } from './reportChecks'
 
 const layout = (over: Partial<LayoutInfo> = {}): LayoutInfo => ({
   kinds: [],
@@ -111,13 +111,13 @@ describe('まだのところ・直すところに分ける（mockups/v35 ① 案
     expect(notYet.find((f) => f.blockId === id)).toMatchObject({ ruleId: 'paragraph-empty', title: 'まだ書いていない段落がある' })
   })
 
-  it('書き始めた抄録が短いうちはまだのところ。多すぎるときは直すところ', () => {
+  it('書き始めた抄録が短いうちはまだのところ。多すぎる・1ページに入らないときは直すところ', () => {
     const started = (text: string): Report => ({ ...fresh(plainConfig), abstract: { paragraphs: [{ type: 'paragraph', id: 'a1', content: [{ type: 'text', text }] }], started: true } })
     const short = split(started('あ'.repeat(100) + 'である。'), layout(), plainConfig)
     expect(short.notYet.map((f) => f.ruleId)).toEqual(expect.arrayContaining(['abstract-length', 'abstract-lines']))
     expect(short.fixes.some((f) => f.ruleId.startsWith('abstract'))).toBe(false)
-    const over = split(started(('あ'.repeat(80) + 'である。').repeat(12)), layout({ abstractLines: 30 }), plainConfig)
-    expect(over.fixes.map((f) => f.ruleId)).toEqual(expect.arrayContaining(['abstract-length', 'abstract-lines']))
+    const over = split(started(('あ'.repeat(80) + 'である。').repeat(12)), layout({ abstractLines: 30, abstractPages: 2 }), plainConfig)
+    expect(over.fixes.map((f) => f.ruleId)).toEqual(expect.arrayContaining(['abstract-length', 'abstract-one-page']))
     expect(over.notYet.some((f) => f.ruleId.startsWith('abstract'))).toBe(false)
   })
 })
@@ -241,14 +241,24 @@ describe('作品写真が何ページかあるとき（mockups/v38 案A）', () 
 describe('抄録の行（学生の試し 2回目 2026-10-29）', () => {
   const started = (text: string): Report => ({ ...fresh(plainConfig), abstract: { paragraphs: [{ type: 'paragraph', id: 'a1', content: [{ type: 'text', text }] }], started: true } })
   const abstractRow = (r: Report, l: LayoutInfo) => progressRows(findingsOf(r, l, plainConfig), { report: r, config: plainConfig, layout: l }).find((x) => x.id === 'abstract')!
-  const { minChars, maxChars, minLines, maxLines } = plainConfig.abstract
+  const { minChars, maxChars, minLines } = plainConfig.abstract
+  // 行数の上限はなく、1ページに入る行数まで（2026-10-31）
+  const capacity = abstractCapacity(plainConfig)
   it('範囲に入ったら、字数と行数を出す（✓）', () => {
     const r = started('あ'.repeat(minChars + 10) + '。')
     expect(abstractRow(r, layout({ abstractLines: minLines + 1 }))).toMatchObject({ state: 'done', value: `${minChars + 11}字・${minLines + 1}行` })
   })
-  it('行が多すぎるときは ✓ にせず、何行多いかを出す（数えない）', () => {
+  it('1ページに入らないときは ✓ にせず、1ページに入る行数と、何行多いかを出す（数えない）', () => {
     const r = started('あ'.repeat(minChars + 10) + '。')
-    expect(abstractRow(r, layout({ abstractLines: maxLines + 3, abstractPages: 2 }))).toMatchObject({ state: 'info', value: `${maxLines + 3}行（${minLines}〜${maxLines}行。`, strong: '3', after: '行多い）' })
+    expect(abstractRow(r, layout({ abstractLines: capacity + 3, abstractPages: 2 }))).toMatchObject({ state: 'info', value: `${capacity + 3}行（1ページに${capacity}行まで。`, strong: '3', after: '行多い）' })
+  })
+  it('行の上限はない：1ページに入っていれば、前の上限（23行）を超えても ✓', () => {
+    const r = started('あ'.repeat(minChars + 10) + '。')
+    expect(abstractRow(r, layout({ abstractLines: capacity, abstractPages: 1 }))).toMatchObject({ state: 'done' })
+  })
+  it('行が少ないときは「〇行以上。あと〇行以上」', () => {
+    const r = started('あ'.repeat(minChars + 10) + '。')
+    expect(abstractRow(r, layout({ abstractLines: minLines - 2 }))).toMatchObject({ state: 'todo', value: `${minLines - 2}行（${minLines}行以上。あと`, strong: '2', after: '行以上）' })
   })
   it('字が多すぎるときも、何字多いかを出す', () => {
     const r = started('あ'.repeat(maxChars + 4) + '。')

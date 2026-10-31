@@ -1,5 +1,5 @@
 import { findCourse, subtitleInputOnly, type YearConfig } from '../config'
-import { checkReportDetailed, type ReportFinding } from '../checker/reportChecks'
+import { abstractCapacity, checkReportDetailed, type ReportFinding } from '../checker/reportChecks'
 import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
@@ -2044,10 +2044,10 @@ export class ReportEditor {
     this.noticeHeading(step)
   }
 
-  /** 抄録の字数の決まり（スマホの書いている間の字数の行：app/Phone.tsx） */
-  get abstractLimits(): { minChars: number; maxChars: number; minLines: number; maxLines: number } {
-    const { minChars, maxChars, minLines, maxLines } = this.config.abstract
-    return { minChars, maxChars, minLines, maxLines }
+  /** 抄録の字数・行数の決まり（スマホの書いている間の字数の行：app/Phone.tsx）。行数は最少と、1ページに入る行数（上限の代わり） */
+  get abstractLimits(): { minChars: number; maxChars: number; minLines: number; capacity: number } {
+    const { minChars, maxChars, minLines } = this.config.abstract
+    return { minChars, maxChars, minLines, capacity: abstractCapacity(this.config) }
   }
 
   /** 大見出し（章）の中に、何か書いてあるか（空の章を消すときは、確かめの窓を出さない：学生の試し 5回目 2026-10-30） */
@@ -5007,16 +5007,24 @@ export class ReportEditor {
 
   /**
    * 道具・帯の「コピー」：紙面で選んだ範囲をコピーする（Ctrl+C と同じまとまりを覚え、ふつうの文字をクリップボードに入れる。
-   * クリップボードに入れられなかったときも、まとまりは覚えておく（このツールの「貼り付け」で使える））
+   * クリップボードに入れられなかったときも、まとまりは覚えておく（このツールの「貼り付け」で使える））。コピーできたら true
    */
-  copySelection(): void {
+  copySelection(): boolean {
     const found = this.paperRange()
-    if (!found) return
+    if (!found) return false
     const clip = copyRange(found.report, found.range)
     this.clip = clip
     this.clipPasted = null
     navigator.clipboard?.writeText(clip.text).catch(() => {})
     this.notify()
+    return true
+  }
+
+  /** 左の道具の「選んだ文」の「コピー」：帯の「コピー」と同じく、帯に「✓ コピーしました」を見せる */
+  copySelectionFromTool(): boolean {
+    const copied = this.copySelection()
+    if (copied && this.selectionBar.barShown) this.selectionBar.flashCopied()
+    return copied
   }
 
   /** 道具・書く欄の近くの「貼り付け」：紙面でコピーしたまとまりを、書いている段落のカーソルの所に入れる（Ctrl+V と同じ） */
@@ -5079,6 +5087,8 @@ export class ReportEditor {
     e.preventDefault()
     this.clip = clip
     this.clipPasted = null
+    // Ctrl+C でも、帯の「コピー」を「✓ コピーしました」にする（帯が出ているとき。切り取りは、選んだ文が消えるので出さない）
+    if (e.type === 'copy' && this.selectionBar.barShown) this.selectionBar.flashCopied()
     this.notify()
   }
 

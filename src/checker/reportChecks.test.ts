@@ -5,7 +5,7 @@ import type { LayoutInfo } from '../layout/measure'
 import { demoReport } from '../model/demoReport'
 import { typedHeading } from '../model/headingText'
 import type { Report } from '../model/types'
-import { abstractCharCount, checkReport, checkReportDetailed, typedHeadingNumber } from './reportChecks'
+import { abstractCapacity, abstractCharCount, checkReport, checkReportDetailed, typedHeadingNumber } from './reportChecks'
 
 const layout = (over: Partial<LayoutInfo> = {}): LayoutInfo => ({
   kinds: [],
@@ -140,7 +140,9 @@ describe('checkReport', () => {
     const short = { ...r, abstract: { paragraphs: [{ type: 'paragraph' as const, id: 'a1', content: [{ type: 'text' as const, text: '短い。' }] }] } }
     const finding = checkReport(short, currentConfig, layout()).find((f) => f.ruleId === 'abstract-length')
     expect(finding?.detail).toBe('現在 3字。あと597字')
-    expect(ids(r, layout({ abstractLines: 24 }))).toContain('abstract-lines')
+    // 行数の上限はなく、1ページに入っていればよい（2026-10-31。前は 15〜23行で、24行は直すところだった）
+    expect(ids(r, layout({ abstractLines: 24 }))).not.toContain('abstract-lines')
+    expect(ids(r, layout({ abstractLines: 12 }))).toContain('abstract-lines')
     expect(ids(r, layout({ abstractPages: 2 }))).toContain('abstract-one-page')
   })
 
@@ -530,12 +532,14 @@ describe('本文の段落に、見出しの形で打っている途中（「Ⅲ�
 })
 
 describe('学生の試し 2回目（2026-10-29）の直し', () => {
-  it('抄録の行が多すぎて1ページに収まらないときは、何行多いかを書いた1件だけ', () => {
+  it('抄録の行が多すぎて1ページに収まらないときは、1ページに入る行数と何行多いかを書いた1件だけ（行数の上限はない：2026-10-31）', () => {
     const r = cleanReport()
+    const capacity = abstractCapacity(currentConfig)
+    expect(capacity).toBe(24)
     const over = checkReport(r, currentConfig, layout({ abstractLines: 26, abstractPages: 2 }))
-    expect(over.filter((f) => f.ruleId.startsWith('abstract-')).map((f) => f.ruleId)).toEqual(['abstract-lines'])
-    expect(over.find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 26行。3行多い。文を短くするか、段落をまとめて減らします')
-    expect(checkReport(r, currentConfig, layout({ abstractLines: 12 })).find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 12行。あと3行')
+    expect(over.filter((f) => f.ruleId.startsWith('abstract-')).map((f) => f.ruleId)).toEqual(['abstract-one-page'])
+    expect(over.find((f) => f.ruleId === 'abstract-one-page')?.detail).toBe('現在 26行（1ページは24行まで）。2行多い。文を短くするか、段落をまとめて減らします')
+    expect(checkReport(r, currentConfig, layout({ abstractLines: 12 })).find((f) => f.ruleId === 'abstract-lines')?.detail).toBe('現在 12行。あと3行以上')
   })
 
   it('学籍番号の形の要確認に、どの形が正しいかを書く', () => {

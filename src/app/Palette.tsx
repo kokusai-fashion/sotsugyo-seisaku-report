@@ -6,7 +6,7 @@ import { figurePairing, figurePlacement, findEditable, findParagraph, numbering,
 import { subheadingTitle } from '../model/headingText'
 import type { TableBlock } from '../model/types'
 import { PHOTO_ARRANGEMENTS, photoGrid, photoPageName } from '../model/photos'
-import { ON_MAC, SELECTION_TEXTS, shortcut } from '../editor/selectionBar'
+import { COPIED_MS, ON_MAC, SELECTION_TEXTS, shortcut } from '../editor/selectionBar'
 import { Icon } from './icons'
 import { useAsk } from './ask'
 import { TableSizeMenu } from './TableSize'
@@ -104,6 +104,30 @@ function Tool({
       {/* 名前の \n：パソコンの左の道具（幅が狭い）で、言葉の切れ目で折り返す（1字だけ次の行に残らないように）。スマホの道具の帯では1行 */}
       <span data-short={short}>{label.includes('\n') ? label.split('\n').map((line, i) => <span key={i} className="tb-line">{line}</span>) : label}</span>
     </button>
+  )
+}
+
+/**
+ * 「選んだ文」の「コピー」：押したら少しの間、緑の「✓ コピーしました」にする（紙面の上の帯も同じ。押しても見た目が変わらず、
+ * できたのか不安だった：学生の試し 2026-10-31。mockups/v82 案A）
+ */
+function CopyTool({ editor }: { editor: ReportEditor }) {
+  const [done, setDone] = useState(false)
+  useEffect(() => {
+    if (!done) return
+    const timer = window.setTimeout(() => setDone(false), COPIED_MS)
+    return () => window.clearTimeout(timer)
+  }, [done])
+  return (
+    <Tool
+      label={done ? 'コピー\nしました' : SELECTION_TEXTS.copy.label}
+      icon={done ? Icon.check : Icon.copy}
+      className={done ? 'done' : undefined}
+      title={SELECTION_TEXTS.copy.title()}
+      onClick={() => {
+        if (editor.copySelectionFromTool()) setDone(true)
+      }}
+    />
   )
 }
 
@@ -616,7 +640,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
     return (
       <div className="group ctx sel-tools">
         <div className="ctx-label">{SELECTION_TEXTS.group}</div>
-        <Tool label={SELECTION_TEXTS.copy.label} icon={Icon.copy} title={SELECTION_TEXTS.copy.title()} onClick={() => editor.copySelection()} />
+        <CopyTool editor={editor} />
         <Tool label={SELECTION_TEXTS.cut.label} icon={Icon.cut} title={SELECTION_TEXTS.cut.title()} onClick={() => editor.cutSelection()} />
         <Tool label={SELECTION_TEXTS.remove.label} icon={Icon.remove} danger title={SELECTION_TEXTS.remove.title()} onClick={() => editor.deleteSelection()} />
       </div>

@@ -34,12 +34,16 @@ const ICON = {
   cut: svg('<circle cx="6.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/><path d="M8.3 15.7L18 4.5M15.7 15.7L6 4.5"/>'),
   remove: svg('<path d="M5 7h14M10 7V5.5h4V7M7 7l.9 12h8.2L17 7"/>'),
   paste: svg('<path d="M9 5H7.2A1.7 1.7 0 005.5 6.7v12.6A1.7 1.7 0 007.2 21h9.6a1.7 1.7 0 001.7-1.7V6.7A1.7 1.7 0 0016.8 5H15"/><rect x="9" y="3.5" width="6" height="3" rx="1"/><path d="M9 12h6M9 15.5h4"/>'),
+  check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
 }
+
+/** 「コピー」を押したあと、「✓ コピーしました」を見せる長さ（ms） */
+export const COPIED_MS = 2000
 
 /** 選んだ文の道具の言葉（左の道具の「選んだ文」と、帯で同じ） */
 export const SELECTION_TEXTS = {
   group: '選んだ文',
-  copy: { label: 'コピー', title: () => `選んだ文をコピー（${shortcut('C')}）` },
+  copy: { label: 'コピー', done: 'コピーしました', title: () => `選んだ文をコピー（${shortcut('C')}）` },
   cut: { label: '切り取り', title: () => `選んだ文を切り取る（${shortcut('X')}）。書く欄で貼り付けると、そこへ動きます` },
   remove: { label: '削除', title: () => `選んだ文を削除（${DELETE_KEY}）` },
   paste: { label: '貼り付け', title: () => `コピーした文・図を、カーソルの所に入れる（${shortcut('V')}）` },
@@ -57,7 +61,8 @@ export interface Bounds {
 const GAP = 8
 
 export interface SelectionActions {
-  copy(): void
+  /** コピーできたら true（「✓ コピーしました」を見せる） */
+  copy(): boolean
   cut(): void
   remove(): void
   paste(): void
@@ -67,6 +72,9 @@ export class SelectionBar {
   readonly bar: HTMLDivElement
   readonly chip: HTMLButtonElement
   private readonly layer: HTMLElement
+  /** 帯の「コピー」（押したあと「✓ コピーしました」にする：flashCopied） */
+  private readonly copyButton: HTMLButtonElement
+  private copiedTimer = 0
 
   constructor(layer: HTMLElement, actions: SelectionActions) {
     this.layer = layer
@@ -89,8 +97,11 @@ export class SelectionBar {
     }
     const sep = document.createElement('span')
     sep.className = 'sep'
+    this.copyButton = button('copy', ICON.copy, SELECTION_TEXTS.copy.label, SELECTION_TEXTS.copy.title(), () => {
+      if (actions.copy()) this.flashCopied()
+    })
     bar.append(
-      button('copy', ICON.copy, SELECTION_TEXTS.copy.label, SELECTION_TEXTS.copy.title(), () => actions.copy()),
+      this.copyButton,
       button('cut', ICON.cut, SELECTION_TEXTS.cut.label, SELECTION_TEXTS.cut.title(), () => actions.cut()),
       sep,
       button('remove danger', ICON.remove, SELECTION_TEXTS.remove.label, SELECTION_TEXTS.remove.title(), () => actions.remove()),
@@ -103,6 +114,21 @@ export class SelectionBar {
 
   get barShown(): boolean {
     return !this.bar.hidden
+  }
+
+  /**
+   * コピーした（帯の「コピー」・Ctrl+C）：「コピー」を少しの間、緑の「✓ コピーしました」にする
+   * （押しても見た目が何も変わらず、できたのか不安だった：学生の試し 2026-10-31。mockups/v82 案A）
+   */
+  flashCopied(): void {
+    const b = this.copyButton
+    window.clearTimeout(this.copiedTimer)
+    b.classList.add('done')
+    b.innerHTML = `${ICON.check}<span>${SELECTION_TEXTS.copy.done}</span>`
+    this.copiedTimer = window.setTimeout(() => {
+      b.classList.remove('done')
+      b.innerHTML = `${ICON.copy}<span>${SELECTION_TEXTS.copy.label}</span>`
+    }, COPIED_MS)
   }
 
   /**

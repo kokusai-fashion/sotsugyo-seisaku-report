@@ -1551,6 +1551,8 @@ button.row { cursor: pointer; }
 .range-bar button svg, .range-chip svg { width: 17px; height: 17px; flex: none; }
 .range-bar button:hover, .range-chip:hover { background: var(--palette-hover); color: var(--accent); }
 .range-bar button.danger { color: var(--error); }
+/* 「コピー」を押したあと、少しの間「✓ コピーしました」（selectionBar.ts の flashCopied。左の道具も同じ：Palette.tsx の CopyTool。mockups/v82 案A） */
+.range-bar button.done, .range-bar button.done:hover, .tb.done, .tb.done:hover { color: var(--ok); background: #e7f2ea; }
 .range-bar button:focus-visible, .range-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .range-bar .sep { width: 1px; margin: 5px 2px; background: var(--line); }
 /* 帯の小さな三角：選んだ文の1行目の始めを指す（下に出したときは上向き） */

@@ -153,7 +153,7 @@ describe('Word のチェック（学生用ツールのセルフチェックと�
     const reading = await readWord(all(), config)
     const { findings, covered } = wordFindings(reading, config, { bodyPages: 3, abstractPages: 1, abstractLines: 9 })
     expect(by(findings, 'abstract-length')[0]).toMatchObject({ part: 'abstract', severity: 'error', title: '抄録は600〜900字にする', detail: expect.stringMatching(/^現在 \d+字。あと\d+字$/) })
-    expect(by(findings, 'abstract-lines')[0]).toMatchObject({ part: 'abstract', detail: '現在 9行。あと6行' })
+    expect(by(findings, 'abstract-lines')[0]).toMatchObject({ part: 'abstract', detail: '現在 9行。あと6行以上' })
     // 抄録の「ました」：指摘した文字のまわりと、Word の文を PDF から探すための文字
     const desu = by(findings, 'desu-masu')[0]
     expect(desu).toMatchObject({ part: 'abstract', title: '「です・ます」ではなく「である」調で書く', detail: '「ました」を「である」調に直す' })

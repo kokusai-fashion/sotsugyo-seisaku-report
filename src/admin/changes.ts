@@ -36,7 +36,6 @@ const DETAIL_LABELS: [string, string][] = [
   ['abstract.minChars', '抄録の文字数'],
   ['abstract.maxChars', '抄録の文字数'],
   ['abstract.minLines', '抄録の行数'],
-  ['abstract.maxLines', '抄録の行数'],
   ['margins.top', 'ページの余白'],
   ['margins.bottom', 'ページの余白'],
   ['margins.side', 'ページの余白'],
@@ -175,7 +174,6 @@ const TOP_TARGETS: Record<string, string> = {
   'abstract.minChars': 'd-minChars',
   'abstract.maxChars': 'd-minChars',
   'abstract.minLines': 'd-minLines',
-  'abstract.maxLines': 'd-minLines',
   'margins.top': 'd-marginTop',
   'margins.bottom': 'd-marginBottom',
   'margins.side': 'd-marginSide',
@@ -197,11 +195,11 @@ function brief(v: unknown): string | undefined {
   if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return v.length ? v.join('・') : '（なし）'
   return undefined
 }
-/** 年度の項目の、変更前・変更後に出す文字（字数・行数は「最少〜最多」を一緒に） */
+/** 年度の項目の、変更前・変更後に出す文字（字数は「最少〜最多」を一緒に。行数は「〇行以上」） */
 function topValue(config: unknown, path: string): string | undefined {
   const range = (a: string, b: string, unit: string) => `${brief(get(config, ['abstract', a]))}〜${brief(get(config, ['abstract', b]))}${unit}`
   if (path === 'abstract.minChars' || path === 'abstract.maxChars') return range('minChars', 'maxChars', '字')
-  if (path === 'abstract.minLines' || path === 'abstract.maxLines') return range('minLines', 'maxLines', '行')
+  if (path === 'abstract.minLines') return `${brief(get(config, ['abstract', 'minLines']))}行以上`
   if (path.startsWith('margins.')) {
     const m = marginsOf(config as YearConfig)
     return `上${m.top}・下${m.bottom}・左右${m.side}mm`
