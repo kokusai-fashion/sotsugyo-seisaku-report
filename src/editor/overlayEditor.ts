@@ -66,6 +66,10 @@ export interface OverlayCallbacks {
   canRemoveEmpty?(blockId: string): boolean
   /** 段落の先頭で Backspace を押した（前の段落とつなげる） */
   onMergeBackward(blockId: string, text: string): void
+  /** 段落の終わりで Delete を押したとき、次の段落とつなげられるか（すぐ後ろが段落のとき） */
+  canMergeForward?(blockId: string): boolean
+  /** 段落の終わりで Delete を押した（次の段落をつなげる。Word と同じ） */
+  onMergeForward?(blockId: string, text: string): void
   /** 1行目で↑、最終行で↓を押した */
   onNavigate(blockId: string, text: string, direction: 'prev' | 'next'): void
   /** 1行目で Shift+↑、最終行で Shift+↓ を押した（anchor：選び始めた所。選ぶ範囲を、紙面の前・次の欄へ広げる。広げられなければ false） */
@@ -1918,6 +1922,11 @@ export class OverlayEditor {
     } else if (e.key === 'Backspace' && kind === 'paragraph' && caret === 0 && collapsed) {
       e.preventDefault()
       this.handOff(() => this.callbacks.onMergeBackward(blockId, text))
+    } else if (e.key === 'Delete' && kind === 'paragraph' && caret === text.length && collapsed && this.callbacks.onMergeForward && this.callbacks.canMergeForward?.(blockId)) {
+      // 段落の終わりで Delete：次の段落をつなげる（前は何も起きず、次の段落の頭で Backspace を押すしかなかった：学生の試し 2026-10-31。依頼者の判断）
+      e.preventDefault()
+      const onMergeForward = this.callbacks.onMergeForward
+      this.handOff(() => onMergeForward(blockId, text))
     } else if (e.key === 'Backspace' && kind === 'line' && text === '' && collapsed && this.callbacks.canRemoveEmpty?.(blockId)) {
       // 空の見出しで Backspace：見出しを消して、前の欄の終わりへ（スマホの道具には「削除」がないため。はじめて使う学生の試し 2026-10-21）
       e.preventDefault()

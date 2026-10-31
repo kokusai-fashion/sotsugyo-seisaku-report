@@ -397,6 +397,23 @@ export function mergeBackward(report: Report, id: string, text: string): { repor
 }
 
 /**
+ * 段落 id のすぐ後ろの段落（抄録は次の段落、本文は同じ章の次のブロックが段落のとき）。なければ null。
+ * 段落の終わりの Delete で、次の段落をつなげるのに使う（つなぐのは mergeBackward）
+ */
+export function nextParagraphId(report: Report, id: string): string | null {
+  const abstract = report.abstract.paragraphs
+  const ai = abstract.findIndex((p) => p.id === id)
+  if (ai >= 0) return abstract[ai + 1]?.id ?? null
+  for (const c of report.body) {
+    const i = c.blocks.findIndex((b) => b.id === id)
+    if (i < 0) continue
+    const next = c.blocks[i + 1]
+    return c.blocks[i].type === 'paragraph' && next?.type === 'paragraph' ? next.id : null
+  }
+  return null
+}
+
+/**
  * 空の段落・見出しで Backspace（段落の先頭で、前とつなげられないとき：前が図・表・見出しの段落、章の初め、空の見出し）：
  * その空の段落・見出しを消して、前の欄（↑で移る欄）の終わりへ移る。大見出しは、中が空の段落だけで、ほかに章があるときだけ消す。
  * スマホのキーボードの上の道具には「削除」がなく、足してしまった空の段落・見出しを消せなかった（はじめて使う学生の試し 2026-10-21）。

@@ -168,6 +168,25 @@ describe('split / mergeBackward / replaceWithParagraphs', () => {
     expect(ops.mergeBackward(report, 'a1', 'x')).toBeNull()
   })
 
+  it('段落の終わりの Delete でつなぐ次の段落：抄録は次の段落、本文は同じ章の次のブロックが段落のときだけ（2026-10-31）', () => {
+    const abstract = report.abstract.paragraphs
+    if (abstract.length > 1) expect(ops.nextParagraphId(report, abstract[0].id)).toBe(abstract[1].id)
+    expect(ops.nextParagraphId(report, abstract.at(-1)!.id)).toBeNull()
+    for (const c of report.body)
+      c.blocks.forEach((b, i) => {
+        const next = c.blocks[i + 1]
+        expect(ops.nextParagraphId(report, b.id)).toBe(b.type === 'paragraph' && next?.type === 'paragraph' ? next.id : null)
+      })
+    // つなぐと、次の段落の字が後ろに付き、カーソルはつないだ所
+    const chapter = report.body.find((c) => c.blocks.some((b, i) => b.type === 'paragraph' && c.blocks[i + 1]?.type === 'paragraph'))!
+    const i = chapter.blocks.findIndex((b, k) => b.type === 'paragraph' && chapter.blocks[k + 1]?.type === 'paragraph')
+    const [a, b] = [chapter.blocks[i].id, chapter.blocks[i + 1].id]
+    const merged = ops.mergeBackward(report, b, text(report, b)!)!
+    expect(merged.targetId).toBe(a)
+    expect(merged.caret).toBe(text(report, a)!.length)
+    expect(text(merged.report, a)).toBe(text(report, a)! + text(report, b)!)
+  })
+
   it('本文の段落を分けても、参照のリンクは保たれる', () => {
     const linked = ops.setText(report, 'p2', '考えた（図1）。次の文。')
     const { report: splitted, newId } = ops.split(linked, 'p2', '考えた（図1）。', '次の文。')

@@ -122,6 +122,41 @@ await withEdge(async (browser) => {
     )
     await context.close()
   }
+
+  // 段落の終わりで Delete：次の段落をつなげる（抄録・本文）。カーソルはつないだ所で、続けて打てる。次が図・表のときは何もしない
+  {
+    const { context, page, ready } = await open(browser)
+    const paraText = (id) => page.evaluate((id) => { const r = window.__editor.getSnapshot().report; const p = [...r.abstract.paragraphs, ...r.body.flatMap((c) => c.blocks)].find((b) => b.id === id); return p ? p.content.map((n) => n.text ?? '').join('') : null }, id)
+    const deleteAtEnd = async (id) => {
+      await page.evaluate((id) => window.__editor.goToPage(window.__editor.pageOfBlock(id), 'none'), id)
+      await ready()
+      await page.evaluate((id) => window.__editor.openEditor(id, 0), id)
+      await page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 20000 }, id)
+      await wait(300)
+      // 段落の終わりへ（「（図1）」も字として数えるので、Ctrl+End で）
+      await page.keyboard.down('Control')
+      await page.keyboard.press('End')
+      await page.keyboard.up('Control')
+      await page.keyboard.press('Delete')
+      await wait(1200)
+      await page.keyboard.type('★')
+      await page.keyboard.press('Escape')
+      await ready()
+      await wait(500)
+    }
+    const [a1, a2, p1, p2, p3] = await Promise.all(['a1', 'a2', 'p1', 'p2', 'p3'].map(paraText))
+    await deleteAtEnd('a1')
+    const abs = { a1: await paraText('a1'), a2: await paraText('a2') }
+    await deleteAtEnd('p1')
+    const body = { p1: await paraText('p1'), p2: await paraText('p2') }
+    // 次が図のまとまり（p3 のすぐ後ろは図1）：何もしない（字は消えない。段落の終わりに打った「★」には、書き終えると「。」が付く）
+    await deleteAtEnd('p3')
+    const fig = { p3: await paraText('p3'), r1: await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).some((b) => b.id === 'r1')) }
+    check('抄録：段落の終わりで Delete → 次の段落がつながり、つないだ所から打てる', abs.a1 === `${a1}★${a2}` && abs.a2 === null, JSON.stringify(abs))
+    check('本文：段落の終わりで Delete → 次の段落がつながり、つないだ所から打てる', body.p1 === `${p1}★${p2}` && body.p2 === null, JSON.stringify(body))
+    check('本文：次が図のときは、Delete を押してもつながず、図も消えない', fig.p3 === `${p3}★。` && fig.r1, JSON.stringify(fig))
+    await context.close()
+  }
 })
 
 const failed = results.filter((ok) => !ok).length

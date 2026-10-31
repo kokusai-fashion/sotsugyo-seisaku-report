@@ -500,6 +500,22 @@ export class ReportEditor {
         this.report = result.report
         this.continueWriting(result.targetId, result.caret, { alsoHide: id })
       },
+      // 段落の終わりで Delete：すぐ後ろの段落をつなげる（次の段落の頭で Backspace を押したのと同じ。カーソルはつないだ所）
+      canMergeForward: (id) => !!ops.nextParagraphId(this.report, id),
+      onMergeForward: (id, text) => {
+        const nextId = ops.nextParagraphId(this.report, id)
+        const base = ops.setText(this.report, id, text)
+        const result = nextId ? ops.mergeBackward(base, nextId, ops.findEditable(base, nextId)?.text ?? '') : null
+        if (!nextId || !result) {
+          this.openEditor(id, text.length)
+          return
+        }
+        this.autoPeriod = null
+        this.pushHistory(this.reportBeforeEdit ?? this.report)
+        if (this.history.last) this.writingBefore.set(this.history.last, { id, caret: text.length })
+        this.report = result.report
+        this.continueWriting(result.targetId, result.caret, { alsoHide: nextId })
+      },
       // 空の見出しで Backspace：消せるか（消せるなら、onMergeBackward で消して前の欄へ移る）
       canRemoveEmpty: (id) => !!ops.removeEmptyBackward(ops.setText(this.report, id, ''), id, ''),
       onNavigate: (id, text, direction) => {
