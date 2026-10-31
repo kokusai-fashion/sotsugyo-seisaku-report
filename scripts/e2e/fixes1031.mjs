@@ -15,7 +15,7 @@ const check = (name, ok, detail = '') => {
 }
 const TIPS_DONE = () => { try { for (const k of ['tour', 'zoom-tip', 'pinch-tip', 'tablet-tip']) localStorage.setItem(`sotsugyo-seisaku-report-${k}`, 'done'); localStorage.setItem('sotsugyo-seisaku-report-writing-zoom', '0') } catch {} }
 
-async function open(browser) {
+async function open(browser, { sample = true } = {}) {
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
   page.on('pageerror', (e) => console.log('pageerror:', e.message))
@@ -33,9 +33,11 @@ async function open(browser) {
   await page.waitForSelector('.guide .g-later')
   await page.evaluate(() => document.querySelector('.guide .g-later').click())
   await ready()
-  await page.evaluate(setupWriting)
-  await wait(600)
-  await ready()
+  if (sample) {
+    await page.evaluate(setupWriting)
+    await wait(600)
+    await ready()
+  }
   return { context, page, ready }
 }
 
@@ -198,6 +200,84 @@ await withEdge(async (browser) => {
     // 抄録の行数：上限（前の 23行）はなく、1ページに収まっていれば直すところにしない。右の欄は「〇字・〇行」
     const abs = await page.evaluate(() => { const s = window.__editor.getSnapshot(); return { lines: s.layout.abstractLines, pages: s.layout.abstractPages, findings: s.findings.filter((f) => f.ruleId.startsWith('abstract-')).map((f) => f.ruleId) } })
     check('抄録の行数の決まり：上限の指摘はなく、見本の抄録は直すところなし', abs.pages === 1 && abs.findings.length === 0, JSON.stringify(abs))
+    await context.close()
+  }
+
+  // 表がページの下まで来て本文の範囲に空きがない：表を選ぶと、表のすぐ下（ページの下の余白）に「＋ ここに続きを書く」が、字の分の長さで出る（mockups/v83 案A）。
+  // 押すと、表の後ろに段落ができて書き始める
+  {
+    const { context, page, ready } = await open(browser)
+    await page.evaluate(() => {
+      const extra = '照明の色温度によって、布の色の見え方が変わる。舞台の照明の下で、同じ布を何度も見比べて決めた。'
+      window.__editor.update((r) => ({ ...r, body: r.body.map((c, i) => (i ? c : { ...c, blocks: c.blocks.filter((b) => b.id !== 'p5b').flatMap((b) => (b.id === 'p5' ? [{ type: 'paragraph', id: 'px0', content: [{ type: 'text', text: extra }] }, b] : [b])) })) }))
+    })
+    await ready()
+    await wait(500)
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('t1'), 'none'))
+    await ready()
+    const cell = await page.evaluate(() => {
+      const c = [...document.querySelectorAll('.page-viewport.front [data-vivliostyle-page-container].is-current .data-table[data-table-id="t1"] td')].at(-1)
+      const r = c.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    })
+    await page.mouse.click(cell.x, cell.y)
+    await page.waitForFunction(() => { const b = document.querySelector('.continue-row'); return b && !b.hidden }, { timeout: 10000 }).catch(() => {})
+    const row = await page.evaluate(() => {
+      const b = document.querySelector('.continue-row')
+      const t = [...document.querySelectorAll('.page-viewport.front [data-vivliostyle-page-container].is-current .data-table[data-table-id="t1"]')].at(-1)
+      const pg = t.closest('[data-vivliostyle-page-container]').getBoundingClientRect()
+      const r = b.getBoundingClientRect()
+      return { shown: !b.hidden, margin: b.classList.contains('in-margin'), below: r.top >= t.getBoundingClientRect().bottom, inPage: r.bottom <= pg.bottom + 1, leftHalf: r.right < pg.left + pg.width / 2 }
+    })
+    const btn = await page.evaluate(() => { const r = document.querySelector('.continue-row').getBoundingClientRect(); return { x: r.left + 20, y: r.top + r.height / 2 } })
+    await page.mouse.click(btn.x, btn.y)
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingKind === 'paragraph', { timeout: 20000 }).catch(() => {})
+    const after = await page.evaluate(() => {
+      const s = window.__editor.getSnapshot()
+      const blocks = s.report.body[0].blocks
+      return { editing: s.editingId, afterTable: blocks[blocks.findIndex((b) => b.id === 't1') + 1]?.id }
+    })
+    check(
+      '表がページの下まで来ても、表を選ぶと、すぐ下の余白に「＋ ここに続きを書く」が出て（ページの中・ページ番号の左）、押すと表の後ろに段落ができて書ける',
+      row.shown && row.margin && row.below && row.inPage && row.leftHalf && !!after.editing && after.editing === after.afterTable,
+      JSON.stringify({ row, after }),
+    )
+    await context.close()
+  }
+
+  // 「書いていない段落」の数：薄字の段落を押しただけでは減らない。字を打つと減る。
+  // 抄録：「先生の許可が出た」を押すと、最初の段落に書き出しの文が字で入る（薄い字の例ではなく）
+  {
+    const { context, page, ready } = await open(browser, { sample: false })
+    const count = () => page.evaluate(() => [...document.querySelectorAll('.check-prog .row')].find((r) => r.textContent.includes('本文の段落'))?.textContent.replace(/\s+/g, '') ?? '')
+    const before = await count()
+    const hint = await page.evaluate(() => window.__editor.getSnapshot().report.body[0].blocks.find((b) => b.type === 'paragraph' && b.hint)?.id)
+    await page.evaluate((id) => window.__editor.goToPage(window.__editor.pageOfBlock(id), 'none'), hint)
+    await ready()
+    await page.evaluate((id) => window.__editor.openEditor(id, 0), hint)
+    await page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 20000 }, hint)
+    await wait(1200)
+    const opened = await count()
+    await page.keyboard.type('書いた')
+    await wait(1500)
+    const typed = await count()
+    await page.keyboard.press('Escape')
+    await ready()
+    check('「書いていない段落」の数は、薄字の段落を押しただけでは減らず、字を打つと減る', before === opened && before !== typed && /書いていない段落\d/.test(before), JSON.stringify({ before, opened, typed }))
+    await page.evaluate(() => window.__editor.goToPage(1, 'none'))
+    await ready()
+    const start = await page.evaluate(() => {
+      const r = document.querySelector('.page-viewport.front [data-vivliostyle-page-container].is-current [data-abstract-start]').getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    })
+    await page.mouse.click(start.x, start.y)
+    await page.waitForFunction(() => window.__editor.getSnapshot().report.abstract.started === true, { timeout: 30000 })
+    await ready()
+    const abs = await page.evaluate(() => {
+      const p = window.__editor.getSnapshot().report.abstract.paragraphs
+      return { count: p.length, text: p[0].content.map((n) => n.text ?? '').join(''), shown: document.querySelector(`.page-viewport.front [data-block-id="${p[0].id}"]`)?.textContent ?? '' }
+    })
+    check('抄録：「先生の許可が出た」を押すと、最初の段落に書き出しの文「本制作報告書は、」が字で入る', abs.count === 1 && abs.text === '本制作報告書は、' && abs.shown.includes('本制作報告書は、'), JSON.stringify(abs))
     await context.close()
   }
 })

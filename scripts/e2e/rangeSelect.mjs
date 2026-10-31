@@ -1221,10 +1221,11 @@ export async function abstractPastePc(browser, check) {
   await wait(300)
   await ready()
   await wait(200)
+  // 書き始めると、最初の段落に書き出しの文（「本制作報告書は、」など）が字で入っている（2026-11-01）。その終わりを押して貼る
   const empty = (await abstractState(page)).paragraphs[0]
   const box = await page.evaluate((id) => {
     const b = document.querySelector(`.page-viewport.front [data-block-id="${id}"]`).getBoundingClientRect()
-    return { x: b.left + 30, y: b.top + b.height / 2 }
+    return { x: b.right - 8, y: b.top + b.height / 2 }
   }, empty.id)
   await page.mouse.click(box.x, box.y)
   await wait(400)
@@ -1235,13 +1236,14 @@ export async function abstractPastePc(browser, check) {
   st = await abstractState(page)
   await page.screenshot({ path: `${PASTE_SHOTS}/5-pc-empty-abstract.png` })
   check(
-    '抄録に貼り付け：書き始める前に Ctrl+V を押すと「抄録は「先生の許可が出た」を押してから書きます」と出る。押したあとの空の段落には、文だけが入る（「（図1）」なし）',
+    '抄録に貼り付け：書き始める前に Ctrl+V を押すと「抄録は「先生の許可が出た」を押してから書きます」と出る。押したあとは、書き出しの文の後ろに、文だけが入る（「（図1）」なし）',
     !locked.started &&
       locked.notice === '抄録は「先生の許可が出た」を押してから書きます' &&
       noWidow(locked) &&
       st.started &&
-      st.paragraphs.map((p) => p.text).join('|') === `${textOf('p3').slice(5).replace('（図1）', '')}|${textOf('p4').slice(0, 10)}`,
-    JSON.stringify({ locked: locked.notice, lines: locked.noticeLines, paragraphs: st.paragraphs.map((p) => p.text.slice(0, 20)) }),
+      empty.text.startsWith('本制作報告書は') &&
+      st.paragraphs.map((p) => p.text).join('|') === `${empty.text}${textOf('p3').slice(5).replace('（図1）', '')}|${textOf('p4').slice(0, 10)}`,
+    JSON.stringify({ locked: locked.notice, lines: locked.noticeLines, opening: empty.text, paragraphs: st.paragraphs.map((p) => p.text.slice(0, 30)) }),
   )
   await context.close()
 }

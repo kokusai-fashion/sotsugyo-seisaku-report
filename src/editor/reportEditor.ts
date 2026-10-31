@@ -9,13 +9,13 @@ import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../mode
 import { tidyName } from '../model/personName'
 import { putImage, type StoredImage } from '../model/storage'
 import { skippedPages } from '../pdf/exportPages'
-import { applyCourseTemplate, bodyWritten } from '../model/template'
+import { abstractEmpty, abstractOpening, applyCourseTemplate, bodyWritten } from '../model/template'
 import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, spillPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
 import { addColumn, addRow, blankTable, cellPosition, colWidthsOf, columnCount, equalColumnWidths, materialTable, normalizeColumnWidths, removeColumn, removeRow, setCellCrop, setCellImage, swatchColumn, TABLE_SIZE } from '../model/table'
 import type { BodyBlock, Chapter, PhotoPosition, Report, TableBlock, TableCell, WorkPhotoLayout } from '../model/types'
 import { abstractPasteNotice, stripFigureRefs } from './abstractRefs'
 import { ColumnHandles, type ColumnTarget } from './columnHandles'
-import { ContinueRow, endsPageWithRoom, type ContinueTarget } from './continueRow'
+import { ContinueRow, placeBelow, type ContinueTarget } from './continueRow'
 import { FigureDrag } from './figureDrag'
 import { EditHistory } from './history'
 import { OverlayEditor, offsetInCopy, type OverlayKind, type OverlayPlacement, type OverlayTarget } from './overlayEditor'
@@ -1239,9 +1239,12 @@ export class ReportEditor {
       const img = this.images.get(id)
       return img ? { width: img.widthPx, height: img.heightPx } : undefined
     })
-    // 書いている途中の段落は「空の段落がある」と言わない（閉じても空のままなら言う）
+    // 書いている途中の段落は「空の段落がある」と言わない（閉じても空のままなら言う）。
+    // ひな形の説明（薄字）のある段落は、開いただけでは除かない（字を打つまで「書いていない段落」に数える。押しただけで数が減っていた：学生の試し 2026-10-31）
     const writing = this.writingBlankIds()
-    const findings = writing.size ? checked.findings.filter((f) => !(f.ruleId === 'paragraph-empty' && f.blockId && writing.has(f.blockId))) : checked.findings
+    const findings = writing.size
+      ? checked.findings.filter((f) => !(f.ruleId === 'paragraph-empty' && f.blockId && writing.has(f.blockId) && !ops.findParagraph(this.report, f.blockId)?.hint))
+      : checked.findings
     // いま書いている欄の、書き終えていないから出る指摘（入れたばかりの図・表の空のタイトルの「タイトルが入力されていない」、打っている途中の
     // 「文末に「。」」など。WRITING_RULES）は、書き終えるまで出さない。開いたときからあったもの（直しに来た指摘。右の一覧で目立たせる）は出す。
     // 打った語への指摘（「私」「製作」など）と、ほかの欄の指摘は、今までどおり書きながら出す（依頼者の選択 2026-10-26）
@@ -3147,14 +3150,16 @@ export class ReportEditor {
       const target = onPage(focused)
       // PC：セルの中で改行して、紙面に重ねた書く欄が表の下にはみ出したときは出さない（書く欄に重ねない）
       if (target && editing?.kind === 'tableCell' && !this.overlay.inSheet && this.overlay.bottom > target.element.getBoundingClientRect().bottom + 1) return null
-      return target && endsPageWithRoom(page, target.element) ? target : null
+      const place = target ? placeBelow(page, target.element) : null
+      return target && place ? { ...target, margin: place === 'margin' } : null
     }
-    // 章の最後の図・表・見出し（中に何もない章は、大見出し）が、ページの最後で、下が空いているとき（選ばなくても出す）
+    // 章の最後の図・表・見出し（中に何もない章は、大見出し）が、ページの最後にあるとき（選ばなくても出す。本文の範囲に空きがなければ、下の余白に）
     for (const chapter of this.report.body) {
       const last = chapter.blocks.at(-1)
       const objectId = !last ? chapter.id : last.type === 'figureRow' ? last.figures[0]?.id : last.type === 'table' || last.type === 'subheading' ? last.id : undefined
       const target = objectId ? onPage(objectId) : null
-      if (target && endsPageWithRoom(page, target.element)) return target
+      const place = target ? placeBelow(page, target.element) : null
+      if (target && place) return { ...target, margin: place === 'margin' }
     }
     return null
   }
@@ -4196,7 +4201,17 @@ export class ReportEditor {
       active.blur()
       this.refocusKey = blockPaperKey(first.id)
     }
-    this.update((r) => ({ ...r, abstract: { ...r.abstract, started: true } }))
+    // まだ何も書いていなければ、最初の段落に書き出しの文（「本制作報告書は、」など）を字で入れておく（薄い字の例ではなく。依頼者 2026-11-01）。
+    // 続けて書く・直すのは学生（その段落を押すと、終わりから書ける）。戻すと、書き始める前（薄い字の例）に戻る
+    const opening = abstractOpening(this.config, this.report.basicInfo.courseId)
+    this.update((r) => ({
+      ...r,
+      abstract: {
+        ...r.abstract,
+        started: true,
+        paragraphs: abstractEmpty(r) && r.abstract.paragraphs[0] ? [{ ...r.abstract.paragraphs[0], content: [{ type: 'text', text: opening }] }, ...r.abstract.paragraphs.slice(1)] : r.abstract.paragraphs,
+      },
+    }))
     this.notice = { notice: { kind: 'started', id: ++this.noticeCount }, report: this.report }
     this.notify()
   }

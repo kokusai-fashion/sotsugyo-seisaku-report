@@ -5,7 +5,8 @@
  * - 章の最後の図・表が、ページの最後で下が空いているときは、選ばなくても出す
  * - 見出し（大見出し・小見出し）が章のいちばん最後にあるときも、同じように、見出しのすぐ下に出す
  *   （足したばかりの小見出しの下の空いた所を押して書くと、見出しの続きになっていたため。見出しを書いている間も出す）
- * どれも、下が空いているとき（同じページで後ろに文などが続かないとき）だけ、その空いた所に出す（文の上に重ねない）。
+ * どれも、同じページで後ろに文などが続かないときだけ、そのすぐ下に出す（文の上に重ねない）。本文の範囲に空きがなければ、
+ * ページの下の余白に、字の分の長さで出す（ページ番号に重ねない。mockups/v83 案A）。
  * 後ろに段落が続くときは、続きの段落を押せばよい（タイトル・見出しで Enter を押しても、その後ろに段落ができる）。
  * 押すと、図・表・見出しのすぐ後ろに新しい段落ができて、書き始める（編集の中核の continueAfter）。
  * 紙面に重ねる層（入力欄と同じ所）に置く、画面だけの部品。紙面の中には入れないので、PDF・印刷には出ず、ページの組み方も変えない
@@ -35,7 +36,12 @@ export interface ContinueTarget {
   element: HTMLElement
   /** その要素があるページ */
   page: HTMLElement
+  /** 本文の範囲に空きがないので、ページの下の余白に出す（placeBelow の 'margin'） */
+  margin?: boolean
 }
+
+/** 余白に出すときの、図・表との間（画面の px。余白は狭いので、ふつうより詰める） */
+const MARGIN_GAP = 6
 
 export class ContinueRow {
   readonly element: HTMLButtonElement
@@ -72,16 +78,19 @@ export class ContinueRow {
     const box = target.element.getBoundingClientRect()
     const layer = this.layer.getBoundingClientRect()
     const k = page.width / PAGE_W
+    // ページの下の余白に出すとき（本文の範囲に空きがない）：字の分の長さで左に寄せ、ページ番号（下の真ん中）に重ねない（mockups/v83 案A）
+    const margin = !!target.margin
     Object.assign(b.style, {
       left: `${page.left + textLeftPx() * k - layer.left}px`,
-      top: `${box.bottom + GAP - layer.top}px`,
-      width: `${textWidthPx() * k}px`,
+      top: `${box.bottom + (margin ? MARGIN_GAP : GAP) - layer.top}px`,
+      width: margin ? 'auto' : `${textWidthPx() * k}px`,
     })
+    b.classList.toggle('in-margin', margin)
     b.hidden = false
     // 紙面が小さいとき（スマホの横向き）は、本文の幅に言葉が入らず、枠の外にはみ出していた。
     // ページの幅いっぱいまで広げ、それでも入らなければ、字を少し詰める（tight。index.css）
     b.classList.remove('tight')
-    if (b.scrollWidth > b.clientWidth + 1) {
+    if (!margin && b.scrollWidth > b.clientWidth + 1) {
       Object.assign(b.style, { left: `${page.left + 4 - layer.left}px`, width: `${Math.max(0, page.width - 8)}px` })
       if (b.scrollWidth > b.clientWidth + 1) b.classList.add('tight')
     }
@@ -89,19 +98,21 @@ export class ContinueRow {
 }
 
 /**
- * el（図のまとまり・表・見出し）が、ページの本文の最後にあり（後ろに文字・段落・改ページの印がない）、その下に行が入るだけ空いているか。
- * 空いていなければ、行は出さない（後ろの文に重ねないため）。
+ * el（図のまとまり・表・見出し）の下に行を出せるか。ページの本文の最後にあり（後ろに文字・段落・改ページの印がない）、
+ * その下に行が入るだけ本文の範囲が空いていれば 'room'。空いていなければ、ページの下の余白に出す 'margin'
+ * （表・図がページの下まで来ると行が出ず、続きを書く所が見つからなかった：学生の試し 3回目・4回目 2026-10-31。mockups/v83 案A）。
+ * 後ろに文などが続くときは null（行は出さない。後ろの文に重ねないため。続きの段落を押せばよい）。
  * ページの中の本文の位置は、組んだ紙面の文字と要素の範囲から測る（figureFloat.ts と同じ）。改ページの印は高さがないので別に見る
  */
-export function endsPageWithRoom(page: HTMLElement, el: HTMLElement): boolean {
+export function placeBelow(page: HTMLElement, el: HTMLElement): 'room' | 'margin' | null {
   const p = page.getBoundingClientRect()
   const bottom = el.getBoundingClientRect().bottom
-  if (p.top + p.height * contentBottomRatio() - bottom < GAP + rowHeight(page.ownerDocument)) return false
   for (const section of page.querySelectorAll('section')) {
     const range = document.createRange()
     range.selectNodeContents(section)
-    if ([...range.getClientRects()].some((r) => r.height > 0 && r.top >= bottom - 1)) return false
+    if ([...range.getClientRects()].some((r) => r.height > 0 && r.top >= bottom - 1)) return null
   }
-  return ![...page.querySelectorAll('.page-break')].some((b) => b.getBoundingClientRect().top >= bottom - 1)
+  if ([...page.querySelectorAll('.page-break')].some((b) => b.getBoundingClientRect().top >= bottom - 1)) return null
+  return p.top + p.height * contentBottomRatio() - bottom < GAP + rowHeight(page.ownerDocument) ? 'margin' : 'room'
 }import { contentBottomRatio, textLeftPx, textWidthPx } from '../layout/pageGeometry'
 

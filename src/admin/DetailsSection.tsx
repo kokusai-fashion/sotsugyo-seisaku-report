@@ -60,7 +60,7 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
           <Row label="抄録の見出し" htmlFor="d-abstractHeading" changed={changed('abstract.heading')} field="abstract.heading">
             <TextInput id="d-abstractHeading" value={draft.abstract.heading} onChange={(v) => set({ abstract: { ...draft.abstract, heading: v } })} />
           </Row>
-          <Row label="書き出しの例（共通）" sub="抄録" htmlFor="d-openingExample" hint="コースで決めていないときに、学生の抄録の欄に薄く出します（コースの書き出し例は、コースの「ひな形」で決めます）" changed={changed('abstract.openingExample')}>
+          <Row label="書き出しの例（共通）" sub="抄録" htmlFor="d-openingExample" hint="コースで決めていないときに使います。学生が抄録を書き始めると、はじめから入っている文です（書き始める前は、薄く出します。コースの書き出し例は、コースの「ひな形」で決めます）" changed={changed('abstract.openingExample')}>
             <TextInput id="d-openingExample" value={draft.abstract.openingExample} onChange={(v) => set({ abstract: { ...draft.abstract, openingExample: v } })} />
           </Row>
           <Row label="大学名" htmlFor="d-university" changed={changed('university')} field="university">

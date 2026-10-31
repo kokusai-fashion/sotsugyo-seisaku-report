@@ -34,10 +34,14 @@ export function courseTemplate(config: YearConfig, courseId: string): TemplateBl
 /** 部品の文字の項目（崩れたひな形で、項目がない・文字でないときは空） */
 const textOf = (value: unknown): string => (typeof value === 'string' ? value : '')
 
-/** 抄録の欄に薄く出す書き出しの例 */
+/** 抄録の書き出しの文（コースの書き出し例、なければ共通の書き出し例。例：「本制作報告書は、」） */
+export function abstractOpening(config: YearConfig, courseId: string): string {
+  return textOf(findCourse(config, courseId)?.abstractExample).trim() || config.abstract.openingExample
+}
+
+/** 抄録の欄に薄く出す書き出しの例（書き始める前。書き始めると、書き出しの文が字で入る：reportEditor の startAbstract） */
 export function abstractHint(config: YearConfig, courseId: string): string {
-  const example = textOf(findCourse(config, courseId)?.abstractExample).trim() || config.abstract.openingExample
-  return `書き出しの例：${example}……`
+  return `書き出しの例：${abstractOpening(config, courseId)}……`
 }
 
 /**
