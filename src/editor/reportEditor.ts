@@ -4344,11 +4344,18 @@ export class ReportEditor {
   addChapter(): void {
     const chapterId = ops.newId('c')
     if (this.settlingRemoval || this.doubleAdd('chapter', chapterId)) return
-    const after = this.insertionAnchor()
+    let after = this.insertionAnchor()
     this.marker.hidden = true
     this.commitForChange()
     const chapter: Chapter = { id: chapterId, title: '', blocks: [{ type: 'paragraph', id: ops.newId('p'), content: [{ type: 'text', text: '' }] }] }
     this.pushHistory(this.report)
+    // Enter で作った、何も書いていない段落（説明もない）で押したときは、その段落を消してから章を作る（小見出しと同じく、空の段落を残さない。
+    // 前の章の最後に残り、「空の段落がある」と出ていた：2026-10-31。依頼者の選択）。章の中の段落がそれだけのときは残す
+    const owner = after ? this.report.body.find((c) => c.blocks.some((b) => b.id === after)) : undefined
+    if (after && owner && owner.blocks.length > 1 && ops.isBlankParagraph(this.report, after)) {
+      this.report = ops.removeBlock(this.report, after)
+      after = owner.id
+    }
     this.report = ops.insertChapterAfter(this.report, after, chapter)
     // 入力欄は、前の章の最後のブロックのすぐ下に仮に置く（組み直したら、新しい章の見出しの位置へ）
     const prev = this.report.body[this.report.body.findIndex((c) => c.id === chapter.id) - 1]

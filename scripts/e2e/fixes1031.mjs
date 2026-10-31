@@ -78,6 +78,50 @@ await withEdge(async (browser) => {
     )
     await context.close()
   }
+
+  // 段落の終わりで Enter → 空の段落で「大見出し」：空の段落を前の章に残さない（小見出しと同じ）。画面は新しい章のページへ
+  {
+    const { context, page, ready } = await open(browser)
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p5b'), 'none'))
+    await ready()
+    const end = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'p5b').content.map((n) => n.text ?? '').join('').length)
+    await page.evaluate((end) => window.__editor.openEditor('p5b', end), end)
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p5b', { timeout: 20000 })
+    await wait(300)
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => { const s = window.__editor.getSnapshot(); return s.editingKind === 'paragraph' && s.editingId !== 'p5b' }, { timeout: 20000 })
+    await wait(300)
+    await page.evaluate(() => window.__editor.addChapter())
+    // 組み直して、新しい章のページへ移るのを待ってから打つ（人が見出しを打ち始めるまでの間）
+    await page.waitForFunction(() => { const s = window.__editor.getSnapshot(); const c = s.report.body.find((x) => x.title === ''); return s.editingKind === 'chapter' && c && s.page === window.__editor.pageOfBlock(c.id) }, { timeout: 20000 })
+    await page.keyboard.type('新しい章')
+    await page.keyboard.press('Escape')
+    await ready()
+    await wait(800)
+    const got = await page.evaluate(() => {
+      const s = window.__editor.getSnapshot()
+      const i = s.report.body.findIndex((c) => c.title === '新しい章')
+      return {
+        tail: s.report.body[i - 1]?.blocks.at(-1)?.id,
+        page: s.page,
+        chapterPage: window.__editor.pageOfBlock(s.report.body[i].id),
+        undo: null,
+      }
+    })
+    // 元に戻すと、空の段落も戻る（章を作る前に戻る）
+    await page.keyboard.down('Control')
+    await page.keyboard.press('z')
+    await page.keyboard.up('Control')
+    await ready()
+    await wait(500)
+    got.undo = await page.evaluate(() => window.__editor.getSnapshot().report.body.some((c) => c.title === '新しい章'))
+    check(
+      '段落の終わりで Enter → 空の段落で「大見出し」：前の章の最後に空の段落が残らず、画面は新しい章のページ',
+      got.tail === 'p5b' && got.page === got.chapterPage,
+      JSON.stringify(got),
+    )
+    await context.close()
+  }
 })
 
 const failed = results.filter((ok) => !ok).length
