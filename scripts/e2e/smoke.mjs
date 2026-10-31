@@ -1932,6 +1932,16 @@ await withEdge(async (browser) => {
     }))
     check('ひな形の説明のある空の段落を開いて、何も書かずに閉じても、説明（「ここに書くこと」）は消えない', kept.hint === '工夫した点を書く' && kept.placeholder.includes('工夫した点を書く'), JSON.stringify(kept))
 
+    // ひな形の説明（薄字）だけの段落で「小見出し」：その段落を見出しに置き換える（薄字が見出しの上に残らない。学生の試し 2026-10-31）
+    await clickBlock('fpH')
+    await waitEditing(() => window.__editor.getSnapshot().editingId === 'fpH')
+    await clickPaletteButton('小見出し')
+    await page.keyboard.type('説明の所の見出し')
+    await page.keyboard.press('Escape')
+    await ready()
+    fc1 = (await blocksOf('fc1')).map(textOf)
+    check('ひな形の説明だけの段落で「小見出し」を押すと、その段落が見出しになる（薄字の段落が上に残らない）', JSON.stringify(fc1.slice(3)) === JSON.stringify(['次の段落である。', '【置き換えた見出し】', '【説明の所の見出し】', '【（1）素材】']), JSON.stringify(fc1))
+
     // 小見出しに手で書いた「（1）」：警告で、消す番号を書く（番号の「ⅰ．」は自動で付く）。押すと「（1）」の後ろにカーソルが来るので、Backspace で自分で消す
     const headingFix = await page.evaluate(() => {
       const li = [...document.querySelectorAll('.side .issue')].find((x) => x.textContent.includes('小見出しに番号を手で書いている'))

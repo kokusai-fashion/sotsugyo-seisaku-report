@@ -4153,8 +4153,10 @@ export class ReportEditor {
     this.marker.hidden = true
     this.commitForChange()
     this.pushHistory(this.report)
-    // 何も書いていない段落（ひな形の説明もない）で小見出しを押したときは、その段落を小見出しに置き換える（同じ位置。空の段落を残さない）
-    const replace = block.type === 'subheading' && !!after && ops.isBlankParagraph(this.report, after)
+    // 何も書いていない段落で小見出しを押したときは、その段落を小見出しに置き換える（同じ位置。空の段落を残さない）。
+    // ひな形の説明（薄字）だけの段落も置き換える（説明は消える）。前は残して後ろに足していたが、薄字が小見出しの上に残り、
+    // 「このままでいいの？」と迷った（学生の試し 2026-10-31。依頼者の選択）
+    const replace = block.type === 'subheading' && !!after && ops.paragraphEmpty(this.report, after)
     this.report = replace && after ? ops.replaceBlock(this.report, after, block) : ops.insertAfter(this.report, after, block)
     this.reopenAfterRender(editId, 0, after ? { id: after, place: replace ? 'over' : 'after' } : null)
   }
