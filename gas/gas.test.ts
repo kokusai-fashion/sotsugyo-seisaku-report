@@ -1120,6 +1120,14 @@ describe('届いた声（api-project の doPost・admin-project の一覧と状�
     expect(mails).toHaveLength(1)
   })
 
+  it('スクリプト プロパティ FEEDBACK_MAIL_TO の宛先にも、管理者への知らせを送る（重なりは1つに・形の違うものは除く）', () => {
+    const api = setup()
+    post(api, voice())
+    load('admin-project', { props: { FEEDBACK_MAIL_TO: 'home@example.jp、kato@example.ac.jp, ちがう' } }).notifyNewFeedback()
+    expect(mails).toHaveLength(1)
+    expect(mails[0].to).toBe('kato@example.ac.jp,home@example.jp')
+  })
+
   it('ログインなしでも受け付ける（アドレスは空）。形が正しくないもの・中身が空のものは断る', () => {
     const api = setup()
     expect(post(api, voice()).ok).toBe(true)

@@ -795,9 +795,10 @@ function notifyNewFeedback() {
     const fresh = []
     for (let i = 1; i < rows.length; i++) if (rows[i][0] !== '' && !String(rows[i][20] || '')) fresh.push({ index: i, item: feedbackOf_(rows[i]) })
     if (!fresh.length) return
-    const to = readMembers_()
+    const admins = readMembers_()
       .filter((m) => m.role === ROLE_ADMIN)
       .map((m) => m.email)
+    const to = [...new Set([...admins, ...feedbackMailTo_()])]
     if (!to.length) return
     const lines = ['卒業制作報告書のツールに、困ったこと・おかしいことが ' + fresh.length + ' 件届きました。', '']
     fresh.forEach(({ item }) => {
@@ -809,6 +810,18 @@ function notifyNewFeedback() {
     const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
     fresh.forEach(({ index }) => setRow_(sheet, index + 1, 21, [now]))
   })
+}
+
+/**
+ * 届いた声のメールを、管理者のほかにも送る宛先（依頼者 2026-11-01：大学の外の、ふだん読むアドレスにも届けたい）。
+ * エディタの「プロジェクトの設定」→「スクリプト プロパティ」の FEEDBACK_MAIL_TO（カンマ区切り）。アドレスはコードに書かない（公開のため）
+ */
+function feedbackMailTo_() {
+  const value = PropertiesService.getScriptProperties().getProperty('FEEDBACK_MAIL_TO') || ''
+  return value
+    .split(/[,、\s]+/)
+    .map((s) => s.trim())
+    .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s))
 }
 
 /** 届いた声のシートの行を、管理ページに渡す形にする（確かめの鍵は渡さない） */
