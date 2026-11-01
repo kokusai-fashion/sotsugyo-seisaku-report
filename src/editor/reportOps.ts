@@ -286,7 +286,7 @@ export function split(report: Report, id: string, before: string, after: string,
     if (b?.type !== 'paragraph') continue
     // 段落のすぐ下に付いている図・表：途中で分けたとき、分けた後ろの部分がそれを参照していなければ、前の部分に付けたままにする。
     // 段落の終わりで Enter を押したとき（後ろが空）は、Word と同じく、すぐ下（図・表の上）に新しい段落を作る。
-    // 図・表の下に書くときは「＋ ここに続きを書く」（依頼者の選択 2026-10-23：学生の試しで、表の上に段落を足せなかった）
+    // 図・表の下に書くときは「＋ 文章の続きを書く」（依頼者の選択 2026-10-23：学生の試しで、表の上に段落を足せなかった）
     let end = i + 1
     while (end < chapter.blocks.length && isAttachment(chapter.blocks[end])) end++
     const attached = chapter.blocks.slice(i + 1, end)
@@ -307,7 +307,7 @@ export function split(report: Report, id: string, before: string, after: string,
 }
 
 /**
- * 図・表のすぐ後ろ（同じ章の中）に、空の段落を作る（図・表のタイトルで Enter・「＋ ここに続きを書く」。mockups/v32 ① 案A）。
+ * 図・表のすぐ後ろ（同じ章の中）に、空の段落を作る（図・表のタイトルで Enter・「＋ 文章の続きを書く」。mockups/v32 ① 案A）。
  * id は図の ID か表の ID（表のタイトル）。図は、並んでいる図のまとまりの後ろに作る。図・表が見つからなければ null
  */
 export function paragraphAfter(report: Report, id: string, created = newId('p')): { report: Report; newId: string } | null {
@@ -317,7 +317,7 @@ export function paragraphAfter(report: Report, id: string, created = newId('p'))
 }
 
 /**
- * 「＋ ここに続きを書く」：図・表・見出しのすぐ後ろに、空の段落を作る（mockups/v32 ① 案A）。
+ * 「＋ 文章の続きを書く」：図・表・見出しのすぐ後ろに、空の段落を作る（mockups/v32 ① 案A）。
  * 図・表は paragraphAfter と同じ。小見出しは、そのすぐ後ろ。大見出し（章の ID）は、その章のいちばん初め。
  * どれでもなければ null
  */

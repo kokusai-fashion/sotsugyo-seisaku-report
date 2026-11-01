@@ -1,6 +1,6 @@
 // 見直した見本の原稿（お試しの見本 gas/trial-sample.private.json と、写真 public/trial/）を、学生のツールに入れて全ページを撮る（確かめ用。git に入れない）
 // 使い方：node scripts/shots-sinbad-sample.mjs <まとめた版のフォルダ> <写真の出力先>（Edge は 9336・サーバーは 4231）
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stubConfig } from './e2e/configStub.mjs'
 
@@ -48,6 +48,17 @@ try {
       const box = await page.evaluate(() => { const r = document.querySelector('.page-viewport.front [data-vivliostyle-page-container].is-current').getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height } })
       await page.screenshot({ path: join(OUT, `${String(i + 1).padStart(2, '0')}-${info.pages[i]}.png`), clip: box, captureBeyondViewport: false })
     }
+    // PDF：学生の「PDFを書き出す」と同じ作り方（pdf/exportPdf.ts の buildPdf）で作り、写真の出力先に置く
+    const pdf = await page.evaluate(async () => {
+      const { buildPdf } = await window.__import('pdf/exportPdf.ts')
+      const built = await buildPdf(window.__editor.pageElements(), { title: window.__editor.pdfTitle })
+      const bytes = new Uint8Array(await built.blob.arrayBuffer())
+      let bin = ''
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+      return { name: built.fileName, pages: built.pageCount, data: btoa(bin) }
+    })
+    writeFileSync(join(OUT, pdf.name), Buffer.from(pdf.data, 'base64'))
+    console.log('pdf', pdf.name, pdf.pages)
     await context.close()
   })
 } finally {

@@ -434,7 +434,7 @@ await withEdge(async (browser) => {
   await shot('7c-undo-restored')
   check('知らせの「戻す」で、削除した表が戻り、「✓ 表を戻しました」と出て、戻した表が光る', (await snap()).report.body.flatMap((c) => c.blocks).some((b) => b.id === tableId) && restoredPh.text === '表を戻しました' && !restoredPh.button && restoredPh.flash, JSON.stringify(restoredPh))
 
-  // 表の下が空いていれば、表を選ぶと、表のすぐ下に「＋ ここに続きを書く」。押すと、表の後ろに段落ができ、下の書く欄ですぐ書ける（mockups/v32 ① 案A）。
+  // 表の下が空いていれば、表を選ぶと、表のすぐ下に「＋ 文章の続きを書く」。押すと、表の後ろに段落ができ、下の書く欄ですぐ書ける（mockups/v32 ① 案A）。
   // 表のすぐ後ろに段落が続くときは出さない（文に重ねない）
   const tableLast = (next) =>
     page.evaluate(
@@ -464,7 +464,7 @@ await withEdge(async (browser) => {
     const hit = document.elementFromPoint(line.left + 10, (line.top + line.bottom) / 2)
     return { shown: !b.hidden, hit: hit?.closest('[data-block-id]')?.getAttribute('data-block-id') ?? hit?.className }
   })
-  check('スマホでも、表のすぐ後ろに段落が続くときは、表を選んでも「＋ ここに続きを書く」を出さない（段落の1行目に重ならない）', !noRow.shown && noRow.hit === 'ph-next', JSON.stringify(noRow))
+  check('スマホでも、表のすぐ後ろに段落が続くときは、表を選んでも「＋ 文章の続きを書く」を出さない（段落の1行目に重ならない）', !noRow.shown && noRow.hit === 'ph-next', JSON.stringify(noRow))
   await tableLast(false)
   await ready()
   await page.evaluate((id) => window.__editor.goToPage(window.__editor.pageOfBlock(id), 'none'), cellId)
@@ -478,7 +478,7 @@ await withEdge(async (browser) => {
     return { shown: !b.hidden && r.height > 0, below: r.top >= t.bottom && r.top - t.bottom < 30, inside: r.left >= 0 && r.right <= innerWidth, h: Math.round(r.height), x: r.left + 60, y: r.top + r.height / 2 }
   }, tableId)
   await shot('7d-continue-row')
-  check('スマホでも、表の下が空いていれば、表を選ぶと、表のすぐ下に「＋ ここに続きを書く」が出る（見た目も高さ 44px 以上）', phoneRow.shown && phoneRow.below && phoneRow.inside && phoneRow.h >= 44, JSON.stringify(phoneRow))
+  check('スマホでも、表の下が空いていれば、表を選ぶと、表のすぐ下に「＋ 文章の続きを書く」が出る（見た目も高さ 44px 以上）', phoneRow.shown && phoneRow.below && phoneRow.inside && phoneRow.h >= 44, JSON.stringify(phoneRow))
   await page.touchscreen.tap(phoneRow.x, phoneRow.y)
   await wait(300)
   const contOpen = await page.evaluate((id) => {
@@ -486,7 +486,7 @@ await withEdge(async (browser) => {
     const flat = s.report.body.flatMap((c) => c.blocks)
     return { editing: s.editingId, after: flat[flat.findIndex((b) => b.id === id) + 1]?.id, focused: document.activeElement?.classList.contains('overlay-editor') && !!document.activeElement.closest('.edit-sheet.open') }
   }, tableId)
-  check('「＋ ここに続きを書く」をタップすると、表の後ろに段落ができ、下の書く欄ですぐ書ける', !!contOpen.editing && contOpen.editing === contOpen.after && contOpen.focused, JSON.stringify(contOpen))
+  check('「＋ 文章の続きを書く」をタップすると、表の後ろに段落ができ、下の書く欄ですぐ書ける', !!contOpen.editing && contOpen.editing === contOpen.after && contOpen.focused, JSON.stringify(contOpen))
   await page.keyboard.type('素材は三種類を使った。')
   await page.click('.edit-sheet .done')
   await ready()
@@ -742,7 +742,7 @@ await withEdge(async (browser) => {
  * - 横向きでは、帯は紙面の右（紙面が小さくなりすぎない）
  * - 小さいボタン（「完了」「あとで入力する」・使い方の「引用・参考文献を入れる」・ページ送り・「ページ全体に戻す」）は高さ 44px 以上（指摘の「直す」はなくした。学生が自分で直す）
  * - 残りの小さいボタン（書く欄の道具・案内の「本文へ進む」・引用・参考文献の窓のボタン）も、見た目の高さ 44px 以上（v32 の直し。
- *   削除の知らせの［戻す］・「＋ ここに続きを書く」・「とばす」は上の流れの中で、PDF の窓は iphoneShareCheck で確かめる）
+ *   削除の知らせの［戻す］・「＋ 文章の続きを書く」・「とばす」は上の流れの中で、PDF の窓は iphoneShareCheck で確かめる）
  * - 縦向きでも横向きでも、画面が横にはみ出さない。横向きでは抄録の印を「→」に
  * - 拡大したままほかのページへ移ると、ページ全体の表示に戻る。削除の知らせは、ページ送り・帯・下の道具に重ならない
  * - 紙面の仮の文字は「タップ」。生地見本の画像を入れた表のセルには、仮の文字を出さない
@@ -1530,7 +1530,7 @@ async function firstTimeFixesPhone(browser) {
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'tM' ? { ...b, widths: 'equal' } : b)) })) })))
   await ready()
 
-  // 章の最後の小見出しの下にも「＋ ここに続きを書く」（高さ 44px）。押すと、見出しのすぐ後ろに段落ができ、下の書く欄ですぐ書ける
+  // 章の最後の小見出しの下にも「＋ 文章の続きを書く」（高さ 44px）。押すと、見出しのすぐ後ろに段落ができ、下の書く欄ですぐ書ける
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: [...r.body, { id: 'cH', title: '補足', blocks: [{ type: 'subheading', id: 'sH', title: '追記' }] }] })))
   await ready()
   await showBlock('sH')
@@ -1546,7 +1546,7 @@ async function firstTimeFixesPhone(browser) {
   await wait(300)
   const fromHeadRow = await page.evaluate(() => { const s = window.__editor.getSnapshot(); const c = s.report.body.find((x) => x.id === 'cH'); return { editing: s.editingId, sheet: !!document.querySelector('.edit-sheet.open'), blocks: c.blocks.map((b) => b.id) } })
   check(
-    'スマホ：章の最後の小見出しの下にも「＋ ここに続きを書く」（高さ 44px 以上）が出て、押すと見出しのすぐ後ろに段落ができ、下の書く欄で書ける',
+    'スマホ：章の最後の小見出しの下にも「＋ 文章の続きを書く」（高さ 44px 以上）が出て、押すと見出しのすぐ後ろに段落ができ、下の書く欄で書ける',
     phoneHeadRow.shown && phoneHeadRow.h >= 44 && phoneHeadRow.below && fromHeadRow.sheet && fromHeadRow.blocks.length === 2 && fromHeadRow.editing === fromHeadRow.blocks[1],
     JSON.stringify({ phoneHeadRow, fromHeadRow }),
   )

@@ -1673,7 +1673,7 @@ await withEdge(async (browser) => {
   const vp = page1.getViewport({ scale: 1 })
   check('PDF は A4', Math.abs(vp.width - 595.3) < 2 && Math.abs(vp.height - 841.9) < 2, `${vp.width.toFixed(1)}x${vp.height.toFixed(1)}pt`)
 
-  // ---- 図・表のあとの続き：章の最後の図の下が空いていれば「＋ ここに続きを書く」。押すと図の後ろに段落ができる（画面だけ。mockups/v32 ① 案A） ----
+  // ---- 図・表のあとの続き：章の最後の図の下が空いていれば「＋ 文章の続きを書く」。押すと図の後ろに段落ができる（画面だけ。mockups/v32 ① 案A） ----
   await page.evaluate(() => {
     const t = (text) => ({ type: 'text', text })
     const body = [
@@ -1696,13 +1696,13 @@ await withEdge(async (browser) => {
     })
   const autoRow = await contRow()
   await page.screenshot({ path: `${OUT}/2-continue-row.png` })
-  check('章の最後の図がページの最後で、下が空いているときは、図のすぐ下に「＋ ここに続きを書く」が出る（紙面の外の層に置く）', autoRow.shown && autoRow.text === 'ここに続きを書く' && autoRow.below && !autoRow.inPaper, JSON.stringify(autoRow))
+  check('章の最後の図がページの最後で、下が空いているときは、図のすぐ下に「＋ 文章の続きを書く」が出る（紙面の外の層に置く）', autoRow.shown && autoRow.text === '文章の続きを書く' && autoRow.below && !autoRow.inPaper, JSON.stringify(autoRow))
   const pagesNow = (await snap()).layout.kinds.length
   await page.pdf({ path: `${OUT}/continue-row.pdf`, preferCSSPageSize: true, printBackground: true })
   const crDoc = await getDocument({ url: `${OUT}/continue-row.pdf`, verbosity: 0 }).promise
   let crText = ''
   for (let n = 1; n <= crDoc.numPages; n++) crText += (await (await crDoc.getPage(n)).getTextContent()).items.map((it) => it.str).join('')
-  check('「＋ ここに続きを書く」は PDF に出ず、ページの数も変わらない', !crText.includes('ここに続きを書く') && crText.replace(/\s/g, '').includes('袖の刺繍') && crDoc.numPages === pagesNow, `${crDoc.numPages} / ${pagesNow}ページ`)
+  check('「＋ 文章の続きを書く」は PDF に出ず、ページの数も変わらない', !crText.includes('文章の続きを書く') && crText.replace(/\s/g, '').includes('袖の刺繍') && crDoc.numPages === pagesNow, `${crDoc.numPages} / ${pagesNow}ページ`)
   // 下が空いている図を選んだときも、その空いた所（本文の領域の中）に出る
   await page.evaluate(() => window.__editor.select({ kind: 'figure', id: 'kf1' }))
   await pause0(200)
@@ -1722,7 +1722,7 @@ await withEdge(async (browser) => {
   await ready()
   s = await snap()
   const kc1 = s.report.body.find((c) => c.id === 'kc1').blocks
-  check('「＋ ここに続きを書く」を押すと、図の後ろ（同じ章の中）に新しい段落ができ、そこで書ける', kc1.length === 3 && kc1[1].id === 'kg1' && kc1[2].type === 'paragraph' && kc1[2].content.map((n) => n.text ?? '').join('') === '最初の図案は波が細かすぎた。' && s.report.body.find((c) => c.id === 'kc2').blocks.length === 1, JSON.stringify(kc1.map((b) => b.id)))
+  check('「＋ 文章の続きを書く」を押すと、図の後ろ（同じ章の中）に新しい段落ができ、そこで書ける', kc1.length === 3 && kc1[1].id === 'kg1' && kc1[2].type === 'paragraph' && kc1[2].content.map((n) => n.text ?? '').join('') === '最初の図案は波が細かすぎた。' && s.report.body.find((c) => c.id === 'kc2').blocks.length === 1, JSON.stringify(kc1.map((b) => b.id)))
   await pause0(150)
   check('図の後ろに段落があるときは、選ばなければ出ない', !(await contRow()).shown)
   // 選んでも、後ろに段落が続く（下が空いていない）ときは出さない。続きの段落の1行目に重ならず、押せば書ける
@@ -1739,7 +1739,7 @@ await withEdge(async (browser) => {
     return { shown: !b.hidden && r.height > 0, overlap: !b.hidden && r.bottom > line.top && r.top < line.bottom, hit: hit?.closest('[data-block-id]')?.getAttribute('data-block-id') ?? hit?.className }
   }, kc1[2].id)
   await page.screenshot({ path: `${OUT}/2-continue-row-none.png` })
-  check('図を選んでも、後ろに段落が続くときは「＋ ここに続きを書く」を出さない（続きの段落の1行目に重ならない）', !nextLine.shown && !nextLine.overlap && nextLine.hit === kc1[2].id, JSON.stringify(nextLine))
+  check('図を選んでも、後ろに段落が続くときは「＋ 文章の続きを書く」を出さない（続きの段落の1行目に重ならない）', !nextLine.shown && !nextLine.overlap && nextLine.hit === kc1[2].id, JSON.stringify(nextLine))
   await page.evaluate(() => window.__editor.select(null))
   // 元に戻す（書いた文 → 作った段落）で、きれいに元どおりになる
   await page.evaluate(() => window.__editor.undo())
@@ -1747,7 +1747,7 @@ await withEdge(async (browser) => {
   await page.evaluate(() => window.__editor.undo())
   await ready()
   await pause0(150)
-  check('元に戻すと、作った段落が消え、また図の下に「＋ ここに続きを書く」が出る', (await snap()).report.body.find((c) => c.id === 'kc1').blocks.length === 2 && (await contRow()).shown)
+  check('元に戻すと、作った段落が消え、また図の下に「＋ 文章の続きを書く」が出る', (await snap()).report.body.find((c) => c.id === 'kc1').blocks.length === 2 && (await contRow()).shown)
 
 
   // ---- 図が段落の下に入りきらないときは、図だけ次のページの上へ送り、後ろの文章でページを埋める ----
@@ -2005,13 +2005,13 @@ await withEdge(async (browser) => {
     await page.keyboard.press('Escape')
     await ready()
 
-    // 表のセルを書いている間も、表の下が空いていれば「＋ ここに続きを書く」が出る（前は、セルを書くと消えた）
+    // 表のセルを書いている間も、表の下が空いていれば「＋ 文章の続きを書く」が出る（前は、セルを書くと消えた）
     const cellId = fc2.find((b) => b.type === 'table').rows[1].cells[0].id
     await clickBlock(cellId)
     await waitEditing((id) => window.__editor.getSnapshot().editingId === id, cellId)
     await pause0(300)
     const rowWhileCell = await page.evaluate(() => { const b = document.querySelector('.continue-row'); return !!b && !b.hidden && b.getBoundingClientRect().height > 0 })
-    check('表のセルを書いている間も、表の下が空いていれば「＋ ここに続きを書く」が出る', rowWhileCell)
+    check('表のセルを書いている間も、表の下が空いていれば「＋ 文章の続きを書く」が出る', rowWhileCell)
 
     // 消せない行・列を「行を消す」「列を消す」で押したとき：わけと、表ごと消す方法を画面の下に知らせる（セルは書いたまま）。
     // まず書いているセルの列を消して1列にし（その列のセルはなくなるので、表を選んだ状態になる）、残ったセルを書く
@@ -2108,13 +2108,13 @@ await withEdge(async (browser) => {
         return { shown: !!b && !b.hidden && r.height > 0, below: !!h && !!r && r.top >= h.bottom, x: r ? r.left + r.width / 2 : 0, y: r ? r.top + r.height / 2 : 0, bottom: r?.bottom ?? 0, left: h?.left ?? 0 }
       })
 
-    // 章の最後の小見出し（足したばかりで、後ろに何もない）の下に「＋ ここに続きを書く」が出る（mockups/v32 ① 案A を見出しにも）
+    // 章の最後の小見出し（足したばかりで、後ろに何もない）の下に「＋ 文章の続きを書く」が出る（mockups/v32 ① 案A を見出しにも）
     await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('gs1'), 'none'))
     await ready()
     await pause0(300)
     const headRow = await rowAt()
     await page.screenshot({ path: `${OUT}/g1-heading-row.png` })
-    check('章の最後の小見出し（後ろに何もない）の下が空いていれば、そのすぐ下に「＋ ここに続きを書く」が出る', headRow.shown && headRow.below, JSON.stringify(headRow))
+    check('章の最後の小見出し（後ろに何もない）の下が空いていれば、そのすぐ下に「＋ 文章の続きを書く」が出る', headRow.shown && headRow.below, JSON.stringify(headRow))
     // 見出しの下の空いた所を押して打っても、見出しの続きにならない（前は「素材の選定使う布」になった）
     await page.mouse.click(headRow.left + 60, headRow.bottom + 80)
     await pause0(300)

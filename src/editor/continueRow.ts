@@ -1,5 +1,6 @@
 /**
- * 図・表のすぐ下に出す「＋ ここに続きを書く」（mockups/v32 ① 案A）。
+ * 図・表のすぐ下に出す「＋ 文章の続きを書く」（mockups/v32 ① 案A）。
+ * 言葉は「文章の続きを書く」（前は「ここに続きを書く」。表の下に出ると、表の続き（行を足す）に読めるため：依頼者の選択 2026-11-01）。
  * 図・表のあとに続きを書く場所が分からず、図の下の空いている所を押しても何も起きなかったため。
  * - 図・表を選んだとき（タイトルを書いているときも）、その図・表のすぐ下に出す
  * - 章の最後の図・表が、ページの最後で下が空いているときは、選ばなくても出す
@@ -56,7 +57,7 @@ export class ContinueRow {
     b.className = 'continue-row'
     b.hidden = true
     b.title = 'この後ろに新しい段落を作って、続きを書きます'
-    b.innerHTML = `${PLUS}<span>ここに続きを書く</span>`
+    b.innerHTML = `${PLUS}<span>文章の続きを書く</span>`
     // 図のタイトルを書いている欄から、フォーカスを移さない（押したあとの処理で確定する）
     b.addEventListener('mousedown', (e) => e.preventDefault())
     b.addEventListener('click', () => {

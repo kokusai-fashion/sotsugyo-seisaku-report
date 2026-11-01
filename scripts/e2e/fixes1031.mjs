@@ -295,6 +295,67 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  // 図のタイトルの仮の名前「〇〇〇〇」も、押すと全部を選んで開く（学生の試し 2026-11-01 録画3）
+  {
+    const { context, page, ready } = await open(browser)
+    const fid = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.type === 'figureRow').figures[0].id)
+    await page.evaluate((fid) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.type === 'figureRow' ? { ...b, figures: b.figures.map((f) => (f.id === fid ? { ...f, caption: '〇〇〇〇' } : f)) } : b)) })) })), fid)
+    await ready()
+    await page.evaluate((fid) => window.__editor.goToPage(window.__editor.pageOfBlock(fid), 'none'), fid)
+    await ready()
+    const at = await page.evaluate((fid) => { const el = document.querySelector(`.page-viewport.front [data-vivliostyle-page-container].is-current [data-block-id="${fid}"]`); const range = document.createRange(); range.selectNodeContents(el); const rects = [...range.getClientRects()].filter((r) => r.width > 0); const r = rects.at(-1); return { x: r.right - 4, y: r.top + r.height / 2 } }, fid)
+    await page.mouse.click(at.x, at.y)
+    await page.waitForFunction((fid) => window.__editor.getSnapshot().editingId === fid, { timeout: 20000 }, fid)
+    await wait(300)
+    await page.keyboard.type('ブラウス前')
+    await page.keyboard.press('Escape')
+    await ready()
+    const caption = await page.evaluate((fid) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).filter((b) => b.type === 'figureRow').flatMap((b) => b.figures).find((f) => f.id === fid).caption, fid)
+    check('図のタイトルの仮の名前「〇〇〇〇」も、押して打つと置き換わる', caption === 'ブラウス前', JSON.stringify(caption))
+    await context.close()
+  }
+
+  // 書く欄の中で Ctrl+C でコピーすると、前に紙面でコピーしたまとまりは忘れる（「貼り付け」が前の文を貼っていた：学生の試し 2026-11-01 録画3）
+  {
+    const { context, page, ready } = await open(browser)
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p1'), 'none'))
+    await ready()
+    const pts = await page.evaluate(() => {
+      const el = document.querySelector('.page-viewport.front [data-vivliostyle-page-container].is-current [data-block-id="p1"]')
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      const nodes = []
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n)
+      const charRect = (k) => { let at = k; for (const n of nodes) { if (at < n.textContent.length) { const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + 1); return r.getBoundingClientRect() } at -= n.textContent.length } return null }
+      const a = charRect(2)
+      const b = charRect(10)
+      return { from: { x: a.left + 1, y: a.top + a.height / 2 }, to: { x: b.right - 1, y: b.top + b.height / 2 } }
+    })
+    await page.mouse.move(pts.from.x, pts.from.y)
+    await page.mouse.down()
+    for (let i = 1; i <= 8; i++) await page.mouse.move(pts.from.x + ((pts.to.x - pts.from.x) * i) / 8, pts.from.y + ((pts.to.y - pts.from.y) * i) / 8)
+    await page.mouse.up()
+    await wait(300)
+    await page.keyboard.down('Control')
+    await page.keyboard.press('c')
+    await page.keyboard.up('Control')
+    await wait(200)
+    await page.evaluate(() => { getSelection().removeAllRanges(); window.__editor.openEditor('p2', 5) })
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p2', { timeout: 20000 })
+    await wait(300)
+    const before = await page.evaluate(() => window.__editor.getSnapshot().pasteReady)
+    await page.keyboard.down('Shift')
+    await page.keyboard.press('Home')
+    await page.keyboard.up('Shift')
+    await page.keyboard.down('Control')
+    await page.keyboard.press('c')
+    await page.keyboard.up('Control')
+    await wait(300)
+    const after = await page.evaluate(() => window.__editor.getSnapshot().pasteReady)
+    check('書く欄の中で Ctrl+C でコピーすると、前に紙面でコピーした文の「貼り付け」は出なくなる（Ctrl+V で、いまコピーした文）', before === true && after === false, JSON.stringify({ before, after }))
+    await page.keyboard.press('Escape')
+    await context.close()
+  }
+
   // 紙面で文をなぞって選び、帯の「コピー」：少しの間「✓ コピーしました」になり、元に戻る（mockups/v82 案A）。抄録の行数は上限なし（1ページに収める）
   {
     const { context, page, ready } = await open(browser)
@@ -338,7 +399,7 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
-  // 表がページの下まで来て本文の範囲に空きがない：表を選ぶと、表のすぐ下（ページの下の余白）に「＋ ここに続きを書く」が、字の分の長さで出る（mockups/v83 案A）。
+  // 表がページの下まで来て本文の範囲に空きがない：表を選ぶと、表のすぐ下（ページの下の余白）に「＋ 文章の続きを書く」が、字の分の長さで出る（mockups/v83 案A）。
   // 押すと、表の後ろに段落ができて書き始める
   {
     const { context, page, ready } = await open(browser)
@@ -373,7 +434,7 @@ await withEdge(async (browser) => {
       return { editing: s.editingId, afterTable: blocks[blocks.findIndex((b) => b.id === 't1') + 1]?.id }
     })
     check(
-      '表がページの下まで来ても、表を選ぶと、すぐ下の余白に「＋ ここに続きを書く」が出て（ページの中・ページ番号の左）、押すと表の後ろに段落ができて書ける',
+      '表がページの下まで来ても、表を選ぶと、すぐ下の余白に「＋ 文章の続きを書く」が出て（ページの中・ページ番号の左）、押すと表の後ろに段落ができて書ける',
       row.shown && row.margin && row.below && row.inPage && row.leftHalf && !!after.editing && after.editing === after.afterTable,
       JSON.stringify({ row, after }),
     )

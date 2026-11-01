@@ -371,7 +371,7 @@ describe('表を入れる・Enter で段落を分ける（段落の下の図・�
   })
 })
 
-describe('図・表の後ろに段落を作る（「＋ ここに続きを書く」・タイトルで Enter。mockups/v32 ① 案A）', () => {
+describe('図・表の後ろに段落を作る（「＋ 文章の続きを書く」・タイトルで Enter。mockups/v32 ① 案A）', () => {
   const base = (): Report => ({
     ...demoReport(),
     body: [
@@ -405,7 +405,7 @@ describe('図・表の後ろに段落を作る（「＋ ここに続きを書く
     expect(ids(r)).toEqual([['pa'], ['pc']])
   })
 
-  it('見出しの後ろ（「＋ ここに続きを書く」）：小見出しはそのすぐ後ろ、大見出しは章のいちばん初めに空の段落ができる', () => {
+  it('見出しの後ろ（「＋ 文章の続きを書く」）：小見出しはそのすぐ後ろ、大見出しは章のいちばん初めに空の段落ができる', () => {
     const r = ops.insertAfter(base(), 'pa', { type: 'subheading', id: 's1', title: '素材の選定' })
     expect(ids(ops.paragraphBelow(r, 's1', 'pn')!.report)).toEqual([['pa', 's1', 'pn'], ['pc']])
     const empty: Report = { ...r, body: [...r.body, { id: 'c3', title: 'まとめ', blocks: [] }] }

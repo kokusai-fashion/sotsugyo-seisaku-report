@@ -1081,7 +1081,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .es-hint { margin: 0 16px 6px; padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 13.5px; line-height: 1.6; color: var(--ink); }
 .es-hint b { color: var(--accent); }
 
-/* ---- v32 ① 図・表のすぐ下の「＋ ここに続きを書く」（mockups/v32 ① 案A。部品は editor/continueRow.ts） ----
+/* ---- v32 ① 図・表のすぐ下の「＋ 文章の続きを書く」（mockups/v32 ① 案A。部品は editor/continueRow.ts） ----
    紙面に重ねる層（#overlay-layer）に置く画面だけの部品。紙面の中には入れないので、PDF・印刷には出ず、ページの組み方も変えない。
    図・表の下が空いているときだけ、その空いた所に出す（文の上には重ねない）。
    見た目は控えめに：細く薄い点線・地なし・ふつうの太さの字（mockups/v80 案C。前は太字・青い地で、紙面の上で強すぎた：依頼者 2026-10-31）。

@@ -202,8 +202,10 @@ const FIGURE_MAX_MM = 80
 const ENTER_CREATES_PARAGRAPH = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
 /** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」・氏名の空白〔書き終えたときにそろえる〕）。書いている欄では、書き終えるまで出さない（runChecks） */
 const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty', 'name-space', 'name-no-space', 'abstract-source'])
-/** ひな形の仮の見出しの名前（「〇〇〇〇」。押すと全部を選んで開く：openEditor） */
+/** ひな形の仮の名前（「〇〇〇〇」。押すと全部を選んで開く：openEditor） */
 const PLACEHOLDER_TITLE = /^[〇○◯]+$/
+/** 仮の名前を全部選んで開く欄 */
+const PLACEHOLDER_KINDS = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
 /** すばやく2回押した（ダブルクリック）とみなす間（ミリ秒） */
 const DOUBLE_PRESS_MS = 450
 
@@ -349,7 +351,7 @@ export class ReportEditor {
   private pendingOpen: { id: string; caret: number } | null = null
   /** 入力欄を開いたまま書く先を移し、紙面を組み直すのを待っている（anchor：その間、後ろの文章をずらす基準のブロック） */
   private continuing: { id: string; anchor: string | null; ghosts?: string[] } | null = null
-  /** 図・表のすぐ下の「＋ ここに続きを書く」（mockups/v32 ① 案A） */
+  /** 図・表のすぐ下の「＋ 文章の続きを書く」（mockups/v32 ① 案A） */
   private readonly continueRow: ContinueRow
   /** 列の幅を「自分で決める」表の、境目を動かす線・つまみ（columnHandles.ts） */
   private readonly columnHandles: ColumnHandles
@@ -398,7 +400,7 @@ export class ReportEditor {
       remove: () => this.deleteSelection(),
       paste: () => this.pasteFromTool(),
     })
-    // 拡大してスクロールしたら、「＋ ここに続きを書く」も紙面に合わせて動かす
+    // 拡大してスクロールしたら、「＋ 文章の続きを書く」も紙面に合わせて動かす
     scroller.addEventListener('scroll', () => {
       // 選んだ文の帯は、スクロールしたら隠す（選び直す・マウスを離すと、また出る）
       this.suppressSelectionBar()
@@ -2655,10 +2657,10 @@ export class ReportEditor {
     this.reportBeforeEdit = this.report
     this.hideStyle.textContent = this.editingStyle(id)
     this.overlay.open(target)
-    // ひな形の仮の見出し（「〇〇〇〇」だけ）を押した：全部を選んで開く（打つと置き換わる。PC。前は押した所に字が入り、
-    // 「〇〇ジャケット〇〇」になっていた：学生の試し 2026-11-01 録画1）
+    // ひな形の仮の名前（見出し・図・表のタイトルの「〇〇〇〇」だけ）を押した：全部を選んで開く（打つと置き換わる。PC。前は押した所に字が入り、
+    // 「〇〇ジャケット〇〇」になっていた：学生の試し 2026-11-01 録画1。図のタイトルも：録画3）
     const editable = ops.findEditable(this.report, id)
-    if (!this.phone && editable && (editable.kind === 'subheading' || editable.kind === 'chapter') && PLACEHOLDER_TITLE.test(editable.text)) this.overlay.selectText(0, editable.text.length)
+    if (!this.phone && editable && PLACEHOLDER_KINDS.has(editable.kind) && PLACEHOLDER_TITLE.test(editable.text)) this.overlay.selectText(0, editable.text.length)
     // スマホ：紙面を拡大し、書いているところを見せる
     if (this.phone) {
       if (!this.stage.zoomed) this.stage.setZoom(true)
@@ -2781,7 +2783,7 @@ export class ReportEditor {
   }
 
   /**
-   * 原稿を変えたあと、id の欄を書き始める（小見出し・段落・大見出しを足した、図・表を入れた、「＋ ここに続きを書く」など）。
+   * 原稿を変えたあと、id の欄を書き始める（小見出し・段落・大見出しを足した、図・表を入れた、「＋ 文章の続きを書く」など）。
    * PC は、紙面を組み直すのを待たずに、すぐ入力欄を開く（openBeforeRender）。組み直しは長い原稿では1秒以上かかり、
    * 待つ間に打った文字が消えていたため（「小見出し」を押してすぐ打つと、見出しの文字が入らなかった）。
    * near：足した位置の目印（入力欄を、紙面に出るまで仮にその近くに置く）。開けないとき・スマホは、組み直してから開く
@@ -2888,7 +2890,7 @@ export class ReportEditor {
     return el.closest<HTMLElement>('.figure-group, .data-table') ?? el.closest<HTMLElement>('h1, h2, p, .page-break') ?? el
   }
 
-  // ---- 図・表のあとの続き（mockups/v32 ① 案A。「＋ ここに続きを書く」の部品は continueRow.ts） ----
+  // ---- 図・表のあとの続き（mockups/v32 ① 案A。「＋ 文章の続きを書く」の部品は continueRow.ts） ----
 
   /**
    * 図・表のタイトルで Enter：タイトルを確定し、図・表のすぐ後ろに新しい段落を作って、続けて書く
@@ -3091,7 +3093,7 @@ export class ReportEditor {
     }
   }
 
-  /** 「＋ ここに続きを書く」：図・表・見出し（objectId は図・表・小見出しの ID か、大見出しの章の ID）のすぐ後ろに新しい段落を作り、書き始める */
+  /** 「＋ 文章の続きを書く」：図・表・見出し（objectId は図・表・小見出しの ID か、大見出しの章の ID）のすぐ後ろに新しい段落を作り、書き始める */
   continueAfter(objectId: string): void {
     if (this.settlingRemoval || !ops.paragraphBelow(this.report, objectId)) return
     this.marker.hidden = true
@@ -3124,7 +3126,7 @@ export class ReportEditor {
   }
 
   /**
-   * 「＋ ここに続きを書く」を出す図・表・見出し（なければ null）。
+   * 「＋ 文章の続きを書く」を出す図・表・見出し（なければ null）。
    * 見出し（大見出し・小見出し）は、章のいちばん最後にあるときだけ（見出しの下の空いた所を押して書くと、見出しの続きになっていたため）
    */
   private continueTarget(): ContinueTarget | null {
@@ -3170,7 +3172,7 @@ export class ReportEditor {
     return null
   }
 
-  /** 「＋ ここに続きを書く」を出し直す（紙面・選んでいる物・書いている欄が変わったとき。同じ描画の間に何度呼ばれても1回だけ測る） */
+  /** 「＋ 文章の続きを書く」を出し直す（紙面・選んでいる物・書いている欄が変わったとき。同じ描画の間に何度呼ばれても1回だけ測る） */
   private continueFrame = 0
   private placeContinueRow(): void {
     if (this.continueFrame) return
@@ -3281,7 +3283,7 @@ export class ReportEditor {
     const point = keyHit === undefined ? this.renderer.pageView.offsetFromPoint(x, y) : null
     let hit = keyHit !== undefined ? keyHit : clickedBlock ? { blockId: clickedBlock, offset: point?.blockId === clickedBlock ? point.offset : 0 } : point
     // 押した点が、見出し・図表のタイトルの行より下（その下の空いた所）なら、その欄は開かない。
-    // 近い文字が見出しになり、足したばかりの小見出しの下を押して書くと、見出しの続きになっていた（「素材の選定使う布」）。続きは「＋ ここに続きを書く」から
+    // 近い文字が見出しになり、足したばかりの小見出しの下を押して書くと、見出しの続きになっていた（「素材の選定使う布」）。続きは「＋ 文章の続きを書く」から
     if (hit && !clickedBlock && keyHit === undefined && this.belowLine(hit.blockId, y)) hit = null
     if (hit?.blockId === FIELD_IDS.course || target.closest(`[data-block-id="${FIELD_IDS.course}"]`)) {
       this.callbacks.onCourseClick((target.closest('[data-block-id]') ?? target).getBoundingClientRect())
@@ -5116,8 +5118,18 @@ export class ReportEditor {
    * 範囲にできないとき（表紙・目次にかかるなど）は、ブラウザのふつうのコピーのまま（覚えていたまとまりは忘れる）
    */
   private onCopy(e: ClipboardEvent): void {
-    if (e.defaultPrevented || this.phone) return
-    if (e.target instanceof Node && this.overlay.element.contains(e.target)) return
+    if (this.phone) return
+    // 書く欄は、自分でコピーを受け取る（overlayEditor の onCopyCut。preventDefault する）ので、先に見る
+    if (e.target instanceof Node && this.overlay.element.contains(e.target)) {
+      // 書く欄の中でコピーした（Ctrl+C）：前に紙面でコピーしたまとまりは忘れる。道具・書く欄の近くの「貼り付け」が、
+      // いまコピーした文ではなく、前に紙面でコピーした文を貼っていた（学生の試し 2026-11-01 録画3）。貼り付けは Ctrl+V で
+      if (this.clip) {
+        this.clip = null
+        this.notify()
+      }
+      return
+    }
+    if (e.defaultPrevented) return
     const found = this.paperRange()
     if (!found) {
       if (this.hasPaperSelection()) this.clip = null
