@@ -1041,6 +1041,7 @@ export default function App() {
     <HelpView
       topics={narrow ? STUDENT_TOPICS_TOUCH : STUDENT_TOPICS}
       who="student"
+      aiUrl={config.aiHelpUrl}
       imageBase={STUDENT_HELP_IMAGES}
       guides={[{ label: '学生用', href: STUDENT_GUIDE_PATH }]}
       variant={variant}

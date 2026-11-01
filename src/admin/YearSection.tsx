@@ -92,6 +92,9 @@ export function YearSection({
           <Row label="手順書のリンク" sub="任意" htmlFor="y-handbook" hint="学生のツールの上に「手順書」ボタンで出ます" changed={changed('handbookUrl')} field="handbookUrl">
             <TextInput id="y-handbook" value={draft.handbookUrl ?? ''} onChange={(v) => set({ handbookUrl: v })} placeholder="https://drive.google.com/…" />
           </Row>
+          <Row label="AI に聞くのリンク" sub="任意" htmlFor="y-aiHelp" hint="学生のツールの使い方とメニューに「使い方を AI に聞く」で出ます（NotebookLM のノートブック）" changed={changed('aiHelpUrl')} field="aiHelpUrl">
+            <TextInput id="y-aiHelp" value={draft.aiHelpUrl ?? ''} onChange={(v) => set({ aiHelpUrl: v })} placeholder="https://notebook.google.com/…" />
+          </Row>
         </div>
       </div>
       <div className="card next-year">

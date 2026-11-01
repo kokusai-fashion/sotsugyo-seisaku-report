@@ -848,6 +848,10 @@ body.resizing .page-viewport { pointer-events: none; }
 /* 「？ 使い方」のボタン（右の欄の「バックアップ」の横。スマホはメニューの中。mockups/v27 案A）：藍の字で、ほかのボタンより少し目立たせる */
 .link-btn.help-btn { border-color: #c9cfe6; color: var(--accent); }
 .link-btn.help-btn svg { color: var(--accent); }
+/* スマホのメニューの「使い方を AI に聞く」（mockups/v86） */
+.link-btn.ai-btn { background: #f6f4fb; }
+.link-btn.ai-btn svg:first-child { color: #6a4fc1; }
+.link-btn.ai-btn svg:last-child { width: 13px; height: 13px; }
 /* ① はじめての案内：コースを選ぶ段階の「Word のひな形で書き始めている人へ」と、「Word で書き始めていますか？」の段階 */
 .g-word { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 12px; line-height: 1.7; color: #3f4249; }
 /* コースを選ぶ段階から、バックアップファイルで戻す（mockups/v77 ② 案A） */
@@ -1488,12 +1492,17 @@ button.row { cursor: pointer; }
 .side .menu-btn:hover { border-color: var(--accent); }
 .side .menu-btn[aria-expanded='true'] { background: var(--accent-soft); }
 .side .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.head-menu { position: absolute; z-index: 40; top: calc(100% + 6px); right: -4px; width: 262px; display: grid; gap: 2px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(30, 25, 20, 0.2); }
+/* 幅：「困ったこと・おかしいことを知らせる」が1行に入る幅（262px では「る」だけが次の行に落ちていた。2026-11-01） */
+.head-menu { position: absolute; z-index: 40; top: calc(100% + 6px); right: -4px; width: 290px; display: grid; gap: 2px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(30, 25, 20, 0.2); }
 .head-menu [role='menuitem'] { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: none; font-size: 13.5px; line-height: 1.4; color: var(--ink); text-align: left; text-decoration: none; }
 .head-menu [role='menuitem'] svg { flex: none; width: 17px; height: 17px; color: var(--muted); }
 .head-menu [role='menuitem']:hover, .head-menu [role='menuitem']:focus-visible { background: var(--accent-soft); }
 .head-menu [role='menuitem']:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .head-menu .hm-help, .head-menu .hm-help svg { color: var(--accent); }
+/* 使い方を AI に聞く（mockups/v86 案B）：新しいタブの印を右端に */
+.head-menu .hm-ai > svg { color: #6a4fc1; }
+.head-menu .hm-ai .hm-out { margin-left: auto; display: flex; }
+.head-menu .hm-ai .hm-out svg { width: 14px; height: 14px; }
 .head-menu hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid var(--line); }
 .head-menu small { display: block; font-size: 12px; color: var(--muted); }
 /* コースからのお知らせ・Word から写したあとの「つぎにすること」 */

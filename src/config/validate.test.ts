@@ -137,11 +137,14 @@ describe('崩れた設定（管理ページのサーバーを通らずに書か�
     expect(repairConfig(currentConfig)).toEqual(currentConfig)
   })
 
-  it('手順書のリンクは https:// で始まるものだけ（管理ページではエラー、学生のツールでは出さない）', () => {
+  it('手順書・AI に聞くのリンクは https:// で始まるものだけ（管理ページではエラー、学生のツールでは出さない）', () => {
     for (const bad of ['drive.google.com/file/d/x', 'http://example.com/a', 'javascript:alert(1)', 'https://']) {
       expect(errors({ ...currentConfig, handbookUrl: bad }), bad).toEqual(['handbookUrl'])
       expect(repairConfig({ ...currentConfig, handbookUrl: bad }).handbookUrl, bad).toBeUndefined()
+      expect(errors({ ...currentConfig, aiHelpUrl: bad }), bad).toEqual(['aiHelpUrl'])
+      expect(repairConfig({ ...currentConfig, aiHelpUrl: bad }).aiHelpUrl, bad).toBeUndefined()
     }
+    expect(errors({ ...currentConfig, aiHelpUrl: 'https://notebook.google.com/notebook/x' })).toEqual([])
     const good = { ...currentConfig, handbookUrl: ' https://drive.google.com/file/d/x/view ' }
     expect(errors(good)).toEqual([])
     expect(repairConfig(good).handbookUrl).toBe(good.handbookUrl)

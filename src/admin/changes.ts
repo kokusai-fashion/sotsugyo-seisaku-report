@@ -21,6 +21,7 @@ const TOP_LABELS: [string, string][] = [
   ['commonTitle', '共通の題目'],
   ['deadline', '最終締切'],
   ['handbookUrl', '手順書のリンク'],
+  ['aiHelpUrl', 'AI に聞くのリンク'],
 ]
 const WORDS_LABEL: [string, string] = ['wordChecks', '書き間違えやすい語']
 const DETAIL_LABELS: [string, string][] = [
@@ -70,7 +71,7 @@ function words(value: unknown): unknown {
 
 /** 年度の項目の、意味の同じ書き方をそろえる */
 function normTop(key: string, value: unknown): unknown {
-  if (key === 'handbookUrl') return value === '' ? undefined : value
+  if (key === 'handbookUrl' || key === 'aiHelpUrl') return value === '' ? undefined : value
   if (key === 'driveSave') return value === 'required' ? undefined : value
   if (key === 'studentIdPattern') return value === '' || value === undefined ? null : value
   // 前の版の設定の作品写真の枚数の上限は、もう使わない（ページ数の上限 maxPages に変えた。mockups/v38）。比べない
@@ -163,6 +164,7 @@ const TOP_TARGETS: Record<string, string> = {
   commonTitle: 'y-commonTitle',
   deadline: 'y-deadline',
   handbookUrl: 'y-handbook',
+  aiHelpUrl: 'y-aiHelp',
   reportName: 'd-reportName',
   'cover.heading': 'd-coverHeading',
   'cover.titleLabel': 'd-titleLabel',

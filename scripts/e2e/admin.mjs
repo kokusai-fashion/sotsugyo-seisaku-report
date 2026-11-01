@@ -1514,8 +1514,8 @@ await withEdge(async (browser) => {
   const firstCount = await countScreen(vb)
   await vb.screenshot({ path: `${V43}/1-year-1366.png` })
   check(
-    'はじめの画面に見えるのは、入力欄4・ボタン9〜11・12px以下の字0（mockups/v43 案B の数とほぼ同じ。前の画面は入力欄10・ボタン11。左の見出しの「届いた声」で1つ増えた）',
-    firstCount.fields === 4 && firstCount.buttons >= 9 && firstCount.buttons <= 11 && firstCount.small === 0 && firstCount.chars >= 280 && firstCount.chars <= 430,
+    'はじめの画面に見えるのは、入力欄5・ボタン9〜11・12px以下の字0（mockups/v43 案B の数とほぼ同じ。前の画面は入力欄10・ボタン11。左の見出しの「届いた声」でボタンが1つ、「AI に聞くのリンク」で入力欄が1つ増えた）',
+    firstCount.fields === 5 && firstCount.buttons >= 9 && firstCount.buttons <= 11 && firstCount.small === 0 && firstCount.chars >= 280 && firstCount.chars <= 530,
     JSON.stringify(firstCount),
   )
   /** いま見えている区切り：見出しの数・名前、左の見出しで選ばれている区切り、見本があるか */

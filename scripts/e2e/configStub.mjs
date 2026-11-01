@@ -34,7 +34,9 @@ function answerPost(body) {
   return null
 }
 
-export async function stubConfig(page) {
+/** overrides：設定に足す・変える項目（例：{ aiHelpUrl }） */
+export async function stubConfig(page, overrides = {}) {
+  const served = { ...config, ...overrides }
   await page.setRequestInterception(true)
   page.on('request', (request) => {
     if (/script\.google(usercontent)?\.com/.test(request.url())) {
@@ -43,7 +45,7 @@ export async function stubConfig(page) {
         status: 200,
         contentType: 'application/json',
         headers: { 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify(answer ?? { ok: true, year: config.fiscalYear, config }),
+        body: JSON.stringify(answer ?? { ok: true, year: served.fiscalYear, config: served }),
       })
     }
     return request.continue()

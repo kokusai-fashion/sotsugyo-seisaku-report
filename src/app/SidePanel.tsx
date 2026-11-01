@@ -579,7 +579,7 @@ export function SidePanel({ editor, snap, config, saveState, drive, driveStopped
             <div className="brand-sub">{config.fiscalYear}年度</div>
           </div>
           {/* 使い方・手順書・バックアップと「最初から作り直す」の窓（mockups/v34 案A）・今年度だけ Word の読み込み（mockups/v37 案C） */}
-          <SideMenu handbookUrl={config.handbookUrl} onHelp={onHelp} onBackup={onBackup} onWordImport={onWordImport} onReload={onReload} onFeedback={onFeedback} />
+          <SideMenu handbookUrl={config.handbookUrl} aiHelpUrl={config.aiHelpUrl} onHelp={onHelp} onBackup={onBackup} onWordImport={onWordImport} onReload={onReload} onFeedback={onFeedback} />
         </div>
         <div className="meta">
           {drive ? <DriveChipMenu drive={drive} /> : <SaveChip state={saveState} />}

@@ -75,6 +75,8 @@ export interface YearConfig {
   driveSave?: 'required' | 'off'
   /** その年度の手順書へのリンク（任意） */
   handbookUrl?: string
+  /** 使い方を AI に聞く（NotebookLM のノートブック）へのリンク（任意。入れると、使い方とメニューに「使い方を AI に聞く」が出る。mockups/v86 案A・B） */
+  aiHelpUrl?: string
 }
 
 export interface Course {

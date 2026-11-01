@@ -209,6 +209,7 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
     warning('deadline', `最終締切（${japaneseDate(config.deadline)}）が、${fiscalYear}年度（${fiscalYear}年4月1日〜${fiscalYear + 1}年3月31日）の外です。前の年度の日付のままでないか確かめてください`)
   else if (options.today && config.deadline < options.today) warning('deadline', `最終締切（${japaneseDate(config.deadline)}）が、今日より前です`)
   if (filled(config.handbookUrl) && !isHttpsUrl(config.handbookUrl)) error('handbookUrl', '手順書のリンクは、https:// で始まるアドレスを入れてください（ブラウザの上のアドレスの欄から写します）')
+  if (filled(config.aiHelpUrl) && !isHttpsUrl(config.aiHelpUrl)) error('aiHelpUrl', 'AI に聞くのリンクは、https:// で始まるアドレスを入れてください（NotebookLM の「共有」の「リンクをコピー」で写します）')
   for (const [field, label] of [
     ['reportName', '報告書の名前'],
     ['university', '大学名'],
@@ -336,6 +337,7 @@ export function repairConfig(config: YearConfig): YearConfig {
   if (marginsProblem(config.margins, isObject(config.abstract) ? config.abstract.minLines : undefined)) delete repaired.margins
   // 手順書のリンク：https:// で始まらないものは出さない（「手順書」ボタンを出さない）
   if (filled(config.handbookUrl) && !isHttpsUrl(config.handbookUrl)) delete repaired.handbookUrl
+  if (filled(config.aiHelpUrl) && !isHttpsUrl(config.aiHelpUrl)) delete repaired.aiHelpUrl
   if (wordChecks) repaired.wordChecks = wordChecks
   else delete repaired.wordChecks
   return repaired

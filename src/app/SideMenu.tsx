@@ -4,7 +4,7 @@ import { WordIcon } from './WordImport'
 
 /**
  * PC の右の欄の「≡ メニュー」（mockups/v37 案C）。名前の横に置き、押すと下に開く。
- * 中身は、前に右の欄の上に並べていたもの：「？ 使い方」（いちばん上）・手順書（年度の設定に場所があるときだけ）／
+ * 中身は、前に右の欄の上に並べていたもの：「？ 使い方」（いちばん上）・「使い方を AI に聞く」・手順書（年度の設定に場所があるときだけ）／
  * 「バックアップ・作り直す」・今年度だけ「Word で書いた分を読み込む」。上の物を減らして、セルフチェックを広く見せるため。
  * キーボード：Enter・Space（↓）で開いて最初の項目へ（↑ は最後の項目へ）、↑↓・Home・End・Tab で項目を移り、Esc で閉じてボタンに戻る。
  * ほかの所を押したとき・Tab でメニューの外に出たときも閉じる。スマホは今までどおり（Phone.tsx のメニューの欄）
@@ -13,6 +13,8 @@ import { WordIcon } from './WordImport'
 interface Props {
   /** 手順書の場所（年度の設定。なければ出さない） */
   handbookUrl?: string
+  /** 使い方を AI に聞く場所（年度の設定。なければ出さない。mockups/v86 案B） */
+  aiHelpUrl?: string
   onHelp: () => void
   onBackup: () => void
   /** 今年度だけ：「Word で書いた分を読み込む」。渡したときだけ出す */
@@ -24,11 +26,11 @@ interface Props {
 }
 
 /** ボタンに出す説明（マウスを乗せたとき）。中にあるものの名前 */
-function sideMenuTitle({ handbookUrl, onWordImport }: Pick<Props, 'handbookUrl' | 'onWordImport'>): string {
-  return ['使い方', handbookUrl && '手順書', 'バックアップ・作り直す', onWordImport && 'Word の読み込み'].filter(Boolean).join('・')
+function sideMenuTitle({ handbookUrl, aiHelpUrl, onWordImport }: Pick<Props, 'handbookUrl' | 'aiHelpUrl' | 'onWordImport'>): string {
+  return ['使い方', aiHelpUrl && 'AI に聞く', handbookUrl && '手順書', 'バックアップ・作り直す', onWordImport && 'Word の読み込み'].filter(Boolean).join('・')
 }
 
-export function SideMenu({ handbookUrl, onHelp, onBackup, onWordImport, onReload, onFeedback }: Props) {
+export function SideMenu({ handbookUrl, aiHelpUrl, onHelp, onBackup, onWordImport, onReload, onFeedback }: Props) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -122,7 +124,7 @@ export function SideMenu({ handbookUrl, onHelp, onBackup, onWordImport, onReload
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        title={sideMenuTitle({ handbookUrl, onWordImport })}
+        title={sideMenuTitle({ handbookUrl, aiHelpUrl, onWordImport })}
         onClick={() => setOpen(!open)}
       >
         {Icon.menu}メニュー<span className="caret" aria-hidden="true">▾</span>
@@ -132,6 +134,11 @@ export function SideMenu({ handbookUrl, onHelp, onBackup, onWordImport, onReload
           <button type="button" role="menuitem" className="hm-help" onClick={choose(onHelp)}>
             {Icon.help}使い方
           </button>
+          {aiHelpUrl && (
+            <a role="menuitem" className="hm-ai" href={aiHelpUrl} target="_blank" rel="noreferrer" title="新しいタブで開きます" onClick={() => close(true)}>
+              {Icon.ai}使い方を AI に聞く<span className="hm-out">{Icon.open}</span>
+            </a>
+          )}
           {handbookUrl && (
             <a role="menuitem" href={handbookUrl} target="_blank" rel="noreferrer" title="新しいタブで開きます" onClick={() => close(true)}>
               {Icon.handbook}手順書

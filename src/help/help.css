@@ -22,6 +22,18 @@
 .help-search > svg { position: absolute; left: 10px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .help-clear { position: absolute; right: 5px; top: 50%; width: 28px; height: 28px; transform: translateY(-50%); border: 0; border-radius: 50%; background: var(--chip-bg); color: var(--muted); font-size: 15px; line-height: 1; }
 .help-note { margin: 5px 2px 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+/* 使い方を AI に聞く（mockups/v86 案A。年度の設定に場所があるときだけ） */
+.help-ai { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #f6f4fb; color: var(--ink); text-decoration: none; }
+.help-ai:hover { border-color: #b9addf; }
+.help-ai:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.help-ai svg { display: block; }
+.help-ai-icon { flex: none; color: #6a4fc1; }
+.help-ai-icon svg { width: 18px; height: 18px; }
+.help-ai-text { flex: 1; min-width: 0; line-height: 1.5; }
+.help-ai-text b { display: block; font-size: 13.5px; }
+.help-ai-text small { display: block; font-size: 11.5px; color: var(--muted); }
+.help-ai-out { flex: none; color: var(--muted); }
+.help-ai-out svg { width: 15px; height: 15px; }
 .help-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px 22px; }
 
 /* 項目の一覧（mockups/v51 案C）：書く順に番号を付けたまとまり（help-step）と、いちばん下の「困ったとき」（help-trouble） */

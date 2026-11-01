@@ -892,6 +892,14 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
               }}
             />
           </div>
+          {/* 使い方を AI に聞く（年度の設定に場所があるときだけ。mockups/v86：スマホはメニューの中） */}
+          {config.aiHelpUrl && (
+            <div className="links">
+              <a className="link-btn ai-btn" href={config.aiHelpUrl} target="_blank" rel="noreferrer">
+                {Icon.ai}使い方を AI に聞く{Icon.open}
+              </a>
+            </div>
+          )}
           <WritingZoomToggle />
           {onWordImport && (
             <WordImportLink

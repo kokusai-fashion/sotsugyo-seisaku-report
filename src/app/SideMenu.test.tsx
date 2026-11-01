@@ -17,5 +17,6 @@ describe('右の欄の「≡ メニュー」（mockups/v37 案C）', () => {
     const title = (html: string) => html.match(/title="([^"]*)"/)?.[1]
     expect(title(renderToStaticMarkup(<SideMenu onHelp={noop} onBackup={noop} onWordImport={noop} />))).toBe('使い方・バックアップ・作り直す・Word の読み込み')
     expect(title(renderToStaticMarkup(<SideMenu handbookUrl="https://example.com/handbook" onHelp={noop} onBackup={noop} />))).toBe('使い方・手順書・バックアップ・作り直す')
+    expect(title(renderToStaticMarkup(<SideMenu aiHelpUrl="https://example.com/ai" onHelp={noop} onBackup={noop} />))).toBe('使い方・AI に聞く・バックアップ・作り直す')
   })
 })

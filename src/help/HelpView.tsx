@@ -39,6 +39,8 @@ interface Props {
   onTour?: () => void
   /** 「引用・参考文献」の「引用・参考文献を入れる」：引用・参考文献の窓を開く（学生用ツールだけ。mockups/v35 ①） */
   onReferences?: () => void
+  /** 使い方を AI に聞く場所（学生用ツール。年度の設定にあるときだけ、言葉で探す欄の下に出す。mockups/v86 案A） */
+  aiUrl?: string
 }
 
 /** 使っている端末の、PDF の保存のしかた（印刷の画面が端末によって違う） */
@@ -88,7 +90,7 @@ function Hl({ text: original, terms }: { text: string; terms: string[] }) {
   )
 }
 
-export function HelpView({ topics, who, imageBase, guides, variant, onClose, onTour, onReferences }: Props) {
+export function HelpView({ topics, who, imageBase, guides, variant, onClose, onTour, onReferences, aiUrl }: Props) {
   const [query, setQuery] = useState('')
   const [view, setView] = useState<View>({ kind: 'list' })
   const [device, setDevice] = useState<HelpDevice['id']>(currentDevice)
@@ -190,6 +192,16 @@ export function HelpView({ topics, who, imageBase, guides, variant, onClose, onT
         )}
       </div>
       <p className="help-note">言葉が入っている項目を出します（どこにも送りません）</p>
+      {aiUrl && (
+        <a className="help-ai" href={aiUrl} target="_blank" rel="noreferrer">
+          <span className="help-ai-icon">{Icon.ai}</span>
+          <span className="help-ai-text">
+            <b>使い方を AI に聞く</b>
+            <small>見つからないときは、ふだんの言葉で聞けます（新しいタブで開きます）</small>
+          </span>
+          <span className="help-ai-out">{Icon.open}</span>
+        </a>
+      )}
     </div>
   )
 

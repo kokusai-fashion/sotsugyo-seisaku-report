@@ -153,7 +153,7 @@ const SECTION_TITLES = { year: '年度の設定', course: 'コース', words: '�
 
 /** その誤り（field）を直す区切り（分からなければ null） */
 function sectionOfField(field: string): keyof typeof SECTION_TITLES | null {
-  if (['fiscalYear', 'commonTitle', 'deadline', 'handbookUrl'].includes(field)) return 'year'
+  if (['fiscalYear', 'commonTitle', 'deadline', 'handbookUrl', 'aiHelpUrl'].includes(field)) return 'year'
   if (field.startsWith('courses')) return 'course'
   if (field.startsWith('wordChecks')) return 'words'
   return DETAILS_FIELDS.includes(field) ? 'details' : null
@@ -972,7 +972,7 @@ export function AdminApp() {
   const openIndex = draft.courses.findIndex((c) => c.id === openId)
   // 詳細設定の欄も、欄のすぐ下に出す（前は区切りのいちばん上だけで、下の方の欄では見えなかった：管理ページの試し 2026-10-27）
   const shownAtField = (pr: ConfigProblem) =>
-    (section === 'year' && (pr.field === 'commonTitle' || pr.field === 'deadline' || pr.field === 'handbookUrl')) ||
+    (section === 'year' && (pr.field === 'commonTitle' || pr.field === 'deadline' || pr.field === 'handbookUrl' || pr.field === 'aiHelpUrl')) ||
     (section === 'course' && openIndex >= 0 && pr.field === `courses.${openIndex}`) ||
     (section === 'details' && sectionOfField(pr.field) === 'details')
   // ほかの区切りで直す誤りには、直す区切りを書き添える（コースの区切りに「大学名を入力してください」だけが出て、どこで直すか分からなかった）

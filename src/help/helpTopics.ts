@@ -359,7 +359,7 @@ export const TEACHER_TOPICS: HelpTopic[] = [
       { h: '変更を見る', t: '下の帯の「変更を見る」で、変更前と変更後が分かります。押すと、その欄に移ります。' },
     ],
     shot: { file: 'admin-main.jpg', caption: '年度の設定の画面' },
-    words: 'サブタイトル 締め切り 中間 手順書のリンク',
+    words: 'サブタイトル 締め切り 中間 手順書のリンク AI Gem Gemini NotebookLM AIに聞く',
   },
   {
     id: 't-members',
