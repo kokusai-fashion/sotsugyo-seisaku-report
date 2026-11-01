@@ -10,14 +10,14 @@ export const meta = {
     login: '最初に、大学の Google アカウントでログインします',
     consent: 'Google の確認の画面では、ドライブの項目にチェックを入れて「続行」を押します',
     course: 'はじめに、自分のコースを選びます',
-    word: 'Word で書き始めていなければ、「いいえ」を押します',
-    name: '学籍番号は自動で入ります。光っている欄に氏名を入れて、Enter を押します',
-    subtitle: '続けて、サブタイトルを入れます',
+    word: 'Word で書き始めていなければ、「いいえ、ここから書き始める」を押します',
+    name: '学籍番号は自動で入ります。氏名を入力して、Enter を押します',
+    subtitle: '続けて、サブタイトルを入力します',
     done: 'これで表紙ができました。「閉じる」を押します',
-    tour: 'はじめての人には、画面の各部の案内が出ます。「次へ」で順に見られます',
-    end: '困ったときの「使い方」は、右上の「メニュー」の中です',
-    menu: 'メニューには、使い方・バックアップ・Word の読み込みがあります',
-    help: '「使い方」を押すと、右の欄に使い方が出ます。言葉で探せます',
+    tour: '初めて使うときは、画面の各部分の案内が出ます。「次へ」を押して順に見ます',
+    end: '困ったときの「使い方」は、右上の「メニュー」の中にあります',
+    menu: 'メニューには、「使い方」や「バックアップ・作り直す」などがあります',
+    help: '「使い方」を押すと、右の欄に使い方が出ます。言葉で探すこともできます',
   },
 }
 
@@ -33,7 +33,7 @@ export async function run({ page, rec, h }) {
   await h.moveTo(page, btn.x, btn.y)
   await h.sleep(1500)
   rec.mark('consent')
-  await h.sleep(3500)
+  await h.sleep(4200)
   h.logClick(page, btn.x, btn.y)
   await page.mouse.click(btn.x, btn.y)
   await page.waitForFunction(() => !document.querySelector('.login-over'), { timeout: 60000 })
@@ -50,7 +50,7 @@ export async function run({ page, rec, h }) {
   await page.waitForSelector('.guide.step-word .g-word-opt.no')
   await h.sleep(400)
   rec.mark('word', { focus: await h.rectOf(page, '.g-tip') })
-  await h.sleep(2300)
+  await h.sleep(2700)
   await h.clickEl(page, '.g-word-opt.no', null, { pause: 600 })
 
   // 学籍番号・氏名・サブタイトル
@@ -80,7 +80,7 @@ export async function run({ page, rec, h }) {
   await h.ready(page)
   await h.sleep(400)
   rec.mark('done', { focus: h.union(await h.rectOf(page, CUR), await h.rectOf(page, '.g-tip')) })
-  await h.sleep(2800)
+  await h.sleep(2600)
   await h.clickEl(page, '.g-actions button', '閉じる', { pause: 600 })
 
   // 指差し確認（最後は「？ 使い方」：右上のメニューを指す）
@@ -100,7 +100,7 @@ export async function run({ page, rec, h }) {
     if (next.includes('おわり')) {
       await h.sleep(300)
       rec.mark('end', { focus: h.union(await h.rectOf(page, '.tour .tour-tip'), await h.rectOf(page, '.side .menu-btn')) })
-      await h.sleep(3000)
+      await h.sleep(2600)
       await h.clickEl(page, '.tour-acts .next', null, { pause: 400 })
       break
     }
@@ -125,5 +125,5 @@ export async function run({ page, rec, h }) {
   // 右の欄の上のほう（言葉で探す欄と、はじめの項目）
   const side = await h.rectOf(page, '.side')
   rec.mark('help', { focus: { ...side, h: Math.min(side.h, 380) } })
-  await h.sleep(3200)
+  await h.sleep(2600)
 }

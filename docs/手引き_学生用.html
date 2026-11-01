@@ -68,7 +68,8 @@
   .autos li::before { content: '✓'; color: var(--navy); font-weight: 700; }
 
   /* 早見表：やりたいこと → 押す所（2列） */
-  .lookup { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6mm; margin-top: 4mm; }
+  /* 右の表は少し広く（「困ったこと・おかしいことを知らせる」のボタンで左の列が狭まり、「図を2枚並べる」が2行になっていた） */
+  .lookup { display: grid; grid-template-columns: 1fr 1.12fr; gap: 0 6mm; margin-top: 4mm; }
   .lookup h3 { padding-bottom: 1mm; border-bottom: 0.7mm solid var(--ink); font-size: 12pt; }
   .lookup table { width: 100%; border-collapse: collapse; }
   .lookup td { padding: 1.3mm 1mm; border-bottom: 0.3mm solid var(--line); font-size: 10.5pt; line-height: 1.4; vertical-align: middle; }
@@ -229,7 +230,7 @@
     </div>
   </div>
 
-  <p class="end"><span class="q">?</span><span>くわしくは、ツールの <span class="btn">？ 使い方</span> から（動画も）。</span></p>
+  <p class="end"><span class="q">?</span><span>くわしくは <span class="btn">？ 使い方</span> から（動画も）。その中の <span class="btn">使い方を AI に聞く</span> では、ふだんの言葉で質問できます。</span></p>
 </section>
 
 <script src="guide-images/marks.js"></script>

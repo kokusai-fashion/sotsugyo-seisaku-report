@@ -1,29 +1,32 @@
 // 動画 4：セルフチェックで直す（パソコン）
-// 見本の原稿に、わざと誤り（「見頃」「記事」「です」）を入れてから録る（使い方の画面の写真と同じ文）。
+// 見本「シンドバッド」の「i．ブラウス」の袖の段落（p5。図表の参照のない段落）を、わざと誤り（「見頃」「記事」「です」）を入れた文に
+// 置き換えてから録る（置き換える文は、この動画のために書いたもの。見本の文ではない）。
 // 2026-10-20 の画面：右の欄の「直すところ」の項目を押すと、その場所へ移り、指摘の語のすぐ後ろにカーソルが来る。
-// 学生は、そのまま Backspace で消して、正しい語を打つ（「直す」ボタンはない）
+// 学生は、そのまま Backspace で消して、正しい語を打つ（「直す」ボタンはない）。
+// 「です」など文体の指摘は、項目を押すと語が選ばれた状態になる（2026-10-30 の画面。SELECT_ON_PICK）ので、そのまま「である」と打つ
 export const meta = {
   number: '4',
   label: 'セルフチェックで直す',
   device: 'pc',
   captions: {
     panel: '右の「直すところ」に、書いた文の間違いが出ます',
-    legend: 'エラーは直してから出します。要確認は、確かめて必要なら直します',
-    go: '項目を押すと、その場所へ移ります。直し方は項目の題に書いてあります',
-    fix: 'カーソルは間違いのすぐ後ろ。Backspace で消して、正しい語を打ちます',
-    warn: '要確認の「記事」は、どちらが合うか確かめます。布のことなので「生地」に打ち直します',
-    edit: '「です」も同じように、「である」に打ち直します',
+    legend: '「エラー」は提出の前に必ず直します。「要確認」は、確かめて必要なら直します',
+    go: '項目をクリックすると、その場所へ移ります。直し方は項目に書いてあります',
+    fix: 'カーソルは、間違えた語のすぐ後ろに来ます。Backspace で消して、正しい語を入力します',
+    warn: '「要確認」の「記事」は、ここでは布のことなので、「生地」に直します',
+    edit: '「です」の項目では、語が選ばれた状態になります。そのまま「である」と入力します',
     zero: '直すところが0になりました。これで PDF を書き出せます',
   },
 }
 
-const CHECK_TEXT = '二回目の仮縫いでは、前見頃の丈を2cm短くした。袖の記事が重く、腕が下がって見えたためです。'
-const FIXED_TEXT = '二回目の仮縫いでは、前身頃の丈を2cm短くした。袖の生地が重く、腕が下がって見えたためである。'
+const CHECK_TEXT = '前見頃と袖は、すべて同じ向きに裁断した。光沢のある記事は、布目の向きによって色が違って見えるためです。'
+const FIXED_TEXT = '前身頃と袖は、すべて同じ向きに裁断した。光沢のある生地は、布目の向きによって色が違って見えるためである。'
 
 export async function prepare({ page, h }) {
-  await h.setParagraph(page, 'p7', CHECK_TEXT)
+  await h.setParagraph(page, 'p5', CHECK_TEXT)
   await h.sleep(500)
   await h.ready(page)
+  // はじめは前のページ（使用素材の表）を見せておき、項目を押すと、その場所へ移ることを見せる
   await h.goToBlock(page, 'p3')
   const findings = await page.evaluate(() => window.__editor.getSnapshot().findings.map((f) => `${f.severity}:${f.title}`))
   console.log('  指摘：', findings.join('、'))
@@ -48,10 +51,10 @@ const listArea = async (page, h) => {
   return { x: sec.x, y: top - 8, w: sec.w, h: bottom - top + 8 }
 }
 
-/** 段落 p7 のまわり（上下に少しゆとり） */
+/** 段落 p5 のまわり（上下に少しゆとり） */
 const around = async (page, h) => {
-  const p7 = await h.blockRect(page, 'p7')
-  return { ...p7, y: p7.y - 30, h: p7.h + 60 }
+  const p5 = await h.blockRect(page, 'p5')
+  return { ...p5, y: p5.y - 30, h: p5.h + 60 }
 }
 
 /** 一覧の項目（text を含む）を押す */
@@ -59,7 +62,7 @@ async function pickItem(page, h, text) {
   const item = (await items(page)).find((i) => i.text.includes(text))
   if (!item) throw new Error(`「${text}」の項目が見つかりません`)
   await h.clickAt(page, item.x + 70, item.y + Math.min(24, item.h / 2), { pause: 700 })
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p7', { timeout: 30000 })
+  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p5', { timeout: 30000 })
   await h.sleep(500)
 }
 
@@ -79,7 +82,7 @@ export async function run({ page, rec, h }) {
   rec.mark('panel', { focus: await listArea(page, h) })
   await h.sleep(3000)
   rec.mark('legend', { focus: await h.rectOf(page, '.side .sec.check .sev-legend') })
-  await h.sleep(3000)
+  await h.sleep(4300)
 
   // 2. 項目を押すと、その場所へ移り、「見頃」のすぐ後ろにカーソルが来る
   rec.mark('go', { focus: await listArea(page, h) })
@@ -89,7 +92,7 @@ export async function run({ page, rec, h }) {
   await h.sleep(300)
   // 打ち直す間は、段落に寄る（カーソルと打った字が見えるように）。項目を押すときは、右の一覧に戻る
   rec.mark('fix', { focus: await around(page, h) })
-  await h.sleep(2800)
+  await h.sleep(3300)
   await retype(page, h, 2, '身頃')
 
   // 3. 要確認：「記事」→「生地」
@@ -106,13 +109,13 @@ export async function run({ page, rec, h }) {
   await pickItem(page, h, 'です')
   rec.mark('editFix', { focus: await around(page, h) })
   await h.sleep(1300)
-  await retype(page, h, 2, 'である')
+  await retype(page, h, 0, 'である')
   await page.keyboard.press('Escape')
   await h.ready(page)
   await h.sleep(400)
 
   // 書き直した文が思ったとおりか（違えば、録り直しが要る）
-  const text = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'p7').content.map((n) => n.text ?? '').join(''))
+  const text = await h.paragraphText(page, 'p5')
   if (text !== FIXED_TEXT) throw new Error(`書き直した文が違います：${text}`)
 
   // 5. 0件

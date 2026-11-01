@@ -10,17 +10,19 @@
 //   4. PDF を public/guides/（student-guide.pdf・teacher-guide.pdf（先生用）・admin-guide.pdf（管理者用））に写す（GitHub Pages で公開される）
 // 使い方: node scripts/make-guides.mjs            … 画面を撮り直して PDF を作る（開発サーバーが http://localhost:5173 で動いていること）
 //         node scripts/make-guides.mjs --pdf-only … HTML の文だけを直したあと、PDF だけ作り直す（画面は撮り直さない）
+//   自動テスト用にまとめた版（dist-e2e）で撮るとき：scripts/e2e/serveBuilt.mjs で出して（PORT=4241 node scripts/e2e/serveBuilt.mjs）、
+//   APP_URL=http://localhost:4241 node scripts/make-guides.mjs（ページの中の部品は window.__import で読むので、どちらでも動く）
 //   SHOTS=student（学生用ツール。スマホも）／SHOTS=admin（管理ページ） node scripts/make-guides.mjs … 画面の画像を一部だけ撮り直す
-//   Edge は EDGE_PORT（ふだんは 9364）で起動する（ほかの確かめと同時に動かしてもぶつからないように）
+//   Edge は EDGE_PORT（ふだんは 9364）で起動する（ほかの確かめと同時に動かしてもぶつからないように）。
+//   書き出した PDF を画像にするときは、この中で小さなサーバーを立てる（ポートは PDF_VIEW_PORT。なければ空いているポート）
 //
-// 見本の原稿：衣装コースの学生が書いた想定（人名・学籍番号・メールアドレスは架空）。本物の Google にはつながない
-// （学生用ツールは Google のログインとドライブを偽物 scripts/e2e/fakeGoogle.mjs に差し替え、管理ページは試験版）。
-// 見本の原稿の画像（デザイン画・作品写真・生地見本など）は、依頼者が画像生成で作って「../手引き用の画像/」に置く
-// （ファイル名はそのフォルダの「作る画像の一覧と指示文.md」。png でも jpg でもよい）。あればツールと同じ読み込みで縮めて見本の原稿に入れ、
-// 縮めたものを docs/guide-images/sample/ に写す。ないものは仮の絵で撮る。
-// 画像が届いたら、node scripts/make-guides.mjs だけで作り直せる。
+// 見本の原稿：衣装コースの学生（架空の文化花子・00ZZ0123）の「シンドバッド」（2026-11-01 に組み立てを見直したもの。
+// scripts/e2e/sampleSinbad.mjs：文は git に入れない gas/trial-sample.private.json から読み、写真は public/trial/ のもの）。
+// 本物の Google にはつながない（学生用ツールは Google のログインとドライブを偽物 scripts/e2e/fakeGoogle.mjs に差し替え、管理ページは試験版）。
+// （前の見本の原稿と、その写真 docs/guide-images/sample/ は、自動テストの見本 scripts/e2e/sampleReport.mjs が使う）
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { createServer } from 'node:http'
+import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import QRCode from 'qrcode'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
@@ -30,14 +32,12 @@ import { showPhoneKeyboard } from './phoneKeyboard.mjs'
 process.env.EDGE_PORT ??= '9364'
 const { withEdge } = await import('./poc/edge.mjs')
 const { fakeDrive, routeGoogle } = await import('./e2e/fakeGoogle.mjs')
+const { sinbadSample, setupSinbad, sampleText } = await import('./e2e/sampleSinbad.mjs')
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 /** 学生に配るツールの URL（QR コードにする。GitHub のリポジトリを移したら、ここと HTML の URL を直す） */
 const TOOL_URL = 'https://kokusai-fashion.github.io/sotsugyo-seisaku-report/'
 const IMG = 'docs/guide-images'
-const SAMPLE_OUT = `${IMG}/sample`
-/** 依頼者が作る見本の画像の置き場所（公開のリポジトリの外） */
-const SAMPLE_IN = resolve('..', '手引き用の画像')
 const GUIDES = [
   // 学生用は両面1枚の、具体的な使い方の版（表：はじめてから提出まで・画面の地図・自動で入るもの／裏：早見表・図と表の入れ方・スマホ）。
   // 依頼者の選択 2026-10-23：クラスルームで配る手引きは、この版にする
@@ -54,8 +54,11 @@ const DRAFTS = []
 const MIN_PT = 10.5
 const MIN_EXEMPT = '.folio, .edge, .hero-top, .kick2, .year, .shot .mk, .lh .k'
 /** 1ページの文字数の上限（学生は長い文を読まないため）。数えるのは、ひらがな・カタカナ・漢字と全角の記号（英数字・URL は数えない） */
-// 1ページの字数の目安（依頼者の決まりではなく、軽く読める量の目安。少し超えるのはよい：依頼者 2026-10-26）
+// 1ページの字数の目安（依頼者の決まりではなく、軽く読める量の目安。少し超えるのはよい：依頼者 2026-10-26）。
+// MAX_CHARS を超えたら知らせるだけにし、MAX_CHARS_HARD を超えたら失敗にする（学生用の裏は、2026-11-01 に「困った・おかしい」の行と
+// 「使い方を AI に聞く」の一文が入って 433字）
 const MAX_CHARS = 400
+const MAX_CHARS_HARD = 450
 const JP = /[\u3000-\u30ff\u4e00-\u9fff\uff00-\uffef]/g
 const pdfOnly = process.argv.includes('--pdf-only')
 /** --draft：試作の手引き（DRAFTS）だけを PDF にする（ふだんの手引きは作らない） */
@@ -73,344 +76,37 @@ mkdirSync('poc-output/guides', { recursive: true })
 mkdirSync('public/guides', { recursive: true })
 
 // =====================================================================
-// 見本の原稿の画像
+// 見本の原稿「シンドバッド」（scripts/e2e/sampleSinbad.mjs。文は git に入れないファイルから読み、ここには書き写さない）
 // =====================================================================
 
-/**
- * 見本の原稿に使う画像。file：依頼者が作る画像のファイル名（拡張子は png・jpg・jpeg・webp のどれでもよい。同じ名前なら png を先に使う）。
- * max：見本の原稿に入れるときの長い辺（px。手引きに写る大きさには十分で、軽くなるように）。w・h：ない（まだ届いていない）ときに描く仮の絵の大きさ（一覧の形と同じ縦横の比）
- */
-const SAMPLE_IMAGES = [
-  { id: 'g-design', file: 'design', max: 1200, w: 900, h: 1200, what: 'デザイン画' },
-  { id: 'g-mood', file: 'moodboard', max: 1200, w: 1200, h: 900, what: 'イメージボード' },
-  { id: 'g-process', file: 'process', max: 1200, w: 1200, h: 900, what: '制作過程（袖の刺繍）' },
-  { id: 'g-photo1', file: 'photo-1', max: 1200, w: 900, h: 1200, what: '作品写真' },
-  { id: 'g-satin', file: 'swatch-satin', max: 800, w: 400, h: 400, what: '生地見本（コットンサテン）' },
-  { id: 'g-chiffon', file: 'swatch-chiffon', max: 800, w: 400, h: 400, what: '生地見本（シルクシフォン）' },
-  { id: 'g-broad', file: 'swatch-broad', max: 800, w: 400, h: 400, what: '生地見本（コットンブロード）' },
-]
-
-/** 依頼者の画像があれば読み込む（data: URL）。なければ data: null（ページの中で仮の絵を描く） */
-function loadSampleImages() {
-  const found = []
-  const list = SAMPLE_IMAGES.map((s) => {
-    const ext = ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG', '.webp'].find((e) => existsSync(join(SAMPLE_IN, s.file + e)))
-    if (!ext) return { ...s, data: null }
-    found.push(s.file + ext)
-    const type = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }[ext.toLowerCase()]
-    return { ...s, data: `data:${type};base64,${readFileSync(join(SAMPLE_IN, s.file + ext)).toString('base64')}` }
-  })
-  const missing = SAMPLE_IMAGES.filter((s) => !list.find((x) => x.id === s.id).data).map((s) => s.file)
-  console.log(found.length ? `  見本の画像：${found.join('・')}${missing.length ? `（まだないもの ${missing.join('・')} は仮の絵）` : ''}` : `  見本の画像：${SAMPLE_IN} にないので、仮の絵で撮ります`)
-  return list
-}
+/** 見本の原稿（{ report, images }）。ログインしてコースを選んだあとの学生用ツールで page.evaluate(setupSinbad, SAMPLE) */
+const SAMPLE = sinbadSample()
 
 /**
- * 見本の原稿に入れた依頼者の画像（ツールの読み込みで縮めたもの）を、docs/guide-images/sample/ に写す（公開してよいと依頼者が了承済み）。
- * 元の大きな画像ではなく、長い辺を max（図・作品写真 1200px、生地見本 800px）に縮め、画質 0.8 の JPEG にしたものを置く（リポジトリを重くしないため）
+ * 「セルフチェック」の画像のために、わざと入れる誤り（「見頃」「記事」「です」）。
+ * 図・表を参照していない段落（CHECK_ID：ブラウスの袖の段落）に入れる（ほかの指摘が出ないように）。撮ったら、もとの中身に戻す
  */
-function saveSampleImages(saved) {
-  if (!saved.length) return
-  mkdirSync(SAMPLE_OUT, { recursive: true })
-  for (const { file, base64 } of saved) writeFileSync(join(SAMPLE_OUT, `${file}.jpg`), Buffer.from(base64, 'base64'))
-  console.log(`  使った見本の画像を ${SAMPLE_OUT}/ に写しました（${saved.map((s) => `${s.file}.jpg`).join('・')}）`)
-}
-
-/**
- * ページの中で、見本の画像を用意する。依頼者の画像は、ツールで写真を選んだときと同じ読み込み（src/model/images.ts の importImage：
- * 長い辺を縮めて JPEG にする。長い辺は SAMPLE_IMAGES の max）を通す。ないものは仮の絵を描く。
- * 仮の絵は、依頼者の画像と同じ構成（デザイン画・イメージボード・制作過程・作品写真1枚・生地見本3つ）
- */
-async function prepareImages(list) {
-  const { importImage } = await import('/src/model/images.ts')
-  const toBlob = (c) => new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9))
-  // 人の形（デザイン画は白い紙に描いた絵、作品写真は濃い紺の背景で頭のないボディに着せたもの）
-  const figure = (g, w, h, { photo }) => {
-    const cx = w / 2
-    const u = h / 100
-    if (photo) {
-      const grd = g.createRadialGradient(cx, h * 0.42, h * 0.05, cx, h * 0.5, h * 0.7)
-      grd.addColorStop(0, '#2c3a66')
-      grd.addColorStop(1, '#0d1430')
-      g.fillStyle = grd
-      g.fillRect(0, 0, w, h)
-      g.fillStyle = 'rgba(0,0,0,0.35)'
-      g.beginPath(); g.ellipse(cx, 92 * u, 20 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill()
-      // ボディの台
-      g.fillStyle = '#6b5a45'
-      g.fillRect(cx - 0.8 * u, 86 * u, 1.6 * u, 6 * u)
-    } else {
-      g.fillStyle = '#fbfaf6'
-      g.fillRect(0, 0, w, h)
-    }
-    const alpha = photo ? 1 : 0.88
-    g.globalAlpha = alpha
-    // 袖（大きく膨らむ）
-    g.fillStyle = '#26407a'
-    g.beginPath(); g.ellipse(cx - 15 * u, 36 * u, 7 * u, 13 * u, 0.4, 0, Math.PI * 2); g.fill()
-    g.beginPath(); g.ellipse(cx + 15 * u, 36 * u, 7 * u, 13 * u, -0.4, 0, Math.PI * 2); g.fill()
-    // 袖の波の刺繍
-    g.strokeStyle = '#d6aa45'
-    g.lineWidth = 0.5 * u
-    for (const side of [-1, 1]) {
-      g.beginPath()
-      for (let t = 0; t <= 1; t += 0.05) g.lineTo(cx + side * (11 + t * 8) * u, (40 + Math.sin(t * 12) * 1.2) * u)
-      g.stroke()
-    }
-    // 胴
-    g.fillStyle = '#26407a'
-    g.beginPath(); g.moveTo(cx - 9 * u, 22 * u); g.lineTo(cx + 9 * u, 22 * u); g.lineTo(cx + 12 * u, 50 * u); g.lineTo(cx - 12 * u, 50 * u); g.closePath(); g.fill()
-    // 帯（からし色）
-    g.fillStyle = '#d6a131'
-    g.fillRect(cx - 12.5 * u, 46 * u, 25 * u, 6 * u)
-    g.beginPath(); g.moveTo(cx + 6 * u, 51 * u); g.lineTo(cx + 9 * u, 62 * u); g.lineTo(cx + 5 * u, 62 * u); g.closePath(); g.fill()
-    // ズボン（生成り）
-    g.fillStyle = '#efe7d4'
-    g.beginPath(); g.moveTo(cx - 12 * u, 52 * u); g.lineTo(cx + 12 * u, 52 * u); g.lineTo(cx + 9 * u, 86 * u); g.lineTo(cx + 2 * u, 86 * u); g.lineTo(cx, 62 * u); g.lineTo(cx - 2 * u, 86 * u); g.lineTo(cx - 9 * u, 86 * u); g.closePath(); g.fill()
-    g.globalAlpha = 1
-    if (photo) {
-      // 頭のないボディ：首の台
-      g.fillStyle = '#d9cdb8'
-      g.fillRect(cx - 2.6 * u, 16 * u, 5.2 * u, 6.5 * u)
-    } else {
-      // デザイン画：頭と帽子、輪郭の線、紙の端の色
-      g.fillStyle = '#ead2b8'
-      g.beginPath(); g.arc(cx, 15 * u, 5 * u, 0, Math.PI * 2); g.fill()
-      g.fillStyle = '#d6a131'
-      g.beginPath(); g.ellipse(cx, 11.5 * u, 6 * u, 3.6 * u, 0, Math.PI, 0); g.fill()
-      g.strokeStyle = 'rgba(40,40,50,0.55)'
-      g.lineWidth = 0.25 * u
-      g.strokeRect(cx - 12.5 * u, 46 * u, 25 * u, 6 * u)
-      g.beginPath(); g.moveTo(cx - 9 * u, 22 * u); g.lineTo(cx - 12 * u, 50 * u); g.moveTo(cx + 9 * u, 22 * u); g.lineTo(cx + 12 * u, 50 * u); g.stroke()
-    }
-  }
-  const board = (g, w, h) => {
-    g.fillStyle = '#f6f3ec'
-    g.fillRect(0, 0, w, h)
-    const block = (x, y, bw, bh, color, rot = 0) => {
-      g.save(); g.translate(x + bw / 2, y + bh / 2); g.rotate(rot)
-      g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(-bw / 2 + 6, -bh / 2 + 8, bw, bh)
-      g.fillStyle = color; g.fillRect(-bw / 2, -bh / 2, bw, bh)
-      g.restore()
-    }
-    block(60, 60, 480, 360, '#26407a', -0.02)
-    block(580, 70, 260, 200, '#d6a131', 0.03)
-    block(870, 60, 270, 220, '#e8dcc0', -0.04)
-    block(590, 310, 550, 170, '#7fb0cf', 0.01)
-    block(60, 470, 320, 360, '#d9c7a4', 0.02)
-    block(410, 520, 380, 300, '#1c2a52', -0.03)
-    block(830, 520, 310, 310, '#efe7d6', 0.04)
-    g.strokeStyle = 'rgba(255,255,255,0.75)'
-    g.lineWidth = 8
-    for (let k = 0; k < 4; k++) {
-      g.beginPath()
-      for (let x = 90; x <= 510; x += 10) g.lineTo(x, 140 + k * 70 + Math.sin(x / 30) * 16)
-      g.stroke()
-    }
-    g.strokeStyle = 'rgba(214,161,49,0.95)'
-    g.lineWidth = 7
-    g.beginPath()
-    for (let x = 440; x <= 760; x += 10) g.lineTo(x, 660 + Math.sin(x / 24) * 22)
-    g.stroke()
-    // ロープ
-    g.strokeStyle = '#b48a55'
-    g.lineWidth = 12
-    g.beginPath(); g.arc(990, 680, 90, 0.3, Math.PI * 1.7); g.stroke()
-  }
-  const process = (g, w, h) => {
-    const grd = g.createLinearGradient(0, 0, w, h)
-    grd.addColorStop(0, '#9c8466')
-    grd.addColorStop(1, '#6f5b44')
-    g.fillStyle = grd
-    g.fillRect(0, 0, w, h)
-    // 藍の布
-    g.fillStyle = '#22396e'
-    g.beginPath(); g.moveTo(80, 120); g.lineTo(1120, 60); g.lineTo(1150, 840); g.lineTo(60, 860); g.closePath(); g.fill()
-    // 刺繍枠
-    g.strokeStyle = '#c99a5b'
-    g.lineWidth = 30
-    g.beginPath(); g.arc(600, 450, 290, 0, Math.PI * 2); g.stroke()
-    g.strokeStyle = '#a77b43'
-    g.lineWidth = 6
-    g.beginPath(); g.arc(600, 450, 308, 0, Math.PI * 2); g.stroke()
-    // 金の波（刺繍の途中）
-    g.strokeStyle = '#e0b552'
-    g.lineWidth = 9
-    for (let k = 0; k < 3; k++) {
-      g.beginPath()
-      const end = k === 2 ? 640 : 800
-      for (let x = 380; x <= end; x += 8) g.lineTo(x, 360 + k * 90 + Math.sin(x / 26) * 22)
-      g.stroke()
-    }
-    // 糸と針
-    g.strokeStyle = 'rgba(224,181,82,0.9)'
-    g.lineWidth = 3
-    g.beginPath(); g.moveTo(640, 545); g.quadraticCurveTo(820, 520, 930, 640); g.stroke()
-    g.strokeStyle = '#d8d8d8'
-    g.lineWidth = 4
-    g.beginPath(); g.moveTo(930, 640); g.lineTo(1010, 720); g.stroke()
-  }
-  const swatch = (base, line, sheen) => (g, w, h) => {
-    g.fillStyle = '#fbfaf7'
-    g.fillRect(0, 0, w, h)
-    const m = w * 0.1
-    // ピンキングの縁
-    g.fillStyle = base
-    g.beginPath()
-    const z = w / 40
-    for (let x = m; x <= w - m; x += z) g.lineTo(x, m + ((x / z) % 2 < 1 ? 0 : z * 0.6))
-    for (let y = m; y <= h - m; y += z) g.lineTo(w - m - ((y / z) % 2 < 1 ? 0 : z * 0.6), y)
-    for (let x = w - m; x >= m; x -= z) g.lineTo(x, h - m - ((x / z) % 2 < 1 ? 0 : z * 0.6))
-    for (let y = h - m; y >= m; y -= z) g.lineTo(m + ((y / z) % 2 < 1 ? 0 : z * 0.6), y)
-    g.closePath(); g.fill()
-    if (sheen) {
-      const grd = g.createLinearGradient(m, m, w - m, h - m)
-      grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(0.45, sheen); grd.addColorStop(0.6, 'rgba(255,255,255,0)')
-      g.fillStyle = grd
-      g.fillRect(m, m, w - 2 * m, h - 2 * m)
-    }
-    g.strokeStyle = line
-    g.lineWidth = 1
-    for (let x = m; x < w - m; x += 3) { g.beginPath(); g.moveTo(x, m); g.lineTo(x, h - m); g.stroke() }
-  }
-  const DRAW = {
-    'g-design': (g, w, h) => figure(g, w, h, { photo: false }),
-    'g-mood': board,
-    'g-process': process,
-    'g-photo1': (g, w, h) => figure(g, w, h, { photo: true }),
-    'g-satin': swatch('#22396e', 'rgba(255,255,255,0.05)', 'rgba(255,255,255,0.28)'),
-    'g-chiffon': swatch('rgba(236,228,206,0.85)', 'rgba(0,0,0,0.04)', null),
-    'g-broad': swatch('#efe6d2', 'rgba(0,0,0,0.05)', null),
-  }
-  const made = []
-  for (const s of list) {
-    if (s.data) {
-      const file = await (await fetch(s.data)).blob()
-      made.push(await importImage(file, s.id, s.max))
-      continue
-    }
-    const c = document.createElement('canvas')
-    c.width = s.w
-    c.height = s.h
-    DRAW[s.id](c.getContext('2d'), s.w, s.h)
-    made.push({ id: s.id, blob: await toBlob(c), widthPx: c.width, heightPx: c.height })
-  }
-  window.__editor.addImages(made)
-  // 依頼者の画像を縮めたもの（docs/guide-images/sample/ に写す）
-  const base64 = (blob) =>
-    new Promise((r) => {
-      const fr = new FileReader()
-      fr.onload = () => r(String(fr.result).split(',')[1])
-      fr.readAsDataURL(blob)
-    })
-  const saved = []
-  // 元の画像から、長い辺 max・画質 0.8 で作り直す（リポジトリに置くので軽く）
-  for (const s of list) {
-    if (!s.data) continue
-    const bitmap = await createImageBitmap(await (await fetch(s.data)).blob())
-    const k = Math.min(1, s.max / Math.max(bitmap.width, bitmap.height))
-    const c = new OffscreenCanvas(Math.round(bitmap.width * k), Math.round(bitmap.height * k))
-    const g = c.getContext('2d')
-    g.fillStyle = '#fff'
-    g.fillRect(0, 0, c.width, c.height)
-    g.drawImage(bitmap, 0, 0, c.width, c.height)
-    saved.push({ file: s.file, base64: await base64(await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })) })
-  }
-  return saved
-}
-
-// =====================================================================
-// 見本の原稿（実際の報告書に近い形：本文5ページ以上・図3枚・素材表・作品写真1枚・抄録）
-// =====================================================================
-
-/** 「セルフチェック」の画像のために、わざと入れる誤り（「見頃」「記事」「です」） */
-const CHECK_TEXT = '二回目の仮縫いでは、前見頃の丈を2cm短くした。袖の記事が重く、腕が下がって見えたためです。'
-/** その段落（p7）のもとの文（セルフチェックの画像を撮ったら戻す） */
-const P7 = '二回目の仮縫いでは、実際に舞台の上で歩いたり腕を回したりして、動きやすさを確かめた。客席から見たときに袖の膨らみが十分に伝わるかも、離れた位置から確認した。'
-
-/** ページの中で、見本の原稿にする（setupReport）。started：抄録を書き始めているか */
-async function setupReport({ started = true } = {}) {
-  const { fromMaterialTable } = await import('/src/model/table.ts')
-  const r0 = window.__editor.getSnapshot().report
-  const t = (text) => ({ type: 'text', text })
-  const ref = (targetId, withParens = true) => ({ type: 'ref', targetId, withParens })
-  const p = (id, ...content) => ({ type: 'paragraph', id, content: content.map((c) => (typeof c === 'string' ? t(c) : c)) })
-  const sub = (id, title) => ({ type: 'subheading', id, title })
-  const fig = (rowId, id, imageId, caption) => ({ type: 'figureRow', id: rowId, figures: [{ id, imageId, caption }] })
-  window.__editor.replace({
-    ...r0,
-    basicInfo: { studentId: '00ZZ0123', name: '文化　花子', courseId: 'film-stage-costume', subtitleInput: 'シンドバッド' },
-    abstract: {
-      started,
-      paragraphs: [
-        p('a1', '本制作報告書は、卒業イベント「シンドバッド」において、筆者が担当した主人公シンドバッドの衣装の制作についてまとめたものである。シンドバッドは七つの航海を経て成長していく人物であり、本制作では、旅立ちの場面の若々しさと、帰還の場面の頼もしさの両方を、一着の衣装で表すことを目標とした。'),
-        p('a2', 'デザインは、中東の伝統的な装いをもとに、航海の力強さと冒険心を表すことを考えた。袖は風をはらむように大きく膨らませ、腰には幅の広い帯を巻いた。配色は海の青と砂の金を軸とし、袖には波の模様を金の糸で刺繍した。素材は、光沢のあるコットンサテンを中心に、透けるシルクシフォンを重ねて、照明の当たり方で表情が変わるようにした。'),
-        p('a3', '制作では、二回の仮縫いで動きやすさを確かめた。一回目は袖の膨らみが大きすぎ、腕を上げると肩が引きつれたため、袖山を下げて袖幅を細くした。二回目は舞台の上で歩いたり腕を回したりして、客席からの見え方も確かめた。刺繍は図案を何度も描き直し、離れた客席からでも波の形が分かる大きさに決めた。袖の重ね布は、腕を下ろしたときに広がりすぎないよう、端に細いテープを入れて形を整えた。'),
-        p('a4', '本番では、照明の下で袖の刺繍が光り、主人公の動きを大きく見せることができた。客席からも、袖が揺れる様子が印象に残ったという声が多く寄せられた。一方で、帯の結び目が大きく、場面転換の早替えに時間がかかるという課題が残った。今後は、見た目の美しさだけでなく、着脱のしやすさも初めから考えたデザインを心がけたい。'),
-      ],
-    },
-    body: [
-      {
-        id: 'c1',
-        title: '企画・立案',
-        blocks: [
-          sub('s1', '担当衣装のキャラクター'),
-          p('p1', '筆者が担当したのは、物語の主人公である船乗りシンドバッドの衣装である。シンドバッドは七つの航海を経て成長していく人物であり、場面ごとに異なる表情を見せる。'),
-          p('p2', '本制作では、旅立ちの場面の若々しさと、帰還の場面の頼もしさの両方を、一着の衣装で表すことを目標とした。そのため、色や形で年齢を強く感じさせるのではなく、動きの大きさと素材の光り方で印象を変えられるように考えた。'),
-          sub('s2', 'デザイン説明'),
-          p('p3', '中東の伝統的な装いをもとに、航海の力強さと冒険心を表すデザインを考えた', ref('f1'), '。キーワードは自由、勇気、海である。'),
-          fig('r1', 'f1', 'g-design', 'デザイン画'),
-          p('p4', '袖は風をはらむように大きく膨らませた。腰には幅の広い帯を巻き、袖には波の模様を刺繍で入れた。配色は海の青と砂の金を軸とし、ズボンには生成りを合わせて全体を軽く見せた。'),
-          p('p4b', '配色と素材は、海と砂漠の写真や布の切れ端を集めたイメージボードをもとに決めた', ref('f2'), '。藍色の濃さは、照明の下でも黒く沈まないものを選んだ。'),
-          fig('r2', 'f2', 'g-mood', 'イメージボード'),
-          sub('s3', '使用素材'),
-          p('p5', ref('t1', false), 'に使用した素材をまとめる。'),
-          fromMaterialTable({
-            id: 't1',
-            caption: '使用素材表',
-            rows: [
-              { id: 'm1', name: 'コットンサテン', usage: 'ブラウス', swatchImageId: 'g-satin' },
-              { id: 'm2', name: 'シルクシフォン', usage: '袖の重ね布', swatchImageId: 'g-chiffon' },
-              { id: 'm3', name: 'コットンブロード', usage: 'ズボン', swatchImageId: 'g-broad' },
-            ],
-          }),
-          p('p5b', 'ブラウスには、やわらかい光沢のあるコットンサテンを使った。照明が当たると表面が光り、袖の動きが客席からも分かりやすくなる。袖の重ね布には透けるシルクシフォンを使い、腕を動かしたときに風に揺れるように見せた。ズボンは、張りがあって動きやすいコットンブロードで仕立てた。'),
-        ],
-      },
-      {
-        id: 'c2',
-        title: '制作過程',
-        blocks: [
-          sub('s4', 'パターンと仮縫い'),
-          p('p6', 'デザイン画をもとにパターンを引き、シーチングで仮縫いをした。一回目の仮縫いでは、袖の膨らみが大きすぎて、腕を上げたときに肩が引きつれた。そこで袖山を3cm下げ、袖幅も細くした。'),
-          p('p7', '二回目の仮縫いでは、実際に舞台の上で歩いたり腕を回したりして、動きやすさを確かめた。客席から見たときに袖の膨らみが十分に伝わるかも、離れた位置から確認した。'),
-          sub('s5', '袖の刺繍'),
-          p('p8', '袖には、海の波を表す模様を金の糸で刺繍した', ref('f3'), '。図案は実物大に描いて袖に写し、刺繍枠に張ってから一針ずつ刺した。'),
-          fig('r3', 'f3', 'g-process', '袖の刺繍'),
-          p('p9', '最初の図案は波が細かすぎて、離れると模様が見えなかった。そこで波の数を減らし、一つ一つの波を大きく描き直した。糸は、照明の下で強く光りすぎないよう、つやを抑えた金色を選んだ。'),
-          p('p10', '刺繍には片袖でおよそ20時間かかった。両袖の模様がそろうよう、型紙に印を付けて位置を合わせた。刺し終えたあとは、裏に薄い接着芯を貼り、着たときに糸が引っかからないようにした。'),
-          sub('s6', '帯とズボン'),
-          p('p11', '帯は、からし色の布を幅15cmの筒に縫い、腰に二重に巻いて後ろで結んだ。結び目が大きく見えるよう、端に重さのある房を付けた。房は動いたときに揺れて、舞台の上で動きを強調する役割も果たした。'),
-          p('p12', 'ズボンは、裾に向かって細くなる形にし、裾口にゴムを入れて動きやすくした。股上を深くとり、しゃがんだり飛び跳ねたりしても突っ張らないようにした。'),
-          sub('s7', '仕上げ'),
-          p('p13', '最後に全体をアイロンで整え、本番と同じ照明の下で色の見え方を確かめた。袖の刺繍が客席の後ろからも光って見えることを確かめ、完成とした。'),
-        ],
-      },
-      {
-        id: 'c3',
-        title: 'まとめ',
-        blocks: [
-          p('p14', '本制作では、主人公の成長を一着の衣装で表すことを目標とした。袖の大きな膨らみと金の刺繍によって、旅立ちの若々しさと帰還の頼もしさの両方を表すことができた。'),
-          p('p15', '一方で、帯の結び目が大きく、場面転換の早替えに時間がかかるという課題が残った。今後は、見た目の美しさだけでなく、着脱のしやすさも初めから考えたデザインを心がけたい。'),
-          p('p16', '制作を通して、舞台衣装は客席からの見え方と演者の動きやすさの両方を考える必要があることを学んだ。この経験を、今後の衣装制作に生かしたい。'),
-        ],
-      },
-    ],
-    references: [],
-    workPhotos: [{ layout: 1, imageIds: ['g-photo1'] }],
-    acknowledged: [],
-  })
-}
+const CHECK_ID = 'p5'
+// 段落の最初の文は見本のまま（実行のときに読む）。そのあとに、誤りを入れた文を足す
+const CHECK_TEXT = sampleText(SAMPLE, CHECK_ID).split('。')[0] + '。袖の内側には軽いシルクシフォンを重ねた。袖の記事が重いと、前見頃が引っ張られて形が崩れるためです。'
+/** 書いているところ・画面全体・スマホで書くところを撮る段落（デザイン説明。すぐ下にデザイン画） */
+const WRITE_ID = 'p2'
+/** 別の端末（スマホ）で書き足す段落と、そのあとパソコンで書き足す段落（まとめ）。書き足す文は、見本の原稿の段落の後ろに付ける */
+const PHONE_ID = 'p14'
+const PC_ID = 'p13'
+const PC_ADD = '着替えの順番は、紙にまとめて楽屋の壁に貼った。'
+const PC_ADD2 = '次の公演では、留め具をはじめから付けておきたい。'
+/** 図の入れ方の3コマ：本文の最初の段落（担当衣装のキャラクター）の終わりに入れる写真（public/trial/）と、打つタイトル */
+const FIGURE_FILE = 'public/trial/w-stage.jpg'
+const FIGURE_CAPTION = '劇中のシンドバッド'
+/** 薄い字（ひな形の「何を書くか」）の段落を仮に足す場所（この段落のすぐ後ろ。デザイン説明）と、その説明 */
+const HINT_AFTER = 'p2'
+const HINT_TEXT = 'デザインのもとにした資料と、そこから取り入れたところを書く'
+/** 紙面をなぞって選ぶ、図をはさまずに続いた2つの段落（ブラウスの最初の2段落） */
+const RANGE_FROM = 'p4'
+const RANGE_TO = 'p5'
+/** 図を押したときの道具を撮る図（ブラウス前・後ろの2枚並び r2 の左。すぐ下に袖の刺繍の図が続く） */
+const TOOLS_FIGURE = 'f2'
 
 // =====================================================================
 // 画面の画像
@@ -451,6 +147,26 @@ const ready = (page, phone = false) =>
 /** ドライブへの保存が済むまで待つ（右の欄・スマホの上の帯の「ドライブに保存 13:44」） */
 const driveSaved = (page) =>
   page.waitForFunction(() => [...document.querySelectorAll('.chip.ok')].some((c) => /ドライブに保存|\d+:\d+/.test(c.textContent)) && !document.querySelector('.chip .dot.busy'), { timeout: 60000 })
+
+/**
+ * ページの中で、画像の下の端 y が紙面（root）の字の行や図（写真とタイトル）の途中にかかるなら、その手前（3px 上）の y を返す
+ * （画像の下の端で、行の字や図が半分だけ写らないように）。down なら、逆に、かかっているものの下の端（3px 下）まで伸ばす
+ */
+function lineSafeBottom(root, y, down = false) {
+  let best = y
+  const el = document.querySelector(root)
+  const boxes = []
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  const range = document.createRange()
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.textContent.trim()) continue
+    range.selectNodeContents(n)
+    boxes.push(...range.getClientRects())
+  }
+  for (const f of el.querySelectorAll('figure, img')) boxes.push(f.getBoundingClientRect())
+  for (const r of boxes) if (r.height && r.top < y && r.bottom > y) best = down ? Math.max(best, r.bottom + 3) : Math.min(best, r.top - 3)
+  return best
+}
 
 /** ページの中で、最初の1つの要素の位置を測る */
 function rectFirst(sel) {
@@ -590,8 +306,60 @@ const setParagraph = (page, id, text) =>
     id,
     text,
   )
+/** 段落の中身（文と図・表の参照）を、そのまま返す・置き換える（わざと入れた誤りを、もとの文に戻すため） */
+const getContent = (page, id) => page.evaluate((id) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === id).content, id)
+const setContent = (page, id, content) =>
+  page.evaluate((id, content) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === id ? { ...b, content } : b)) })) })), id, content)
+/** 段落の後ろに文を足す（ページの中で動かす。見本の原稿の文は、スクリプトに書き写さない） */
+function appendText(id, text) {
+  window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === id ? { ...b, content: [...b.content, { type: 'text', text }] } : b)) })) }))
+}
 
-async function studentShots(browser, config, images) {
+/**
+ * 書き出した PDF の1ページを、pdf.js（node_modules/pdfjs-dist）で描いて JPEG にする（out。page：0 から）。
+ * pdf.js とその PDF は、ここで立てる小さなサーバーから読む（開発サーバーの poc-pdf.html を使わない。まとめた版でも撮れるように）
+ */
+async function pdfPageToJpeg(browser, pdfPath, pageIndex, scale, out) {
+  const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#888"><script type="module">
+import * as pdfjs from '/pdfjs/pdf.mjs'
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.mjs'
+const doc = await pdfjs.getDocument({ url: '/doc.pdf' }).promise
+const page = await doc.getPage(${pageIndex + 1})
+const viewport = page.getViewport({ scale: ${scale} })
+const canvas = document.createElement('canvas')
+canvas.width = viewport.width
+canvas.height = viewport.height
+document.body.append(canvas)
+// intent: 'print' は描画に requestAnimationFrame を使わないため、画面が隠れていても止まらない
+await page.render({ canvas, viewport, intent: 'print' }).promise
+document.body.dataset.rendered = 'true'
+</script>`
+  const server = createServer((req, res) => {
+    const path = new URL(req.url ?? '/', 'http://localhost').pathname
+    if (path === '/') return res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(html)
+    if (path === '/doc.pdf') return res.writeHead(200, { 'Content-Type': 'application/pdf' }).end(readFileSync(pdfPath))
+    if (path === '/pdfjs/pdf.mjs' || path === '/pdfjs/pdf.worker.mjs') return res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' }).end(readFileSync(join('node_modules/pdfjs-dist/build', basename(path))))
+    res.writeHead(404).end()
+  })
+  await new Promise((ok, fail) => {
+    server.once('error', fail)
+    server.listen(Number(process.env.PDF_VIEW_PORT ?? 0), 'localhost', ok)
+  })
+  const view = await browser.newPage()
+  try {
+    await view.setViewport({ width: 1000, height: 1400, deviceScaleFactor: 1 })
+    await view.goto(`http://localhost:${server.address().port}/`, { waitUntil: 'networkidle0' })
+    await view.waitForFunction(() => document.body.dataset.rendered === 'true', { timeout: 120000 })
+    const canvas = await view.$('canvas')
+    await canvas.screenshot({ path: out, type: 'jpeg', quality: 88 })
+    return await canvas.evaluate((c) => ({ w: c.width, h: c.height }))
+  } finally {
+    await view.close()
+    server.close()
+  }
+}
+
+async function studentShots(browser, config) {
   const drive = fakeDrive(STUDENT_EMAIL)
   const { context, page } = await openTool(browser, drive, config)
   await ready(page)
@@ -599,6 +367,9 @@ async function studentShots(browser, config, images) {
   // ---- ログインの窓（Google のログインの部品は偽物） ----
   await page.waitForSelector('.login-over .login-btn')
   await sleep(500)
+  // 開いたときにログインのボタンが選ばれていて、黄色い枠が付くので、外してから撮る
+  await unfocus(page)
+  await sleep(200)
   await capture(page, 'g-login', pad(await page.evaluate(rectOf, '.login-card'), 16), [{ n: 1, box: await page.evaluate(rectOf, '.login-card .login-btn'), at: 'r' }])
   await page.click('.login-btn')
   await page.waitForFunction(() => !document.querySelector('.login-over'), { timeout: 60000 })
@@ -642,8 +413,7 @@ async function studentShots(browser, config, images) {
   await page.evaluate(() => document.documentElement.classList.add('no-guide'))
 
   // ---- 見本の原稿にする ----
-  saveSampleImages(await page.evaluate(prepareImages, images))
-  await page.evaluate(setupReport)
+  await page.evaluate(setupSinbad, SAMPLE)
   await sleep(800)
   await ready(page)
   await driveSaved(page)
@@ -676,17 +446,10 @@ async function studentShots(browser, config, images) {
     await page.evaluate(() => {
       window.dispatchEvent(new Event('afterprint'))
     })
-    const view = await browser.newPage()
-    await view.setViewport({ width: 1000, height: 1400, deviceScaleFactor: 1 })
-    await view.goto(`${APP}/poc-pdf.html?file=${encodeURIComponent('poc-output/guides/draft.pdf')}&scale=1.6`, { waitUntil: 'networkidle0' })
-    await view.waitForFunction(() => document.body.dataset.rendered === 'true', { timeout: 120000 })
-    const canvases = await view.$$('canvas')
-    await canvases[bodyPage].screenshot({ path: `${IMG}/g-draft-page.jpg`, type: 'jpeg', quality: 88 })
-    const size = await canvases[bodyPage].evaluate((c) => ({ w: c.width, h: c.height }))
+    const size = await pdfPageToJpeg(browser, 'poc-output/guides/draft.pdf', bodyPage, 1.6, `${IMG}/g-draft-page.jpg`)
     MARKS['g-draft-page'] = { w: size.w, h: size.h, marks: [] }
     writeMarks()
     console.log(`  ${IMG}/g-draft-page.jpg（書き出した PDF の ${bodyPage + 1}ページ目）`)
-    await view.close()
     await page.bringToFront()
   }
 
@@ -708,11 +471,13 @@ async function studentShots(browser, config, images) {
   await ready(page)
 
   // ---- セルフチェック：わざと誤りを入れる（エラー・警告・押すとその箇所へ移る指摘・「このままにする（確認済み）」）。「直す」のボタンはない（学生が自分で直す） ----
-  await setParagraph(page, 'p7', CHECK_TEXT)
+  const checkOriginal = await getContent(page, CHECK_ID)
+  await setParagraph(page, CHECK_ID, CHECK_TEXT)
   await sleep(500)
   await ready(page)
   await driveSaved(page)
-  await goToBlock(page, 'p3')
+  console.log(`  わざと入れた誤りの指摘：${(await page.evaluate(() => window.__editor.getSnapshot().findings.map((f) => `${f.severity}:${f.title}`))).join('、')}`)
+  await goToBlock(page, WRITE_ID)
   await page.mouse.move(5, 5)
   await sleep(600)
   // PC の画面全体（表紙の絵・教員用の「学生の画面」）
@@ -743,12 +508,12 @@ async function studentShots(browser, config, images) {
     await ready(page)
   }
   // わざと入れた誤りを戻す（このあとの画像に、指摘が写らないように）
-  await setParagraph(page, 'p7', P7)
+  await setContent(page, CHECK_ID, checkOriginal)
   await sleep(500)
   await ready(page)
 
   // ---- 書く：段落を書いているところ（道具と紙面の上半分） ----
-  await openBlock(page, 'p3', 999)
+  await openBlock(page, WRITE_ID, 999)
   {
     const palette = await page.evaluate(rectOf, '.palette')
     const paper = await page.evaluate(rectOf, CUR)
@@ -801,7 +566,15 @@ async function studentShots(browser, config, images) {
     await page.evaluate((id) => window.__editor.goToPage(window.__editor.pageOfBlock(id), 'none'), tableId)
     await sleep(600)
     await ready(page)
-    await capture(page, 'g-table', pad(await page.evaluate(rectOf, `${CUR} .data-table`), 12), [{ n: 1, box: await page.evaluate(rectOf, `${CUR} .data-table .table-caption`), at: 'r' }])
+    // 手引きの3コマの枠に収まるよう、生地見本の入った行は上から3行まで写す（見本の表は6行あり、縦に長すぎるため）
+    // 上は、すぐ上の段落の行が半分写らないよう、余白を小さく
+    const t0 = await page.evaluate(rectOf, `${CUR} .data-table`)
+    const table = { ...pad(t0, 12), y: t0.y - 3, h: t0.h + 15 }
+    const rowsBottom = await page.evaluate((cur) => {
+      const rows = [...document.querySelectorAll(`${cur} .data-table tr`)].filter((tr) => tr.querySelector('img'))
+      return rows.length > 3 ? rows[2].getBoundingClientRect().bottom + 2 : null
+    }, CUR)
+    await capture(page, 'g-table', rowsBottom ? { ...table, h: rowsBottom - table.y } : table, [{ n: 1, box: await page.evaluate(rectOf, `${CUR} .data-table .table-caption`), at: 'r' }])
   }
   // 自動で入るもの：目次（見出しとページ番号から自動で作る）
   {
@@ -821,7 +594,7 @@ async function studentShots(browser, config, images) {
     await ready(page)
     await capture(page, 'g-photos', await page.evaluate(rectOf, CUR))
   }
-  await goToBlock(page, 'p3')
+  await goToBlock(page, WRITE_ID)
 
   // ---- 保存のようす（右の欄の「ドライブに保存」を押したところ） ----
   await page.mouse.move(5, 5)
@@ -844,6 +617,11 @@ async function studentShots(browser, config, images) {
   await sleep(300)
 
   // ---- バックアップ（自動の控え） ----
+  // 開いたときの控えがまだないとき（同じ原稿の控えは残さないため）は、いまの見本の原稿の控えを1つ置く（一覧が空にならないように）
+  await page.evaluate(async () => {
+    const { saveSnapshot, listSnapshots } = await window.__import('model/storage.ts')
+    if (!(await listSnapshots()).length) await saveSnapshot(window.__editor.getSnapshot().report, new Date(Date.now() - 5 * 60000).toISOString())
+  })
   // 「バックアップ・作り直す」は右の欄の「メニュー」の中（mockups/v37 案C）
   await page.click('.side .menu-btn')
   await page.waitForSelector('.side .head-menu')
@@ -863,18 +641,17 @@ async function studentShots(browser, config, images) {
   await pp.waitForFunction(() => !document.querySelector('.login-over'), { timeout: 90000 })
   await ready(pp, true)
   await pp.evaluate(() => document.documentElement.classList.add('no-guide'))
-  // 偽物のドライブは写真（バイナリ）を正しく受け渡せないので、スマホにも同じ見本の画像を入れ直して、紙面を組み直す
-  await pp.evaluate(prepareImages, images)
-  await pp.evaluate(() => window.__editor.update((r) => ({ ...r })))
+  // 偽物のドライブは写真（バイナリ）を正しく受け渡せないので、スマホにも同じ見本の原稿と写真を入れ直して、紙面を組み直す
+  await pp.evaluate(setupSinbad, SAMPLE)
   await sleep(800)
   await ready(pp, true)
   await driveSaved(pp)
   // 紙面の段落をタップすると、紙面が広がって、その場で書ける。キーボードのすぐ上に細い道具
   // はじめて書くときの「字を大きくするには」の知らせは写さない（紙面が隠れるため。使い方の写真と同じ）
   await pp.evaluate(() => localStorage.setItem('sotsugyo-seisaku-report-pinch-tip', 'done'))
-  await goToBlock(pp, 'p3', true)
-  await tapChar(pp, 'p3', 14)
-  await pp.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p3' && window.__editor.getSnapshot().zoomed, { timeout: 30000 })
+  await goToBlock(pp, WRITE_ID, true)
+  await tapChar(pp, WRITE_ID, 14)
+  await pp.waitForFunction((id) => window.__editor.getSnapshot().editingId === id && window.__editor.getSnapshot().zoomed, { timeout: 30000 }, WRITE_ID)
   await sleep(900)
   await fakeKeyboard(pp, true)
   await sleep(700)
@@ -887,17 +664,18 @@ async function studentShots(browser, config, images) {
   await sleep(600)
   await capture(pp, 'g-phone-menu', { x: 0, y: 0, w: PHONE.width, h: PHONE.height }, [
     { n: 1, box: await pp.evaluate(rectOf, '.sheet .drive-pop button', 'この端末から原稿を消す'), at: 'l' },
-    { n: 2, box: await pp.evaluate(rectOf, '.sheet .sheet-body a, .sheet .sheet-body button', '使い方'), at: 'r', optional: true },
+    // 「使い方」のボタン（その下の「使い方を AI に聞く」は含めない）
+    { n: 2, box: await pp.evaluate(rectOf, '.sheet .sheet-body a:not(.ai-btn), .sheet .sheet-body button', '使い方'), at: 'r', optional: true },
   ])
   await pp.click('.sheet-close')
   await sleep(400)
 
   // ---- 別の端末（スマホ）が後から保存していた：パソコンで書くと、どちらで続けるかを聞く ----
-  await pp.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p16' ? { ...b, content: [{ type: 'text', text: '制作を通して、舞台衣装は客席からの見え方と演者の動きやすさの両方を考える必要があることを学んだ。この経験を、今後の衣装制作に生かしたい。（スマホで書き足した）' }] } : b)) })) })))
+  await pp.evaluate(appendText, PHONE_ID, '（スマホで書き足した）')
   await sleep(1500)
   await driveSaved(pp)
   await page.bringToFront()
-  await setParagraph(page, 'p15', '一方で、帯の結び目が大きく、場面転換の早替えに時間がかかるという課題が残った。')
+  await page.evaluate(appendText, PC_ID, PC_ADD)
   await page.waitForSelector('.drive-two', { timeout: 60000 })
   await page.evaluate(() => document.activeElement?.blur())
   await sleep(500)
@@ -913,7 +691,7 @@ async function studentShots(browser, config, images) {
 
   // ---- 1時間たって Google の許可が切れたとき ----
   drive.failNext = 401
-  await setParagraph(page, 'p15', '一方で、帯の結び目が大きく、場面転換の早替えに時間がかかるという課題が残った。今後は、着脱のしやすさも考えたい。')
+  await page.evaluate(appendText, PC_ID, PC_ADD2)
   await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some((h) => h.textContent.includes('もう一度ログイン')), { timeout: 60000 })
   await page.evaluate(() => document.activeElement?.blur())
   await sleep(400)
@@ -969,7 +747,7 @@ const charPoint = (page, id, i) =>
  * 学生用の手引き（具体的な使い方の版。依頼者の依頼 2026-10-23：執筆で操作するときに困らないように）の画面。
  * 学生用の画面と一緒に撮る（SHOTS=detail なら、これだけ）。画像の名前は g-d-*
  */
-async function detailShots(browser, config, images) {
+async function detailShots(browser, config) {
   const drive = fakeDrive(STUDENT_EMAIL)
   const { context, page } = await openTool(browser, drive, config)
   await ready(page)
@@ -986,8 +764,7 @@ async function detailShots(browser, config, images) {
   await sleep(600)
   await ready(page)
   await page.evaluate(() => document.documentElement.classList.add('no-guide'))
-  await page.evaluate(prepareImages, images)
-  await page.evaluate(setupReport)
+  await page.evaluate(setupSinbad, SAMPLE)
   await sleep(800)
   await ready(page)
   await driveSaved(page)
@@ -995,7 +772,7 @@ async function detailShots(browser, config, images) {
 
   // ---- 画面の地図（パソコン）：段落を書いているところ（案A 2026-10-23） ----
   // 1 ページの一覧・2 左の道具・3 紙面（書いている所）・4 保存・5 セルフチェック・6 PDF・7 元に戻す・8 表示の大きさ・9 メニュー
-  await openBlock(page, 'p3', 40)
+  await openBlock(page, WRITE_ID, 40)
   await page.mouse.move(5, 5)
   await sleep(700)
   await capture(page, 'g-d-map', { x: 0, y: 0, w: PC.width, h: PC.height }, [
@@ -1032,17 +809,19 @@ async function detailShots(browser, config, images) {
     const para = await page.evaluate(rectOf, '.overlay-clip:not([hidden]) .overlay-editor')
     const figTool = await page.evaluate(rectOf, '.palette .tb', '図を入れる')
     const top1 = Math.min(figTool.y, para.y) - 60
-    await capture(page, 'g-d-fig1', { x: palette.x - 10, y: top1, w: para.x + para.w + 14 - (palette.x - 10), h: Math.max(figTool.y + figTool.h, para.y + para.h) + 60 - top1 }, [
+    // 下の端は、紙面の行の途中で切らない（下の段落の行にかかるときは、その行の上で切る）
+    const bottom1 = await page.evaluate(lineSafeBottom, CUR, Math.max(figTool.y + figTool.h, para.y + para.h) + 60)
+    await capture(page, 'g-d-fig1', { x: palette.x - 10, y: top1, w: para.x + para.w + 14 - (palette.x - 10), h: bottom1 - top1 }, [
       { n: 1, box: caret, at: 'b' },
       { n: 2, box: figTool, at: 'r' },
     ])
     const [chooser] = await Promise.all([page.waitForFileChooser(), page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.includes('図を入れる')).click())])
-    await chooser.accept([resolve('docs/guide-images/sample/process.jpg')])
+    await chooser.accept([resolve(FIGURE_FILE)])
     await page.waitForFunction(() => window.__editor.getSnapshot().editingId?.startsWith('f-'), { timeout: 30000 })
     await sleep(800)
     await ready(page).catch(() => {})
     const fid = await page.evaluate(() => window.__editor.getSnapshot().editingId)
-    await page.keyboard.type('二回目の仮縫い')
+    await page.keyboard.type(FIGURE_CAPTION)
     await page.mouse.move(5, 5)
     await sleep(700)
     {
@@ -1060,6 +839,9 @@ async function detailShots(browser, config, images) {
     await sleep(500)
     await ready(page)
     await page.mouse.move(5, 5)
+    // 図のタイトルの欄に残る、選んでいる印（黄色い枠）を外す
+    await unfocus(page)
+    await sleep(200)
     {
       // 本文の「（図n）」：図のタイトルの番号と同じもの
       const ref = await page.evaluate(
@@ -1091,26 +873,32 @@ async function detailShots(browser, config, images) {
 
   // ---- 書き始める：薄い字（ひな形の「何を書くか」）の段落 ----
   {
-    const saved = await page.evaluate(() => {
-      window.__beforeHint = window.__editor.getSnapshot().report
-      window.__editor.update((r) => ({
-        ...r,
-        body: r.body.map((c) => {
-          const i = c.blocks.findIndex((b) => b.id === 'p3')
-          if (i < 0) return c
-          const blocks = [...c.blocks]
-          blocks.splice(i + 1, 0, { type: 'paragraph', id: 'p-hint', content: [{ type: 'text', text: '' }], hint: 'デザインのもとにした資料と、そこから取り入れたところを書く' })
-          return { ...c, blocks }
-        }),
-      }))
-      return true
-    })
+    const saved = await page.evaluate(
+      (after, hint) => {
+        window.__beforeHint = window.__editor.getSnapshot().report
+        let added = false
+        window.__editor.update((r) => ({
+          ...r,
+          body: r.body.map((c) => {
+            const i = c.blocks.findIndex((b) => b.id === after)
+            if (i < 0) return c
+            const blocks = [...c.blocks]
+            blocks.splice(i + 1, 0, { type: 'paragraph', id: 'p-hint', content: [{ type: 'text', text: '' }], hint })
+            added = true
+            return { ...c, blocks }
+          }),
+        }))
+        return added
+      },
+      HINT_AFTER,
+      HINT_TEXT,
+    )
     if (!saved) throw new Error('薄い字の段落を足せませんでした')
     await sleep(600)
     await ready(page)
     await goToBlock(page, 'p-hint')
     await page.mouse.move(5, 5)
-    const prev = await page.evaluate(rectOf, `${CUR} [data-block-id="p3"]`)
+    const prev = await page.evaluate(rectOf, `${CUR} [data-block-id="${HINT_AFTER}"]`)
     const hint = await page.evaluate(rectOf, `${CUR} [data-block-id="p-hint"]`)
     // 字が読めるよう、本文の左から6割ほどに絞る（行の途中で切れてよい）
     const clip = pad(union(prev, hint), 14)
@@ -1121,7 +909,7 @@ async function detailShots(browser, config, images) {
   }
 
   // ---- 書いているときの左の道具（見出し・改ページ・図・表・この段落の削除） ----
-  await openBlock(page, 'p3', 999)
+  await openBlock(page, WRITE_ID, 999)
   {
     const palette = await page.evaluate(rectOf, '.palette')
     const tool = (label) => page.evaluate(rectOf, '.palette .tb', label)
@@ -1164,11 +952,11 @@ async function detailShots(browser, config, images) {
   }
 
   // ---- 紙面をなぞって選ぶ：コピー・切り取り・削除 ----
-  // 図をはさまない、続いた2つの段落（p4・p4b）をなぞる（前の p5 は、入りきらない図を小見出しを越えて送らなくなり、次のページへ移った）
-  await goToBlock(page, 'p4')
+  // 図をはさまない、続いた2つの段落（RANGE_FROM・RANGE_TO：ブラウスの最初の2段落）をなぞる
+  await goToBlock(page, RANGE_FROM)
   {
-    const from = await charPoint(page, 'p4', 20)
-    const to = await charPoint(page, 'p4b', 14)
+    const from = await charPoint(page, RANGE_FROM, 20)
+    const to = await charPoint(page, RANGE_TO, 14)
     await page.mouse.move(from.x, from.y)
     await page.mouse.down()
     for (let i = 1; i <= 12; i++) {
@@ -1180,14 +968,14 @@ async function detailShots(browser, config, images) {
     await page.mouse.move(5, 5)
     await sleep(500)
     const tools = await page.evaluate(rectOf, '.palette .sel-tools')
-    const p4 = await page.evaluate(rectOf, `${CUR} [data-block-id="p4"]`)
-    const p4b = await page.evaluate(rectOf, `${CUR} [data-block-id="p4b"]`)
-    const text = union(p4, p4b)
-    const y = Math.min(tools.y, text.y) - 12
-    // 選んだ所の上に出るボタン（コピー・切り取り・削除）も、右の端まで入れる（前は「削除」が切れていた）
-    const bar = await page.evaluate(() => { const r = document.querySelector('.range-bar:not([hidden])')?.getBoundingClientRect(); return r ? r.right : 0 })
-    const right = Math.max(text.x + text.w, bar) + 14
-    await capture(page, 'g-d-range', { x: tools.x - 10, y, w: right - (tools.x - 10), h: Math.max(tools.y + tools.h, text.y + text.h) + 12 - y }, [
+    const text = union(await page.evaluate(rectOf, `${CUR} [data-block-id="${RANGE_FROM}"]`), await page.evaluate(rectOf, `${CUR} [data-block-id="${RANGE_TO}"]`))
+    // 選んだ所の上に出るボタン（コピー・切り取り・削除）も、上と右の端まで入れる（前は「削除」が切れていた。段落がページの上にあると、上が切れていた）
+    const bar = await page.evaluate(() => { const r = document.querySelector('.range-bar:not([hidden])')?.getBoundingClientRect(); return r ? { top: r.top, right: r.right } : { top: Infinity, right: 0 } })
+    const y = Math.min(tools.y, text.y, bar.top) - 12
+    const right = Math.max(text.x + text.w, bar.right) + 14
+    // 下の端は、紙面の行や図の途中で切らない（左の道具まで入れるので、かかった図はタイトルまで入れる）
+    const bottom = await page.evaluate(lineSafeBottom, CUR, Math.max(tools.y + tools.h, text.y + text.h) + 12, true)
+    await capture(page, 'g-d-range', { x: tools.x - 10, y, w: right - (tools.x - 10), h: bottom - y }, [
       // 1：選んだ行（なぞり始めの行から終わりの行まで）
       { n: 1, box: { x: text.x, y: from.y - 9, w: text.w, h: to.y - from.y + 18 }, at: 'r' },
       { n: 2, box: tools, at: 'r' },
@@ -1197,21 +985,25 @@ async function detailShots(browser, config, images) {
     await sleep(400)
   }
 
-  // ---- 図を押したときの道具（差し替え・もう1枚・小見出しの終わりへ・削除） ----
+  // ---- 図を押したときの道具（差し替え・もう1枚・小見出しの終わりへ・削除）。TOOLS_FIGURE（2枚並びの左の図）を押す ----
   {
-    const img = await page.evaluate(rectFirst, `${CUR} figure[data-figure-id] img`)
+    // ページを探すのは図の id で（図の並び r… の id ではページが見つからない）
+    await goToBlock(page, TOOLS_FIGURE)
+    const fig = `${CUR} figure[data-figure-id="${TOOLS_FIGURE}"]`
+    const img = await page.evaluate(rectFirst, `${fig} img`)
     await page.mouse.click(img.x + img.w / 2, img.y + img.h / 2)
     await page.waitForFunction(() => window.__editor.getSnapshot().selection?.kind === 'figure', { timeout: 10000 })
     await page.mouse.move(5, 5)
     await sleep(500)
     const group = await page.evaluate(rectOf, '.palette .group.ctx')
     const tool = (label) => page.evaluate(rectOf, '.palette .group.ctx .tb', label)
-    const paper = union(img, await page.evaluate(rectFirst, `${CUR} figure[data-figure-id] figcaption`))
+    const paper = union(img, await page.evaluate(rectFirst, `${fig} figcaption`))
     const y = Math.min(group.y, paper.y) - 12
     await capture(page, 'g-d-figure-tools', { x: group.x - 10, y, w: paper.x + paper.w + 16 - (group.x - 10), h: Math.max(group.y + group.h, paper.y + paper.h) + 12 - y }, [
       { n: 1, box: await tool('差し替え'), at: 'r' },
       { n: 2, box: await tool('もう1枚'), at: 'r' },
-      { n: 3, box: await tool('小見出しの終わりへ'), at: 'r' },
+      // 図の置き場所によっては「段落の下へ戻す」になる（そのときは番号を付けない）
+      { n: 3, box: await tool('小見出しの終わりへ'), at: 'r', optional: true },
     ])
     await page.keyboard.press('Escape')
     await sleep(300)
@@ -1277,14 +1069,13 @@ async function detailShots(browser, config, images) {
     await pp.waitForFunction(() => !document.querySelector('.login-over'), { timeout: 90000 })
     await ready(pp, true)
     await pp.evaluate(() => document.documentElement.classList.add('no-guide'))
-    await pp.evaluate(prepareImages, images)
-    await pp.evaluate(() => window.__editor.update((r) => ({ ...r })))
+    await pp.evaluate(setupSinbad, SAMPLE)
     await sleep(800)
     await ready(pp, true)
     await pp.evaluate(() => localStorage.setItem('sotsugyo-seisaku-report-pinch-tip', 'done'))
-    await goToBlock(pp, 'p3', true)
-    await tapChar(pp, 'p3', 14)
-    await pp.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p3' && window.__editor.getSnapshot().zoomed, { timeout: 30000 })
+    await goToBlock(pp, WRITE_ID, true)
+    await tapChar(pp, WRITE_ID, 14)
+    await pp.waitForFunction((id) => window.__editor.getSnapshot().editingId === id && window.__editor.getSnapshot().zoomed, { timeout: 30000 }, WRITE_ID)
     await sleep(900)
     await fakeKeyboard(pp, true)
     await sleep(500)
@@ -1424,8 +1215,8 @@ async function adminShots(browser) {
     const outer = await page.evaluate(() => document.querySelector('.tpl-overlay iframe').getBoundingClientRect().toJSON())
     const back = await frame.evaluate(() => document.querySelector('.tpl-primary').getBoundingClientRect().toJSON())
     await capture(page, 'g-admin-template', { x: 0, y: 0, w: PC.width, h: PC.height }, [{ n: 1, box: { x: outer.x + back.x, y: outer.y + back.y, w: back.width, h: back.height }, at: 'l' }])
-    // 直していないので、「やめる」で確かめずに閉じる
-    await frame.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === 'やめる').click())
+    // 直していないので、「閉じる」（前は「やめる」）で確かめずに閉じる
+    await frame.evaluate(() => document.querySelector('.tpl-foot .tpl-sub').click())
     await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 10000 })
   }
 
@@ -1596,7 +1387,10 @@ async function makePdf(browser, guide) {
   if (check.missing.length) problems.push(`画面の画像がありません（先に画面を撮ってください）：${check.missing.join(', ')}`)
   if (check.sheets !== guide.pages) problems.push(`${guide.pages}ページのはずが、${check.sheets}ページあります`)
   for (const o of check.over) if (o.px > 0) problems.push(`${o.page}ページ：用紙・枠から ${o.px}px はみ出しています（${o.who}）。文を短くしてください`)
-  for (const o of check.over) if (o.chars > MAX_CHARS) problems.push(`${o.page}ページ：${o.chars}字あります（${MAX_CHARS}字まで）。文を短くしてください`)
+  for (const o of check.over) {
+    if (o.chars > MAX_CHARS_HARD) problems.push(`${o.page}ページ：${o.chars}字あります（${MAX_CHARS_HARD}字まで）。文を短くしてください`)
+    else if (o.chars > MAX_CHARS) console.log(`  （${o.page}ページ：${o.chars}字。目安の ${MAX_CHARS}字を超えています）`)
+  }
   if (check.small.length) problems.push(`文字が ${MIN_PT}pt より小さいところがあります：${check.small.slice(0, 6).join('　')}`)
   for (const l of check.lonely) problems.push(`1字だけの行があります（言葉の切れ目で折り返すよう、文を直してください）：${l}`)
   console.log(`  ${guide.html}：${check.over.map((o) => o.chars).join('・')}字　いちばん小さい文字 ${check.min.pt}pt（${check.min.who}。柱・ページ番号などを除く）`)
@@ -1635,10 +1429,12 @@ await withEdge(async (browser) => {
     const config = JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8'))
     // 試験用の設定の「（自動テスト用）」のお知らせは写さない
     for (const c of config.courses) delete c.notice
-    if (doShot('student') && !draftOnly) await studentShots(browser, config, loadSampleImages())
+    // 本番の年度の設定には「AI に聞くのリンク」があるので、メニューと使い方の欄の「使い方を AI に聞く」も写す（リンクの先は仮のもの）
+    config.aiHelpUrl = 'https://gemini.google.com/gem/example'
+    if (doShot('student') && !draftOnly) await studentShots(browser, config)
     if (doShot('admin') && !draftOnly) await adminShots(browser)
     // 学生用の手引きの画面（画面の地図・図と表の入れ方・スマホ）。SHOTS=detail でこれだけ撮れる
-    if ((doShot('student') && !draftOnly) || SHOT_ONLY.includes('detail')) await detailShots(browser, config, loadSampleImages())
+    if ((doShot('student') && !draftOnly) || SHOT_ONLY.includes('detail')) await detailShots(browser, config)
     await makeQr()
   }
   console.log('PDF にします')

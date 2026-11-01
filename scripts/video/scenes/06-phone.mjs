@@ -1,7 +1,9 @@
 // 動画 6：スマホで書く（スマホ：390×844。動画では縦長の画面を左に置き、右に字幕を出す）
 // 2026-10-22 の画面：段落をタップすると、文字の幅まで大きくなり、紙面の上でそのまま書く。キーボードのすぐ上に
 // 「戻す」「やり直す」「図」「表」「追加」「削除」「完了」。「完了」でページ全体に戻る。ページは上下にはらってめくる。2本の指で拡大。
-// ヘッドレスの Edge では本物のキーボードが出ないので、書いている間は、画面の下に iPhone のキーボードの絵を仮に出す（session.phoneKeyboard）
+// ヘッドレスの Edge では本物のキーボードが出ないので、書いている間は、画面の下に iPhone のキーボードの絵を仮に出す（session.phoneKeyboard）。
+// 見本「シンドバッド」の「ii．サルエルパンツ」の段落（p7）に1文を書き足し、サルエルパンツの写真（public/trial/w-pants.jpg）を図として入れる。
+// そのため、録る前に見本からサルエルパンツの図（r4）と、本文のその「（図5）」を外しておく（動画 2 と同じ）
 import { resolve } from 'node:path'
 
 export const meta = {
@@ -9,23 +11,26 @@ export const meta = {
   label: 'スマホで書く',
   device: 'phone',
   captions: {
-    tap: '書きたい段落をタップすると、大きくなって、その場で書けます',
-    bar: 'キーボードの上に、「戻す」「図」「表」「追加」「完了」などが並びます',
-    type: '文は、紙面の上でそのまま打ちます',
-    done: '書き終えたら「完了」。ページ全体の表示に戻ります',
-    figure: '図は、段落をタップして「図」から入れます',
-    caption: '図の下のタイトルを打ちます。番号は自動で付きます',
-    swipe: 'ページは、紙面を上下にはらってめくります',
-    pinch: '2本の指で広げると、拡大できます',
-    unzoom: '「ページ全体に戻す」で、元の大きさに戻ります',
-    check: '直すところは、下の「チェック」で見られます',
-    end: 'PDF も、下の「PDF」から書き出せます',
+    tap: '書きたい段落をタップすると、文字が大きくなり、そのまま書けます',
+    bar: 'キーボードの上には、「戻す」「図」「表」「完了」などのボタンが並びます',
+    type: 'キーボードで、そのまま文を入力します',
+    done: '書き終えたら「完了」を押します。ページ全体の表示に戻ります',
+    figure: '図を入れるときは、段落をタップしてから「図」を押し、写真を選びます',
+    caption: '図のタイトルを入力します。図の番号は自動で付きます',
+    swipe: '紙面を指で上下にはらうと、ページをめくれます',
+    pinch: '2本の指で広げると、紙面を拡大できます',
+    unzoom: '「ページ全体に戻す」を押すと、元の大きさに戻ります',
+    check: '直すところは、画面の下の「チェック」で確かめられます',
+    end: 'PDF も、画面の下の「PDF」から書き出せます',
   },
 }
 
 export async function prepare({ page, h }) {
   // はじめて書くときの「字を大きくするには」の知らせは出さない（紙面が隠れるため。広げ方は動画の後半で見せる）
   await page.evaluate(() => localStorage.setItem('sotsugyo-seisaku-report-pinch-tip', 'done'))
+  await h.dropFigure(page, 'r4')
+  await h.sleep(500)
+  await h.ready(page)
   await h.goToBlock(page, 'p7')
 }
 
@@ -56,12 +61,12 @@ export async function run({ page, rec, h }) {
 
   // 2. キーボードの上の道具
   rec.mark('bar')
-  await h.sleep(3200)
+  await h.sleep(4300)
 
   // 3. 打つ
   rec.mark('type')
   await h.sleep(600)
-  await h.typeSlow(page, '客席からも袖の動きが大きく見えた。')
+  await h.typeSlow(page, '裾の刺繍は、足首の正面に合わせた。')
   await h.sleep(1200)
 
   // 4. 「完了」→ ページ全体に戻る
@@ -82,7 +87,7 @@ export async function run({ page, rec, h }) {
   const [chooser] = await Promise.all([page.waitForFileChooser(), h.tapAt(page, fig.x, fig.y)])
   await h.phoneKeyboard(page, false)
   await h.sleep(900)
-  await chooser.accept([resolve('docs/guide-images/sample/photo-1.jpg')])
+  await chooser.accept([resolve('public/trial/w-pants.jpg')])
   await page.waitForFunction(() => window.__editor.getSnapshot().editingId?.startsWith('f-'), { timeout: 30000 })
   await h.ready(page).catch(() => {})
   await h.sleep(300)
@@ -92,7 +97,7 @@ export async function run({ page, rec, h }) {
   // 6. 図のタイトル
   rec.mark('caption')
   await h.sleep(1300)
-  await h.typeSlow(page, '二回目の仮縫い')
+  await h.typeSlow(page, 'サルエルパンツ')
   await h.sleep(1500)
   await tapEl(h, page, '.direct-bar .db-done')
   await h.phoneKeyboard(page, false)

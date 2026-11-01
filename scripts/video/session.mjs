@@ -1,12 +1,14 @@
 // 使い方の動画：学生用ツールを開くところまでの共通の手順（録画の前の準備）。
 // Google のログインとドライブは偽物（scripts/e2e/fakeGoogle.mjs）に差し替える。本物の Google にはつながない。
-// 見本の原稿は、衣装コースの架空の学生（文化花子・00ZZ0123）。見本の画像は docs/guide-images/sample/ のもの（読むだけ）
+// 見本の原稿は、衣装コースの架空の学生（文化花子・00ZZ0123）の「シンドバッド」（2026-11-01 の新しい見本。scripts/e2e/sampleSinbad.mjs）。
+// 原稿の中身は git に入れないファイル（gas/trial-sample.private.json）から読む。写真は public/trial/ のもの。
+// 録るのは、自動テスト用にまとめた版（dist-e2e）を scripts/e2e/serveBuilt.mjs で出したもの（APP_URL=http://localhost:4242 など）。開発サーバーでも動く
 import { readFileSync } from 'node:fs'
 import { showPhoneKeyboard } from '../phoneKeyboard.mjs'
 import { sleep } from './recorder.mjs'
 
 const { fakeDrive, routeGoogle } = await import('../e2e/fakeGoogle.mjs')
-const { setupWriting } = await import('../e2e/sampleReport.mjs')
+const { sinbadSample, setupSinbad } = await import('../e2e/sampleSinbad.mjs')
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const config = JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8'))
@@ -125,6 +127,45 @@ export const setParagraph = (page, id, text) =>
   )
 
 /**
+ * 図のまとまり rowId を外し、本文のその図への「（図n）」も消す（録画の前の準備。動画の中で、その図を入れ直して見せるため）。
+ * 「（図n）」を消した所の前後の文は、1つにつなぐ
+ */
+export const dropFigure = (page, rowId) =>
+  page.evaluate((rowId) => {
+    window.__editor.update((r) => {
+      const row = r.body.flatMap((c) => c.blocks).find((b) => b.id === rowId)
+      const ids = new Set(row?.figures?.map((f) => f.id) ?? [])
+      const unref = (content) =>
+        content
+          .filter((n) => !(n.type === 'ref' && ids.has(n.targetId)))
+          .reduce((out, n) => {
+            const last = out.at(-1)
+            if (n.type === 'text' && last?.type === 'text' && Object.keys(n).length === 2 && Object.keys(last).length === 2) out[out.length - 1] = { ...last, text: last.text + n.text }
+            else out.push(n)
+            return out
+          }, [])
+      return { ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.filter((b) => b.id !== rowId).map((b) => (b.type === 'paragraph' ? { ...b, content: unref(b.content) } : b)) })) }
+    })
+  }, rowId)
+
+/**
+ * いま出ている、抄録の「本文にない内容かもしれない文がある」を、確認済み（このままにする）にする（録画の前の準備）。
+ * 見本から「Ⅲ．まとめ」の章を外すと、まとめから抜き出した抄録の文に出て、動画の話と関係のない指摘が右の欄に並ぶため
+ */
+export const acknowledgeAbstract = async (page) => {
+  await page.evaluate(() => {
+    const keys = window.__editor.getSnapshot().findings.filter((f) => f.ruleId === 'abstract-source' && f.key).map((f) => f.key)
+    if (keys.length) window.__editor.update((r) => ({ ...r, acknowledged: [...new Set([...(r.acknowledged ?? []), ...keys])] }))
+  })
+  await sleep(400)
+  await ready(page)
+}
+
+/** 本文の段落の文（図表の参照は「（図n）」などの形にせず、文字の所だけ） */
+export const paragraphText = (page, id) =>
+  page.evaluate((id) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === id).content.map((n) => n.text ?? '').join(''), id)
+
+/**
  * 学生用ツールを開く。device：'pc' | 'phone'。
  * login：false ならログインの窓のまま返す。guide：false なら、はじめての案内は出たまま返す（コースから録るとき）。
  * sample：見本の原稿にする。tour：指差し確認を、まだ見ていないことにする
@@ -145,6 +186,8 @@ export async function openTool(browser, { device = 'pc', login = true, guide = f
     }
     try {
       if (!tour) localStorage.setItem('sotsugyo-seisaku-report-tour', 'done')
+      // 一度だけ出る知らせ（字を大きくするには・表の列の幅のつまみ など）は出さない（紙面に重なり、動画の話と関係がないため）
+      for (const k of ['zoom-tip', 'knob-hint', 'pinch-tip', 'tablet-tip', 'land-tip']) localStorage.setItem(`sotsugyo-seisaku-report-${k}`, 'done')
     } catch {}
   }, tour)
   if (device === 'phone') await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')
@@ -168,7 +211,7 @@ export async function openTool(browser, { device = 'pc', login = true, guide = f
   await page.evaluate(() => window.__editor.finishEditing())
   await ready(page)
   if (sample) {
-    await page.evaluate(setupWriting)
+    await page.evaluate(setupSinbad, sinbadSample())
     await sleep(800)
     await ready(page)
   }

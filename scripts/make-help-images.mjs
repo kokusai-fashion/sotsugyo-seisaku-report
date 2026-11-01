@@ -2,12 +2,14 @@
 // 本物のツール（学生用ツール・管理ページの試験版）を Edge で操作して撮り、長い辺 900px 以下・画質 0.8 の JPEG にする
 // （学生用ツールは相対パスで、管理ページは GitHub Pages の URL で読む。src/help/links.ts）。
 // 使い方: node scripts/make-help-images.mjs（開発サーバーが http://localhost:5173 で動いていること。APP_URL で変えられる）
+//   自動テスト用にまとめた版（dist-e2e）で撮るとき：scripts/e2e/serveBuilt.mjs で出して（PORT=4241 node scripts/e2e/serveBuilt.mjs）、
+//   APP_URL=http://localhost:4241 node scripts/make-help-images.mjs（ページの中の部品は window.__import で読むので、どちらでも動く）
 //   SHOTS=student（学生用ツール）／SHOTS=admin（管理ページ） node scripts/make-help-images.mjs … 一部だけ撮り直す
 //   Edge は EDGE_PORT（ふだんは 9403）で起動する
 // 学生用ツールは Google のログインとドライブを偽物（scripts/e2e/fakeGoogle.mjs）に差し替える。本物の Google にはつながない。
-// 見本の原稿は、衣装コースの架空の学生（文化花子・00ZZ0123）。メールアドレスは、架空の学生の 00zz0123@bunka-wu.ac.jp と、
-// 管理ページの試験版の example.ac.jp だけが写る（本物の大学のアドレスは写さない）。
-// 見本の画像（デザイン画・作品写真など）は docs/guide-images/sample/ のもの（読むだけ）
+// 見本の原稿は、衣装コースの架空の学生（文化花子・00ZZ0123）の「シンドバッド」（2026-11-01 に組み立てを見直したもの。
+// scripts/e2e/sampleSinbad.mjs：文は git に入れない gas/trial-sample.private.json から読み、写真は public/trial/ のもの）。
+// メールアドレスは、架空の学生の 00zz0123@bunka-wu.ac.jp と、管理ページの試験版の example.ac.jp だけが写る（本物の大学のアドレスは写さない）。
 // 撮る画面（2026-10-20 の画面に合わせた）：
 //   学生用ツール：ログイン・Word の案内・PDF を保存したところ・抄録・セルフチェック・学生の画面・書く（パソコンとスマホを並べる）・
 //     表（列の幅）・作品写真（2ページ目）・ドライブに保存・バックアップ・別の端末の原稿・もう一度ログイン・2つめのタブ
@@ -18,7 +20,9 @@ import { showPhoneKeyboard } from './phoneKeyboard.mjs'
 process.env.EDGE_PORT ??= '9403'
 const { withEdge } = await import('./poc/edge.mjs')
 const { fakeDrive, routeGoogle } = await import('./e2e/fakeGoogle.mjs')
-const { setupWriting } = await import('./e2e/sampleReport.mjs')
+const { sinbadSample, setupSinbad, sampleText } = await import('./e2e/sampleSinbad.mjs')
+/** 見本の原稿「シンドバッド」（{ report, images }） */
+const SAMPLE = sinbadSample()
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const OUT = 'public/help'
@@ -35,6 +39,8 @@ const STUDENT_EMAIL = '00zz0123@bunka-wu.ac.jp'
 const config = JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8'))
 // 試験用の設定の「（自動テスト用）」のお知らせは写さない
 for (const c of config.courses) delete c.notice
+// 本番の年度の設定には「AI に聞くのリンク」があるので、メニューと使い方の欄の「使い方を AI に聞く」も写す（リンクの先は仮のもの）
+config.aiHelpUrl = 'https://gemini.google.com/gem/example'
 mkdirSync(OUT, { recursive: true })
 
 /** 撮影のじゃまになるもの（別のタブの知らせは、撮るときだけ出す。はじめての案内は、撮るときだけ出す） */
@@ -165,9 +171,20 @@ const capture = async (page, name, clip) => writeJpeg(name, [await grab(page, cl
 // 学生用ツール
 // =====================================================================
 
-/** 「セルフチェック」の画像のために、わざと入れる誤り（「見頃」「記事」「です」） */
-const CHECK_TEXT = '二回目の仮縫いでは、前見頃の丈を2cm短くした。袖の記事が重く、腕が下がって見えたためです。'
-const P7 = '二回目の仮縫いでは、実際に舞台の上で歩いたり腕を回したりして、動きやすさを確かめた。'
+/**
+ * 「セルフチェック」の画像のために、わざと入れる誤り（「見頃」「記事」「です」）。
+ * 図・表を参照していない段落（CHECK_ID：ブラウスの袖の段落）に入れる（ほかの指摘が出ないように）。撮ったら、もとの文に戻す
+ */
+const CHECK_ID = 'p5'
+// 段落の最初の文は見本のまま（実行のときに読む）。そのあとに、誤りを入れた文を足す
+const CHECK_TEXT = sampleText(SAMPLE, CHECK_ID).split('。')[0] + '。袖の内側には軽いシルクシフォンを重ねた。袖の記事が重いと、前見頃が引っ張られて形が崩れるためです。'
+/** 書いているところ・画面全体を撮る段落（デザイン説明。すぐ下にデザイン画） */
+const WRITE_ID = 'p2'
+/** 別の端末（スマホ）で書き足す段落と、そのあとパソコンで書き足す段落（まとめ）。書き足す文は、見本の原稿の後ろに付ける */
+const PHONE_ID = 'p14'
+const PC_ID = 'p13'
+const PC_ADD = '着替えの順番は、紙にまとめて楽屋の壁に貼った。'
+const PC_ADD2 = '次の公演では、留め具をはじめから付けておきたい。'
 
 /** 段落の文を書き換える */
 const setParagraph = (page, id, text) =>
@@ -176,6 +193,14 @@ const setParagraph = (page, id, text) =>
     id,
     text,
   )
+/** 段落の中身（文と図・表の参照）を、そのまま返す・置き換える（わざと入れた誤りを、もとの文に戻すため） */
+const getContent = (page, id) => page.evaluate((id) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === id).content, id)
+const setContent = (page, id, content) =>
+  page.evaluate((id, content) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === id ? { ...b, content } : b)) })) })), id, content)
+/** 段落の後ろに文を足す（ページの中で動かす。見本の原稿の文は、スクリプトに書き写さない） */
+function appendText(id, text) {
+  window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === id ? { ...b, content: [...b.content, { type: 'text', text }] } : b)) })) }))
+}
 const goToBlock = async (page, id) => {
   await page.evaluate((id) => window.__editor.goToPage(window.__editor.pageOfBlock(id), 'none'), id)
   await sleep(300)
@@ -200,19 +225,14 @@ async function openTool(browser, drive, { context, phone = false } = {}) {
 }
 
 /**
- * 作品写真の2ページ目のための写真（見本の作品写真から、袖と帯のあたりを切り出して、寄りの写真にする）。
- * ページの中で動かす。見本の作品写真（g-photo1）は、setupWriting が入れたもの
+ * 作品写真の2ページ目（2枚・上下）に載せる写真：舞台で着たところ（public/trial/w-stage.jpg）と、袖の刺繍の寄り（見本の w-sleeve。図4と同じ写真）。
+ * どちらも横長なので、上下の枠に合う。ページの中で動かす。w-sleeve は setupSinbad が入れたもの
  */
-async function addDetailPhotos() {
-  const { importImage } = await import('/src/model/images.ts')
-  const bitmap = await createImageBitmap(await (await fetch('/docs/guide-images/sample/photo-1.jpg')).blob())
-  const crop = async (id, x, y, w, h) => {
-    const c = new OffscreenCanvas(Math.round(bitmap.width * w), Math.round(bitmap.height * h))
-    c.getContext('2d').drawImage(bitmap, bitmap.width * x, bitmap.height * y, c.width, c.height, 0, 0, c.width, c.height)
-    return importImage(await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 }), id, 1200)
-  }
-  // 上半身（袖の刺繍）と、帯からズボン（2枚・上下の枠に合う横長）
-  window.__editor.addImages([await crop('g-photo2', 0.05, 0.12, 0.9, 0.4), await crop('g-photo3', 0.1, 0.45, 0.8, 0.4)])
+async function addStagePhoto() {
+  const blob = await (await fetch('trial/w-stage.jpg')).blob()
+  const bitmap = await createImageBitmap(blob)
+  window.__editor.addImages([{ id: 'w-stage', blob, widthPx: bitmap.width, heightPx: bitmap.height }])
+  bitmap.close()
 }
 
 /** スマホの紙面の段落 id の、i 文字目（見ているページ）を指で押す（字の左寄りを押す） */
@@ -252,6 +272,9 @@ async function studentShots(browser) {
   // ---- ログインの窓 ----
   await page.waitForSelector('.login-over .login-btn')
   await sleep(500)
+  // 開いたときにログインのボタンが選ばれていて、黄色い枠が付くので、外してから撮る
+  await unfocus(page)
+  await sleep(200)
   await capture(page, 'login', pad(await R(page, '.login-card'), 16))
   await page.click('.login-btn')
   await page.waitForFunction(() => !document.querySelector('.login-over'), { timeout: 60000 })
@@ -271,7 +294,7 @@ async function studentShots(browser) {
   await page.evaluate(() => document.documentElement.classList.add('no-guide'))
 
   // ---- 見本の原稿にする ----
-  await page.evaluate(setupWriting)
+  await page.evaluate(setupSinbad, SAMPLE)
   await sleep(800)
   await ready(page)
   await driveSaved(page)
@@ -310,11 +333,16 @@ async function studentShots(browser) {
   await ready(page)
 
   // ---- セルフチェック：わざと誤りを入れる ----
-  await setParagraph(page, 'p7', CHECK_TEXT)
+  const checkOriginal = await getContent(page, CHECK_ID)
+  await setParagraph(page, CHECK_ID, CHECK_TEXT)
   await sleep(500)
   await ready(page)
   await driveSaved(page)
-  await goToBlock(page, 'p3')
+  {
+    const found = await page.evaluate(() => window.__editor.getSnapshot().findings.map((f) => `${f.severity}:${f.title}`))
+    console.log(`  わざと入れた誤りの指摘：${found.join('、')}`)
+  }
+  await goToBlock(page, WRITE_ID)
   await unfocus(page)
   await page.mouse.move(5, 5)
   await sleep(600)
@@ -332,14 +360,14 @@ async function studentShots(browser) {
     await sleep(800)
     await ready(page)
   }
-  await setParagraph(page, 'p7', P7)
+  await setContent(page, CHECK_ID, checkOriginal)
   await sleep(500)
   await ready(page)
 
   // ---- 書く：段落を書いているところ（パソコン：道具と紙面の上半分。あとでスマホと並べる） ----
-  await goToBlock(page, 'p3')
-  await page.evaluate(() => window.__editor.openWhenReady('p3', 999))
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p3', { timeout: 30000 })
+  await goToBlock(page, WRITE_ID)
+  await page.evaluate((id) => window.__editor.openWhenReady(id, 999), WRITE_ID)
+  await page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 30000 }, WRITE_ID)
   await sleep(600)
   let writePc
   {
@@ -398,8 +426,8 @@ async function studentShots(browser) {
   }
 
   // ---- 作品写真：2ページ目（2枚・上下）を見ているところ。左の道具に、並べ方と「写真のページを足す」「このページを消す」 ----
-  await page.evaluate(addDetailPhotos)
-  await page.evaluate(() => window.__editor.update((r) => ({ ...r, workPhotos: [{ layout: 1, imageIds: ['g-photo1'] }, { layout: 2, columns: 1, imageIds: ['g-photo2', 'g-photo3'] }] })))
+  await page.evaluate(addStagePhoto)
+  await page.evaluate(() => window.__editor.update((r) => ({ ...r, workPhotos: [{ layout: 1, imageIds: ['g-photo1'] }, { layout: 2, columns: 1, imageIds: ['w-stage', 'w-sleeve'] }] })))
   await sleep(600)
   await ready(page)
   await page.evaluate(() => window.__editor.goToPage(window.__editor.getSnapshot().layout.kinds.lastIndexOf('photos'), 'none'))
@@ -419,7 +447,7 @@ async function studentShots(browser) {
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, workPhotos: [{ layout: 1, imageIds: ['g-photo1'] }] })))
   await sleep(500)
   await ready(page)
-  await goToBlock(page, 'p3')
+  await goToBlock(page, WRITE_ID)
 
   // ---- 保存のようす（「ドライブに保存」を押したところ） ----
   await page.mouse.move(5, 5)
@@ -445,7 +473,9 @@ async function studentShots(browser) {
     const report = window.__editor.getSnapshot().report
     const list = await listSnapshots()
     for (const s of list) await saveSnapshot(report, s.savedAt)
-    const oldest = list.length ? Date.parse(list[list.length - 1].savedAt) : Date.now()
+    // 開いたときの控えがまだないとき（同じ原稿の控えは残さないため）は、いまの見本の原稿の控えを1つ置く
+    if (!list.length) await saveSnapshot(report, new Date(Date.now() - 5 * 60000).toISOString())
+    const oldest = list.length ? Date.parse(list[list.length - 1].savedAt) : Date.now() - 5 * 60000
     await saveSnapshot({ ...report, body: report.body.slice(0, 1), workPhotos: [{ layout: 1, imageIds: [] }] }, new Date(oldest - 30 * 60000).toISOString(), true, 'Word を読み込む前')
   })
   // 「バックアップ・作り直す」は右の欄の「メニュー」の中（mockups/v37 案C）
@@ -469,15 +499,15 @@ async function studentShots(browser) {
     await ready(pp)
     await pp.evaluate(() => document.documentElement.classList.add('no-guide', 'no-tablock'))
     // 偽物のドライブは写真（バイナリ）を正しく受け渡せないので、見本の画像を入れ直す
-    await pp.evaluate(setupWriting)
+    await pp.evaluate(setupSinbad, SAMPLE)
     await sleep(800)
     await ready(pp)
     await driveSaved(pp)
-    await goToBlock(pp, 'p3')
+    await goToBlock(pp, WRITE_ID)
     // はじめて書くときの「字を大きくするには」の知らせは写さない（紙面が隠れるため）
     await pp.evaluate(() => localStorage.setItem('sotsugyo-seisaku-report-pinch-tip', 'done'))
-    await tapChar(pp, 'p3', 14)
-    await pp.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p3' && window.__editor.getSnapshot().zoomed, { timeout: 30000 })
+    await tapChar(pp, WRITE_ID, 14)
+    await pp.waitForFunction((id) => window.__editor.getSnapshot().editingId === id && window.__editor.getSnapshot().zoomed, { timeout: 30000 }, WRITE_ID)
     await sleep(900)
     await fakeKeyboard(pp, true)
     await sleep(700)
@@ -488,14 +518,14 @@ async function studentShots(browser) {
     await pp.evaluate(() => window.__editor.finishEditing())
     await sleep(600)
     // 別の端末（このスマホ）があとから保存した：パソコンで書くと、どちらで続けるかを聞く
-    await pp.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p16' ? { ...b, content: [{ type: 'text', text: '制作を通して、舞台衣装は客席からの見え方と演者の動きやすさの両方を考える必要があることを学んだ。この経験を、今後の衣装制作に生かしたい。（スマホで書き足した）' }] } : b)) })) })))
+    await pp.evaluate(appendText, PHONE_ID, '（スマホで書き足した）')
     // ドライブの原稿に、書き足した分が届くまで待つ
     for (let i = 0; i < 60 && !JSON.stringify(drive.report() ?? {}).includes('スマホで書き足した'); i++) await sleep(500)
     if (!JSON.stringify(drive.report() ?? {}).includes('スマホで書き足した')) throw new Error('スマホの原稿が、ドライブに保存されません')
     await phone.context.close()
   }
   await page.bringToFront()
-  await setParagraph(page, 'p15', '一方で、帯の結び目が大きく、場面転換の早替えに時間がかかるという課題が残った。')
+  await page.evaluate(appendText, PC_ID, PC_ADD)
   await page.waitForSelector('.drive-two', { timeout: 60000 })
   await unfocus(page)
   await sleep(500)
@@ -507,7 +537,7 @@ async function studentShots(browser) {
 
   // ---- 1時間たって Google の許可が切れたとき ----
   drive.failNext = 401
-  await setParagraph(page, 'p15', '一方で、帯の結び目が大きく、場面転換の早替えに時間がかかるという課題が残った。今後は、着脱のしやすさも考えたい。')
+  await page.evaluate(appendText, PC_ID, PC_ADD2)
   await page.waitForFunction(() => [...document.querySelectorAll('.modal h2')].some((h) => h.textContent.includes('もう一度ログイン')), { timeout: 60000 })
   await unfocus(page)
   await sleep(400)
@@ -649,9 +679,9 @@ async function adminShots(browser) {
     await openTemplate(page)
     await page.mouse.move(5, 5)
     await capture(page, 'admin-template', { x: 0, y: 0, w: PC.width, h: PC.height })
-    // 直していないので、「やめる」で確かめずに閉じる
+    // 直していないので、「閉じる」（前は「やめる」）で確かめずに閉じる
     const frame = page.frames().find((f) => f.url().includes('template=1'))
-    await frame.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === 'やめる').click())
+    await frame.evaluate(() => document.querySelector('.tpl-foot .tpl-sub').click())
     await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 10000 })
   }
 

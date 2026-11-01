@@ -1,6 +1,8 @@
 // 使い方の動画を録る（場面は scripts/video/scenes/*.mjs）。録ったものに字幕と拡大を重ねて MP4 にするのは compose.mjs。
 // 使い方: node scripts/video/record.mjs [場面の名前 …]（名前を書かなければ全部。例：02-body）
 //   開発サーバーが http://localhost:5173 で動いていること。Edge は EDGE_PORT（ふだんは 9411）で起動する
+//   開発サーバーが遅いときは、自動テスト用にまとめた版（dist-e2e）を scripts/e2e/serveBuilt.mjs で出して、APP_URL で指す
+//   （例：PORT=4242 node scripts/e2e/serveBuilt.mjs と APP_URL=http://localhost:4242 node scripts/video/record.mjs。2026-11-01 はこれで録った）
 // 録ったもの（写真・時刻）は poc-output/video/<場面の名前>/ に置く（公開しない）
 import { readdirSync } from 'node:fs'
 import * as rec from './recorder.mjs'
