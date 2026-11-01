@@ -201,6 +201,100 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
+  // 先に別の段落に「（図4）」と打ってから「図を入れる」：今の段落には（図4）を足さず、先に打った方を図につなぐ。
+  // 「もう1枚」も、先に打った「（図5）」があればそちらをつなぎ、前の図の参照の後ろには足さない（学生の試し 2026-11-01 録画1）
+  {
+    const { context, page, ready } = await open(browser)
+    const paras = () => page.evaluate(() => {
+      const blocks = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks)
+      const figs = blocks.filter((b) => b.type === 'figureRow').flatMap((b) => b.figures.map((f) => f.id))
+      const show = (id) => { const p = blocks.find((b) => b.id === id); return p ? p.content.map((n) => (n.type === 'ref' ? `[図${figs.indexOf(n.targetId) + 1}]` : n.text)).join('') : null }
+      return { p15: show('p15'), p16: show('p16'), figures: figs.length }
+    })
+    const before = await paras()
+    const n = before.figures + 1
+    await page.evaluate((n) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p15' ? { ...b, content: [{ type: 'text', text: `完成した衣装の前を示す（図${n}）。` }] } : b)) })) })), n)
+    await ready()
+    await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p16'), 'none'))
+    await ready()
+    const end = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'p16').content.map((n) => n.text ?? '').join('').length)
+    await page.evaluate((end) => window.__editor.openEditor('p16', end), end)
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p16', { timeout: 20000 })
+    await wait(300)
+    const [chooser] = await Promise.all([page.waitForFileChooser(), page.evaluate(() => void window.__editor.addFigure())])
+    await chooser.accept([resolve('docs/guide-images/sample/photo-1.jpg')])
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingKind === 'figureCaption', { timeout: 30000 })
+    await page.keyboard.type('衣装の前')
+    await page.keyboard.press('Escape')
+    await ready()
+    await wait(500)
+    const one = await paras()
+    check('先に別の段落に「（図n）」と打ってから「図を入れる」：今の段落には（図n）を足さず、先に打った方が図につながる', one.p15 === `完成した衣装の前を示す[図${n}]。` && !one.p16.includes(`[図${n}]`) && one.figures === n, JSON.stringify({ one, n }))
+    // 「もう1枚」：p16 に先に「（図n+1）」と打っておく
+    await page.evaluate((n) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p16' ? { ...b, content: [...b.content, { type: 'text', text: `後ろを示す（図${n + 1}）。` }] } : b)) })) })), n)
+    await ready()
+    const figId = await page.evaluate(() => { const rows = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).filter((b) => b.type === 'figureRow'); return rows.at(-1).figures[0].id })
+    const [chooser2] = await Promise.all([page.waitForFileChooser(), page.evaluate((id) => void window.__editor.addFigureBeside(id), figId)])
+    await chooser2.accept([resolve('docs/guide-images/sample/photo-1.jpg')])
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingKind === 'figureCaption', { timeout: 30000 })
+    await page.keyboard.type('衣装の後ろ')
+    await page.keyboard.press('Escape')
+    await ready()
+    await wait(500)
+    const two = await paras()
+    check('「もう1枚」：先に打った「（図n）」をつなぎ、前の図の参照の後ろには（図n）を足さない', two.p15 === `完成した衣装の前を示す[図${n}]。` && two.p16.endsWith(`後ろを示す[図${n + 1}]。`) && two.figures === n + 1, JSON.stringify({ two, n }))
+    await context.close()
+  }
+
+  // ひな形の仮の小見出し「〇〇〇〇」を押すと、全部を選んで開く（打つと置き換わる。学生の試し 2026-11-01 録画1）
+  {
+    const { context, page, ready } = await open(browser)
+    const sid = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.type === 'subheading').id)
+    await page.evaluate((sid) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === sid ? { ...b, title: '〇〇〇〇' } : b)) })) })), sid)
+    await ready()
+    await page.evaluate((sid) => window.__editor.goToPage(window.__editor.pageOfBlock(sid), 'none'), sid)
+    await ready()
+    const at = await page.evaluate((sid) => { const el = document.querySelector(`.page-viewport.front [data-vivliostyle-page-container].is-current [data-block-id="${sid}"]`); const range = document.createRange(); range.selectNodeContents(el); const rects = [...range.getClientRects()].filter((r) => r.width > 0); const r = rects.at(-1); return { x: r.left + r.width * 0.6, y: r.top + r.height / 2 } }, sid)
+    await page.mouse.click(at.x, at.y)
+    await page.waitForFunction((sid) => window.__editor.getSnapshot().editingId === sid, { timeout: 20000 }, sid)
+    await wait(300)
+    await page.keyboard.type('ジャケット')
+    await page.keyboard.press('Escape')
+    await ready()
+    const title = await page.evaluate((sid) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === sid).title, sid)
+    check('ひな形の仮の小見出し「〇〇〇〇」を押して打つと、置き換わる（「〇〇ジャケット〇〇」にならない）', title === 'ジャケット', JSON.stringify(title))
+    await context.close()
+  }
+
+  // 表のマスに「画像を入れる」：書く欄を閉じ、入れた画像を選ぶ（カーソルが画像の下＝下のマスの上端に出なくなる。mockups/v84 案A）
+  {
+    const { context, page, ready } = await open(browser)
+    const at = await page.evaluate(() => {
+      const t = window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.type === 'table')
+      const col = t.rows[0].cells.findIndex((c) => c.text.includes('生地'))
+      window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === t.id ? { ...b, rows: b.rows.map((row, i) => (i === 1 ? { ...row, cells: row.cells.map((cell, j) => (j === col ? { ...cell, imageId: null } : cell)) } : row)) } : b)) })) }))
+      return { tableId: t.id, cellId: t.rows[1].cells[col].id }
+    })
+    await ready()
+    await page.evaluate((id) => window.__editor.goToPage(window.__editor.pageOfBlock(id), 'none'), at.tableId)
+    await ready()
+    await page.evaluate((id) => window.__editor.openEditor(id, 0), at.cellId)
+    await page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 20000 }, at.cellId)
+    await wait(300)
+    const [chooser] = await Promise.all([page.waitForFileChooser(), page.evaluate((id) => void window.__editor.setCellImage(id), at.tableId)])
+    await chooser.accept([resolve('docs/guide-images/sample/swatch-satin.jpg')])
+    await page.waitForFunction((id) => !!window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.type === 'table').rows.flatMap((r) => r.cells).find((c) => c.id === id)?.imageId, { timeout: 30000 }, at.cellId)
+    await ready()
+    await wait(500)
+    const got = await page.evaluate((id) => {
+      const s = window.__editor.getSnapshot()
+      const img = document.querySelector(`.page-viewport.front [data-cell-id="${id}"] img`)
+      return { sel: s.selection, editing: s.editingId, marked: !!img?.classList.contains('is-selected'), tools: [...document.querySelectorAll('.palette .tb')].map((b) => b.textContent.trim()).filter((t) => /差し替え|切り抜く|外す/.test(t)) }
+    }, at.cellId)
+    check('表のマスに「画像を入れる」と、書く欄を閉じて、入れた画像を選ぶ（枠が付き、左の道具は「この画像」）', got.sel?.kind === 'cellImage' && got.sel.id === at.cellId && got.editing === null && got.marked && got.tools.length >= 2, JSON.stringify(got))
+    await context.close()
+  }
+
   // 紙面で文をなぞって選び、帯の「コピー」：少しの間「✓ コピーしました」になり、元に戻る（mockups/v82 案A）。抄録の行数は上限なし（1ページに収める）
   {
     const { context, page, ready } = await open(browser)

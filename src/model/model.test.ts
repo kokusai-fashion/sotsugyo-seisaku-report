@@ -62,6 +62,19 @@ describe('下書きのひな形', () => {
     expect(body.map((c) => [c.title, c.blocks.length])).toEqual([['', 1], ['A', 1], ['B', 1]])
   })
 
+  it('ひな形の本文に入る文の「表1」「（図1）」は、ひな形の表・図へのリンクにする（ない番号は文字のまま）', () => {
+    const body = bodyFromTemplate([
+      { type: 'chapter', title: 'A' },
+      { type: 'paragraph', hint: '', text: 'デザイン画を示す（図1）。' },
+      { type: 'figure', caption: 'デザイン画' },
+      { type: 'paragraph', hint: '', text: '使用した素材を表1にまとめる。表2はない。' },
+      { type: 'materialTable', caption: '使用素材表' },
+    ])
+    const [p1, fig, p2, table] = body[0].blocks
+    expect(p1.type === 'paragraph' && p1.content.map((n) => (n.type === 'ref' ? `[${n.targetId === (fig.type === 'figureRow' ? fig.figures[0].id : '')}]` : n.text))).toEqual(['デザイン画を示す', '[true]', '。'])
+    expect(p2.type === 'paragraph' && p2.content.map((n) => (n.type === 'ref' ? `[${n.targetId === table.id}]` : n.text))).toEqual(['使用した素材を', '[true]', 'にまとめる。表2はない。'])
+  })
+
   it('ひな形のままなら「書き始めていない」、書き足したら「書き始めた」とみなす', () => {
     const report = createReport(twoCourses, 'other')
     expect(bodyWritten(report, twoCourses)).toBe(false)

@@ -202,6 +202,8 @@ const FIGURE_MAX_MM = 80
 const ENTER_CREATES_PARAGRAPH = new Set<ops.EditableKind>(['chapter', 'subheading', 'figureCaption', 'tableCaption'])
 /** 書き終えていないから出る指摘（空の欄・空のマス・文末の「。」・氏名の空白〔書き終えたときにそろえる〕）。書いている欄では、書き終えるまで出さない（runChecks） */
 const WRITING_RULES = new Set(['required-field', 'required-text', 'sentence-end', 'table-cell-empty', 'name-space', 'name-no-space', 'abstract-source'])
+/** ひな形の仮の見出しの名前（「〇〇〇〇」。押すと全部を選んで開く：openEditor） */
+const PLACEHOLDER_TITLE = /^[〇○◯]+$/
 /** すばやく2回押した（ダブルクリック）とみなす間（ミリ秒） */
 const DOUBLE_PRESS_MS = 450
 
@@ -2653,6 +2655,10 @@ export class ReportEditor {
     this.reportBeforeEdit = this.report
     this.hideStyle.textContent = this.editingStyle(id)
     this.overlay.open(target)
+    // ひな形の仮の見出し（「〇〇〇〇」だけ）を押した：全部を選んで開く（打つと置き換わる。PC。前は押した所に字が入り、
+    // 「〇〇ジャケット〇〇」になっていた：学生の試し 2026-11-01 録画1）
+    const editable = ops.findEditable(this.report, id)
+    if (!this.phone && editable && (editable.kind === 'subheading' || editable.kind === 'chapter') && PLACEHOLDER_TITLE.test(editable.text)) this.overlay.selectText(0, editable.text.length)
     // スマホ：紙面を拡大し、書いているところを見せる
     if (this.phone) {
       if (!this.stage.zoomed) this.stage.setZoom(true)
@@ -4515,8 +4521,17 @@ export class ReportEditor {
       return { id: paragraphId, place: 'after' }
     }
     const next = below(ops.insertRef(this.report, paragraphId, caret, objectId))
+    const own = ops.linkWrittenRef(next, paragraphId, objectId)
+    // この段落には番号を書いておらず、ほかの段落に先に書いていた（「（図8）」と書いてから、下の段落で「図を入れる」）：
+    // そちらを図へのリンクにし、この段落には（図n）を足さない（両方に入って二重になっていた：学生の試し 2026-11-01 録画1）
+    const placed = below(this.report)
+    const elsewhere = own ? null : ops.linkWrittenRefsElsewhere(placed, paragraphId, objectId)
+    if (elsewhere && elsewhere !== placed) {
+      this.report = elsewhere
+      return { id: paragraphId, place: 'after' }
+    }
     // ほかの段落に先に書いておいた「（図3）」も、入れた図へのリンクにする（文字のまま残り、「図の番号を手で書いている」のエラーになっていた：学生の試し 3回目 2026-10-29）
-    this.report = ops.linkWrittenRefsElsewhere(ops.linkWrittenRef(next, paragraphId, objectId) ?? next, paragraphId, objectId)
+    this.report = ops.linkWrittenRefsElsewhere(own ?? next, paragraphId, objectId)
     return { id: paragraphId, place: 'after' }
   }
 
@@ -4643,10 +4658,14 @@ export class ReportEditor {
     const row = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
     const pushed = row?.type === 'figureRow' && row.figures.length >= ops.FIGURES_PER_ROW ? (row.figures.at(-1) ?? null) : null
     this.pushHistory(this.report)
-    this.report = ops.insertRefAfterRef(ops.addFigureAfter(this.report, figureId, newFigure), figureId, newFigure.id)
+    const added = ops.addFigureAfter(this.report, figureId, newFigure)
+    // どこかの段落に、その図の番号を先に書いていた（「（図12）」）：そちらを図へのリンクにし、（図n）は足さない
+    // （前の図の参照の後ろにも足されて、二重になっていた：学生の試し 2026-11-01 録画1）
+    const written = ops.linkWrittenRefsElsewhere(added, '', newFigure.id)
+    this.report = written !== added ? written : ops.insertRefAfterRef(added, figureId, newFigure.id)
     // 段落にその図の番号を手で書いていたら（「図2に示す」）、（図2）は足さずに、書いた番号を図につなげる
     const paragraph = this.report.body.flatMap((c) => c.blocks).find((b) => b.type === 'paragraph' && b.content.some((n) => n.type === 'ref' && n.targetId === newFigure.id))
-    if (paragraph) this.report = ops.linkWrittenRef(this.report, paragraph.id, newFigure.id) ?? this.report
+    if (paragraph && written === added) this.report = ops.linkWrittenRef(this.report, paragraph.id, newFigure.id) ?? this.report
     this.reopenAfterRender(newFigure.id, 0, { id: figureId, place: 'after' })
     if (pushed) {
       const name = pushed.id === figureId ? '新しい図' : pushed.caption.trim() ? `「${pushed.caption.trim()}」` : '後ろの図'
@@ -4850,7 +4869,13 @@ export class ReportEditor {
     if (!at?.cellId) return
     const imageId = await this.importImage('swatch')
     if (!imageId) return
-    this.changeTable(tableId, (t) => setCellImage(t, at.cellId, imageId), at.cellId)
+    if (this.template) this.changeTable(tableId, (t) => setCellImage(t, at.cellId, imageId), at.cellId)
+    else {
+      // 入れたら書く欄を閉じ、入れた画像を選ぶ（「この画像」の道具が出る。依頼者の選択 2026-11-01：mockups/v84 案A）。
+      // 前は同じマスで書く欄が開き直し、画像でマスが埋まっているため、カーソルが画像の下（下のマスの上端）に出て、下のマスを選んでいるように見えた
+      this.update((r) => ops.updateTable(r, tableId, (t) => setCellImage(t, at.cellId, imageId)))
+      this.select({ kind: 'cellImage', id: at.cellId })
+    }
     // 入れ方の知らせ（noticeSwatchOnce）は、入れたら消す（入れたあとも紙面に重なって残っていた：学生の試し 7回目 2026-10-30）
     const shown = this.notice?.notice
     if (shown?.kind === 'info' && shown.text.startsWith('生地見本の写真は')) {

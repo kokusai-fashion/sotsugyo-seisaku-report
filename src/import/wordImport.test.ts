@@ -10,7 +10,8 @@ import type { Chapter, FigureRowBlock, ParagraphBlock, TableBlock } from '../mod
 import type { WordImportResult } from './types'
 import { isPlaceholderOnly, isReferencesTitle, isWriting, parseCaptionLine } from './wordImport'
 import { headingFromText } from '../model/headingText'
-import { applyWordImport, chapterOrder, lostByImport, readWordFiles, subtitleFromWord, WordImportError } from './wordImport'
+import { applyWordImport, chapterOrder, importPrints, lostByImport, readWordFiles, subtitleFromWord, WordImportError } from './wordImport'
+import { bodyFromTemplate, courseTemplate } from '../model/template'
 import { exifOrientation, imageInfo, prepareImage } from './wordImages'
 
 // 単体テストはブラウザの外で動くので、XML を読む道具（ブラウザの DOMParser）の代わりを置く
@@ -202,6 +203,14 @@ describe('ひな形と同じつくりの Word', () => {
     expect(applied.abstract).toBe(report.abstract)
     expect(applied.workPhotos).toBe(report.workPhotos)
     expect(applied.references).toBe(report.references)
+  })
+
+  it('ひな形に入っている文（「使用した素材を表1にまとめる。」）は、ツールで書いた分に数えない（ひな形の印を一緒に渡す：WordImport.tsx）', () => {
+    const template: TemplateBlock[] = [{ type: 'chapter', title: '企画・立案' }, { type: 'paragraph', hint: '', text: '使用した素材を表1にまとめる。' }, { type: 'materialTable', caption: '使用材料表' }]
+    const config: YearConfig = { ...currentConfig, courses: currentConfig.courses.map((c) => (c.id === COURSE ? { ...c, template } : c)) }
+    const fresh = createReport(config, COURSE)
+    expect(lostByImport(fresh, []).map((l) => l.paragraphs)).toEqual([1])
+    expect(lostByImport(fresh, [], new Set(importPrints(bodyFromTemplate(courseTemplate(config, COURSE)))))).toEqual([])
   })
 
   it('読み込むと消える、ツールで書いた本文を、章の名前と段落の数で知らせる（Word から写したままの段落は数えない）', async () => {

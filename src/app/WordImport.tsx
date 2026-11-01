@@ -5,6 +5,7 @@ import { deviceName } from '../drive/device'
 import type { OutlineItem, WordImportResult } from '../import/types'
 import type { LostChapter } from '../import/wordImport'
 import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
+import { bodyFromTemplate, courseTemplate } from '../model/template'
 import type { Report } from '../model/types'
 import { tidyName } from '../model/personName'
 import { BusyLabel, SlowNote } from './Busy'
@@ -280,9 +281,12 @@ export function WordImportDialog({ config, report, onImport, onClose, accountStu
   /** 読み取る（forCourse：そのコースのひな形・サブタイトルの形で読む） */
   const readAs = async (forCourse: string): Promise<ReadResult | null> => {
     if (!files.body) return null
-    const { readWordFiles, lostByImport, keepWrittenChapters } = await loadWordReader()
+    const { readWordFiles, lostByImport, keepWrittenChapters, importPrints } = await loadWordReader()
     const r = keepWrittenChapters(report, await readWordFiles({ body: files.body, cover: files.cover }, { config, courseId: forCourse }))
-    return { result: r, lost: lostByImport(report, r.body, importedPrints()) }
+    // ひな形に入っている文（「使用した素材を表1にまとめる。」など）も、ツールで書いた分に数えない
+    // （何も書いていないのに「ツールで書いた1段落は消えます」と出ていた：学生の試し 2026-11-01 録画2）
+    const template = importPrints(bodyFromTemplate(courseTemplate(config, report.basicInfo.courseId)))
+    return { result: r, lost: lostByImport(report, r.body, new Set([...importedPrints(), ...template])) }
   }
 
   const read = async () => {
