@@ -2269,3 +2269,36 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
   .page-viewport .page-break:not(.is-selected):focus-visible::after { outline: max(3px, calc(3px / var(--s))) solid #f2b705; }
   .page-viewport [data-photo-slot]:not(.is-selected):focus-visible::after { border: max(3px, calc(3px / var(--s))) solid #f2b705; }
 }
+
+/* ---- 困ったこと・おかしいことを知らせる（mockups/v85 入口A・B／窓A／知らせA） ---- */
+.feedback-link { display: block; width: 100%; margin: 8px 0 0; padding: 0; border: 0; background: none; color: var(--accent); font-size: 11.5px; text-align: center; text-decoration: underline; text-underline-offset: 3px; }
+.feedback-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sheet .feedback-link { margin: 14px 0 0; font-size: 13px; }
+.modal.feedback .fb-kinds { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 12px; }
+.modal.feedback .fb-kinds button { border-radius: 999px; padding: 5px 12px; }
+.modal.feedback .fb-kinds button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.modal.feedback .fb-q { display: block; font-weight: 700; font-size: 13px; margin: 6px 0 4px; }
+.modal.feedback textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 14px; line-height: 1.7; resize: vertical; }
+.modal.feedback textarea::placeholder { color: #9aa0b4; }
+.modal.feedback textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+.modal.feedback .fb-attach { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; font-size: 13px; line-height: 1.6; }
+.modal.feedback .fb-attach input { margin-top: 4px; }
+.modal.feedback .fb-attach small { display: block; color: var(--muted); font-size: 12px; }
+.modal.feedback .fb-auto { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #f5f6fa; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+.modal.feedback .fb-auto b { color: var(--ink); font-weight: 600; }
+.modal.feedback .fb-auto ul { margin: 2px 0 4px; padding-left: 1.2em; }
+.modal.feedback .fb-wait { margin: 12px 0 0; font-size: 12.5px; line-height: 1.7; }
+.modal.feedback .fb-error { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #fdecec; color: var(--error); font-size: 12.5px; line-height: 1.7; }
+.modal.feedback .fb-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.modal.feedback .fb-actions .spinner { width: 13px; height: 13px; margin-right: 6px; vertical-align: -2px; }
+.modal.feedback .fb-sent { text-align: center; padding: 6px 0 2px; }
+.modal.feedback .fb-sent .ok { font-size: 30px; color: var(--ok); }
+.modal.feedback .fb-sent p { line-height: 1.8; margin: 6px 0; }
+.modal.feedback .fb-sent .no { font-family: ui-monospace, Consolas, monospace; font-weight: 700; }
+.fb-done { position: relative; margin: 0 20px 14px; padding: 9px 30px 9px 12px; border-radius: 8px; background: #e7f2ea; border: 1px solid #b7d9c0; font-size: 12px; line-height: 1.7; color: #1f4d2c; }
+.side .fb-done { margin: 0 16px 10px; font-size: 11.5px; }
+.fb-done b { display: block; font-size: 11.5px; }
+.fb-done .fb-reply { display: block; margin-top: 4px; white-space: pre-wrap; }
+.fb-done .x { position: absolute; top: 4px; right: 6px; border: 0; background: none; color: #5b7d64; font-size: 16px; line-height: 1; padding: 2px 4px; }
+.fb-done .x:focus-visible { outline: 2px solid var(--accent); }
+.sheet .fb-done { margin: 10px 0 12px; font-size: 13px; }

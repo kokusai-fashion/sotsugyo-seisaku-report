@@ -22,6 +22,8 @@ export const AdminIcon = {
     </>,
   ),
   history: svg(<path d="M4.5 12a7.5 7.5 0 102.2-5.3M4.5 4.5v3.5H8M12 8v4.5l3 2" />),
+  /** 届いた声（吹き出し） */
+  feedback: svg(<path d="M20 14.5a2 2 0 0 1-2 2H8.5L4 20V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2zM12 7.5v4M12 13.8v.1" />),
   gear: svg(
     <>
       <circle cx="12" cy="12" r="3" />

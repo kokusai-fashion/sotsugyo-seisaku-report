@@ -20,6 +20,12 @@
  * OAuth クライアント ID と大学のドメインも、ビルド時（.env の VITE_GOOGLE_CLIENT_ID・VITE_GOOGLE_DOMAIN）に入る
  * （入っていなければスクリプト プロパティの GOOGLE_CLIENT_ID・GOOGLE_DOMAIN）。
  * PDF の控えには、ドライブ（高度なサービス Drive API v3）と外部への接続の権限がいる。デプロイしたあと、エディタで1回だけ authorizePdfCopy を実行して承認する。
+ *
+ * doPost のほかの窓口（mockups/v85）：
+ * - feedback：学生の「困ったこと・おかしいことを知らせる」。シート「届いた声」に残し、受付番号と鍵を返す（管理者へのメールは、管理ページの notifyNewFeedback が10分ごとに送る）
+ * - feedbackStatus：送った声の状態（鍵が合うものだけ。学生のツールが開いたときに問い合わせる）
+ * - errorLog：ツールの中で起きたエラー（シート「エラーの記録」。原稿の文は届かない）
+ * この窓口はメールを送らない（新しい許可が要らない。許可を足すと、承認するまで学生のツールへの配信が止まるおそれがあるため）。
  * このファイルは app/gas/api-project/Code.js が元。
  */
 
@@ -131,6 +137,9 @@ function doPost(e) {
     const request = parseRequest_(e)
     if (request.tooLarge) body = { ok: false, error: 'PDF が大きすぎます（40MB まで）' }
     else if (request.action === 'pdfCopy') body = pdfCopy_(request)
+    else if (request.action === 'feedback') body = feedback_(request)
+    else if (request.action === 'feedbackStatus') body = feedbackStatus_(request)
+    else if (request.action === 'errorLog') body = errorLog_(request)
     else body = { ok: false, error: '知らない操作です' }
   } catch (err) {
     // ドライブなどの思いがけないエラー：くわしいこと（フォルダの ID など）は返さず、ここの記録にだけ残す
@@ -333,4 +342,169 @@ function savePdf_(rootId, courseName, fileName, key, blob, description) {
     resource.mimeType = 'application/pdf'
     Drive.Files.create(resource, blob, { supportsAllDrives: true, fields: 'id' })
   }
+}
+
+// ---- 困ったこと・おかしいことを知らせる（届いた声）・ツールの中のエラーの記録（doPost。mockups/v85） ----
+
+const SHEET_FEEDBACK = '届いた声'
+const SHEET_ERRORS = 'エラーの記録'
+/** 届いた声のシートの列（管理ページ gas/admin-project/Code.js の FEEDBACK_HEADER と同じ） */
+const FEEDBACK_HEADER = ['受付番号', '確かめの鍵', '受け付けた日時', '種類', '内容', 'アドレス', '学籍番号', '氏名', 'コース', 'ツールの版', '端末', '開いていたページ', '直前の知らせ', 'ツールの中のエラー', '画面の写真', '状態', '学生へのひとこと', '先生のメモ', '状態を変えた日時', '知らせた日時', '管理者に知らせた日時']
+const ERROR_HEADER = ['日時', 'ツールの版', '端末', '開いていたページ', 'エラー', 'くわしく']
+const FEEDBACK_KINDS = ['うまく動かない', 'やり方が分からない', 'そのほか']
+const FEEDBACK_NEW = '受け付けた'
+/** 1日に送れる数（1つのアカウントごと・ログインなしは全体で） */
+const FEEDBACK_PER_DAY = 20
+const FEEDBACK_ANON_PER_DAY = 200
+/** 画面の写真（JPEG）の上限（base64 の文字数。2MB ほど） */
+const FEEDBACK_SCREEN_MAX = 2800000
+/** 画面の写真を置くフォルダ（PDF の控えのフォルダの中） */
+const FEEDBACK_SCREEN_FOLDER = '届いた声の画面'
+/** エラーの記録：同じエラーは1時間に1回、全体で1分に30回まで */
+const ERROR_SAME_SECONDS = 3600
+const ERROR_PER_MINUTE = 30
+
+/** 文字の項目（なければ ''、文字でない・長すぎれば null） */
+function field_(value, max) {
+  if (value === undefined || value === null) return ''
+  return typeof value === 'string' && value.length <= max ? value : null
+}
+
+/** シートに書く値（先頭が = + - @ の文字は、式にならないよう ' を付ける） */
+function cell_(value) {
+  const text = String(value === undefined || value === null ? '' : value)
+  return /^[=+\-@]/.test(text) ? "'" + text : text
+}
+
+/** 名前のシート（なければ、見出しの行を付けて作る） */
+function sheetWithHeader_(name, header) {
+  const book = SpreadsheetApp.openById(sheetId_())
+  let sheet = book.getSheetByName(name)
+  if (!sheet) {
+    sheet = book.insertSheet(name)
+    sheet.appendRow(header)
+    sheet.getRange(1, 1, 1, header.length).setFontWeight('bold')
+    sheet.setFrozenRows(1)
+  }
+  return sheet
+}
+
+/** 今日の数を1つ増やす（上限を超えたら false。CacheService に1日だけ置く） */
+function countToday_(key, limit) {
+  const cache = CacheService.getScriptCache()
+  const k = key + ':' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd')
+  const n = Number(cache.get(k) || 0)
+  if (n >= limit) return false
+  cache.put(k, String(n + 1), 60 * 60 * 24)
+  return true
+}
+
+/**
+ * 学生のツールから届く：{ action: 'feedback', token（任意。ログインしていれば）, kind, text, version, device, page, notice, errors（文字の配列）,
+ * screen（任意。開いていたページの写真 JPEG の base64）, year, courseId, studentId, name }
+ * 答え：{ ok: true, id（受付番号）, key（状態を問い合わせる鍵。学生の端末だけが持つ） } ／ { ok: false, error }
+ */
+function feedback_(request) {
+  const kind = field_(request.kind, 20)
+  const text = field_(request.text, 2000)
+  const version = field_(request.version, 80)
+  const device = field_(request.device, 200)
+  const page = field_(request.page, 100)
+  const notice = field_(request.notice, 300)
+  const courseId = field_(request.courseId, 100)
+  const studentId = field_(request.studentId, 40)
+  const name = field_(request.name, 100)
+  const token = field_(request.token, 4096)
+  const screen = field_(request.screen, FEEDBACK_SCREEN_MAX)
+  const errors = Array.isArray(request.errors) ? request.errors.filter((x) => typeof x === 'string').slice(0, 5).map((x) => x.slice(0, 500)) : []
+  if (FEEDBACK_KINDS.indexOf(kind) < 0 || !text || !text.trim() || [version, device, page, notice, courseId, studentId, name, token, screen].some((v) => v === null)) {
+    return { ok: false, error: '送られた内容の形が正しくありません' }
+  }
+  if (screen && !/^[A-Za-z0-9+/]*={0,2}$/.test(screen)) return { ok: false, error: '画面の写真の形が正しくありません' }
+
+  // 送った人（ログインしていれば、Google に確かめる。確かめられなくても受け付ける：返事のメールは送れない）
+  let email = ''
+  if (token) {
+    const clientId = setting_(CLIENT_ID, 'GOOGLE_CLIENT_ID')
+    const domain = setting_(DOMAIN, 'GOOGLE_DOMAIN').toLowerCase()
+    const sender = clientId && domain ? verifySender_(token, clientId, domain) : { ok: false }
+    if (sender.ok) email = sender.email
+  }
+  if (!countToday_('feedback:' + (email || 'anonymous'), email ? FEEDBACK_PER_DAY : FEEDBACK_ANON_PER_DAY)) return { ok: false, error: '今日はこれ以上送れません。担当の先生に直接お知らせください' }
+
+  const yearConfig = /^\d{4}$/.test(String(request.year)) ? readConfig_(String(request.year)) : readConfig_()
+  const config = yearConfig && yearConfig.ok ? yearConfig.config : null
+  const course = config && Array.isArray(config.courses) ? config.courses.find((c) => c && c.id === courseId) : null
+  const now = new Date()
+  const lock = LockService.getScriptLock()
+  lock.waitLock(30000)
+  try {
+    const sheet = sheetWithHeader_(SHEET_FEEDBACK, FEEDBACK_HEADER)
+    // 受付番号：月日と、その日の通し番号（例 1105-023）
+    const prefix = Utilities.formatDate(now, 'Asia/Tokyo', 'MMdd') + '-'
+    const today = sheet.getDataRange().getValues().slice(1).filter((r) => String(r[0]).indexOf(prefix) === 0).length
+    const id = prefix + ('00' + (today + 1)).slice(-3)
+    const key = Utilities.getUuid().replace(/-/g, '').slice(0, 20)
+    const screenLink = screen ? saveScreen_(screen, id) : ''
+    const row = [id, key, Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'), kind, text.trim(), email, studentId.trim(), name.trim(), (course && course.name) || courseId, version, device, page, notice, errors.join('\n'), screenLink, FEEDBACK_NEW, '', '', '', '', '']
+    sheet.appendRow(row.map(cell_))
+    return { ok: true, id: id, key: key }
+  } finally {
+    lock.releaseLock()
+  }
+}
+
+/** 画面の写真を、PDF の控えのフォルダの中の「届いた声の画面」に置く（フォルダが未設定・置けないときは、その旨の文字） */
+function saveScreen_(base64, id) {
+  const rootId = setting_(PDF_FOLDER_ID, 'PDF_FOLDER_ID')
+  if (!rootId) return '（写真を置くフォルダが未設定）'
+  try {
+    const folderId = courseFolder_(rootId, FEEDBACK_SCREEN_FOLDER)
+    const name = '届いた声_' + id + '.jpg'
+    const file = Drive.Files.create({ name: name, parents: [folderId], mimeType: 'image/jpeg' }, Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', name), { supportsAllDrives: true, fields: 'id' })
+    return 'https://drive.google.com/file/d/' + file.id + '/view'
+  } catch (err) {
+    console.error('届いた声の画面の写真を置けませんでした：' + String(err && err.message ? err.message : err))
+    return '（写真を置けませんでした）'
+  }
+}
+
+/**
+ * 送った声の今の状態（学生のツールが、開いたときに問い合わせる）：{ action: 'feedbackStatus', items: [{ id, key }]（20件まで） }
+ * 答え：{ ok: true, items: [{ id, status, reply, changedAt }] }（鍵が合うものだけ）
+ */
+function feedbackStatus_(request) {
+  const asked = Array.isArray(request.items) ? request.items.slice(0, 20).filter((x) => x && typeof x.id === 'string' && typeof x.key === 'string') : []
+  if (!asked.length) return { ok: true, items: [] }
+  const sheet = SpreadsheetApp.openById(sheetId_()).getSheetByName(SHEET_FEEDBACK)
+  const rows = sheet ? sheet.getDataRange().getValues().slice(1) : []
+  const items = []
+  for (const a of asked) {
+    const row = rows.find((r) => String(r[0]) === a.id && String(r[1]) === a.key)
+    if (row) items.push({ id: a.id, status: String(row[15] || FEEDBACK_NEW), reply: String(row[16] || ''), changedAt: String(row[18] || '') })
+  }
+  return { ok: true, items: items }
+}
+
+/**
+ * ツールの中で起きたエラー（学生が知らせなくても、自動で）：{ action: 'errorLog', version, device, page, message, stack }。
+ * 原稿の文は送られない。同じエラーは1時間に1回、全体で1分に30回まで残す
+ */
+function errorLog_(request) {
+  const version = field_(request.version, 80)
+  const device = field_(request.device, 200)
+  const page = field_(request.page, 100)
+  const message = field_(request.message, 500)
+  const stack = field_(request.stack, 2000)
+  if (!message || [version, device, page, stack].some((v) => v === null)) return { ok: false, error: '送られた内容の形が正しくありません' }
+  const cache = CacheService.getScriptCache()
+  const same = 'error:' + message.slice(0, 200)
+  if (cache.get(same)) return { ok: true, skipped: true }
+  const minute = 'errors:' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMddHHmm')
+  const n = Number(cache.get(minute) || 0)
+  if (n >= ERROR_PER_MINUTE) return { ok: true, skipped: true }
+  cache.put(minute, String(n + 1), 120)
+  cache.put(same, '1', ERROR_SAME_SECONDS)
+  sheetWithHeader_(SHEET_ERRORS, ERROR_HEADER).appendRow([Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'), version, device, page, message, stack].map(cell_))
+  return { ok: true }
 }

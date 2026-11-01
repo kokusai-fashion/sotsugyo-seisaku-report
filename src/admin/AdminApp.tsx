@@ -23,6 +23,7 @@ import { isMockServer, roleOf, server, type AdminState, type HistoryRow, type Me
 import { TemplateEditor } from './TemplateEditor'
 import { TemplateOverlay } from './TemplateOverlay'
 import { TrialSection } from './TrialSection'
+import { FeedbackSection } from './FeedbackSection'
 import { TEMPLATE_RECEIVED } from './templateText'
 import { ProblemsContext } from './problemsContext'
 import { ProblemLine } from './ui'
@@ -62,7 +63,7 @@ const WAIT_TEXT: Record<Busy, string> = { save: '保存しています…', publ
 const DONE_TEXT: Record<Busy, string> = { save: '保存しました', publish: '公開しました', create: '作成しました', delete: '削除しました' }
 
 /** 左の見出しの区切り */
-type Section = 'year' | 'course' | 'words' | 'trial' | 'members' | 'history' | 'details'
+type Section = 'year' | 'course' | 'words' | 'trial' | 'feedback' | 'members' | 'history' | 'details'
 const SECTIONS: Section[] = ['year', 'course', 'words', 'trial', 'members', 'history', 'details']
 const TEACHER_SECTIONS: Section[] = ['course', 'words', 'trial']
 /** 表紙と抄録の見本を右に出す区切り（ほかは、区切りを画面の幅いっぱいに出す） */
@@ -384,6 +385,8 @@ interface NavItem {
 
 /** 「学生の画面を試す」（管理者・先生とも。依頼者の選択 2026-10-22 案1） */
 const TRIAL_NAV: NavItem = { key: 'trial', icon: AdminIcon.trial, title: '学生の画面を試す', sub: '見本の原稿で' }
+/** 「届いた声」（管理者・先生とも。学生の「困ったこと・おかしいことを知らせる」。mockups/v85） */
+const FEEDBACK_NAV: NavItem = { key: 'feedback', icon: AdminIcon.feedback, title: '届いた声', sub: '学生の困りごと' }
 
 /** お試しで学生のツールに渡す、公開中の年度の設定（学生が見ているもの。公開中の年度がなければ、開いている年度の保存した設定） */
 const publishedConfig = (state: AdminState, row: YearRow): YearConfig => state.years.find((y) => y.status === '公開中')?.config ?? row.config
@@ -959,6 +962,7 @@ export function AdminApp() {
     { key: 'course', icon: AdminIcon.course, title: 'コース', sub: 'お知らせ・ひな形', count: counts.course },
     { key: 'words', icon: AdminIcon.words, title: '書き方のチェック', sub: wordSummary(draft.wordChecks ?? DEFAULT_WORD_CHECKS), count: counts.words },
     TRIAL_NAV,
+    FEEDBACK_NAV,
     { key: 'members', icon: AdminIcon.people, title: '先生の登録', sub: members ? `${members.length}人` : membersError ? '読み込めません' : '読み込んでいます…', sep: true },
     { key: 'history', icon: AdminIcon.history, title: '変更履歴', sub: lastSaved(row.updatedAt) },
     { key: 'details', icon: AdminIcon.gear, title: '詳細設定', sub: 'ふだんは変えません', count: (counts.details ?? 0) + (counts.other ?? 0) },
@@ -1045,6 +1049,7 @@ export function AdminApp() {
     )
   else if (section === 'words') content = <WordsSection key={row.year} words={draft.wordChecks ?? DEFAULT_WORD_CHECKS} onChange={(wordChecks) => set({ wordChecks })} onPending={setPending} notices={notices} />
   else if (section === 'trial') content = <TrialSection config={publishedConfig(state, row)} />
+  else if (section === 'feedback') content = <FeedbackSection />
   else if (section === 'members') content = <MembersSection me={state.user} studentIdPattern={draft.studentIdPattern} members={members} loadError={membersError} onMembers={setMembers} onPending={setPending} notices={notices} />
   else if (section === 'history')
     content = (
@@ -1295,6 +1300,7 @@ function TeacherView({
     { key: 'course', icon: AdminIcon.course, title: 'コース', sub: 'お知らせ・ひな形', count: counts.course },
     { key: 'words', icon: AdminIcon.words, title: '書き方のチェック', sub: wordSummary(draft.wordChecks ?? DEFAULT_WORD_CHECKS), count: counts.words },
     TRIAL_NAV,
+    FEEDBACK_NAV,
   ]
   const editingCourse = editing !== null ? draft.courses[editing] : undefined
   return (
@@ -1337,6 +1343,8 @@ function TeacherView({
                 />
               ) : section === 'words' ? (
                 <WordsSection key={row.year} words={draft.wordChecks ?? DEFAULT_WORD_CHECKS} onChange={(wordChecks) => setDraft({ ...draft, wordChecks })} onPending={onPending} notices={message && <MessageBox message={message} />} />
+              ) : section === 'feedback' ? (
+                <FeedbackSection />
               ) : (
                 <TrialSection config={publishedConfig(state, row)} />
               )

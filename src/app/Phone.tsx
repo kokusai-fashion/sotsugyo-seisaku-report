@@ -15,7 +15,7 @@ import { ShapeFace, TableShapeSheet } from './tableShape'
 import { SHAPE_TEXTS } from './tableShapeTexts'
 import { BackupLabel } from './dialogs'
 import { Spinner } from './Busy'
-import { CheckBody, CourseNotice, DeadlineChip, DriveStoppedNote, ExportNote, HelpButton, PageThumbs, SaveChip, SourceNotice, Tally } from './SidePanel'
+import { CheckBody, CourseNotice, DeadlineChip, DriveStoppedNote, ExportNote, FeedbackLink, HelpButton, PageThumbs, SaveChip, SourceNotice, Tally } from './SidePanel'
 import { checkSummary } from './checkSummary'
 import { keepFocus, PAGE_CONTEXT, pageName, swallowSecondClick, touchPrimary, useBandSide, useTouchLandscape } from './uiShared'
 import { DriveChip, DriveMenu, type DriveControls } from './DriveUi'
@@ -723,10 +723,14 @@ interface Props {
   direct?: boolean
   /** はじめての案内・指差し確認が出ている（その間は「字を大きくするには」を出さない） */
   guiding?: boolean
+  /** 「困ったこと・おかしいことを知らせる」（メニューの中。mockups/v85） */
+  onFeedback?: () => void
+  /** 送った声の「直しました」の知らせ（メニューのいちばん上。PC は右の欄の上） */
+  feedbackDone?: ReactNode
 }
 
 /** スマホ版の、紙面のまわりの部品（紙面そのものは App の .stage） */
-export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, sheetHostRef, onWordImport, onReload, wordTodo, checkRequest, direct, guiding = false }: Props) {
+export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, sheetHostRef, onWordImport, onReload, wordTodo, checkRequest, direct, guiding = false, onFeedback, feedbackDone }: Props) {
   const [sheet, setSheet] = useState<SheetKind>(null)
   const close = () => setSheet(null)
   // checkRequest が増えたら、チェックの欄を開く（描く途中で合わせる。React の「前の値と比べて state を変える」書き方）
@@ -863,6 +867,7 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
           {drive && <DriveMenu drive={drive} inline onDone={close} />}
           {driveStopped && <DriveStoppedNote />}
           {drive?.staff && <p className="staff-note">教職員のアカウントで試しています（学籍番号は自動で入りません）</p>}
+          {feedbackDone}
           <CourseNotice config={config} courseId={snap.report.basicInfo.courseId} />
           <div className="links">
             {config.handbookUrl && (
@@ -893,6 +898,14 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
               onClick={() => {
                 close()
                 onWordImport()
+              }}
+            />
+          )}
+          {onFeedback && (
+            <FeedbackLink
+              onClick={() => {
+                close()
+                onFeedback()
               }}
             />
           )}

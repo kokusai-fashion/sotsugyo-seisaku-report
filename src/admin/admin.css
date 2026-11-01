@@ -598,3 +598,32 @@ button.busy:disabled { opacity: 1; cursor: progress; }
   /* 横向き：画面の高さが低いので、見出しは上に留めない（書く所を広く） */
   .admin-header { position: static; }
 }
+
+/* ---- 届いた声（mockups/v85。FeedbackSection.tsx） ---- */
+.fb-filter { display: flex; gap: 8px; margin: 16px 0 12px; }
+.fb-filter button { border: 1px solid #cfd5de; background: #fff; border-radius: 999px; padding: 5px 14px; font-size: 14px; color: var(--ink); }
+.fb-filter button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.fb-filter b { margin-left: 4px; }
+.fb-empty, .fb-load-error { margin: 16px 0; color: var(--muted); font-size: 14.5px; }
+.fb-load-error, .fb-save-error { color: #a33; }
+.fb-item { margin: 0 0 14px; }
+.fb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.fb-id { font-family: ui-monospace, Consolas, monospace; font-size: 15px; }
+.fb-date { color: var(--muted); font-size: 13.5px; }
+.fb-text { margin: 0 0 10px; font-size: 15px; line-height: 1.8; white-space: pre-wrap; }
+.fb-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: #f7f8fa; font-size: 13px; line-height: 1.6; }
+.fb-meta div { display: flex; gap: 8px; min-width: 0; }
+.fb-meta dt { flex: none; width: 8.5em; color: var(--muted); white-space: nowrap; }
+.fb-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.fb-meta .fb-mail, .fb-meta .fb-course { display: block; color: var(--muted); }
+.fb-meta .fb-errors { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.fb-edit { display: grid; gap: 8px; }
+.fb-edit label { display: grid; gap: 3px; font-size: 13.5px; font-weight: 600; }
+.fb-edit label small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.fb-edit textarea, .fb-edit select { font: inherit; font-weight: 400; font-size: 14px; border: 1px solid #cfd5de; border-radius: 8px; padding: 6px 10px; }
+.fb-edit .fb-status { grid-template-columns: auto 12em; align-items: center; justify-content: start; gap: 10px; }
+.fb-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+.fb-save-error { margin: 0; font-size: 13.5px; }
+@media (max-width: 760px) {
+  .fb-meta { grid-template-columns: 1fr; }
+}

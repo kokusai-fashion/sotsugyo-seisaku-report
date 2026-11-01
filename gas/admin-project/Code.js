@@ -5,6 +5,9 @@
  *   年度設定 … 年度 | 状態（公開中・準備中・終了）| 設定（JSON）| 更新日時 | 更新者
  *   変更履歴 … 日時 | 更新者 | 年度 | 操作 | 設定（JSON）（管理者・先生の登録の変更は、年度と設定が空の行）
  *   管理者   … メールアドレス | メモ | 役割（管理者・先生。空なら管理者）
+ * 配信の窓口（gas/api-project）が作るシート：届いた声（学生の「困ったこと・おかしいことを知らせる」）・エラーの記録。
+ * 届いた声は、管理ページの「届いた声」で見て状態を変える（getFeedback・updateFeedback）。学生に知らせるメールを送るには、
+ * 配り直したあと、エディタで1回だけ setupFeedbackMail を実行して承認する（新しく届いた声を、10分ごとに管理者にメールで知らせる仕掛けも作る）
  *
  * ウェブアプリとして公開する（実行するユーザー：自分、アクセス：大学のドメイン内）。
  * 「管理者」シートに載っている人だけが使える。
@@ -752,4 +755,148 @@ function withLock_(fn) {
   } finally {
     lock.releaseLock()
   }
+}
+
+// ---- 届いた声（学生のツールの「困ったこと・おかしいことを知らせる」。受け付けるのは配信の窓口 gas/api-project。mockups/v85） ----
+
+const SHEET_FEEDBACK = '届いた声'
+/** 届いた声のシートの列（配信の窓口 gas/api-project/Code.js の FEEDBACK_HEADER と同じ） */
+const FEEDBACK_HEADER = ['受付番号', '確かめの鍵', '受け付けた日時', '種類', '内容', 'アドレス', '学籍番号', '氏名', 'コース', 'ツールの版', '端末', '開いていたページ', '直前の知らせ', 'ツールの中のエラー', '画面の写真', '状態', '学生へのひとこと', '先生のメモ', '状態を変えた日時', '知らせた日時', '管理者に知らせた日時']
+/** 状態（学生に知らせるのは「直しました」「使い方で解決」） */
+const FEEDBACK_STATUSES = ['受け付けた', '確かめ中', '直しました', '使い方で解決', '対応しない']
+const FEEDBACK_NOTIFY = ['直しました', '使い方で解決']
+/** 一覧に出す数（新しいものから） */
+const FEEDBACK_LIST_MAX = 300
+
+/** 新しく届いた声を管理者にメールで知らせる間隔（分） */
+const FEEDBACK_MAIL_MINUTES = 10
+
+/**
+ * 届いた声のメールの準備（管理ページを配り直したあと、エディタで1回だけ実行する）：メールを送る権限を承認し、
+ * 10分ごとに notifyNewFeedback を動かす仕掛けを作る（前に作ったものは消して作り直す）
+ */
+function setupFeedbackMail() {
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'notifyNewFeedback')
+    .forEach((t) => ScriptApp.deleteTrigger(t))
+  ScriptApp.newTrigger('notifyNewFeedback').timeBased().everyMinutes(FEEDBACK_MAIL_MINUTES).create()
+  Logger.log('届いた声を ' + FEEDBACK_MAIL_MINUTES + ' 分ごとに管理者に知らせます（メールの今日の残り：' + MailApp.getRemainingDailyQuota() + '通）')
+}
+
+/**
+ * 新しく届いた声（管理者に知らせた日時が空の行）を、管理者（シート「管理者」の役割が管理者の人）に1通のメールでまとめて知らせる。
+ * setupFeedbackMail が作った仕掛けから10分ごとに動く。送ったら、その行に知らせた日時を書く
+ */
+function notifyNewFeedback() {
+  withLock_(() => {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FEEDBACK)
+    if (!sheet) return
+    const rows = sheet.getDataRange().getValues()
+    const fresh = []
+    for (let i = 1; i < rows.length; i++) if (rows[i][0] !== '' && !String(rows[i][20] || '')) fresh.push({ index: i, item: feedbackOf_(rows[i]) })
+    if (!fresh.length) return
+    const to = readMembers_()
+      .filter((m) => m.role === ROLE_ADMIN)
+      .map((m) => m.email)
+    if (!to.length) return
+    const lines = ['卒業制作報告書のツールに、困ったこと・おかしいことが ' + fresh.length + ' 件届きました。', '']
+    fresh.forEach(({ item }) => {
+      const who = [item.studentId, item.name, item.email || '（ログインなし）'].filter(Boolean).join('　')
+      lines.push('■ ' + item.id + '（' + item.kind + '）' + item.receivedAt, '送った人：' + who, '端末：' + item.device, '開いていたページ：' + item.page, item.text, '')
+    })
+    lines.push('管理ページの「届いた声」で、くわしく見て、状態を変えられます：' + ScriptApp.getService().getUrl())
+    MailApp.sendEmail({ to: to.join(','), subject: '【卒業制作報告書】届いた声 ' + fresh.length + '件（' + fresh.map((f) => f.item.id).join('・') + '）', body: lines.join('\n') })
+    const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+    fresh.forEach(({ index }) => setRow_(sheet, index + 1, 21, [now]))
+  })
+}
+
+/** 届いた声のシートの行を、管理ページに渡す形にする（確かめの鍵は渡さない） */
+function feedbackOf_(r) {
+  const s = (i) => (r[i] === undefined || r[i] === null ? '' : String(r[i]))
+  return {
+    id: s(0),
+    receivedAt: s(2),
+    kind: s(3),
+    text: s(4),
+    email: s(5),
+    studentId: s(6),
+    name: s(7),
+    course: s(8),
+    version: s(9),
+    device: s(10),
+    page: s(11),
+    notice: s(12),
+    errors: s(13),
+    screen: s(14),
+    status: s(15) || FEEDBACK_STATUSES[0],
+    reply: s(16),
+    memo: s(17),
+    changedAt: s(18),
+    notifiedAt: s(19),
+  }
+}
+
+/** 届いた声の一覧（新しいものから。管理者・先生） */
+function getFeedback() {
+  requireTeacher_()
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FEEDBACK)
+  if (!sheet) return []
+  return sheet
+    .getDataRange()
+    .getValues()
+    .slice(1)
+    .filter((r) => r[0] !== '')
+    .map(feedbackOf_)
+    .reverse()
+    .slice(0, FEEDBACK_LIST_MAX)
+}
+
+/**
+ * 届いた声の状態・学生へのひとこと・先生のメモを変える（管理者・先生）。
+ * notify：学生に知らせる（「直しました」「使い方で解決」のとき。学生のツールには、次に開いたときに出る。
+ * ログインして送った声なら、大学のメールにも送る）。返り値は、変えたあとの一覧
+ */
+function updateFeedback(id, status, reply, memo, notify) {
+  return withLock_(() => {
+    const user = requireTeacher_()
+    if (FEEDBACK_STATUSES.indexOf(status) < 0) throw new Error('状態が正しくありません')
+    const text = (value, max, label) => {
+      const v = value === undefined || value === null ? '' : String(value)
+      if (v.length > max) throw new Error(label + 'が長すぎます（' + max + '字まで）')
+      return v
+    }
+    const replyText = text(reply, 500, '学生へのひとこと')
+    const memoText = text(memo, 1000, '先生のメモ')
+    const sheet = sheet_(SHEET_FEEDBACK)
+    const rows = sheet.getDataRange().getValues()
+    const index = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id))
+    if (index < 0) throw new Error('受付番号 ' + id + ' が見つかりません')
+    const row = rows[index]
+    const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+    const changed = String(row[15]) !== status || String(row[16] || '') !== replyText
+    let notifiedAt = String(row[19] || '')
+    if (notify && FEEDBACK_NOTIFY.indexOf(status) >= 0) {
+      const email = String(row[5] || '')
+      if (email) sendFeedbackMail_(feedbackOf_(row), status, replyText)
+      notifiedAt = now
+    }
+    setRow_(sheet, index + 1, 16, [status, replyText, memoText, changed ? now : String(row[18] || ''), notifiedAt])
+    console.log('届いた声 ' + id + ' を「' + status + '」に（' + user + '）')
+    return getFeedback()
+  })
+}
+
+/** 学生に、送った声を直したことをメールで知らせる */
+function sendFeedbackMail_(item, status, reply) {
+  const date = String(item.receivedAt).slice(5, 10).replace('-', '月').replace(/^0/, '') + '日'
+  const summary = item.text.length > 40 ? item.text.slice(0, 40) + '…' : item.text
+  const lines = item.name ? [item.name + ' さん', ''] : []
+  lines.push(
+    date + 'に送っていただいた「' + summary + '」（受付番号 ' + item.id + '）は、' + (status === '直しました' ? '直しました。' : '使い方で解決できます。'),
+  )
+  if (reply) lines.push('', reply)
+  if (status === '直しました') lines.push('', 'ツールを開き直すと、新しい版になります。')
+  lines.push('', '知らせていただき、ありがとうございました。', '', '卒業制作報告書の作成ツール（国際ファッション文化学科）', '※このメールには返事を送れません。急ぐときは、担当の先生に直接お知らせください。')
+  MailApp.sendEmail({ to: item.email, subject: '【卒業制作報告書】送っていただいた件（受付番号 ' + item.id + '）', body: lines.join('\n'), noReply: true })
 }

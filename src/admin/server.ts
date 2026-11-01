@@ -87,6 +87,41 @@ export interface AdminServer {
    * 前の版のサーバー（getVersion がない）では失敗する
    */
   getVersion(): Promise<{ id: string; url: string }>
+  /** 届いた声の一覧（新しいものから。管理者・先生。gas/admin-project の getFeedback） */
+  getFeedback(): Promise<FeedbackItem[]>
+  /** 届いた声の状態・学生へのひとこと・先生のメモを変える。notify：学生に知らせる（「直しました」「使い方で解決」）。返り値は変えたあとの一覧 */
+  updateFeedback(id: string, status: FeedbackStatus, reply: string, memo: string, notify: boolean): Promise<FeedbackItem[]>
+}
+
+/** 届いた声の状態（gas/admin-project/Code.js の FEEDBACK_STATUSES と同じ） */
+export const FEEDBACK_STATUSES = ['受け付けた', '確かめ中', '直しました', '使い方で解決', '対応しない'] as const
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number]
+/** 学生に知らせる状態 */
+export const FEEDBACK_NOTIFY: readonly FeedbackStatus[] = ['直しました', '使い方で解決']
+
+/** 届いた声（学生のツールの「困ったこと・おかしいことを知らせる」。シート「届いた声」の1行） */
+export interface FeedbackItem {
+  id: string
+  receivedAt: string
+  kind: string
+  text: string
+  /** 送った人の大学のアドレス（ログインなしで送ったときは空） */
+  email: string
+  studentId: string
+  name: string
+  course: string
+  version: string
+  device: string
+  page: string
+  notice: string
+  errors: string
+  /** 画面の写真（ドライブのリンク。付けていなければ空） */
+  screen: string
+  status: FeedbackStatus
+  reply: string
+  memo: string
+  changedAt: string
+  notifiedAt: string
 }
 
 interface ScriptRun {
@@ -126,6 +161,8 @@ function appsScriptServer(): AdminServer {
     removeMember: (email) => call('removeMember', email),
     getTrialSample: () => call('getTrialSample'),
     getVersion: () => call('getVersion'),
+    getFeedback: () => call('getFeedback'),
+    updateFeedback: (id, status, reply, memo, notify) => call('updateFeedback', id, status, reply, memo, notify),
   }
 }
 

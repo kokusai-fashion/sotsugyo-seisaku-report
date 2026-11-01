@@ -1,7 +1,7 @@
 import { BUILD_ID } from '../app/newVersion'
 import { currentConfig, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
-import type { AdminServer, AdminState, HistoryRow, Member, YearRow } from './server'
+import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type YearRow } from './server'
 import { applyNotices, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, removedMemberMessage } from './serverRules'
 
 /**
@@ -40,6 +40,30 @@ function load(): Store {
   const initial: Store = { years: [{ year: currentConfig.fiscalYear, status: '公開中', config: currentConfig, updatedAt: new Date().toISOString(), updatedBy: USER }], history: [] }
   save(initial)
   return initial
+}
+
+/** 試験用の届いた声（本番はシート「届いた声」。学生のツールの「困ったこと・おかしいことを知らせる」から届く） */
+const MOCK_FEEDBACK: FeedbackItem[] = [
+  {
+    id: '1105-002', receivedAt: '2026-11-05 14:20', kind: 'やり方が分からない', text: '抄録に本文の文を写したいのですが、コピーのやり方が分かりません。',
+    email: 'wu00zz0124@bunka-wu.ac.jp', studentId: '00ZZ0124', name: '文化　次郎', course: '映画・舞台衣装デザイナー', version: 'mvx8c101', device: 'スマホの画面・iPhone・Safari（画面 390×844）', page: '抄録',
+    notice: '', errors: '', screen: '', status: '受け付けた', reply: '', memo: '', changedAt: '', notifiedAt: '',
+  },
+  {
+    id: '1105-001', receivedAt: '2026-11-05 10:02', kind: 'うまく動かない', text: '表の生地見本のマスに写真を入れたら、カーソルが下のマスに出て、どこを書いているのか分からなくなった。',
+    email: 'wu00zz0123@bunka-wu.ac.jp', studentId: '00ZZ0123', name: '文化　花子', course: '映画・舞台衣装デザイナー', version: 'mvx8c101', device: 'パソコンの画面・Windows・Chrome（画面 1440×900）', page: '本文 2ページ',
+    notice: '生地見本の写真は、左の道具の「画像を入れる」から入れます', errors: '', screen: 'https://drive.google.com/file/d/example/view', status: '確かめ中', reply: '', memo: '表の画像を入れたあと（mockups/v84）', changedAt: '2026-11-05 11:00', notifiedAt: '',
+  },
+]
+const FEEDBACK_KEY = 'sotsugyo-admin-mock-feedback'
+function loadFeedback(): FeedbackItem[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FEEDBACK_KEY) ?? 'null') as FeedbackItem[] | null
+    if (Array.isArray(saved)) return saved
+  } catch {
+    // 壊れていたら作り直す
+  }
+  return JSON.parse(JSON.stringify(MOCK_FEEDBACK)) as FeedbackItem[]
 }
 
 function save(store: Store): void {
@@ -268,6 +292,24 @@ export function createMockServer(): AdminServer {
         if (local) return local
       }
       return clone(DEV_TRIAL_SAMPLE)
+    },
+    async getFeedback() {
+      await wait()
+      requireTeacher(load())
+      return loadFeedback()
+    },
+    async updateFeedback(id, status, reply, memo, notify) {
+      await wait()
+      requireTeacher(load())
+      const list = loadFeedback()
+      const item = list.find((f) => f.id === id)
+      if (!item) throw new Error(`受付番号 ${id} が見つかりません`)
+      const now = '2026-11-05 15:00'
+      if (item.status !== status || item.reply !== reply) item.changedAt = now
+      Object.assign(item, { status, reply, memo })
+      if (notify && FEEDBACK_NOTIFY.includes(status)) item.notifiedAt = now
+      localStorage.setItem(FEEDBACK_KEY, JSON.stringify(list))
+      return clone(list)
     },
     async getVersion() {
       await wait()

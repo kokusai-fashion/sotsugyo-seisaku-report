@@ -192,7 +192,7 @@ export async function firstTimeV3Pc(browser, check) {
   await page.click('.side .menu-btn')
   check(
     '右の欄の「メニュー」の中に「バックアップ・作り直す」がある（いちばん上は「使い方」。1行に入る）',
-    side.names[0] === '使い方' && side.names[1] === 'バックアップ・作り直す' && side.oneLine,
+    side.names[0] === '使い方' && side.names.includes('バックアップ・作り直す') && side.oneLine,
     JSON.stringify(side),
   )
   // 自動の控えを3つにする（10分ごとの控えと同じもの）

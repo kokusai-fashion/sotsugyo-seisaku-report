@@ -55,7 +55,7 @@ await withEdge(async (browser) => {
       const state = { t, list: await visible(page, '.side-nav'), back: await visible(page, '.phone-back'), head: await page.evaluate(() => document.querySelector('.content .sec-h')?.textContent ?? ''), over: await overflow(page) }
       if (state.list || !state.back || state.over > 0) over.push(state)
     }
-    check(`スマホ：一覧で区切り（${titles.length}つ）を押すと、その中身と「‹ 管理ページの一覧」が出て、どれも横にはみ出さない`, titles.length === 7 && over.length === 0, JSON.stringify(over))
+    check(`スマホ：一覧で区切り（${titles.length}つ）を押すと、その中身と「‹ 管理ページの一覧」が出て、どれも横にはみ出さない`, titles.length === 8 && over.length === 0, JSON.stringify(over))
     await tap(page, '.phone-back')
     check('スマホ：「‹ 管理ページの一覧」で一覧へ戻る', (await visible(page, '.side-nav')) && !(await visible(page, '.work')))
 
@@ -93,11 +93,11 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
-  // ---- 先生：一覧は3つと「先生ができること」 ----
+  // ---- 先生：一覧は4つ（届いた声も）と「先生ができること」 ----
   {
     const { context, page } = await open(browser, { as: 'teacher' })
     const t = await page.evaluate(() => ({ items: document.querySelectorAll('.side-nav button').length, can: !!document.querySelector('.side-nav .can-do'), over: document.documentElement.scrollWidth - document.documentElement.clientWidth }))
-    check('スマホ（先生）：一覧は3つと「先生ができること」。横にはみ出さない', t.items === 3 && t.can && t.over <= 0, JSON.stringify(t))
+    check('スマホ（先生）：一覧は4つ（届いた声も）と「先生ができること」。横にはみ出さない', t.items === 4 && t.can && t.over <= 0, JSON.stringify(t))
     await context.close()
   }
 

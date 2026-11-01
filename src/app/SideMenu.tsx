@@ -19,6 +19,8 @@ interface Props {
   onWordImport?: () => void
   /** 「ページを読み込み直す」（書いたものを保存してから。新しい版にするとき：app/newVersion.tsx） */
   onReload?: () => void
+  /** 「困ったこと・おかしいことを知らせる」（mockups/v85 入口A）。渡したときだけ出す */
+  onFeedback?: () => void
 }
 
 /** ボタンに出す説明（マウスを乗せたとき）。中にあるものの名前 */
@@ -26,7 +28,7 @@ function sideMenuTitle({ handbookUrl, onWordImport }: Pick<Props, 'handbookUrl' 
   return ['使い方', handbookUrl && '手順書', 'バックアップ・作り直す', onWordImport && 'Word の読み込み'].filter(Boolean).join('・')
 }
 
-export function SideMenu({ handbookUrl, onHelp, onBackup, onWordImport, onReload }: Props) {
+export function SideMenu({ handbookUrl, onHelp, onBackup, onWordImport, onReload, onFeedback }: Props) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -134,6 +136,12 @@ export function SideMenu({ handbookUrl, onHelp, onBackup, onWordImport, onReload
             <a role="menuitem" href={handbookUrl} target="_blank" rel="noreferrer" title="新しいタブで開きます" onClick={() => close(true)}>
               {Icon.handbook}手順書
             </a>
+          )}
+          {/* 困ったこと・おかしいことを知らせる（mockups/v85 入口A） */}
+          {onFeedback && (
+            <button type="button" role="menuitem" className="hm-feedback" onClick={choose(onFeedback)}>
+              {Icon.feedback}困ったこと・おかしいことを知らせる
+            </button>
           )}
           <hr />
           <button type="button" role="menuitem" onClick={choose(onBackup)}>

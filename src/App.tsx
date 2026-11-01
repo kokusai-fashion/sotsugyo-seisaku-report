@@ -50,6 +50,11 @@ import { STUDENT_TOPICS } from './help/helpTopics'
 import { STUDENT_GUIDE_PATH, STUDENT_HELP_IMAGES } from './help/links'
 import { freshSample, openTrial, TrialMissingError } from './trial/openTrial'
 import { TrialBanner } from './trial/TrialBanner'
+import { FeedbackDialog, FeedbackDone } from './app/FeedbackDialog'
+import { checkFeedback, deviceText, dismissFeedback, FEEDBACK_API_URL, rememberNotice, watchErrors, type FeedbackReceipt } from './feedback/feedback'
+import { noticeText } from './editor/undoNotice'
+import { BUILD_ID } from './app/newVersion'
+import { pageName } from './app/uiShared'
 
 const noopSubscribe = () => () => {}
 /** スマホの「？ 使い方」の項目（「クリック」を「タップ」に。PC は STUDENT_TOPICS のまま） */
@@ -61,6 +66,7 @@ const nullSnapshot = () => null
 type Dialog =
   | { kind: 'export' }
   | { kind: 'references' }
+  | { kind: 'feedback' }
   /** snapshots：自動の控え（読み込んでいる間は null。窓はすぐ開く） */
   | { kind: 'backup'; snapshots: Snapshot[] | null }
   | { kind: 'course'; rect: DOMRect }
@@ -1049,6 +1055,35 @@ export default function App() {
     />
   )
 
+  // ---- 困ったこと・おかしいことを知らせる（mockups/v85）。窓口がないとき（開発中など）は入口を出さない ----
+  const openFeedback = FEEDBACK_API_URL ? () => setDialog({ kind: 'feedback' }) : undefined
+  // 送った声の「直しました」の知らせ（開いたときに1回問い合わせる）
+  const [feedbackDone, setFeedbackDone] = useState<FeedbackReceipt[]>([])
+  const feedbackChecked = useRef(false)
+  useEffect(() => {
+    if (!snap || !FEEDBACK_API_URL || feedbackChecked.current) return
+    feedbackChecked.current = true
+    void checkFeedback(FEEDBACK_API_URL).then(setFeedbackDone)
+  }, [snap])
+  const doneNotice = feedbackDone.length ? (
+    <FeedbackDone
+      items={feedbackDone}
+      onDismiss={(id) => {
+        dismissFeedback(id)
+        setFeedbackDone((list) => list.filter((r) => r.id !== id))
+      }}
+    />
+  ) : undefined
+  // 直前の知らせを覚える（送る窓に入れる。知らせが消えたあとに開いても分かるように）
+  const shownNotice = snap?.notice
+  useEffect(() => {
+    if (shownNotice) rememberNotice(noticeText(shownNotice))
+  }, [shownNotice])
+  // ツールの中で起きたエラーを見張る（覚えて送る窓に入れ、窓口にも自動で送る。原稿の文は送らない。開発中は送らない）
+  const errorContext = useRef({ version: BUILD_ID, device: '', page: '' })
+  errorContext.current = { version: BUILD_ID, device: deviceText(navigator.userAgent, narrow, window.innerWidth, window.innerHeight), page: snap ? pageName(snap) : '' }
+  useEffect(() => watchErrors(() => errorContext.current, BUILD_ID === 'dev' ? undefined : FEEDBACK_API_URL), [])
+
   const ready = editor && snap
   const wordOffered = wordImportOffered(config)
   const showNewVersion = newVersion && !newVersionClosed
@@ -1143,6 +1178,8 @@ export default function App() {
           checkRequest={checkRequest}
           direct={phoneDirect}
           guiding={!!guide || tourOn}
+          onFeedback={openFeedback}
+          feedbackDone={doneNotice}
         />
       ) : ready && help ? (
         // PC の使い方：右の欄がまるごと使い方に替わる（紙面と道具は、そのまま使える）
@@ -1162,6 +1199,8 @@ export default function App() {
           onWordImport={openWord}
           onReload={() => void reloadTool()}
           wordTodo={guide ? undefined : todoCard()}
+          onFeedback={openFeedback}
+          feedbackDone={doneNotice}
         />
       ) : (
         <aside className="side" />
@@ -1231,6 +1270,7 @@ export default function App() {
           accountStudentId={driveState?.email ? studentIdFromEmail(driveState.email, config.studentIdPattern) : null}
         />
       )}
+      {dialog?.kind === 'feedback' && snap && editor && <FeedbackDialog editor={editor} snap={snap} phone={narrow} drive={driveStopped ? null : drive} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'references' && snap && editor && (
         <ReferencesDialog
           report={snap.report}

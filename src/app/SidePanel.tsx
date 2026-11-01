@@ -44,6 +44,10 @@ interface Props {
   onReload?: () => void
   /** 今年度だけ：Word から写したあとの「つぎにすること」（mockups/v24 ③ 案B）。右の欄の上に出す */
   wordTodo?: ReactNode
+  /** 「困ったこと・おかしいことを知らせる」（メニューと、右の欄のいちばん下。mockups/v85 入口A・B） */
+  onFeedback?: () => void
+  /** 送った声の「直しました」の知らせ（右の欄のいちばん上。mockups/v85 知らせA） */
+  feedbackDone?: ReactNode
 }
 
 /**
@@ -426,6 +430,15 @@ function SeverityLegend() {
   )
 }
 
+/** 右の欄のいちばん下（PC）・メニューの中（スマホ）の「困ったとき・おかしいときは、ここから知らせる」（mockups/v85 入口B） */
+export function FeedbackLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="feedback-link" onClick={onClick}>
+      困ったとき・おかしいときは、ここから知らせる
+    </button>
+  )
+}
+
 /** ライセンス（AGPL-3.0）に従い、利用者にソースコードの場所を示す */
 export function SourceNotice() {
   const url = import.meta.env.VITE_SOURCE_URL as string | undefined
@@ -554,7 +567,7 @@ export function Tally({ snap, config }: { snap: EditorSnapshot; config: YearConf
   )
 }
 
-export function SidePanel({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, onWordImport, onReload, wordTodo }: Props) {
+export function SidePanel({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, onWordImport, onReload, wordTodo, onFeedback, feedbackDone }: Props) {
   const exportSlow = useSlow(!!exporting)
   return (
     <aside className="side">
@@ -566,7 +579,7 @@ export function SidePanel({ editor, snap, config, saveState, drive, driveStopped
             <div className="brand-sub">{config.fiscalYear}年度</div>
           </div>
           {/* 使い方・手順書・バックアップと「最初から作り直す」の窓（mockups/v34 案A）・今年度だけ Word の読み込み（mockups/v37 案C） */}
-          <SideMenu handbookUrl={config.handbookUrl} onHelp={onHelp} onBackup={onBackup} onWordImport={onWordImport} onReload={onReload} />
+          <SideMenu handbookUrl={config.handbookUrl} onHelp={onHelp} onBackup={onBackup} onWordImport={onWordImport} onReload={onReload} onFeedback={onFeedback} />
         </div>
         <div className="meta">
           {drive ? <DriveChipMenu drive={drive} /> : <SaveChip state={saveState} />}
@@ -578,6 +591,7 @@ export function SidePanel({ editor, snap, config, saveState, drive, driveStopped
 
       {wordTodo}
 
+      {feedbackDone}
       <CourseNotice config={config} courseId={snap.report.basicInfo.courseId} short />
 
       <section className="sec check">
@@ -595,6 +609,7 @@ export function SidePanel({ editor, snap, config, saveState, drive, driveStopped
           {exporting ? '確かめています…' : 'PDFを書き出す'}
         </button>
         {exportSlow ? <p className="export-note slow-note on">数秒かかることがあります</p> : <ExportNote snap={snap} config={config} />}
+        {onFeedback && <FeedbackLink onClick={onFeedback} />}
         <SourceNotice />
       </footer>
     </aside>

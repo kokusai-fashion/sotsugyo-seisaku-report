@@ -130,6 +130,9 @@ let tokens: Map<string, Record<string, string>>
 let fetched: string[]
 /** 配信の窓口が書いた記録（console） */
 let logs: string[]
+/** 送ったメール */
+let mails: { to: string; subject: string; body: string }[]
+let uuids = 0
 
 /**
  * プログラムを読み込む。values：ビルド時に入る値（Code.js の「名前を囲んだコメントと ''」の場所。scripts/build-gas.mjs と同じ）、
@@ -173,10 +176,13 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
       },
     },
     Drive: drive.api,
+    MailApp: { sendEmail: (m: { to: string; subject: string; body: string }) => void mails.push(m), getRemainingDailyQuota: () => 100 },
     Utilities: {
       base64Decode: (s: string) => [...Buffer.from(s, 'base64')],
       newBlob: (bytes: number[], type: string, name: string) => ({ bytes, type, name }),
-      formatDate: () => '2026-10-19 12:00',
+      // 日時は、いつも 2026-10-19 12:00（形に合わせて）
+      formatDate: (_d: Date, _tz: string, pattern = 'yyyy-MM-dd HH:mm') => pattern.replace('yyyy', '2026').replace('MM', '10').replace('dd', '19').replace('HH', '12').replace('mm', '00'),
+      getUuid: () => `${(++uuids).toString(16).padStart(8, '0')}-0000-4000-8000-${'0'.repeat(12)}`,
     },
     console: { log: () => {}, warn: (m: string) => void logs.push(m), error: (m: string) => void logs.push(m) },
     JSON,
@@ -199,6 +205,8 @@ beforeEach(() => {
   tokens = new Map()
   fetched = []
   logs = []
+  mails = []
+  uuids = 0
 })
 
 const sheetRows = (name: string) => spreadsheet.getSheetByName(name)!.rows
@@ -1054,5 +1062,120 @@ describe('PDF の控え（api-project の doPost）', () => {
   it('年度設定の配信（doGet）は今までどおり', () => {
     const api = setup()
     expect(JSON.parse(api.doGet({ parameter: {} }).text)).toMatchObject({ ok: true, year: 2026 })
+  })
+})
+
+describe('届いた声（api-project の doPost・admin-project の一覧と状態）', () => {
+  const CLIENT = 'client-1.apps.googleusercontent.com'
+  const values = { PDF_FOLDER_ID: 'root-folder', CLIENT_ID: CLIENT, DOMAIN: 'example.ac.jp' }
+  const FILM = initialConfig.courses[0]
+  const tokenOf = (email: string) => {
+    const token = `tok-${email}-${tokens.size}`
+    tokens.set(token, { aud: CLIENT, azp: CLIENT, email, email_verified: 'true', expires_in: '3500' })
+    return token
+  }
+  const post = (api: ReturnType<typeof load>, body: unknown) => JSON.parse(api.doPost({ postData: { type: 'text/plain', contents: JSON.stringify(body) } }).text)
+  const voice = (patch: Record<string, unknown> = {}) => ({
+    action: 'feedback',
+    kind: 'うまく動かない',
+    text: '表の写真を入れると、カーソルが下のマスに出る',
+    version: 'abc1234',
+    device: 'パソコン・Chrome',
+    page: '本文 3',
+    notice: '選んだ文を削除しました',
+    errors: ['TypeError: x is undefined'],
+    year: 2026,
+    courseId: FILM.id,
+    studentId: '00ZZ0123',
+    name: '文化　花子',
+    ...patch,
+  })
+  const setup = () => {
+    load('admin-project').setup()
+    return load('api-project', { values })
+  }
+
+  it('受け付けて、シート「届いた声」に残し、受付番号と鍵を返す（配信の窓口はメールを送らない）。トークンは残さない。管理ページが新しい声を管理者にまとめて知らせる（先生には送らない・1回だけ）', () => {
+    const api = setup()
+    load('admin-project').addMember('teacher@example.ac.jp', '先生', '')
+    const token = tokenOf('wu00zz0123@example.ac.jp')
+    const body = post(api, voice({ token }))
+    expect(body).toMatchObject({ ok: true, id: '1019-001' })
+    expect(body.key).toMatch(/^[0-9a-f]{20}$/)
+    const rows = sheetRows('届いた声')
+    expect(rows[0][0]).toBe('受付番号')
+    expect(rows[1].slice(0, 16)).toEqual(['1019-001', body.key, '2026-10-19 12:00', 'うまく動かない', '表の写真を入れると、カーソルが下のマスに出る', 'wu00zz0123@example.ac.jp', '00ZZ0123', '文化　花子', FILM.name, 'abc1234', 'パソコン・Chrome', '本文 3', '選んだ文を削除しました', 'TypeError: x is undefined', '', '受け付けた'])
+    expect(JSON.stringify(rows)).not.toContain(token)
+    expect(mails).toHaveLength(0)
+    // 2件目は通し番号が増える
+    expect(post(api, voice({ token })).id).toBe('1019-002')
+    // 管理ページの仕掛け（10分ごと）：新しい2件を、管理者に1通で知らせ、知らせた日時を書く。もう一度動いても送らない
+    load('admin-project').notifyNewFeedback()
+    expect(mails).toHaveLength(1)
+    expect(mails[0].to).toBe('kato@example.ac.jp')
+    expect(mails[0].subject).toContain('1019-001・1019-002')
+    expect(mails[0].body).toContain('表の写真を入れると')
+    expect(sheetRows('届いた声').slice(1).map((r) => r[20])).toEqual(['2026-10-19 12:00', '2026-10-19 12:00'])
+    load('admin-project').notifyNewFeedback()
+    expect(mails).toHaveLength(1)
+  })
+
+  it('ログインなしでも受け付ける（アドレスは空）。形が正しくないもの・中身が空のものは断る', () => {
+    const api = setup()
+    expect(post(api, voice()).ok).toBe(true)
+    expect(sheetRows('届いた声')[1][5]).toBe('')
+    for (const bad of [voice({ kind: 'ちがう' }), voice({ text: '   ' }), voice({ text: 'x'.repeat(2001) }), voice({ screen: '%%%' })]) expect(post(api, bad).ok).toBe(false)
+  })
+
+  it('画面の写真は、PDF の控えのフォルダの中の「届いた声の画面」に置き、シートにはリンクを書く', () => {
+    const api = setup()
+    const body = post(api, voice({ screen: Buffer.from('jpeg-bytes').toString('base64') }))
+    expect(body.ok).toBe(true)
+    expect(drive.folders().map((f) => f.name)).toEqual(['届いた声の画面'])
+    const link = String(sheetRows('届いた声')[1][14])
+    expect(link).toMatch(/^https:\/\/drive\.google\.com\/file\/d\/d\d+\/view$/)
+  })
+
+  it('状態の問い合わせ：鍵が合うものだけ答える。管理ページで「直しました」にして知らせると、学生にメールが届き、状態とひとことが返る', () => {
+    const api = setup()
+    const body = post(api, voice({ token: tokenOf('wu00zz0123@example.ac.jp') }))
+    expect(post(api, { action: 'feedbackStatus', items: [{ id: body.id, key: 'wrong' }] }).items).toEqual([])
+    expect(post(api, { action: 'feedbackStatus', items: [{ id: body.id, key: body.key }] }).items).toEqual([{ id: body.id, status: '受け付けた', reply: '', changedAt: '' }])
+    const admin = load('admin-project')
+    expect(admin.getFeedback().map((f: { id: string }) => f.id)).toEqual([body.id])
+    expect(JSON.stringify(admin.getFeedback())).not.toContain(body.key)
+    mails.length = 0
+    const list = admin.updateFeedback(body.id, '直しました', '', '表の画像の直し（77265c2）', true)
+    expect(list[0]).toMatchObject({ status: '直しました', memo: '表の画像の直し（77265c2）', changedAt: '2026-10-19 12:00', notifiedAt: '2026-10-19 12:00' })
+    expect(mails).toHaveLength(1)
+    expect(mails[0].to).toBe('wu00zz0123@example.ac.jp')
+    expect(mails[0].body).toContain('受付番号 1019-001')
+    expect(mails[0].body).toContain('直しました')
+    expect(post(api, { action: 'feedbackStatus', items: [{ id: body.id, key: body.key }] }).items).toEqual([{ id: body.id, status: '直しました', reply: '', changedAt: '2026-10-19 12:00' }])
+    // 「確かめ中」は知らせない（メールも送らない）
+    mails.length = 0
+    admin.updateFeedback(body.id, '確かめ中', '', '', true)
+    expect(mails).toHaveLength(0)
+  })
+
+  it('管理ページの届いた声は、登録された先生も見て変えられる。登録されていない人は使えない', () => {
+    const api = setup()
+    post(api, voice())
+    load('admin-project').addMember('teacher@example.ac.jp', '先生', '')
+    user = 'teacher@example.ac.jp'
+    expect(load('admin-project').getFeedback()).toHaveLength(1)
+    user = 'stranger@example.ac.jp'
+    expect(() => load('admin-project').getFeedback()).toThrow('登録された先生だけ')
+    expect(() => load('admin-project').updateFeedback('1019-001', '直しました', '', '', false)).toThrow('登録された先生だけ')
+  })
+
+  it('エラーの記録：シート「エラーの記録」に残す。同じエラーは続けて残さない', () => {
+    const api = setup()
+    const log = { action: 'errorLog', version: 'abc1234', device: 'スマホ・Safari', page: '抄録', message: 'TypeError: a is null', stack: 'at f (x.js:1)' }
+    expect(post(api, log)).toEqual({ ok: true })
+    expect(post(api, log)).toEqual({ ok: true, skipped: true })
+    expect(post(api, { ...log, message: 'RangeError: b' })).toEqual({ ok: true })
+    expect(sheetRows('エラーの記録').map((r) => r[4])).toEqual(['エラー', 'TypeError: a is null', 'RangeError: b'])
+    expect(post(api, { ...log, message: '' }).ok).toBe(false)
   })
 })

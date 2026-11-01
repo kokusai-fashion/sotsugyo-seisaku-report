@@ -328,9 +328,11 @@ await withEdge(async (browser) => {
   const WORD_ITEM = 'Word で書いた分を読み込む今年度だけ'
   // いちばん下：新しい版にするときの「ページを読み込み直す」（依頼者の選択 2026-10-23）
   const RELOAD_ITEM = 'ページを読み込み直す'
+  // 「使い方」のすぐ下：困ったこと・おかしいことを知らせる（mockups/v85 入口A）
+  const FEEDBACK_ITEM = '困ったこと・おかしいことを知らせる'
   check(
     '「メニュー」を押すと開き（aria-expanded・role="menu"）、「使い方」がいちばん上、その下に「バックアップ・作り直す」「Word で書いた分を読み込む（今年度だけ）」「ページを読み込み直す」が出る（幅 262px・字 13.5px）',
-    menuOpen.expanded === 'true' && menuOpen.controls && menuOpen.role === 'menu' && menuOpen.labelled && menuOpen.items.join(',') === `使い方,バックアップ・作り直す,${WORD_ITEM},${RELOAD_ITEM}` && menuOpen.width === 262 && menuOpen.font === '13.5px',
+    menuOpen.expanded === 'true' && menuOpen.controls && menuOpen.role === 'menu' && menuOpen.labelled && menuOpen.items.join(',') === `使い方,${FEEDBACK_ITEM},バックアップ・作り直す,${WORD_ITEM},${RELOAD_ITEM}` && menuOpen.width === 262 && menuOpen.font === '13.5px',
     JSON.stringify(menuOpen),
   )
   // ほかの所（「PDFを書き出す」の下のひとこと。セルフチェックの見出しはメニューに隠れることがある）を押すと閉じる
@@ -353,7 +355,7 @@ await withEdge(async (browser) => {
   const menuEsc = await menuState()
   check(
     'キーボード：Enter で開いて「使い方」へ、↓↑ で項目を動き（端で回る）、Home・End、Tab でも次の項目へ（←→ でページは送らない）。Esc で閉じて「メニュー」のボタンに戻る',
-    menuKeys.join('|') === ['使い方', 'バックアップ・作り直す', WORD_ITEM, RELOAD_ITEM, '使い方', RELOAD_ITEM, '使い方', RELOAD_ITEM, RELOAD_ITEM, '使い方', 'バックアップ・作り直す'].join('|') &&
+    menuKeys.join('|') === ['使い方', FEEDBACK_ITEM, 'バックアップ・作り直す', WORD_ITEM, RELOAD_ITEM, WORD_ITEM, '使い方', RELOAD_ITEM, RELOAD_ITEM, '使い方', FEEDBACK_ITEM].join('|') &&
       !menuEsc.open &&
       menuEsc.focus === 'button' &&
       menuEsc.expanded === 'false' &&
@@ -393,8 +395,8 @@ await withEdge(async (browser) => {
     paper: !!document.querySelector('.palette'),
   }))
   check(
-    '「？ 使い方」で、右の欄が使い方に替わる（書く順の4段＋いちばん下の「困ったとき」7項目、全部で項目19。動画は段の見出しの横。見出しに移る・紙面と道具はそのまま・いちばん下に印刷用の手引き（PDF））',
-    helpOpen.topics === 19 && /^1はじめる動画\d:\d\d／2書く動画3本／3確かめる・直す動画\d:\d\d／4PDF を出す動画\d:\d\d$/.test(helpOpen.steps.join('／')) && helpOpen.trouble === 7 && !helpOpen.check && helpOpen.focus && helpOpen.paper && helpOpen.pdf === './guides/student-guide.pdf',
+    '「？ 使い方」で、右の欄が使い方に替わる（書く順の4段＋いちばん下の「困ったとき」8項目、全部で項目20。動画は段の見出しの横。見出しに移る・紙面と道具はそのまま・いちばん下に印刷用の手引き（PDF））',
+    helpOpen.topics === 20 && /^1はじめる動画\d:\d\d／2書く動画3本／3確かめる・直す動画\d:\d\d／4PDF を出す動画\d:\d\d$/.test(helpOpen.steps.join('／')) && helpOpen.trouble === 8 && !helpOpen.check && helpOpen.focus && helpOpen.paper && helpOpen.pdf === './guides/student-guide.pdf',
     JSON.stringify(helpOpen),
   )
   // 段の見出しの横の「動画」：1本ならその場で再生、2本以上（書く）なら、その段の動画の一覧（そこから開いた動画の「戻る」は、その一覧へ）
