@@ -37,10 +37,14 @@ const adminCode = readFileSync('gas/admin-project/Code.js', 'utf8')
 if (!adminCode.includes('/*TRIAL_SAMPLE*/ null')) throw new Error('gas/admin-project/Code.js に /*TRIAL_SAMPLE*/ null がありません')
 // 置き換える文字の中の「$」を、置き換えの印として読ませない（関数で渡す）
 if (!adminCode.includes("/*BUILD_ID*/ ''")) throw new Error("gas/admin-project/Code.js に /*BUILD_ID*/ '' がありません")
+// 公開中の管理ページの場所（届いた声のメールに書く）。gas/deployments.json（配り直したときに書き換わる）の admin.url
+if (!adminCode.includes("/*ADMIN_URL*/ ''")) throw new Error("gas/admin-project/Code.js に /*ADMIN_URL*/ '' がありません")
+const adminUrl = existsSync('gas/deployments.json') ? (JSON.parse(readFileSync('gas/deployments.json', 'utf8')).admin?.url ?? '') : ''
 const code = adminCode
   .replace('/*INITIAL_CONFIG*/ null', () => initial)
   .replace('/*TRIAL_SAMPLE*/ null', () => trialSample)
   .replace("/*BUILD_ID*/ ''", () => JSON.stringify(buildId))
+  .replace("/*ADMIN_URL*/ ''", () => JSON.stringify(adminUrl))
 writeFileSync('gas-dist/admin-project/Code.js', code)
 console.log(`\nお試しの見本の原稿：${trialSample === 'null' ? 'なし（gas/trial-sample.private.json がない。管理ページの「学生の画面を試す」は開けない）' : `あり（${Math.round(trialSample.length / 1024)}KB）`}`)
 // 配信用のプロジェクトに、管理用スプレッドシートの ID を入れる（clasp で作ったときの .clasp.json の parentId）

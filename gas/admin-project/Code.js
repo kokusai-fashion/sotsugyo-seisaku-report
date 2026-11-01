@@ -41,6 +41,9 @@ const INITIAL_CONFIG = /*INITIAL_CONFIG*/ null
 const TRIAL_SAMPLE = /*TRIAL_SAMPLE*/ null
 // 管理ページの版の印（scripts/build-gas.mjs が、管理ページの画面に入れたものと同じ印を入れる。なければ ''）
 const BUILD_ID = /*BUILD_ID*/ ''
+// 公開中の管理ページの場所（scripts/build-gas.mjs が gas/deployments.json の admin.url を入れる。なければ ''）。
+// 届いた声のメールに書く。10分ごとの仕掛けの中では ScriptApp.getService().getUrl() が別の場所を返し、開けなかった（2026-11-01）
+const ADMIN_URL = /*ADMIN_URL*/ ''
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('admin')
@@ -805,7 +808,7 @@ function notifyNewFeedback() {
       const who = [item.studentId, item.name, item.email || '（ログインなし）'].filter(Boolean).join('　')
       lines.push('■ ' + item.id + '（' + item.kind + '）' + item.receivedAt, '送った人：' + who, '端末：' + item.device, '開いていたページ：' + item.page, item.text, '')
     })
-    lines.push('管理ページの「届いた声」で、くわしく見て、状態を変えられます：' + ScriptApp.getService().getUrl())
+    lines.push('管理ページの「届いた声」で、くわしく見て、状態を変えられます：' + (ADMIN_URL || ScriptApp.getService().getUrl()))
     MailApp.sendEmail({ to: to.join(','), subject: '【卒業制作報告書】届いた声 ' + fresh.length + '件（' + fresh.map((f) => f.item.id).join('・') + '）', body: lines.join('\n') })
     const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
     fresh.forEach(({ index }) => setRow_(sheet, index + 1, 21, [now]))
@@ -826,7 +829,8 @@ function feedbackMailTo_() {
 
 /** 届いた声のシートの行を、管理ページに渡す形にする（確かめの鍵は渡さない） */
 function feedbackOf_(r) {
-  const s = (i) => (r[i] === undefined || r[i] === null ? '' : String(r[i]))
+  // 日時の列は、シートが日付として読み替えている（そのまま文字にすると「Sun Nov 01 2026 15:06:00 GMT+0900」になる）
+  const s = (i) => (r[i] === undefined || r[i] === null ? '' : r[i] instanceof Date ? Utilities.formatDate(r[i], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm') : String(r[i]))
   return {
     id: s(0),
     receivedAt: s(2),

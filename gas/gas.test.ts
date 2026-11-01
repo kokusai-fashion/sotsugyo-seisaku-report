@@ -1128,6 +1128,16 @@ describe('届いた声（api-project の doPost・admin-project の一覧と状�
     expect(mails[0].to).toBe('kato@example.ac.jp,home@example.jp')
   })
 
+  it('メールには、公開中の管理ページの場所（ビルドで入れたもの）を書く。シートが日付に読み替えた受付の日時は、読める形にする', () => {
+    const api = setup()
+    post(api, voice())
+    sheetRows('届いた声')[1][2] = new Date(2026, 9, 19, 12, 0)
+    load('admin-project', { values: { ADMIN_URL: 'https://script.google.com/a/macros/example.ac.jp/s/deployed/exec' } }).notifyNewFeedback()
+    expect(mails[0].body).toContain('状態を変えられます：https://script.google.com/a/macros/example.ac.jp/s/deployed/exec')
+    expect(mails[0].body).toContain('1019-001（うまく動かない）2026-10-19 12:00')
+    expect(mails[0].body).not.toContain('GMT')
+  })
+
   it('ログインなしでも受け付ける（アドレスは空）。形が正しくないもの・中身が空のものは断る', () => {
     const api = setup()
     expect(post(api, voice()).ok).toBe(true)
