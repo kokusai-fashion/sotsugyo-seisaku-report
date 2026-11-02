@@ -136,3 +136,6 @@ body { font-size: 10.5pt; line-height: 1.5; }
 .qmark { display: inline-grid; place-items: center; width: 6.4mm; height: 6.4mm; border-radius: 50%; border: 0.4mm solid var(--navy); color: var(--navy); font: 700 12pt/1 'Segoe UI', sans-serif; vertical-align: middle; background: #fff; }
 .help small { margin-left: auto; font-size: 10.5pt; font-weight: 400; color: var(--muted); }
 .tag-adm { display: inline-block; padding: 0.2mm 2mm; background: var(--mustard); font-size: 10.5pt; font-weight: 700; }
+
+/* ---- 01 の下のひとこと（先生がすることは増えない。依頼者 2026-11-02） ---- */
+.same-note { margin-top: 2.4mm; font-size: 11pt; font-weight: 700; text-align: center; }
