@@ -249,6 +249,19 @@ describe('管理ページ（admin-project）', () => {
     expect(load('admin-project').getVersion().id).toBe('')
   })
 
+  it('先生向けのリンク（資料一式・AI に聞く）は、登録された先生と管理者にだけ渡す（スクリプト プロパティがあれば、そちらを使う）', () => {
+    const values = { MATERIALS_URL: 'https://example.com/materials', TEACHER_AI_URL: 'https://example.com/ai' }
+    const gas = load('admin-project', { values })
+    gas.setup()
+    expect(gas.getState().links).toEqual({ materials: 'https://example.com/materials', ai: 'https://example.com/ai' })
+    user = 'student@example.ac.jp'
+    expect(gas.getState().links).toEqual({})
+    user = owner
+    expect(load('admin-project', { values, props: { TEACHER_AI_URL: 'https://example.com/ai-2' } }).getState().links.ai).toBe('https://example.com/ai-2')
+    // まとめずに送ったとき（値がない）は、リンクを出さない
+    expect(load('admin-project').getState().links).toEqual({})
+  })
+
   it('管理者でない人には年度設定を見せず、保存もさせない', () => {
     const gas = load('admin-project')
     gas.setup()

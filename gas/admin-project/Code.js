@@ -44,6 +44,11 @@ const BUILD_ID = /*BUILD_ID*/ ''
 // 公開中の管理ページの場所（scripts/build-gas.mjs が gas/deployments.json の admin.url を入れる。なければ ''）。
 // 届いた声のメールに書く。10分ごとの仕掛けの中では ScriptApp.getService().getUrl() が別の場所を返し、開けなかった（2026-11-01）
 const ADMIN_URL = /*ADMIN_URL*/ ''
+// 先生向けのリンク（ログインした先生と管理者にだけ渡す。依頼者 2026-11-03）。scripts/build-gas.mjs が、git に入れないファイル
+// gas/admin-links.local.json の materialsUrl・aiUrl を入れる。なければ ''（スクリプト プロパティ MATERIALS_URL・TEACHER_AI_URL を使う。担当が替わったとき用）
+// MATERIALS_URL：説明の資料一式（スライド・動画・手引き・録画）のページ。TEACHER_AI_URL：管理ページの使い方を答える AI（Gemini の Gem）
+const MATERIALS_URL = /*MATERIALS_URL*/ ''
+const TEACHER_AI_URL = /*TEACHER_AI_URL*/ ''
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('admin')
@@ -101,7 +106,19 @@ function setup() {
 function getState() {
   const user = Session.getActiveUser().getEmail()
   const role = roleOf_(user)
-  return { user: user, isAdmin: role === ROLE_ADMIN, role: role === ROLE_ADMIN ? 'admin' : role === ROLE_TEACHER ? 'teacher' : null, years: role ? readYears_() : [] }
+  return { user: user, isAdmin: role === ROLE_ADMIN, role: role === ROLE_ADMIN ? 'admin' : role === ROLE_TEACHER ? 'teacher' : null, years: role ? readYears_() : [], links: role ? teacherLinks_() : {} }
+}
+
+/** 先生向けのリンク（説明の資料一式・使い方を AI に聞く）。スクリプト プロパティがあれば、そちらを使う */
+function teacherLinks_() {
+  const props = PropertiesService.getScriptProperties()
+  const pick = (name, built) => String(props.getProperty(name) || built || '').trim()
+  const links = {}
+  const materials = pick('MATERIALS_URL', MATERIALS_URL)
+  const ai = pick('TEACHER_AI_URL', TEACHER_AI_URL)
+  if (/^https:\/\//.test(materials)) links.materials = materials
+  if (/^https:\/\//.test(ai)) links.ai = ai
+  return links
 }
 
 /**

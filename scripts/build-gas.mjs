@@ -40,12 +40,23 @@ if (!adminCode.includes("/*BUILD_ID*/ ''")) throw new Error("gas/admin-project/C
 // 公開中の管理ページの場所（届いた声のメールに書く）。gas/deployments.json（配り直したときに書き換わる）の admin.url
 if (!adminCode.includes("/*ADMIN_URL*/ ''")) throw new Error("gas/admin-project/Code.js に /*ADMIN_URL*/ '' がありません")
 const adminUrl = existsSync('gas/deployments.json') ? (JSON.parse(readFileSync('gas/deployments.json', 'utf8')).admin?.url ?? '') : ''
+// 先生向けのリンク（git に入れないファイル gas/admin-links.local.json：{ materialsUrl, aiUrl }。ログインした先生にだけ管理ページで出す）
+const adminLinks = existsSync('gas/admin-links.local.json') ? JSON.parse(readFileSync('gas/admin-links.local.json', 'utf8')) : {}
+const linkOf = (key) => {
+  const value = typeof adminLinks[key] === 'string' ? adminLinks[key].trim() : ''
+  if (value && !/^https:\/\/[^\s"'<>]+$/.test(value)) throw new Error(`gas/admin-links.local.json の ${key} は https:// で始まる URL にしてください`)
+  return value
+}
+for (const mark of ["/*MATERIALS_URL*/ ''", "/*TEACHER_AI_URL*/ ''"]) if (!adminCode.includes(mark)) throw new Error(`gas/admin-project/Code.js に ${mark} がありません`)
 const code = adminCode
   .replace('/*INITIAL_CONFIG*/ null', () => initial)
   .replace('/*TRIAL_SAMPLE*/ null', () => trialSample)
   .replace("/*BUILD_ID*/ ''", () => JSON.stringify(buildId))
   .replace("/*ADMIN_URL*/ ''", () => JSON.stringify(adminUrl))
+  .replace("/*MATERIALS_URL*/ ''", () => JSON.stringify(linkOf('materialsUrl')))
+  .replace("/*TEACHER_AI_URL*/ ''", () => JSON.stringify(linkOf('aiUrl')))
 writeFileSync('gas-dist/admin-project/Code.js', code)
+console.log(`\n先生向けのリンク：資料一式 ${linkOf('materialsUrl') ? 'あり' : 'なし'}・使い方を AI に聞く ${linkOf('aiUrl') ? 'あり' : 'なし'}（gas/admin-links.local.json）`)
 console.log(`\nお試しの見本の原稿：${trialSample === 'null' ? 'なし（gas/trial-sample.private.json がない。管理ページの「学生の画面を試す」は開けない）' : `あり（${Math.round(trialSample.length / 1024)}KB）`}`)
 // 配信用のプロジェクトに、管理用スプレッドシートの ID を入れる（clasp で作ったときの .clasp.json の parentId）
 const adminClasp = existsSync('gas/admin-project/.clasp.json') ? JSON.parse(readFileSync('gas/admin-project/.clasp.json', 'utf8')) : {}

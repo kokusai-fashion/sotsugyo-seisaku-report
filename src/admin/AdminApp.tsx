@@ -226,7 +226,7 @@ function HelpButton({ open, onClick }: { open: boolean; onClick: () => void }) {
  * 先生用の使い方の欄（右の端に重ねる）。画面の写真と印刷用の手引きは、学生用ツールといっしょに GitHub Pages で公開している
  * （管理ページは Apps Script に置くので、学生用ツールの URL から読む。src/help/links.ts。開発中だけは、開発サーバーの public/help/ から読む）
  */
-function AdminHelp({ onClose, admin = false }: { onClose: () => void; admin?: boolean }) {
+function AdminHelp({ onClose, admin = false, links }: { onClose: () => void; admin?: boolean; links?: AdminState['links'] }) {
   return (
     <HelpView
       topics={TEACHER_TOPICS}
@@ -238,6 +238,8 @@ function AdminHelp({ onClose, admin = false }: { onClose: () => void; admin?: bo
       ]}
       variant="dock"
       onClose={onClose}
+      aiUrl={links?.ai}
+      materialsUrl={links?.materials}
     />
   )
 }
@@ -1101,7 +1103,7 @@ export function AdminApp() {
       </main>
       </ProblemsContext.Provider>
       {dirty && <DirtyBar changes={labels} row={row} teacher={false} busy={busy} onSave={save} onShow={() => setDialog('changes')} />}
-      {help && <AdminHelp admin onClose={() => setHelp(false)} />}
+      {help && <AdminHelp admin links={state.links} onClose={() => setHelp(false)} />}
 
       {templateScreen !== null && draft.courses[templateScreen] && (
         <TemplateOverlay
@@ -1367,7 +1369,7 @@ function TeacherView({
         />
       </main>
       {dirty && <DirtyBar changes={labels} row={row} teacher busy={busy} onSave={save} onShow={() => setShowChanges(true)} />}
-      {help && <AdminHelp onClose={() => setHelp(false)} />}
+      {help && <AdminHelp links={state.links} onClose={() => setHelp(false)} />}
       {showChanges && (
         <ChangesDialog
           changes={changes}

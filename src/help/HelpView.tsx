@@ -39,8 +39,10 @@ interface Props {
   onTour?: () => void
   /** 「引用・参考文献」の「引用・参考文献を入れる」：引用・参考文献の窓を開く（学生用ツールだけ。mockups/v35 ①） */
   onReferences?: () => void
-  /** 使い方を AI に聞く場所（学生用ツール。年度の設定にあるときだけ、言葉で探す欄の下に出す。mockups/v86 案A） */
+  /** 使い方を AI に聞く場所（学生用ツール。年度の設定にあるときだけ、言葉で探す欄の下に出す。mockups/v86 案A。管理ページは先生用の AI：依頼者 2026-11-03） */
   aiUrl?: string
+  /** 一覧のいちばん下の「説明の資料一式」（管理ページだけ。ログインした先生にだけ届くリンク：依頼者 2026-11-03） */
+  materialsUrl?: string
 }
 
 /** 使っている端末の、PDF の保存のしかた（印刷の画面が端末によって違う） */
@@ -90,7 +92,7 @@ function Hl({ text: original, terms }: { text: string; terms: string[] }) {
   )
 }
 
-export function HelpView({ topics, who, imageBase, guides, variant, onClose, onTour, onReferences, aiUrl }: Props) {
+export function HelpView({ topics, who, imageBase, guides, variant, onClose, onTour, onReferences, aiUrl, materialsUrl }: Props) {
   const [query, setQuery] = useState('')
   const [view, setView] = useState<View>({ kind: 'list' })
   const [device, setDevice] = useState<HelpDevice['id']>(currentDevice)
@@ -243,7 +245,7 @@ export function HelpView({ topics, who, imageBase, guides, variant, onClose, onT
       ) : searching ? (
         <Results topics={topics} query={query} who={who} onOpen={(id) => open(id, 'search')} />
       ) : (
-        <TopicList topics={topics} device={detected} who={who} guides={guides} onOpen={(id) => open(id, 'list')} onVideo={(n) => openVideo(n)} onGroupVideos={openGroupVideos} />
+        <TopicList topics={topics} device={detected} who={who} guides={guides} materialsUrl={materialsUrl} onOpen={(id) => open(id, 'list')} onVideo={(n) => openVideo(n)} onGroupVideos={openGroupVideos} />
       )}
     </div>
   )
@@ -311,6 +313,7 @@ function TopicList({
   device,
   who,
   guides,
+  materialsUrl,
   onOpen,
   onVideo,
   onGroupVideos,
@@ -319,6 +322,7 @@ function TopicList({
   device: HelpDevice['id']
   who: Props['who']
   guides: Props['guides']
+  materialsUrl?: string
   onOpen: (id: string) => void
   onVideo: (number: number) => void
   onGroupVideos: (group: string) => void
@@ -397,6 +401,11 @@ function TopicList({
               </span>
             ))}
           </p>
+        )}
+        {materialsUrl && (
+          <a className="help-pdf" href={materialsUrl} target="_blank" rel="noreferrer">
+            説明の資料一式（スライド・動画・手引き・録画）
+          </a>
         )}
       </div>
     </>

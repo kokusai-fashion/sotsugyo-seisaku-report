@@ -87,7 +87,7 @@ export function createMockServer(): AdminServer {
     const role = roleOf(store)
     // 削除できる年度（一度も公開していない「準備中」。本番の readYears_ と同じく、deleteYear と同じ決まりで付ける）
     const years = clone(store.years).map((y) => ({ ...y, deletable: y.status === '準備中' && !wasPublished(store, y.year) }))
-    return { user: USER, isAdmin: role === '管理者', role: role === '管理者' ? 'admin' : role === '先生' ? 'teacher' : null, years: role ? years.sort((a, b) => b.year - a.year) : [] }
+    return { user: USER, isAdmin: role === '管理者', role: role === '管理者' ? 'admin' : role === '先生' ? 'teacher' : null, years: role ? years.sort((a, b) => b.year - a.year) : [], links: role ? { materials: 'https://example.com/materials', ai: 'https://example.com/teacher-ai' } : {} }
   }
   const requireAdmin = (store: Store) => {
     if (roleOf(store) !== '管理者') throw new Error(`管理者だけが変更できます（ログイン中：${USER}）`)

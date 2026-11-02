@@ -272,13 +272,16 @@ await withEdge(async (browser) => {
     content: !!document.querySelector('.admin .content'),
     label: document.querySelector('.help-dock .help-title small')?.textContent ?? '',
     foot: document.querySelector('.help-dock .help-foot p')?.textContent ?? '',
+    ai: document.querySelector('.help-dock .help-ai')?.getAttribute('href') ?? '',
   }))
   check(
-    '見出しの横の「？ 使い方」で、右の端に先生・管理者用の使い方が出る（項目14・相談先はほかの管理者と引き継ぎ手順・いちばん下に印刷用の手引き（先生用・管理者用の PDF）を新しいタブで）',
+    '見出しの横の「？ 使い方」で、右の端に先生・管理者用の使い方が出る（項目14・相談先はほかの管理者と引き継ぎ手順・いちばん下に印刷用の手引き（先生用・管理者用の PDF）と説明の資料一式を新しいタブで）',
     adminHelp.topics === 14 && adminHelp.pressed === 'true' && adminHelp.content && adminHelp.label === '先生・管理者用' && adminHelp.foot.includes('ほかの管理者') &&
-      adminHelp.pdf.join('|') === '先生用 https://kokusai-fashion.github.io/sotsugyo-seisaku-report/guides/teacher-guide.pdf _blank|管理者用 https://kokusai-fashion.github.io/sotsugyo-seisaku-report/guides/admin-guide.pdf _blank',
+      adminHelp.pdf.join('|') === '先生用 https://kokusai-fashion.github.io/sotsugyo-seisaku-report/guides/teacher-guide.pdf _blank|管理者用 https://kokusai-fashion.github.io/sotsugyo-seisaku-report/guides/admin-guide.pdf _blank|説明の資料一式（スライド・動画・手引き・録画） https://example.com/materials _blank',
     JSON.stringify(adminHelp),
   )
+  // 先生向けのリンク（ログインした先生にだけ届く。試験用サーバーは example.com）：使い方を AI に聞く（依頼者 2026-11-03）
+  check('先生用の使い方にも「使い方を AI に聞く」が出る（先生用の AI。新しいタブで）', adminHelp.ai === 'https://example.com/teacher-ai', JSON.stringify({ ai: adminHelp.ai }))
   const dockTop = await page.evaluate(() => ({ dock: document.querySelector('.help-dock').getBoundingClientRect().top, header: document.querySelector('.admin-header').getBoundingClientRect().bottom }))
   check('使い方の欄は、見出しのすぐ下から出る（見出しに重ならない）', dockTop.dock === dockTop.header && dockTop.header > 55, JSON.stringify(dockTop))
   await page.type('.help-dock .help-search input', '反映 されない')

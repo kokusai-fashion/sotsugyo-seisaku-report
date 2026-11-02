@@ -35,6 +35,8 @@ export interface AdminState {
   isAdmin: boolean
   role?: Role
   years: YearRow[]
+  /** 先生向けのリンク（ログインした先生と管理者にだけ届く。materials：説明の資料一式、ai：管理ページの使い方を答える AI。gas/admin-links.local.json） */
+  links?: { materials?: string; ai?: string }
 }
 
 export interface Member {
