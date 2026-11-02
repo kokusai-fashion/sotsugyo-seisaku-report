@@ -1285,6 +1285,9 @@ async function adminShots(browser) {
   // 先生用の手引きでは、画像の横に手順を並べるので、画面を小さめ（1180×640）にして、コースのカードのすぐ下に帯が来るようにする
   const TEACHER = { width: 1180, height: 640, deviceScaleFactor: 2 }
   const t = await openAdmin(browser, { as: 'teacher', viewport: TEACHER })
+  // 先生の画面も、はじめはどのコースも閉じている（2026-11-02 から）。いちばん上のコースを開いて撮る
+  await t.page.waitForSelector('.course .open-btn')
+  await t.page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
   await t.page.waitForSelector('.course.open textarea.notice')
   await setValue(await t.page.$('.course.open textarea.notice'), '12月4日（金）の中間発表では、本文の下書きを印刷して持ってきてください')
   await t.page.waitForSelector('.dirty-bar')

@@ -729,6 +729,9 @@ async function adminShots(browser) {
 
   // ---- 先生の画面（コースと書き方のチェックだけ） ----
   const t = await openAdmin(browser, { as: 'teacher' })
+  // 先生の画面も、はじめはどのコースも閉じている（2026-11-02 から）。いちばん上のコースを開いて撮る
+  await t.page.waitForSelector('.course .open-btn')
+  await t.page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
   await t.page.waitForSelector('.course.open')
   await t.page.mouse.move(5, 5)
   await sleep(500)
