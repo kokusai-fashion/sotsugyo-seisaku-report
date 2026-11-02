@@ -15,7 +15,10 @@
   ・スマホで書くときに、ホーム画面に追加する方法も分かりやすく
   ・書くのはパソコンをすすめる（画面が広く、道具の置き場が分かりやすく、間違えにくい）
   ・表：はじめてから提出まで・パソコンをすすめる・画面の地図（パソコンの画面全体に番号）・自動で入るもの。
-  ・裏：やりたいこと → 押す所 の早見表・図の入れ方と表の入れ方（3コマずつ）・スマホで書くとき（ホーム画面に追加）。
+  ・裏：やりたいこと → 押す所 の早見表・図の入れ方と表の入れ方（3コマずつ）・スマホで書く人へ（ホーム画面に追加）。
+  ・メリハリ（依頼者 2026-11-02。mockups/v89 案B＋スマホの画面の絵）：伝えたい所に赤い印（流れの「エラーを0に」・共用のパソコン）。
+    表から裏の「スマホで書く人へ」へ案内し、裏は紺の帯の見出しの下に、画面の絵・赤い帯（g-phone-strip）・Classroom からの切り替え・
+    ホーム画面に追加（おすすめの札。手順は札を矢印でつなぐ）。
   ・画面の番号（黄色の四角）と、説明の番号をそろえる。
   ・画面は node scripts/make-guides.mjs で撮る（学生用の画面と一緒に。guide-images/g-d-*.jpg）。
   ・公開のリポジトリに入るので、先生の名前・連絡先は書かない。
@@ -79,21 +82,40 @@
   /* 図・表の入れ方：3コマずつ */
   .koma { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
   .koma li { display: flex; flex-direction: column; }
-  .koma .stage { height: 42mm; }
+  .koma .stage { height: 34mm; }
   .koma p { display: flex; gap: 1.6mm; margin-top: 1.4mm; font-size: 10.5pt; line-height: 1.45; }
   .koma p i { flex: none; display: inline-grid; place-items: center; width: 5mm; height: 5mm; border-radius: 50%; background: var(--navy); color: #fff; font: 700 10.5pt/1 'Bahnschrift', 'Segoe UI', sans-serif; font-style: normal; transform: translateY(0.5mm); }
 
-  /* スマホで書くとき（ホーム画面に追加） */
-  .phone-row { display: grid; grid-template-columns: 24mm 1fr; gap: 5mm; align-items: center; margin-top: 4mm; padding: 3mm 4mm; background: var(--gray); }
-  .phone-row h3 { font-size: 12pt; }
-  .phone-row h3 small { margin-left: 2mm; font-size: 10.5pt; font-weight: 400; color: var(--muted); }
-  .phone-row p { margin-top: 0.8mm; font-size: 10.5pt; line-height: 1.45; }
-  .phone-row h4 { margin-top: 2.2mm; font-size: 11pt; }
-  .home { display: grid; grid-template-columns: auto 1fr; gap: 1mm 3mm; margin: 1mm 0 0; font-size: 10.5pt; line-height: 1.45; }
-  .home dt { font-weight: 700; }
-  .home svg, .phone-row .switch svg { width: 4mm; height: 4mm; vertical-align: -0.7mm; }
-  /* Classroom のアプリから開いたときの切り替え（アプリの中の画面は Safari・Chrome と保存場所が別で、ホーム画面にも追加できない） */
-  .phone-row .switch { font-weight: 700; }
+  /* 伝えたい所の印（mockups/v89）：流れの「4 エラーを0に」は赤、共用のパソコンの注意には赤い「!」 */
+  .route .step.must i { background: #c62828; }
+  .route .step.must b { color: #c62828; }
+  .must-line { position: relative; padding-left: 6.2mm; }
+  .must-line::before { content: '!'; position: absolute; left: 0; top: 0.4mm; width: 4.6mm; height: 4.6mm; border-radius: 50%; background: #c62828; color: #fff; font: 700 9pt/4.6mm 'Segoe UI', sans-serif; text-align: center; }
+  /* 表から裏の「スマホで書く人へ」への案内 */
+  .to-back { margin-top: 2.6mm; padding: 1.6mm 4mm; background: #fdf3d9; border-left: 1.4mm solid #e8b64a; font-size: 10.5pt; }
+
+  /* スマホで書く人へ（mockups/v89 案B＋スマホの画面の絵）：紺の帯の見出し、左に画面の絵、右に気をつけること2つとホーム画面に追加 */
+  .pb-band { margin-top: 2.4mm; padding: 1.4mm 4mm; background: var(--navy); color: #fff; font-size: 12.5pt; letter-spacing: 0.08em; }
+  .pc-grid { display: grid; grid-template-columns: 35mm 1fr; gap: 3mm; margin-top: 2.4mm; align-items: stretch; }
+  .pc-phone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.4mm 1.4mm; background: var(--gray); border-top: 0.8mm solid var(--line); }
+  .pc-phone p { margin-top: 1.8mm; font-size: 10.5pt; line-height: 1.45; text-align: center; }
+  .pc-phone p span:not(.btn) { color: var(--muted); }
+  .pb-tips { display: grid; grid-template-columns: 1.05fr 1fr; gap: 3mm; margin: 0; padding: 0; list-style: none; }
+  .pb-tips li { display: flex; flex-direction: column; gap: 1mm; padding: 2.2mm 3mm; background: #fdecea; border-top: 0.8mm solid #c62828; font-size: 10.5pt; line-height: 1.45; }
+  .pb-tips span { color: var(--muted); }
+  .pb-tips svg { width: 4mm; height: 4mm; vertical-align: -0.7mm; }
+  .pb-home { margin-top: 2mm; padding: 2mm 3.6mm 2.4mm; background: #fdf3d9; border: 0.5mm solid #e8b64a; }
+  .pb-home h3 { font-size: 12pt; }
+  .pb-home h3 small { margin-left: 3mm; font-size: 10.5pt; font-weight: 400; color: var(--muted); }
+  .rec { display: inline-block; margin-left: 2mm; padding: 0.2mm 2mm; border-radius: 1mm; background: #c62828; color: #fff; font-size: 10.5pt; font-weight: 700; vertical-align: 0.3mm; letter-spacing: 0.08em; }
+  .pb-os { display: grid; grid-template-columns: 1.25fr 1fr; gap: 4mm; margin-top: 1.4mm; }
+  .pb-os .os > b { font-size: 10.5pt; }
+  /* ホーム画面に追加の手順：札を矢印でつなぐ（折り返しても、札の途中で切れない） */
+  .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 1.2mm 0; margin: 0.8mm 0 0; padding: 0; list-style: none; }
+  .chips li { position: relative; display: inline-flex; align-items: center; gap: 0.8mm; padding: 0.6mm 2.2mm; border: 0.3mm solid var(--line); border-radius: 1.4mm; background: #fff; font-size: 10.5pt; line-height: 1.35; white-space: nowrap; }
+  .chips li + li { margin-left: 4.6mm; }
+  .chips li + li::before { content: '→'; position: absolute; left: -3.9mm; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .chips svg { width: 4mm; height: 4mm; }
   .end { margin-top: auto; padding: 3mm 0 7mm; display: flex; align-items: center; gap: 2.4mm; font-size: 10.5pt; }
   .end .q { display: inline-grid; place-items: center; width: 6.5mm; height: 6.5mm; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 700; }
 </style>
@@ -118,13 +140,16 @@
     <span class="step"><i>1</i><b>ログイン</b></span><span class="arr">→</span>
     <span class="step"><i>2</i><b>コースを選ぶ</b></span><span class="arr">→</span>
     <span class="step"><i>3</i><b>書く</b></span><span class="arr">→</span>
-    <span class="step"><i>4</i><b>エラーを0に</b></span><span class="arr">→</span>
+    <span class="step must"><i>4</i><b>エラーを0に</b></span><span class="arr">→</span>
     <span class="step"><i>5</i><b>PDF を書き出す</b></span>
   </p>
   <div class="notes">
     <p class="memo"><b>書くのはパソコンがおすすめ</b><br>画面が広く、道具が分かりやすく、間違えにくい。</p>
-    <p class="memo"><b>保存は自動</b><br>共用のパソコンでは、最後に <span class="btn">この端末から原稿を消す</span></p>
+    <p class="memo"><b>保存は自動</b><br><span class="must-line">共用のパソコンでは、最後に <span class="btn">この端末から原稿を消す</span></span></p>
   </div>
+
+  <!-- スマホで書く学生が多いので、表から裏の「スマホで書く人へ」へ案内する（mockups/v89 案B。依頼者 2026-11-02） -->
+  <p class="to-back"><b>スマホで書く人は</b>、裏の「スマホで書く人へ」も見てください →</p>
 
   <h2 class="sec-h">画面の地図<small>パソコン（段落を書いているところ）</small></h2>
   <div class="screen-map"><figure class="shot lift" data-shot="g-d-map" aria-label="パソコンの画面全体" style="width:100%"></figure></div>
@@ -185,15 +210,15 @@
   <h2 class="sec-h">図の入れ方</h2>
   <ol class="koma">
     <li>
-      <div class="stage"><figure class="shot lift" data-shot="g-d-fig1" data-badges="1,2" aria-label="書いている文と、左の図を入れる" style="width:53mm"></figure></div>
+      <div class="stage"><figure class="shot lift" data-shot="g-d-fig1" data-badges="1,2" aria-label="書いている文と、左の図を入れる" style="width:43mm"></figure></div>
       <p><i>1</i><span>入れたい位置で <span class="btn">図を入れる</span></span></p>
     </li>
     <li>
-      <div class="stage"><figure class="shot lift" data-shot="g-d-fig2" data-badges="2" aria-label="図のタイトルを打っているところ" style="width:53mm"></figure></div>
+      <div class="stage"><figure class="shot lift" data-shot="g-d-fig2" data-badges="2" aria-label="図のタイトルを打っているところ" style="width:43mm"></figure></div>
       <p><i>2</i><span>写真を選んで、タイトルを打つ</span></p>
     </li>
     <li>
-      <div class="stage"><figure class="shot lift" data-shot="g-d-fig3" data-badges="1,2" aria-label="本文の（図1）と図のタイトル" style="width:53mm"></figure></div>
+      <div class="stage"><figure class="shot lift" data-shot="g-d-fig3" data-badges="1,2" aria-label="本文の（図1）と図のタイトル" style="width:43mm"></figure></div>
       <p><i>3</i><span>「（図1）」と番号は自動</span></p>
     </li>
   </ol>
@@ -201,36 +226,44 @@
   <h2 class="sec-h">表の入れ方</h2>
   <ol class="koma">
     <li>
-      <div class="stage"><figure class="shot lift" data-shot="g-d-table-size" data-badges="1" aria-label="表の大きさを選ぶ" style="width:28mm"></figure></div>
+      <div class="stage"><figure class="shot lift" data-shot="g-d-table-size" data-badges="1" aria-label="表の大きさを選ぶ" style="width:23mm"></figure></div>
       <p><i>1</i><span>入れたい位置で <span class="btn">表を入れる</span> → 大きさを選ぶ</span></p>
     </li>
     <li>
-      <div class="stage"><figure class="shot lift" data-shot="g-d-table-tools" data-badges="" aria-label="表のマスを書いているところ" style="width:37mm"></figure></div>
+      <div class="stage"><figure class="shot lift" data-shot="g-d-table-tools" data-badges="" aria-label="表のマスを書いているところ" style="width:30mm"></figure></div>
       <p><i>2</i><span>マスを押して書く</span></p>
     </li>
     <li>
-      <div class="stage"><figure class="shot lift" data-shot="g-table" data-badges="" aria-label="生地見本の入った表" style="width:38mm"></figure></div>
+      <div class="stage"><figure class="shot lift" data-shot="g-table" data-badges="" aria-label="生地見本の入った表" style="width:31mm"></figure></div>
       <p><i>3</i><span>生地見本は <span class="btn">画像を入れる</span></span></p>
     </li>
   </ol>
 
-  <div class="phone-row">
-    <figure class="shot lift" data-shot="g-d-phone-add" data-badges="" aria-label="スマホで書いているところ" style="width:22mm"></figure>
-    <div>
-      <h3>スマホで書くとき</h3>
-      <p>タップして書き、<span class="btn">完了</span>。図・表・見出しはキーボードの上。</p>
-      <p class="switch">Classroom から開いたら、Safari・Chrome に切り替える（iPhone は右下の <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="方位磁針"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>、Android は「⋮」→「Chrome で開く」）。</p>
-      <h4>ホーム画面に追加</h4>
-      <dl class="home">
-        <dt>iPhone（Safari）</dt>
-        <dd><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="共有"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> 共有 →「ホーム画面に追加」→「Web アプリとして開く」はオフ →「追加」</dd>
-        <dt>Android（Chrome）</dt>
-        <dd>右上の「⋮」→「ホーム画面に追加」→「追加」</dd>
-      </dl>
+  <!-- スマホで書く人へ（mockups/v89 案B＋スマホの画面の絵。依頼者 2026-11-02：スマホで書く学生が多く、ホーム画面に追加はもっと勧めたい。
+       伝えたい所に赤い縁と「おすすめ」の札。左のスマホの画面の絵は、ぱっと見で分かりやすいので残す） -->
+  <h2 class="pb-band">スマホで書く人へ</h2>
+  <div class="pc-grid">
+    <div class="pc-phone">
+      <figure class="shot lift" data-shot="g-d-phone-add" data-badges="" aria-label="スマホで書いているところ" style="width:18mm"></figure>
+      <p><b>タップして書き、<span class="btn">完了</span></b><br><span>図・表・見出しは<br>キーボードの上</span></p>
+    </div>
+    <div class="pc-right">
+      <ol class="pb-tips">
+        <li class="hot"><figure class="shot" data-shot="g-phone-strip" aria-label="直すところがあるときの、画面の下の赤い帯" style="width:100%"></figure><b>下に赤い帯が出たら、押して直す</b></li>
+        <!-- Classroom のアプリの中の画面は Safari・Chrome と保存場所が別で、ログインもできず、ホーム画面にも追加できない -->
+        <li class="hot"><b>Classroom から開いたら、Safari・Chrome に切り替える</b><span>iPhone は右下の <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="方位磁針"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>、Android は「⋮」→「Chrome で開く」</span></li>
+      </ol>
+      <div class="pb-home">
+        <h3>ホーム画面に追加<span class="rec">おすすめ</span><small>次からは、アイコンを押すだけで開けます</small></h3>
+        <div class="pb-os">
+          <div class="os"><b>iPhone（Safari）</b><ol class="chips"><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="共有"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> 共有</li><li>ホーム画面に追加</li><li>Web アプリとして開く：オフ</li><li>追加</li></ol></div>
+          <div class="os"><b>Android（Chrome）</b><ol class="chips"><li>右上の ⋮</li><li>ホーム画面に追加</li><li>追加</li></ol></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <p class="end"><span class="q">?</span><span>くわしくは <span class="btn">？ 使い方</span> から（動画も）。その中の <span class="btn">使い方を AI に聞く</span> では、ふだんの言葉で質問できます。</span></p>
+  <p class="end"><span class="q">?</span><span>くわしくは <span class="btn">？ 使い方</span> から（動画も）。<span class="btn">使い方を AI に聞く</span> でも質問できます。</span></p>
 </section>
 
 <script src="guide-images/marks.js"></script>

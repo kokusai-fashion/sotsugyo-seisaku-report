@@ -24,7 +24,7 @@ import { useDialogFocus } from './useDialogFocus'
 import { UndoBar } from './UndoBar'
 import { useUndoNotice } from './useUndoNotice'
 import { WordImportLink } from './WordImport'
-import { abstractCharCount } from '../checker/reportChecks'
+import { abstractCharCount, type ReportFinding } from '../checker/reportChecks'
 
 /**
  * 書いている間の道具の、いまは押せないボタン（戻す・やり直す）。disabled にすると、押したときにボタンが受け取らず、
@@ -424,7 +424,7 @@ function FitWidth({ editor }: { editor: ReportEditor }) {
   )
 }
 
-function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: EditorSnapshot; guiding: boolean }) {
+function DirectBar({ editor, snap, guiding, issue }: { editor: ReportEditor; snap: EditorSnapshot; guiding: boolean; issue?: { title: string; more: number } | null }) {
   const ask = useAsk()
   const id = snap.editingId
   const editable = id ? findEditable(snap.report, id) : undefined
@@ -466,6 +466,17 @@ function DirectBar({ editor, snap, guiding }: { editor: ReportEditor; snap: Edit
       {snap.overZoomed && !guiding && <FitWidth editor={editor} />}
       <div className="direct-bar" role="toolbar" aria-label="書く道具">
         {snap.editingKind === 'abstractParagraph' && <AbstractCount editor={editor} snap={snap} />}
+        {/* 書いている段落の直すところ（mockups/v88）。紙面の赤い線の理由と直し方を、書いているその場で見せる */}
+        {issue && (
+          <p className="db-issue" role="status">
+            <i className="x" aria-hidden="true">×</i>
+            <span>
+              <b>直すところ：</b>
+              {issue.title}
+              {issue.more > 0 && `（ほかに${issue.more}か所）`}
+            </span>
+          </p>
+        )}
         {hint && (
           <p className="db-hint">
             <b>ここに書くこと：</b>
@@ -667,6 +678,42 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
   )
 }
 
+/*
+ * スマホで、直すところ（× エラー）に気づけるようにする（mockups/v88 案1。依頼者 2026-11-02：スマホで書く学生は、下の「チェック」の
+ * 小さな赤い数と紙面の赤い線に気づきにくい。説明の日に休んだ・手引きを読み込んでいない学生ほど、エラーが多いのに気づかない）。
+ * 画面に同時に出す知らせは1つだけ（赤い数・帯・数秒の知らせを重ねると、どれを見ればよいか迷う：依頼者 2026-11-02）：
+ * 書いている間は、キーボードの上の道具に、その段落の直すところを1行（useWritingIssue）。書いていない間は、下のタブの上の帯（useErrorStrip）
+ */
+
+/** タブの上の帯を出すか（エラーがあるあいだ）。書いている間は出し入れしない（帯の分だけ紙面の枠が変わり、紙面が組み直されるため） */
+function useErrorStrip(snap: EditorSnapshot, errors: number): boolean {
+  const [strip, setStrip] = useState(false)
+  const want = !snap.pageChecksPending && errors > 0
+  if (!snap.editingId && want !== strip) setStrip(want)
+  return strip
+}
+
+/** 打つ手を止めてから、書いている段落の直すところを出すまで（ms。打っている途中に出たり消えたりしないように） */
+const WRITING_ISSUE_MS = 1200
+
+/** 書いている段落の直すところ（× エラー）。カーソルのある所の指摘を先に。パソコンの右の欄で、書いている所の指摘が光るのと同じ役目 */
+function useWritingIssue(snap: EditorSnapshot, fixes: ReportFinding[]): { title: string; more: number } | null {
+  // 打つ手が止まった原稿（止まってから WRITING_ISSUE_MS たったときの原稿）。1字ごとには state を変えない（打つたびに組み直すと、
+  // CPU の遅いスマホで1字ごとの手間が増えた：自動テスト phone の速さの確かめ 2026-11-02）
+  const [quietReport, setQuietReport] = useState<EditorSnapshot['report'] | null>(null)
+  useEffect(() => {
+    const report = snap.report
+    const timer = window.setTimeout(() => setQuietReport(report), WRITING_ISSUE_MS)
+    return () => window.clearTimeout(timer)
+  }, [snap.report])
+  if (!snap.editingId || quietReport !== snap.report) return null
+  const here = fixes.filter((f) => f.severity === 'error' && f.blockId === snap.editingId)
+  if (!here.length) return null
+  const caret = snap.caret
+  const at = here.find((f) => caret !== null && f.start !== undefined && f.end !== undefined && caret >= f.start && caret <= f.end) ?? here[0]
+  return { title: at.title, more: here.length - 1 }
+}
+
 /** 削除の知らせと、その下の道具・帯との間（画面の px） */
 const UNDO_GAP = 8
 
@@ -751,6 +798,8 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
   // 削除したあとの「戻す」の知らせ（mockups/v32 ② 案A）。削除した直後の原稿のまま（ほかを変えていない・書き始めていない）ときだけ出る
   // （ほかを変えたあとの「戻す」は、削除ではなく、その変更を戻してしまうため）
   const undo = useUndoNotice(snap)
+  const errorStrip = useErrorStrip(snap, errors)
+  const writingIssue = useWritingIssue(snap, fixes)
   return (
     <>
       <header className="p-top">
@@ -806,6 +855,16 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
       {/* 知らせは、ページ送り・選んでいる物の道具・紙面の下の帯の上に出す（どれにも重ねない） */}
       <UndoBar editor={editor} notice={undo.notice} onClose={undo.close} place={placeUndo} />
 
+      {/* 直すところ（× エラー）の帯（mockups/v88）。書いている間も場所を取ったまま隠す（紙面の大きさを変えない）。
+          押すと開くのは下の「チェック」と同じ欄なので、「チェックで見る」と書いて、チェックが何かも伝える */}
+      {errorStrip && (
+        <button className="err-strip" style={snap.editingId ? { visibility: 'hidden' } : undefined} onClick={() => setSheet('check')}>
+          <i className="x" aria-hidden="true">×</i>
+          <b>直すところが {errors}か所</b>
+          <span className="go">チェックで見る ›</span>
+        </button>
+      )}
+
       <nav className="p-nav">
         <button onClick={() => setSheet('pages')}>
           {PhoneIcon.pages}ページ一覧
@@ -813,10 +872,11 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
         <button className="add" onClick={() => setSheet('add')}>
           <span className="plus">{PhoneIcon.plus}</span>追加
         </button>
+        {/* 赤い数は出さない（直すところは、タブの上の帯で知らせる。mockups/v88 案1）。黄色の要確認だけのときの点は、今までどおり
+            （帯は × エラーだけ）。紙面を組み終えるまでは出さない（ページ数などのチェックが加わって、数が変わるため） */}
         <button className="nav-check" onClick={() => setSheet('check')}>
-          {/* 紙面を組み終えるまでは、エラーの数を出さない（ページ数などのチェックが加わって、数が変わるため） */}
           {PhoneIcon.check}チェック
-          {!snap.pageChecksPending && (errors > 0 ? <i className="badge">{errors}</i> : warnOnly && <i className="badge warn-dot" role="img" aria-label="要確認があります" />)}
+          {!snap.pageChecksPending && warnOnly && <i className="badge warn-dot" role="img" aria-label="要確認があります" />}
         </button>
         <button className="nav-pdf" onClick={onExport} disabled={exporting}>
           {exporting ? <Spinner /> : Icon.pdf}
@@ -829,7 +889,7 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
       </nav>
 
       <EditSheet editor={editor} snap={snap} hostRef={sheetHostRef} />
-      {snap.editingId && snap.onPaper && <DirectBar editor={editor} snap={snap} guiding={guiding} />}
+      {snap.editingId && snap.onPaper && <DirectBar editor={editor} snap={snap} guiding={guiding} issue={writingIssue} />}
 
       {sheet === 'pages' && (
         <Sheet title="ページ一覧" extra={<span className="pcount"><b>{snap.page + 1}</b> / {snap.pageCount}</span>} onClose={close}>
@@ -911,6 +971,7 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
           )}
           {onFeedback && (
             <FeedbackLink
+              inMenu
               onClick={() => {
                 close()
                 onFeedback()

@@ -144,16 +144,17 @@ await withEdge(async (browser) => {
     const badge = () => page.evaluate(() => {
       const b = document.querySelector('.p-nav .nav-check .badge')
       const fixes = window.__editor.getSnapshot().findings
-      return { warnings: fixes.filter((f) => f.severity === 'warning').length, dot: !!b?.classList.contains('warn-dot'), text: b?.textContent ?? null, label: b?.getAttribute('aria-label') ?? '', bg: b ? getComputedStyle(b).backgroundColor : '' }
+      return { warnings: fixes.filter((f) => f.severity === 'warning').length, strip: document.querySelector('.err-strip b')?.textContent ?? null, dot: !!b?.classList.contains('warn-dot'), text: b?.textContent ?? null, label: b?.getAttribute('aria-label') ?? '', bg: b ? getComputedStyle(b).backgroundColor : '' }
     })
     const warnOnly = await badge()
-    check('赤いエラーがなく、黄色の要確認だけのとき、「チェック」に黄色の小さな点（数は出さない。読み上げは「要確認があります」）', warnOnly.warnings > 0 && warnOnly.dot && warnOnly.text === '' && warnOnly.label === '要確認があります' && warnOnly.bg === 'rgb(224, 161, 0)', JSON.stringify(warnOnly))
+    check('赤いエラーがなく、黄色の要確認だけのとき、帯は出さず、「チェック」に黄色の小さな点（数は出さない。読み上げは「要確認があります」）', warnOnly.warnings > 0 && warnOnly.strip === null && warnOnly.dot && warnOnly.text === '' && warnOnly.label === '要確認があります' && warnOnly.bg === 'rgb(224, 161, 0)', JSON.stringify(warnOnly))
     // 赤いエラーを1つ作る（段落の終わりの「。」を外す）
     await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p7' && b.type === 'paragraph' ? { ...b, content: b.content.map((n, i, a) => (i === a.length - 1 && n.type === 'text' ? { ...n, text: n.text.replace(/。$/, '') } : n)) } : b)) })) })))
     await wait(1200)
     await ready()
     const withError = await badge()
-    check('赤いエラーがあれば、今までどおり赤い数（黄色の点は出さない）', !withError.dot && /^[1-9][0-9]*$/.test(withError.text ?? ''), JSON.stringify(withError))
+    // 赤いエラーは、下のタブの上の帯で知らせる（「チェック」には赤い数も黄色の点も付けない。mockups/v88 案1）
+    check('赤いエラーがあれば、下のタブの上に帯（「チェック」には赤い数も黄色の点も出さない）', !withError.dot && withError.text === null && /^直すところが [1-9][0-9]*か所$/.test(withError.strip ?? ''), JSON.stringify(withError))
     await context.close()
   }
 })

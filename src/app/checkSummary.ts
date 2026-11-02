@@ -4,7 +4,7 @@ import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 
 /**
  * セルフチェックの指摘を分けたもの（mockups/v35 ① 案A。checker/progress.ts）：まだのところの行（rows）と数（notYet）、
- * 直すところ（fixes。書いた文の間違い）と、そのうちのエラーの数（errors。スマホの「チェック」の赤い数）。
+ * 直すところ（fixes。書いた文の間違い）と、そのうちのエラーの数（errors。スマホの下のタブの上の帯の数）。
  * 右の欄・スマホの「チェック」の欄（SidePanel.tsx の CheckBody・Tally・ExportNote）と、スマホの下のタブ（Phone.tsx）、
  * 「PDFを書き出す」の窓（ExportDialog.tsx。残っている直すところ・まだのところの一覧）で使う
  */

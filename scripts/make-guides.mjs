@@ -1085,6 +1085,17 @@ async function detailShots(browser, config) {
       { n: 1, box: await pp.evaluate(rectOf, '.direct-bar .db-add'), at: 't' },
     ])
     await fakeKeyboard(pp, false)
+    // 直すところがあるときの、下のタブの上の赤い帯（mockups/v88 案1。学生用の裏「スマホで書く人へ」の絵：mockups/v89）。
+    // 書き終えてから、です・ます調と「私」の1文を書き足して、帯を出す
+    await pp.evaluate(() => window.__editor.finishEditing())
+    await ready(pp, true)
+    await pp.evaluate((id) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === id ? { ...b, content: [...b.content, { type: 'text', text: '私はこの形が好きです。' }] } : b)) })) })), WRITE_ID)
+    await sleep(800)
+    await ready(pp, true)
+    await pp.waitForSelector('.err-strip', { timeout: 30000 })
+    await sleep(500)
+    const stripBox = await pp.evaluate(rectOf, '.err-strip')
+    await capture(pp, 'g-phone-strip', { x: 0, y: stripBox.y - 6, w: PHONE.width, h: PHONE.height - (stripBox.y - 6) })
     await phone.context.close()
   }
   await context.close()

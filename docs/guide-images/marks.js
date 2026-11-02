@@ -412,7 +412,7 @@ window.GUIDE_MARKS = {
     "dy": 0,
     "box": {
      "x": 6.92,
-     "y": 59.93,
+     "y": 59.94,
      "w": 86.15,
      "h": 5.21
     }
@@ -1406,5 +1406,10 @@ window.GUIDE_MARKS = {
     }
    }
   ]
+ },
+ "g-phone-strip": {
+  "w": 390,
+  "h": 112,
+  "marks": []
  }
 };

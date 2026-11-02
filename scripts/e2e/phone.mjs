@@ -254,12 +254,13 @@ await withEdge(async (browser) => {
   await page.waitForSelector('.sheet .check-prog')
   await shot('5-check')
   check('「チェック」で、セルフチェックが下から出る', (await page.$$('.sheet .issue')).length > 0)
-  // 書いた文の間違い（「私」「製作」）は直すところ（赤・黄）に出て、下の「チェック」の赤い数は、直すところのエラーの数だけ（まだのところは数えない）
+  // 書いた文の間違い（「私」「製作」）は直すところ（赤・黄）に出て、下のタブの上の帯の数は、直すところのエラーの数だけ（まだのところは数えない）。
+  // 下の「チェック」に赤い数は出さない（mockups/v88 案1）
   const fixSheet = await page.evaluate(() => {
     const errors = [...document.querySelectorAll('.sheet .issue.error')].length
-    return { errors, afterFix: !!document.querySelector('.sheet .check-sub.fix ~ .sev-legend'), badge: document.querySelector('.p-nav .badge')?.textContent ?? '', tally: document.querySelector('.sheet .tally')?.textContent.replace(/\s/g, '') ?? '', todo: document.querySelectorAll('.sheet .check-prog li.todo').length }
+    return { errors, afterFix: !!document.querySelector('.sheet .check-sub.fix ~ .sev-legend'), badge: document.querySelector('.p-nav .badge:not(.warn-dot)')?.textContent ?? '', strip: document.querySelector('.err-strip b')?.textContent ?? '', tally: document.querySelector('.sheet .tally')?.textContent.replace(/\s/g, '') ?? '', todo: document.querySelectorAll('.sheet .check-prog li.todo').length }
   })
-  check('スマホ：書いた文の間違いは「直すところ」に出て（凡例は直すところの中）、下の「チェック」の赤い数は直すところのエラーの数（まだのところは数えない）', fixSheet.errors >= 2 && fixSheet.afterFix && fixSheet.badge === String(fixSheet.errors) && fixSheet.todo > 0 && fixSheet.tally.startsWith('直すところ'), JSON.stringify(fixSheet))
+  check('スマホ：書いた文の間違いは「直すところ」に出て（凡例は直すところの中）、下のタブの上の帯の数は直すところのエラーの数（まだのところは数えない。「チェック」に赤い数は出ない）', fixSheet.errors >= 2 && fixSheet.afterFix && fixSheet.strip === `直すところが ${fixSheet.errors}か所` && !fixSheet.badge && fixSheet.todo > 0 && fixSheet.tally.startsWith('直すところ'), JSON.stringify(fixSheet))
   // エラーと要確認の意味は、一覧の上に1行（指摘ごとの札「手順書」「補助」はない。mockups/v31 案1）。スマホの幅で横にはみ出さない
   const phoneLegend = await page.evaluate(() => {
     const el = document.querySelector('.sheet .sev-legend')
@@ -657,9 +658,20 @@ await withEdge(async (browser) => {
     await ready()
   }
   const touchAction = await page.evaluate(() => getComputedStyle(document.querySelector('.stage .page-scroller')).touchAction)
-  await swipeV(520, 300)
+  // はらい始める所は、紙面の上で、ボタン（抄録の帯の「先生の許可が出た」など）に当たらない所にする
+  // （直すところの帯が出ると紙面が少し小さくなり、決まった位置ではボタンに当たることがある。ボタンからはらってもめくれないのは前からの動き）
+  const sy = await page.evaluate(() => {
+    const p = document.querySelector('.page-viewport.front [data-vivliostyle-page-container].is-current').getBoundingClientRect()
+    const free = (y) => { const e = document.elementFromPoint(200, y); return !!e && !e.closest('button, a, .page-band') }
+    let low = Math.round(p.bottom - 30)
+    while (low > p.top + 260 && !free(low)) low -= 10
+    let high = low - 220
+    while (high > p.top + 10 && !free(high)) high -= 10
+    return { low, high }
+  })
+  await swipeV(sy.low, sy.high)
   const afterUp = (await snap()).page
-  await swipeV(300, 520)
+  await swipeV(sy.high, sy.low)
   const afterDown = (await snap()).page
   check('指で上にはらうと次のページ、下にはらうと前のページへめくれる（紙面はブラウザの上下の動きにしない）', afterUp === 2 && afterDown === 1 && touchAction === 'none', JSON.stringify({ afterUp, afterDown, touchAction }))
   // 読み込み直すと、最後に見ていたページが開く（下のページ送りも、そのページを指す）

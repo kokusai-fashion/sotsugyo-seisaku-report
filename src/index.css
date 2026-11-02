@@ -2286,6 +2286,8 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
 .feedback-link { display: block; width: 100%; margin: 8px 0 0; padding: 0; border: 0; background: none; color: var(--accent); font-size: 11.5px; text-align: center; text-decoration: underline; text-underline-offset: 3px; }
 .feedback-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sheet .feedback-link { margin: 14px 0 0; font-size: 13px; }
+/* スマホのメニューの中の「困ったとき・おかしいときは、ここから知らせる」：上下の文字のリンクと同じ形で、1つずつの行に（段をそろえる。2026-11-02） */
+.sheet-body .feedback-menu-link, .sheet-body .reload-link { display: flex; width: fit-content; }
 .modal.feedback .fb-kinds { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 12px; }
 .modal.feedback .fb-kinds button { border-radius: 999px; padding: 5px 12px; }
 .modal.feedback .fb-kinds button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
@@ -2314,3 +2316,29 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
 .fb-done .x { position: absolute; top: 4px; right: 6px; border: 0; background: none; color: #5b7d64; font-size: 16px; line-height: 1; padding: 2px 4px; }
 .fb-done .x:focus-visible { outline: 2px solid var(--accent); }
 .sheet .fb-done { margin: 10px 0 12px; font-size: 13px; }
+
+/* ---- スマホ：直すところ（× エラー）の知らせ（mockups/v88。依頼者 2026-11-02） ----
+   書いていない間は、エラーがあるあいだ、下のタブの上の行に帯を出す（紙面の枠はその分だけ低くなる）。ページ送りなどの道具も、帯の上に上げる。
+   書いている間は、キーボードの上の道具のいちばん上に、その段落の直すところを1行で出す（.db-issue） */
+.app.phone:has(> .err-strip) { grid-template-rows: 48px minmax(0, 1fr) 44px 62px; }
+.app.phone.writing-land:has(> .err-strip) { grid-template-rows: 0 minmax(0, 1fr) 44px 62px; }
+.app.phone:has(> .err-strip) .p-nav { grid-row: 4; }
+.app.phone:has(> .err-strip) :is(.pager, .unzoom, .undo-area) { bottom: calc(62px + 44px + 12px); }
+.app.phone:has(> .err-strip) .sel-bar { bottom: calc(62px + 44px + 12px + 52px + 8px); }
+.err-strip { grid-row: 3; box-sizing: border-box; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 14px; border: 0; border-top: 1px solid #f1c0bb; background: #fdecea; color: #7f1d1d; font: inherit; font-size: 14px; text-align: left; }
+.err-strip b { font-weight: 700; white-space: nowrap; }
+.err-strip .go { margin-left: auto; color: var(--error); font-weight: 700; white-space: nowrap; }
+.err-strip .x, .direct-bar .db-issue .x { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--error); color: #fff; font: 700 12px/1 system-ui, sans-serif; font-style: normal; }
+.direct-bar .db-issue { display: flex; align-items: flex-start; gap: 7px; margin: 3px 4px 4px; padding: 6px 9px; border-radius: 8px; background: #fdecea; color: #7f1d1d; font-size: 12.5px; line-height: 1.5; text-wrap: pretty; }
+.direct-bar .db-issue .x { width: 16px; height: 16px; margin-top: 2px; font-size: 11px; }
+/* 横向き（高さの低い画面）：帯の行を作ると紙面が細くなりすぎるので、行は作らず、紙面の左の空いた所（下のタブの上）に小さく浮かせる */
+@media (orientation: landscape) and (max-height: 500px) {
+  .app.phone:has(> .err-strip) { grid-template-rows: 48px minmax(0, 1fr) 62px; }
+  .app.phone.writing-land:has(> .err-strip) { grid-template-rows: 0 minmax(0, 1fr) 62px; }
+  .app.phone:has(> .err-strip) .p-nav { grid-row: 3; }
+  .app.phone:has(> .err-strip) :is(.pager, .unzoom, .undo-area) { bottom: calc(62px + 12px); }
+  .app.phone:has(> .err-strip) .sel-bar { bottom: calc(62px + 12px + 52px + 8px); }
+  .err-strip { position: fixed; z-index: 10; left: 12px; bottom: calc(62px + 12px); height: 40px; border: 1px solid #f1c0bb; border-radius: 999px; box-shadow: var(--float-shadow); font-size: 13px; }
+  .err-strip .go { margin-left: 4px; }
+}
+@media print { .err-strip { display: none !important; } }

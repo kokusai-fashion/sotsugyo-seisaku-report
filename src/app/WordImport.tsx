@@ -813,7 +813,7 @@ interface TodoProps {
  * 済んだ項目は1行にたたむ。図の位置は改ページの位置と一緒に確かめる（前は図を1枚ずつ「図1へ」で見て、図24枚では24回押した：学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑧ 案A）
  */
 export function WordTodoCard({ editor, snap, config, todo, onUpdate, onClose, onRestore, onPick }: TodoProps) {
-  // 下の「直すところ」のエラーの数（下の「チェック」の赤い数と同じ）。前はすべてのエラー（本文のページ・抄録・作品写真など、
+  // 下の「直すところ」のエラーの数（スマホの下のタブの上の帯の数と同じ）。前はすべてのエラー（本文のページ・抄録・作品写真など、
   // 「進み具合」の側に出るものも）を数え、「あと6件（下の一覧）」なのに「直すところ 0」と食い違っていた（学生の試し 2026-10-24）
   const errors = checkSummary(snap, config).errors
   const hasFigures = snap.report.body.some((c) => c.blocks.some((b) => b.type === 'figureRow'))

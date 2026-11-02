@@ -450,9 +450,12 @@ function SeverityLegend() {
 }
 
 /** 右の欄のいちばん下（PC）・メニューの中（スマホ）の「困ったとき・おかしいときは、ここから知らせる」（mockups/v85 入口B） */
-export function FeedbackLink({ onClick }: { onClick: () => void }) {
+export function FeedbackLink({ onClick, inMenu = false }: { onClick: () => void; inMenu?: boolean }) {
+  // スマホのメニューの中では、上下の「Word で書いた分を読み込む」「ページを読み込み直す」と同じ形（絵つき・左寄せ）にする
+  // （中央寄せだけが段がずれて、下の行に重なって見えた：試している学生のスクリーンショット 2026-11-02）
   return (
-    <button type="button" className="feedback-link" onClick={onClick}>
+    <button type="button" className={inMenu ? 'word-link feedback-menu-link' : 'feedback-link'} onClick={onClick}>
+      {inMenu && Icon.feedback}
       困ったとき・おかしいときは、ここから知らせる
     </button>
   )
