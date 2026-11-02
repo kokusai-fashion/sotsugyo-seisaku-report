@@ -309,6 +309,36 @@ describe('図を入れる（書いている位置に（図n）、段落の下に
     expect(paraText(r, 'pa')).toBe('袖を大きくした。帯を巻いた。')
     expect(r.body[0].blocks.map((b) => b.type)).toEqual(['paragraph', 'paragraph'])
   })
+
+  it('手で書いた「（図n）」のうち、まだその番号の図がないものを見つける（「図nを入れる」。mockups/v87 案B）', () => {
+    let r = ops.setText(base(), 'pa', '袖を大きくした（図1）。帯は図２に示す。帯を巻いた（図3）。')
+    r = ops.addFigureBelow(ops.insertRef(r, 'pb', 0, 'f1'), 'pb', fig('f1'))
+    const num = ops.numbering(r)
+    // 図1はある（手で書いた番号は、つなげる側の指摘）。図２（全角）と（図3）は、まだない
+    expect(ops.missingFigureRefs(paraText(r, 'pa')!, num).map((x) => [x.n, paraText(r, 'pa')!.slice(x.start, x.end)])).toEqual([
+      [2, '図２'],
+      [3, '（図3）'],
+    ])
+    // 漢字のすぐ後ろの「図2」（「構図2」など）は、図の番号とみなさない
+    expect(ops.missingFigureRefs('構図2を考えた。', num)).toEqual([])
+  })
+
+  it('手で書いた「（図8）」の所に図を入れると、その「（図8）」が図につながり、番号は図の順で付く（mockups/v87 案B）', () => {
+    let r = ops.setText(base(), 'pa', '袖を大きくした（図8）。帯を巻いた。')
+    const at = paraText(r, 'pa')!.indexOf('（図8）')
+    r = ops.linkRefRange(r, 'pa', at, at + 4, 'f1')!
+    r = ops.addFigureBelow(r, 'pa', fig('f1'))
+    // ほかに図がないので図1。書いた「（図8）」も「（図1）」になる（文字ではなく、図へのつながり）
+    expect(paraText(r, 'pa')).toBe('袖を大きくした（図1）。帯を巻いた。')
+    expect(ops.findParagraph(r, 'pa')!.content.filter((x) => x.type === 'ref')).toEqual([{ type: 'ref', targetId: 'f1', withParens: true }])
+    expect(r.body[0].blocks.map((b) => b.type)).toEqual(['paragraph', 'figureRow', 'paragraph'])
+    // 括弧なしの「図2に示す」は、括弧なしのつながりにする
+    let s = ops.setText(base(), 'pb', '帯は図2に示す。')
+    s = ops.linkRefRange(s, 'pb', 2, 4, 'f9')!
+    expect(ops.findParagraph(s, 'pb')!.content).toEqual([{ type: 'text', text: '帯は' }, { type: 'ref', targetId: 'f9', withParens: false }, { type: 'text', text: 'に示す。' }])
+    // 範囲が、ほかのつながり（図への参照）にかかるときは、つなげない
+    expect(ops.linkRefRange(r, 'pa', at, at + 4, 'f2')).toBeNull()
+  })
 })
 
 describe('表を入れる・Enter で段落を分ける（段落の下の図・表）', () => {

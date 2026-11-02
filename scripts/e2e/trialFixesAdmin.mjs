@@ -39,6 +39,11 @@ async function dialogLog(page) {
 const nav = async (p, title) => {
   await p.evaluate((t) => [...document.querySelectorAll('.side-nav button')].find((b) => b.querySelector('.nt b').firstChild.textContent.trim() === t).click(), title)
   await sleep(200)
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からのテストは、いちばん上のコースを開いて確かめる
+  if (title === 'コースごとの設定') {
+    await p.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+    await sleep(200)
+  }
 }
 const clickButton = (p, text) => p.evaluate((text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === text && b.getBoundingClientRect().width > 0).click(), text)
 
@@ -118,7 +123,7 @@ export async function trialFixesAdmin(browser, check) {
   )
 
   // ---- 5. コースのお知らせの欄は、書いた行の数に合わせて高くなる ----
-  await nav(page, 'コース')
+  await nav(page, 'コースごとの設定')
   await page.evaluate(() => document.querySelector('.course-card summary, .course-card .c-head, .course-row button')?.click())
   await sleep(300)
   const area = await page.$('textarea.in.notice')
@@ -168,7 +173,7 @@ export async function trialFixesAdmin(browser, check) {
   )
 
   // ---- 8. 「変更を見る」：変更前 → 変更後。押すと、その欄に入る（mockups/v49 I） ----
-  await nav(page, 'コース')
+  await nav(page, 'コースごとの設定')
   await page.evaluate(() => [...document.querySelectorAll('.dirty-bar button')].find((b) => b.textContent === '変更を見る').click())
   await page.waitForSelector('.changes-modal')
   const item = await page.evaluate(() => {
@@ -192,7 +197,7 @@ export async function trialFixesAdmin(browser, check) {
   await tp.setViewport({ width: 1366, height: 768 })
   await tp.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
   await tp.waitForSelector('.admin .content')
-  await nav(tp, 'コース')
+  await nav(tp, 'コースごとの設定')
   await sleep(300)
   const k = await tp.evaluate(() => ({ can: document.querySelector('.side-nav .can-do')?.textContent ?? '', course: document.querySelector('.course.open')?.textContent ?? '' }))
   await tp.screenshot({ path: `${OUT}/admin-9-teacher.png` })

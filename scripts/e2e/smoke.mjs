@@ -331,8 +331,8 @@ await withEdge(async (browser) => {
   // 「使い方」のすぐ下：困ったこと・おかしいことを知らせる（mockups/v85 入口A）
   const FEEDBACK_ITEM = '困ったこと・おかしいことを知らせる'
   check(
-    '「メニュー」を押すと開き（aria-expanded・role="menu"）、「使い方」がいちばん上、その下に「バックアップ・作り直す」「Word で書いた分を読み込む（今年度だけ）」「ページを読み込み直す」が出る（幅 262px・字 13.5px）',
-    menuOpen.expanded === 'true' && menuOpen.controls && menuOpen.role === 'menu' && menuOpen.labelled && menuOpen.items.join(',') === `使い方,${FEEDBACK_ITEM},バックアップ・作り直す,${WORD_ITEM},${RELOAD_ITEM}` && menuOpen.width === 262 && menuOpen.font === '13.5px',
+    '「メニュー」を押すと開き（aria-expanded・role="menu"）、「使い方」がいちばん上、その下に「バックアップ・作り直す」「Word で書いた分を読み込む（今年度だけ）」「ページを読み込み直す」が出る（幅 290px：「困ったこと・おかしいことを知らせる」が1行に入る幅・字 13.5px）',
+    menuOpen.expanded === 'true' && menuOpen.controls && menuOpen.role === 'menu' && menuOpen.labelled && menuOpen.items.join(',') === `使い方,${FEEDBACK_ITEM},バックアップ・作り直す,${WORD_ITEM},${RELOAD_ITEM}` && menuOpen.width === 290 && menuOpen.font === '13.5px',
     JSON.stringify(menuOpen),
   )
   // ほかの所（「PDFを書き出す」の下のひとこと。セルフチェックの見出しはメニューに隠れることがある）を押すと閉じる

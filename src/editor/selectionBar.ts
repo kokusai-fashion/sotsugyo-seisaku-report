@@ -35,6 +35,8 @@ const ICON = {
   remove: svg('<path d="M5 7h14M10 7V5.5h4V7M7 7l.9 12h8.2L17 7"/>'),
   paste: svg('<path d="M9 5H7.2A1.7 1.7 0 005.5 6.7v12.6A1.7 1.7 0 007.2 21h9.6a1.7 1.7 0 001.7-1.7V6.7A1.7 1.7 0 0016.8 5H15"/><rect x="9" y="3.5" width="6" height="3" rx="1"/><path d="M9 12h6M9 15.5h4"/>'),
   check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  // app/icons.tsx の figure と同じ線
+  figure: svg('<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9.5" cy="10" r="1.5"/><path d="M5 17.5l4.5-4.5 3 3 2-2 4.5 4.5"/>'),
 }
 
 /** 「コピー」を押したあと、「✓ コピーしました」を見せる長さ（ms） */
@@ -66,11 +68,15 @@ export interface SelectionActions {
   cut(): void
   remove(): void
   paste(): void
+  /** 書く欄の近くの「図nを入れる」：カーソルの所の、手で書いた「（図n）」の図を入れる */
+  figure(): void
 }
 
 export class SelectionBar {
   readonly bar: HTMLDivElement
   readonly chip: HTMLButtonElement
+  /** 手で書いた「（図n）」（まだ図がない）にカーソルがあるとき、そのすぐ上に出す「図nを入れる」（mockups/v87 案B） */
+  readonly figureChip: HTMLButtonElement
   private readonly layer: HTMLElement
   /** 帯の「コピー」（押したあと「✓ コピーしました」にする：flashCopied） */
   private readonly copyButton: HTMLButtonElement
@@ -109,7 +115,9 @@ export class SelectionBar {
     this.bar = bar
     this.chip = button('range-chip', ICON.paste, SELECTION_TEXTS.paste.label, SELECTION_TEXTS.paste.title(), () => actions.paste())
     this.chip.hidden = true
-    layer.append(bar, this.chip)
+    this.figureChip = button('range-chip figure-chip', ICON.figure, '図を入れる', '', () => actions.figure())
+    this.figureChip.hidden = true
+    layer.append(bar, this.chip, this.figureChip)
   }
 
   get barShown(): boolean {
@@ -178,5 +186,32 @@ export class SelectionBar {
 
   hideChip(): void {
     this.chip.hidden = true
+  }
+
+  /** 「図nを入れる」を、手で書いた「（図n）」の始めの字（ref：画面座標）のすぐ上に出す（上に入らなければ下。「貼り付け」と同じ出方） */
+  showFigureChip(n: number, ref: { left: number; top: number; bottom: number }, bounds: Bounds): void {
+    const c = this.figureChip
+    const label = `図${n}を入れる`
+    if (c.textContent !== label) {
+      c.querySelector('span')!.textContent = label
+      const title = `写真を選んで、この段落の下に図${n}を入れます。書いた「（図${n}）」が、その図につながります`
+      c.title = title
+      c.setAttribute('aria-label', title)
+    }
+    c.hidden = false
+    const layer = this.layer.getBoundingClientRect()
+    const w = c.offsetWidth
+    const h = c.offsetHeight
+    const above = ref.top - 6 - h >= bounds.top + 4
+    const y = above ? ref.top - 6 - h : ref.bottom + 6
+    const x = Math.max(bounds.left + 4, Math.min(ref.left - 8, bounds.right - w - 4))
+    c.classList.toggle('below', !above)
+    c.style.left = `${x - layer.left}px`
+    c.style.top = `${y - layer.top}px`
+    c.style.setProperty('--ax', `${Math.max(10, Math.min(w - 10, ref.left + 10 - x))}px`)
+  }
+
+  hideFigureChip(): void {
+    this.figureChip.hidden = true
   }
 }

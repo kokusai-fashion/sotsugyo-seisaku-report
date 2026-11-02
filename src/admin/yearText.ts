@@ -140,8 +140,8 @@ export interface ListNotice {
 const PLACE = {
   commonTitle: '「年度の設定」の「共通の題目」',
   deadline: '「年度の設定」の「最終締切」',
-  notice: '「コース」で、コースを開いた所の「お知らせ」',
-  courseExample: '「コース」で、コースを開いた所の「ひな形を作る画面を開く」（窓の中の「抄録」のページ）',
+  notice: '「コースごとの設定」で、コースを開いた所の「お知らせ」',
+  courseExample: '「コースごとの設定」で、コースを開いた所の「ひな形を作る画面を開く」（窓の中の「抄録」のページ）',
   openingExample: '「詳細設定」の「書き出しの例」',
 }
 

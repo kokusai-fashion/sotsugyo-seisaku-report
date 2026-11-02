@@ -354,6 +354,12 @@ function activeKind(f: ReportFinding, snap: EditorSnapshot): 'here' | 'block' | 
  * 指摘の1行。直すのは学生が自分でする（前の「直す」のボタンはなくした。押すとその箇所へ移り、直し方は detail に書いてある）
  */
 function Issue({ finding, editor, onPick, active }: { finding: ReportFinding; editor: ReportEditor; onPick?: () => void; active?: 'here' | 'block' | null }) {
+  // 手で書いた「（図n）」の図がないとき：その段落の下に図を入れて、書いた番号につなげる「図nを入れる」（mockups/v87 案B）
+  const figureRef =
+    finding.ruleId === 'reference-missing' && finding.blockId && finding.start !== undefined && finding.end !== undefined && finding.title.endsWith('の図がない')
+      ? { blockId: finding.blockId, start: finding.start, end: finding.end }
+      : null
+  const figureNumber = figureRef ? editor.figureNumberForRef(figureRef.blockId, figureRef.start, figureRef.end) : null
   return (
     // 行のどこを押しても、その箇所へ移る（「このままにする」は、その働きだけ）
     <li
@@ -401,6 +407,19 @@ function Issue({ finding, editor, onPick, active }: { finding: ReportFinding; ed
           }}
         >
           このままにする（確認済み）
+        </button>
+      )}
+      {figureRef && figureNumber && (
+        <button
+          type="button"
+          className="keep add-figure"
+          onClick={(e) => {
+            e.stopPropagation()
+            onPick?.()
+            void editor.insertFigureForRef(figureRef.blockId, figureRef.start, figureRef.end)
+          }}
+        >
+          {Icon.figure}図{figureNumber}を入れる
         </button>
       )}
     </li>

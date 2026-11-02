@@ -54,6 +54,12 @@ const addDraftYear = (page, year) =>
 const nav = async (page, title) => {
   await page.bringToFront()
   await page.evaluate((title) => [...document.querySelectorAll('.side-nav button')].find((b) => b.textContent.includes(title))?.click(), title)
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からのテストは、いちばん上のコースを開いて確かめる
+  if (title === 'コースごとの設定') {
+    await wait(150)
+    await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+    await wait(150)
+  }
 }
 const button = async (page, text, scope = 'body') => {
   await page.bringToFront()
@@ -263,7 +269,7 @@ await withEdge(async (browser) => {
     await wait(300)
     const atField = await page.evaluate(() => document.querySelector('#d-university').closest('.ctl')?.querySelector('.field-problems')?.innerText ?? '')
     const atTop = await page.evaluate(() => document.querySelector('.problems')?.innerText ?? '')
-    await nav(page, 'コース')
+    await nav(page, 'コースごとの設定')
     await wait(400)
     const elsewhere = await page.evaluate(() => document.querySelector('.problems')?.innerText ?? '')
     check(
@@ -278,7 +284,7 @@ await withEdge(async (browser) => {
   {
     const context = await browser.createBrowserContext()
     const page = await open(context, { teacher: true, reset: true })
-    await nav(page, 'コース')
+    await nav(page, 'コースごとの設定')
     await page.waitForSelector('textarea.notice')
     await typeInto(page, 'textarea.notice', '先生のお知らせ')
     await nav(page, '書き方のチェック')
@@ -361,7 +367,7 @@ await withEdge(async (browser) => {
     await wait(600)
     const back = await page.evaluate(() => ({ url: location.pathname, list: !!document.querySelector('.admin.phone-list') }))
     check('スマホ：区切りを開いてから「戻る」を押すと、一覧へ戻る（管理ページの外へ出ない）', back.url.endsWith('/admin.html') && back.list, JSON.stringify(back))
-    await nav(page, 'コース')
+    await nav(page, 'コースごとの設定')
     await wait(400)
     await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('管理ページの一覧') && b.offsetParent !== null)?.click())
     await wait(400)
@@ -404,7 +410,7 @@ await withEdge(async (browser) => {
     check('スマホ：下の方で保存を押して断られたら、その知らせが見出しの裏に隠れずに見える', !!seen && seen.top >= seen.headBottom && seen.bottom <= seen.h, JSON.stringify(seen))
 
     // 押す所の高さ・書いている間は下の帯を隠す（mockups/v71 ③）
-    await nav(page, 'コース')
+    await nav(page, 'コースごとの設定')
     await wait(400)
     const backHeight = await page.evaluate(() => Math.round([...document.querySelectorAll('.phone-back')].find((b) => b.offsetParent)?.getBoundingClientRect().height ?? 0))
     await nav(page, '年度の設定')
@@ -482,7 +488,7 @@ await withEdge(async (browser) => {
     // ひな形を作る画面：「閉じる」→ 窓は「書き続ける」「消して閉じる」（mockups/v71 ④）
     await page.reload({ waitUntil: 'networkidle0' })
     await page.waitForSelector('.side-nav')
-    await nav(page, 'コース')
+    await nav(page, 'コースごとの設定')
     await page.waitForSelector('.course.open .tpl-open')
     await page.evaluate(() => document.querySelector('.course.open .tpl-open').click())
     await page.waitForSelector('.tpl-overlay iframe')

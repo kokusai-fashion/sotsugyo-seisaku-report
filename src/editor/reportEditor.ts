@@ -399,6 +399,7 @@ export class ReportEditor {
       cut: () => this.cutSelection(),
       remove: () => this.deleteSelection(),
       paste: () => this.pasteFromTool(),
+      figure: () => this.insertFigureFromChip(),
     })
     // 拡大してスクロールしたら、「＋ 文章の続きを書く」も紙面に合わせて動かす
     scroller.addEventListener('scroll', () => {
@@ -411,8 +412,9 @@ export class ReportEditor {
 
     this.overlay = new OverlayEditor(layer, scroller, {
       onInput: (id, text) => {
-        // 書き始めたら、書く欄の近くの「貼り付け」は出さない
+        // 書き始めたら、書く欄の近くの「貼り付け」は出さない。「図nを入れる」も、打っている間は出さない（カーソルを動かしたら出す）
         this.chipDismissed = true
+        this.typedCaret = this.overlay.caret
         this.keepObjectShown = null
         this.inputSeq += 1
         this.report = ops.setText(this.report, id, text)
@@ -5042,11 +5044,92 @@ export class ReportEditor {
     if (id !== this.chipBlock) {
       this.chipBlock = id
       this.chipDismissed = false
+      this.typedCaret = null
     }
     const kind = id ? ops.findEditable(this.report, id)?.kind : undefined
     const caret = id && !sheet && this.clip && this.clip !== this.clipPasted && !this.chipDismissed && (kind === 'paragraph' || kind === 'abstractParagraph') ? this.overlay.caretClientRect() : null
     if (caret && bounds) this.selectionBar.showChip(caret, bounds)
     else this.selectionBar.hideChip()
+    // 「図nを入れる」：カーソルが、手で書いた「（図n）」（まだ図がない）の中・すぐ前後にあるとき、そのすぐ上に出す（スマホも。打っている間は出さない。
+    // 「貼り付け」より先に出す。mockups/v87 案B）
+    const ref = bounds && this.overlay.caret !== this.typedCaret ? this.figureRefAtCaret() : null
+    const at = ref ? this.overlay.charClientRect(ref.start) : null
+    const n = ref && at ? this.figureNumberForRef(ref.blockId, ref.start, ref.end) : null
+    if (ref && at && n && bounds) {
+      this.selectionBar.hideChip()
+      this.selectionBar.showFigureChip(n, at, bounds)
+    } else this.selectionBar.hideFigureChip()
+  }
+
+  /** 書く欄で最後に打ったときのカーソルの位置（そこから動かしていなければ、「図nを入れる」を出さない） */
+  private typedCaret: number | null = null
+
+  /** 書いている段落で、カーソルのある所（中・すぐ前後）の、手で書いた「（図n）」（その番号の図がまだない）の字の範囲 */
+  private figureRefAtCaret(): { blockId: string; start: number; end: number } | null {
+    const id = this.overlay.blockId
+    if (!id || this.template || this.overlay.composing || ops.findEditable(this.report, id)?.kind !== 'paragraph') return null
+    const caret = this.overlay.caret
+    const ref = ops.missingFigureRefs(this.overlay.text, ops.numbering(this.report)).find((r) => caret >= r.start && caret <= r.end)
+    return ref ? { blockId: id, start: ref.start, end: ref.end } : null
+  }
+
+  /**
+   * 「図nを入れる」の n：段落 blockId の、手で書いた「（図m）」（字の start〜end）の所に図を入れたら、その図が何番になるか
+   * （図の番号は図の順で付くので、m と違うこともある。そのときは、書いた番号も自動で直る）。入れられないとき（ひな形を作る画面など）は null
+   */
+  figureNumberForRef(blockId: string, start: number, end: number): number | null {
+    if (this.template) return null
+    const probe = { id: '__probe', imageId: '', caption: '' }
+    const linked = ops.linkRefRange(this.report, blockId, start, end, probe.id)
+    return linked ? (ops.numbering(ops.addFigureBelow(linked, blockId, probe)).numbers.get(probe.id) ?? null) : null
+  }
+
+  private insertFigureFromChip(): void {
+    const ref = this.figureRefAtCaret()
+    if (ref) void this.insertFigureForRef(ref.blockId, ref.start, ref.end)
+  }
+
+  /**
+   * 手で書いた「（図n）」（その番号の図がまだない。字の start〜end）の段落 blockId の下に図を入れ、その「（図n）」を、入れた図につなげる
+   * （書く欄の近くの「図nを入れる」と、右の欄のエラー「「（図n）」の図がない」の「図nを入れる」から。mockups/v87 案B。
+   * 依頼者の案 2026-11-02：学生役の録画で、学生が「（図〇）」を手で打っていた。ひな形の薄い字も「文中に「（図1）」と書く」だった）。
+   * 写真を選んでからは「図を入れる」と同じ（図のタイトルを書き始める）。図の番号が n と違えば、書いた番号も自動で直る
+   */
+  async insertFigureForRef(blockId: string, start: number, end: number): Promise<void> {
+    if (this.settlingRemoval || this.template || this.insertingFigure) return
+    // 書いている欄は、先に確定する（この段落なら、段落のまま確定する：見出しの形でも見出しにしない）
+    if (this.overlay.blockId === blockId) this.commitAsParagraph()
+    else if (this.overlay.blockId) this.commitForChange()
+    const paragraph = ops.findParagraph(this.report, blockId)
+    if (!paragraph || !/^[（(]?\s*図/.test(ops.contentToText(paragraph.content, ops.numbering(this.report)).slice(start, end))) return
+    this.marker.hidden = true
+    this.selectionBar.hideFigureChip()
+    this.insertingFigure = true
+    this.notify()
+    // パソコン：写真を取り込む間に打った字は、見えない欄にためておき、タイトルの欄を開いたら入れる（insertFigureAtCaret と同じ）
+    const buffer = this.phone ? null : typingBuffer()
+    this.afterPick = () => buffer?.focus()
+    let imageId: string | null
+    try {
+      imageId = await this.importImage('figure')
+    } finally {
+      this.insertingFigure = false
+      this.afterPick = null
+    }
+    const typed = buffer?.stop() ?? ''
+    if (imageId === null) {
+      this.reopenAfterRender(blockId, end)
+      return
+    }
+    const figure = { id: ops.newId('f'), imageId, caption: '' }
+    this.pushHistory(this.report)
+    let near: InsertNear = { id: blockId, place: 'after' }
+    const linked = ops.linkRefRange(this.report, blockId, start, end, figure.id)
+    if (linked) this.report = ops.linkWrittenRefsElsewhere(ops.addFigureBelow(linked, blockId, figure), blockId, figure.id)
+    // 写真を選ぶ間に段落が変わって、書いた番号が見つからない：「図を入れる」と同じく、その文の終わりに（図n）を入れる
+    else near = this.placeObject(blockId, end, figure.id, { type: 'figureRow', id: ops.newId('r'), figures: [figure] }, (r) => ops.addFigureBelow(r, blockId, figure))
+    this.reopenAfterRender(figure.id, 0, near)
+    if (typed && this.overlay.blockId === figure.id) this.overlay.insertText(typed)
   }
 
   /**

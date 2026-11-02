@@ -31,6 +31,7 @@ import { useFormWidth } from './useFormWidth'
 import { useLeaveGuard } from './useLeaveGuard'
 import { usePhone } from './usePhone'
 import { usePhoneList } from './usePhoneList'
+import { useOpenCourse } from './useOpenCourse'
 import { useDone, useSlow } from './useWait'
 import { DoneNote, PageLoading, SlowNote, Waiting } from './Wait'
 import { WordsSection } from './WordsSection'
@@ -149,7 +150,8 @@ function MessageBox({ message }: { message: Notice }) {
 
 /** 詳細設定の欄の誤りの名前（validate.ts の field） */
 const DETAILS_FIELDS = ['reportName', 'university', 'faculty', 'department', 'cover.heading', 'cover.titleLabel', 'abstract.heading', 'abstract.chars', 'abstract.lines', 'body.minPages', 'workPhotos.maxPages', 'studentIdPattern', 'margins']
-const SECTION_TITLES = { year: '年度の設定', course: 'コース', words: '書き方のチェック', details: '詳細設定' } as const
+// 「コース」は「コースごとの設定」に（何をする所か分かるように：依頼者の要望 2026-11-02）
+const SECTION_TITLES = { year: '年度の設定', course: 'コースごとの設定', words: '書き方のチェック', details: '詳細設定' } as const
 
 /** その誤り（field）を直す区切り（分からなければ null） */
 function sectionOfField(field: string): keyof typeof SECTION_TITLES | null {
@@ -606,8 +608,8 @@ export function AdminApp() {
     pending.current = null
     return true
   }, [ask])
-  /** 開いているコース（undefined：まだ選んでいない＝いちばん上のコースを開く。null：どれも閉じている） */
-  const [openCourse, setOpenCourse] = useState<string | null | undefined>(undefined)
+  /** 開いているコース（null：どれも閉じている。はじめは、この端末で最後に開いていたコース：useOpenCourse） */
+  const [openCourseId, setOpenCourse] = useOpenCourse(draft?.courses.map((c) => c.id) ?? [])
   /** 見本に出すコース（なければ、開いているコースか、いちばん上のコース） */
   const [previewCourse, setPreviewCourse] = useState<string | null>(null)
   const [dialog, setDialog] = useState<'newYear' | 'changes' | null>(null)
@@ -850,7 +852,7 @@ export function AdminApp() {
   const saveLabel = saveButtonLabel(row.status)
   const changed = (path: string) => fieldChanged(row.config, draft, path)
   const counts = countBySection(changes)
-  const openId = openCourse === undefined ? (draft.courses[0]?.id ?? null) : openCourse
+  const openId = openCourseId
   const shownCourse = draft.courses.find((c) => c.id === (previewCourse ?? openId)) ?? draft.courses[0]
 
   const save = async () => {
@@ -959,7 +961,7 @@ export function AdminApp() {
 
   const navItems: NavItem[] = [
     { key: 'year', icon: AdminIcon.calendar, title: '年度の設定', sub: '題目・締切・新年度', count: counts.year },
-    { key: 'course', icon: AdminIcon.course, title: 'コース', sub: 'お知らせ・ひな形', count: counts.course },
+    { key: 'course', icon: AdminIcon.course, title: SECTION_TITLES.course, sub: 'お知らせ・ひな形', count: counts.course },
     { key: 'words', icon: AdminIcon.words, title: '書き方のチェック', sub: wordSummary(draft.wordChecks ?? DEFAULT_WORD_CHECKS), count: counts.words },
     TRIAL_NAV,
     FEEDBACK_NAV,
@@ -1197,7 +1199,7 @@ export function AdminApp() {
 }
 
 /**
- * 先生の画面（mockups/v43 案B の先生の画面）：左の見出しは「コース」と「書き方のチェック」の2つだけ。
+ * 先生の画面（mockups/v43 案B の先生の画面）：左の見出しは「コースごとの設定」と「書き方のチェック」の2つだけ。
  * コースでは、お知らせとひな形を直す（右に、学生が最初に見る本文の組み立て）。
  * 保存はひな形・お知らせ・書き間違えやすい語だけを送る（ほかの設定はサーバー側でも変えられない）
  */
@@ -1244,7 +1246,8 @@ function TeacherView({
   /** ひな形を作る画面（学生と同じ紙面。管理ページの上に重ねて開く：mockups/v44 案A）を開いているコース */
   const [templateScreen, setTemplateScreen] = useState<number | null>(null)
   /** ひな形を受け取ったときの短い知らせ（数秒で消える） */
-  const [openCourse, setOpenCourse] = useState<string | null | undefined>(undefined)
+  // 開いているコース（はじめは、この端末で最後に開いていたコース：useOpenCourse）
+  const [openId, setOpenCourse] = useOpenCourse(draft.courses.filter((c) => !c.hidden).map((c) => c.id))
   const [previewCourse, setPreviewCourse] = useState<string | null>(null)
   const [showChanges, setShowChanges] = useState(false)
   /** 「？ 使い方」の欄を開いている */
@@ -1257,7 +1260,6 @@ function TeacherView({
   const dirty = changes.length > 0
   const counts = countBySection(changes)
   const shown = draft.courses.filter((c) => !c.hidden)
-  const openId = openCourse === undefined ? (shown[0]?.id ?? null) : openCourse
   const shownCourse = shown.find((c) => c.id === (previewCourse ?? openId)) ?? shown[0]
 
   const ask = useConfirm()
@@ -1297,7 +1299,7 @@ function TeacherView({
     onSave(templates, words, notices)
   }
   const navItems: NavItem[] = [
-    { key: 'course', icon: AdminIcon.course, title: 'コース', sub: 'お知らせ・ひな形', count: counts.course },
+    { key: 'course', icon: AdminIcon.course, title: SECTION_TITLES.course, sub: 'お知らせ・ひな形', count: counts.course },
     { key: 'words', icon: AdminIcon.words, title: '書き方のチェック', sub: wordSummary(draft.wordChecks ?? DEFAULT_WORD_CHECKS), count: counts.words },
     TRIAL_NAV,
     FEEDBACK_NAV,

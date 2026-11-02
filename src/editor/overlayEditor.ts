@@ -1818,6 +1818,13 @@ export class OverlayEditor {
     return charRect(this.element, at) ?? null
   }
 
+  /** 書いている欄の i 文字目（0 から）の画面上の位置（左・上・下。書いていない・スマホの書く窓で書いている・なければ null） */
+  charClientRect(i: number): { left: number; top: number; bottom: number } | null {
+    if (!this.target || this.sheetHost || this.clip.hidden) return null
+    const r = charRect(this.element, i)
+    return r ? { left: r.left, top: r.top, bottom: r.bottom } : null
+  }
+
   /** PC：書いている欄のカーソルの画面上の位置（左・上・下。書いていない・スマホ・カーソルが書く欄の外なら null） */
   caretClientRect(): { left: number; top: number; bottom: number } | null {
     if (!this.target || this.sheetHost || this.clip.hidden) return null

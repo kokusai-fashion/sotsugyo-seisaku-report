@@ -113,6 +113,8 @@ export async function templateModeAdmin(browser, check) {
   await page.reload({ waitUntil: 'networkidle0' })
   await page.waitForSelector('.admin .content')
   await page.evaluate(() => [...document.querySelectorAll('.side-nav button')].find((b) => b.textContent.includes('コース')).click())
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。いちばん上のコースを開く
+  await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await page.waitForSelector('.course.open .tpl-line .tpl-open')
 
   const card = await page.evaluate(() => ({ open: document.querySelector('.course.open .tpl-open').textContent, old: document.querySelector('.course.open .tpl-old').textContent, summary: document.querySelector('.course.open .tpl-line b').textContent }))
@@ -575,6 +577,8 @@ export async function templateModeAdmin(browser, check) {
   await recordTemplateFrame(teacher)
   await teacher.setViewport({ width: 1366, height: 768 })
   await teacher.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
+  await teacher.waitForSelector('.course .open-btn')
+  await teacher.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await teacher.waitForSelector('.course.open .tpl-open')
   const tframe = await openScreen(teacher)
   await tool(tframe, '大見出し')
@@ -624,6 +628,8 @@ export async function templatePrefilledAdmin(browser, check) {
   await page.reload({ waitUntil: 'networkidle0' })
   await page.waitForSelector('.admin .content')
   await page.evaluate(() => [...document.querySelectorAll('.side-nav button')].find((b) => b.textContent.includes('コース')).click())
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。いちばん上のコースを開く
+  await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await page.waitForSelector('.course.open .tpl-line .tpl-open')
   await page.evaluate(() => document.querySelector('.course.open .tpl-open').click())
   await page.waitForSelector('.tpl-overlay iframe')

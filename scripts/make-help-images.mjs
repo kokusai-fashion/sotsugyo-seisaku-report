@@ -669,7 +669,9 @@ async function adminShots(browser) {
   await capture(page, 'admin-save', { x: 0, y: 0, w: PC.width, h: PC.height })
 
   // ---- コース（開いたコースのカード） ----
-  await nav(page, 'コース')
+  await nav(page, 'コースごとの設定')
+  // はじめは閉じているので、いちばん上のコースを開く（2026-11-02 から。最後に開いていたコースを覚える）
+  await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
   await page.waitForSelector('.course.open .tpl-open')
   await page.mouse.move(5, 5)
   await capture(page, 'admin-course', pad(await R(page, '.course.open'), 10))

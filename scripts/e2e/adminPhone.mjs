@@ -35,6 +35,16 @@ async function open(browser, { phone = true, as = '' } = {}) {
 const visible = (page, selector) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }, selector)
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 const tap = async (page, selector, text) => {
+  if (selector === '.side-nav button' && text === 'コースごとの設定') {
+    await tapRaw(page, selector, text)
+    // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からのテストは、いちばん上のコースを開いて確かめる
+    await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+    await wait(300)
+    return
+  }
+  return tapRaw(page, selector, text)
+}
+const tapRaw = async (page, selector, text) => {
   const p = await page.evaluate((s, t) => { const e = [...document.querySelectorAll(s)].find((x) => (!t || x.textContent.includes(t)) && x.getBoundingClientRect().width > 0); if (!e) return null; e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } }, selector, text)
   if (!p) throw new Error(`見つからない：${selector} ${text ?? ''}`)
   await page.touchscreen.tap(p.x, p.y)
@@ -60,7 +70,7 @@ await withEdge(async (browser) => {
     check('スマホ：「‹ 管理ページの一覧」で一覧へ戻る', (await visible(page, '.side-nav')) && !(await visible(page, '.work')))
 
     // 見本：コースで「見本を見る」→ 画面いっぱい → 閉じる
-    await tap(page, '.side-nav button', 'コース')
+    await tap(page, '.side-nav button', 'コースごとの設定')
     const before = await visible(page, '.stage')
     await tap(page, '.pv-show')
     await wait(800)

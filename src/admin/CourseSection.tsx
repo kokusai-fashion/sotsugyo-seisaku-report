@@ -9,7 +9,7 @@ import { usePhone } from './usePhone'
 import { useReorder } from './useReorder'
 
 /**
- * 「コース」の区切り（mockups/v43 案B。コースは1行ずつに閉じておき、「開く」で、その行の中に全部の欄を出す）。
+ * 「コースごとの設定」の区切り（mockups/v43 案B。はじめは閉じたまま、この端末で最後に開いていたコースを開く：useOpenCourse。コースは1行ずつに閉じておき、「開く」で、その行の中に全部の欄を出す）。
  * 管理者：コース名（欄の外に「コース」）・指導教員・お知らせ・ひな形・サブタイトル（「―」は欄の外）。並べ替えは ⋮⋮ をドラッグ。
  * 先生（teacher）：指導教員（見るだけ）・お知らせ・ひな形だけ。学生に表示しないコースは出さない
  */
@@ -50,7 +50,7 @@ export function CourseSection({ draft, base, teacher = false, openId, onOpen, on
   const shown = draft.courses.map((c, i) => ({ c, i })).filter(({ c }) => !teacher || !c.hidden)
   return (
     <>
-      <SectionHead title="コース" lead={teacher ? 'コースを開いて、お知らせとひな形を直します。' : '学生が最初に選ぶコースです。開いて直します。並べ替えは ⋮⋮ をドラッグします。'} />
+      <SectionHead title="コースごとの設定" lead={teacher ? 'コースを開いて、お知らせとひな形を直します。' : '学生が最初に選ぶコースです。開いて直します。並べ替えは ⋮⋮ をドラッグします。'} />
       {notices}
       <div className="course-list" ref={listRef}>
         {shown.map(({ c, i }) => (

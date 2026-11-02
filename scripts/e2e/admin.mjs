@@ -56,12 +56,17 @@ async function dialogLog(page) {
 const nav = async (p, title) => {
   await p.evaluate((t) => [...document.querySelectorAll('.side-nav button')].find((b) => b.querySelector('.nt b').firstChild.textContent.trim() === t).click(), title)
   await sleep(150)
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からのテストは、いちばん上のコースを開いて確かめる
+  if (title === 'コースごとの設定') {
+    await p.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+    await sleep(150)
+  }
 }
 /** いま開いている区切りの見出し */
 const sectionTitle = (p) => p.evaluate(() => document.querySelector('.content .sec-h')?.textContent ?? '')
 /** 開いているコースのお知らせの欄（コースの区切りを開いてから） */
 const openNotice = async (p) => {
-  if ((await sectionTitle(p)) !== 'コース') await nav(p, 'コース')
+  if ((await sectionTitle(p)) !== 'コースごとの設定') await nav(p, 'コースごとの設定')
   return p.$('.course.open textarea.notice')
 }
 const setValue = (handle, text) =>
@@ -251,7 +256,7 @@ await withEdge(async (browser) => {
   check(
     '見出しは1段：題名・使い方・年度・状態の印、右に「変更はありません」と静かな保存のボタン。左の見出しに8つの区切り（はじめは「年度の設定」。学生の画面を試す・届いた声も）。ログイン中の人と試験用サーバーは左の下',
     firstHeader === '卒業制作報告書 管理ページ|使い方|2026年度（公開中）|公開中|spacer|変更はありません|保存して学生に反映' &&
-      firstNav.startsWith('年度の設定／題目・締切・新年度＊|コース／お知らせ・ひな形|書き方のチェック／言葉 13語（エラー7）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと|先生の登録／2人|変更履歴／最後：') &&
+      firstNav.startsWith('年度の設定／題目・締切・新年度＊|コースごとの設定／お知らせ・ひな形|書き方のチェック／言葉 13語（エラー7）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと|先生の登録／2人|変更履歴／最後：') &&
       firstNav.endsWith('|詳細設定／ふだんは変えません') &&
       me.includes('admin@example.ac.jp') &&
       me.includes('試験用サーバー'),
@@ -324,7 +329,7 @@ await withEdge(async (browser) => {
   check('保存していない変更があると、画面の下に帯が出る', await hasDirty())
 
   // 指導教員を追加する
-  await nav(page, 'コース')
+  await nav(page, 'コースごとの設定')
   const tag = await page.$('.course.open .tag-input')
   await tag.type('文化 太郎')
   await tag.press('Enter')
@@ -535,10 +540,14 @@ await withEdge(async (browser) => {
   const teacherDialogs = await dialogLog(teacher)
   await teacher.setViewport({ width: 1440, height: 900 })
   await teacher.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からの確かめは、いちばん上のコースを開いて
+  await teacher.waitForSelector('.course .open-btn')
+  await teacher.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+  await sleep(200)
   await teacher.waitForSelector('.admin .content')
   check(
     '先生には、左の見出しが「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つだけの画面が出る（年度の設定・先生の登録などは出ない）',
-    (await navItems(teacher)) === 'コース／お知らせ・ひな形＊|書き方のチェック／言葉 14語（エラー8）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと' && !(await teacher.$('#y-commonTitle')) && (await teacher.$$('.course.open .tpl-line')).length === 1,
+    (await navItems(teacher)) === 'コースごとの設定／お知らせ・ひな形＊|書き方のチェック／言葉 14語（エラー8）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと' && !(await teacher.$('#y-commonTitle')) && (await teacher.$$('.course.open .tpl-line')).length === 1,
     await navItems(teacher),
   )
   check('先生の画面にも、ソースコードの場所のリンクが出る（AGPL）', await teacher.evaluate(() => !!document.querySelector('.side-nav .source a')?.href))
@@ -580,7 +589,7 @@ await withEdge(async (browser) => {
   await sleep(150)
   await teacher.evaluate(() => [...document.querySelectorAll('.wedit button')].find((b) => b.textContent === 'この語を消す').click())
   await sleep(150)
-  await nav(teacher, 'コース')
+  await nav(teacher, 'コースごとの設定')
   // 長すぎるお知らせは、送る前に、本番のサーバーと同じ言葉で知らせる（保存しない）
   const setNotice = async (text) => setValue(await teacher.$('.course.open textarea.notice'), text)
   await setNotice('あ'.repeat(1200))
@@ -685,7 +694,7 @@ await withEdge(async (browser) => {
   )
   await page.reload({ waitUntil: 'networkidle0' })
   await page.waitForSelector('.admin .content')
-  check('読み込み直すと、さっきの区切り（コース）のまま開く（区切りは、このタブのあいだ覚えておく）', (await sectionTitle(page)) === 'コース' && (await navItems(page)).includes('コース／お知らせ・ひな形＊'))
+  check('読み込み直すと、さっきの区切り（コース）のまま開く（区切りは、このタブのあいだ覚えておく）', (await sectionTitle(page)) === 'コースごとの設定' && (await navItems(page)).includes('コースごとの設定／お知らせ・ひな形＊'))
   await nav(page, '年度の設定')
 
   // 新年度を作る → 準備中 → 公開
@@ -734,14 +743,14 @@ await withEdge(async (browser) => {
     '新年度の知らせは箇条書きで、項目ごとに「場所：…」を添える（左の見出しの区切りと、欄の名前）',
     noticeList.head === '2027年度を作成しました（2026年度の設定のコピーです）。' &&
       noticeList.detail === '次の項目は2026年度のままです。確かめて直してください。' &&
-      noticeList.items.join('|') === '共通の題目／場所：「年度の設定」の「共通の題目」|最終締切（2027年1月20日（水）。2026年度と同じ日付）／場所：「年度の設定」の「最終締切」|お知らせ（映画・舞台衣装デザイナー コース）／場所：「コース」で、コースを開いた所の「お知らせ」',
+      noticeList.items.join('|') === '共通の題目／場所：「年度の設定」の「共通の題目」|最終締切（2027年1月20日（水）。2026年度と同じ日付）／場所：「年度の設定」の「最終締切」|お知らせ（映画・舞台衣装デザイナー コース）／場所：「コースごとの設定」で、コースを開いた所の「お知らせ」',
     JSON.stringify(noticeList),
   )
   check('前の年度の締切のままなら、年度の期間の外だと確認が出る', problemsText.includes('確認：最終締切（2027年1月20日）が、2027年度（2027年4月1日〜2028年3月31日）の外です'), problemsText)
   check('作ったばかりの準備中の年度には、「年度の設定」に新年度の手順と、「この年度を削除」が出る', !!(await page.$('.steps-card')) && !!(await page.$('.delete-year')))
   await page.screenshot({ path: `${OUT}/admin-2027.png` })
   // 準備中の年度では、ひな形の窓の案内も「公開してから届く」と言う
-  await nav(page, 'コース')
+  await nav(page, 'コースごとの設定')
   await openTemplate()
   await page.waitForSelector('.tpl-modal')
   const draftFoot = await page.evaluate(() => document.querySelector('.tpl-foot .hint').textContent)
@@ -957,7 +966,7 @@ await withEdge(async (browser) => {
     await fxClick('保存して学生に反映')
     await fx.waitForFunction(() => document.querySelector('.message.ok'), { timeout: 10000 })
   }
-  await nav(fx, 'コース')
+  await nav(fx, 'コースごとの設定')
   const openCard = '.course.open'
 
   // ---- 1. コース名：欄の外の右に「コース」。名前の最後に「コース」があると、やさしく知らせる（名前は変えない） ----
@@ -1069,6 +1078,10 @@ await withEdge(async (browser) => {
   await dialogLog(teacherFx)
   await teacherFx.setViewport({ width: 1366, height: 768 })
   await teacherFx.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からの確かめは、いちばん上のコースを開いて
+  await teacherFx.waitForSelector('.course .open-btn')
+  await teacherFx.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+  await sleep(200)
   await teacherFx.waitForSelector('.admin .content')
   const teacherHint = await noticeHints(teacherFx)
   const teacherLonely = await lonelyAtWidths(teacherFx)
@@ -1482,6 +1495,9 @@ await withEdge(async (browser) => {
   await tw.setViewport({ width: 1366, height: 768 })
   await tw.goto(`${APP}/admin.html?as=teacher&delay=${DELAY}`, { waitUntil: 'domcontentloaded' })
   await tw.waitForSelector('.admin .content', { timeout: 15000 })
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）
+  await tw.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+  await tw.waitForSelector('.course.open textarea.notice')
   await tw.type('.course.open textarea.notice', '待つ間の表示の確かめ')
   await tw.evaluate(() => [...document.querySelectorAll('.admin-header button')].find((b) => b.textContent.startsWith('保存して')).click())
   await sleep(80)
@@ -1527,7 +1543,7 @@ await withEdge(async (browser) => {
     }))
   const switched = []
   for (const [title, head, preview, key] of [
-    ['コース', 'コース', true, 'course'],
+    ['コースごとの設定', 'コースごとの設定', true, 'course'],
     ['書き方のチェック', '書き方のチェック（言葉）', false, 'words'],
     ['先生の登録', '先生の登録', false, 'members'],
     ['変更履歴', '変更履歴', false, 'history'],
@@ -1555,10 +1571,10 @@ await withEdge(async (browser) => {
   await vb.keyboard.press('Enter')
   await sleep(200)
   const keyNav = await shownSections()
-  check('左の見出しはキーボードでも使える（Tab で次の区切りへ、Enter で開く）', keyNav.heads[0] === 'コース' && keyNav.current.join() === 'コース', JSON.stringify(keyNav))
+  check('左の見出しはキーボードでも使える（Tab で次の区切りへ、Enter で開く）', keyNav.heads[0] === 'コースごとの設定' && keyNav.current.join() === 'コースごとの設定', JSON.stringify(keyNav))
   await vb.reload({ waitUntil: 'networkidle0' })
   await vb.waitForSelector('.admin .content')
-  check('読み込み直しても、選んでいた区切り（コース）から開く', (await shownSections()).heads[0] === 'コース')
+  check('読み込み直しても、選んでいた区切り（コース）から開く', (await shownSections()).heads[0] === 'コースごとの設定')
 
   // 保存していない変更（公開中の年度）：画面の下に帯と保存のボタン、直した欄に「変更あり」、左の見出しに数
   const barState = () =>
@@ -1591,10 +1607,10 @@ await withEdge(async (browser) => {
   check(
     '最終締切を変えると、画面の下に「まだ学生に届いていない変更が1か所あります」と保存のボタン（見出しのボタンも目立つ形に）。直した欄に「変更あり」、左の見出しの「年度の設定」に 1',
     one.head === 'まだ学生に届いていない変更が1か所あります' && one.sub === '最終締切' && one.mark === '1' && one.buttons === '変更を見る|保存して学生に反映＊' && one.header === '保存していない変更 1か所' && one.headerSave === '保存して学生に反映＊' &&
-      one.counts === '年度の設定:1|コース|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定' && deadlineMark.label === '変更あり' && deadlineMark.ring && deadlineMark.others === 1,
+      one.counts === '年度の設定:1|コースごとの設定|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定' && deadlineMark.label === '変更あり' && deadlineMark.ring && deadlineMark.others === 1,
     JSON.stringify({ one, deadlineMark }),
   )
-  await nav(vb, 'コース')
+  await nav(vb, 'コースごとの設定')
   await (await vb.$('.course.open textarea.notice')).type('中間発表は12月4日（金）です')
   await vb.evaluate(() => document.querySelector('.course.open .open-btn').click())
   await sleep(200)
@@ -1611,7 +1627,7 @@ await withEdge(async (browser) => {
   await vb.setViewport({ width: 1366, height: 768 })
   check(
     'コースのお知らせも直すと、帯は「…2か所あります」・「最終締切、映画・舞台衣装デザイナー コースのお知らせ」。閉じたコースの行に「変更あり」、左の見出しの「コース」に 1',
-    two.head === 'まだ学生に届いていない変更が2か所あります' && two.sub === '最終締切、映画・舞台衣装デザイナー コースのお知らせ' && two.counts.startsWith('年度の設定:1|コース:1|') && courseChip[0].startsWith('変更あり・お知らせあり'),
+    two.head === 'まだ学生に届いていない変更が2か所あります' && two.sub === '最終締切、映画・舞台衣装デザイナー コースのお知らせ' && two.counts.startsWith('年度の設定:1|コースごとの設定:1|') && courseChip[0].startsWith('変更あり・お知らせあり'),
     JSON.stringify({ two, courseChip }),
   )
   await vb.evaluate(() => [...document.querySelectorAll('.dirty-bar button')].find((b) => b.textContent === '変更を見る').click())
@@ -1626,7 +1642,7 @@ await withEdge(async (browser) => {
   const afterBarSave = await barState()
   check(
     '帯の「保存して学生に反映」で、今までどおり確かめてから保存する（確かめに2つの変更）。保存すると帯は消える',
-    vbDialogs.last().includes('・最終締切') && vbDialogs.last().includes('・映画・舞台衣装デザイナー コースのお知らせ') && afterBarSave.head === null && afterBarSave.counts === '年度の設定|コース|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定',
+    vbDialogs.last().includes('・最終締切') && vbDialogs.last().includes('・映画・舞台衣装デザイナー コースのお知らせ') && afterBarSave.head === null && afterBarSave.counts === '年度の設定|コースごとの設定|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定',
     JSON.stringify(afterBarSave),
   )
 
@@ -1682,7 +1698,7 @@ await withEdge(async (browser) => {
   const toPublish = await active()
   check(
     '手順を押すと、直す所へ移る（題目・締切は「年度の設定」のその欄へ、コースは前の年度のままのお知らせへ、確かめるは確認の一覧へ、公開は「この年度を学生に公開」へ）',
-    toDeadline.id === 'y-deadline' && toTitle.id === 'y-commonTitle' && toCourse.section === 'コース' && toCourse.open === '映画・舞台衣装デザイナー コース' && toCourse.focus && toCheck.cls.includes('problems') && toCheck.section === '年度の設定' && toPublish.id === 'publish-btn',
+    toDeadline.id === 'y-deadline' && toTitle.id === 'y-commonTitle' && toCourse.section === 'コースごとの設定' && toCourse.open === '映画・舞台衣装デザイナー コース' && toCourse.focus && toCheck.cls.includes('problems') && toCheck.section === '年度の設定' && toPublish.id === 'publish-btn',
     JSON.stringify({ toDeadline, toTitle, toCourse, toCheck, toPublish }),
   )
   check('題目を直すと、手順の「題目」は済み（「直しました」）になる', titleDone === 'done:題目:直しました', titleDone)
@@ -1700,7 +1716,7 @@ await withEdge(async (browser) => {
   // 字の大きさと、1字だけの行：どの区切りでも（変更の帯と、新年度の手順を出したまま）
   const lonelyAll = []
   const smallAll = []
-  for (const title of ['年度の設定', 'コース', '書き方のチェック', '先生の登録', '変更履歴', '詳細設定']) {
+  for (const title of ['年度の設定', 'コースごとの設定', '書き方のチェック', '先生の登録', '変更履歴', '詳細設定']) {
     await nav(vb, title)
     if (title === '書き方のチェック') await vb.evaluate(() => document.querySelector('.wtable .wrow').click())
     if (title === '先生の登録') await vb.waitForSelector('.member-list li')
@@ -1711,7 +1727,7 @@ await withEdge(async (browser) => {
     if (title === '書き方のチェック') await vb.evaluate(() => [...document.querySelectorAll('.wedit button')].find((b) => b.textContent === 'やめる').click())
   }
   // 窓（ひな形・新年度・変更の一覧）の中も
-  await nav(vb, 'コース')
+  await nav(vb, 'コースごとの設定')
   await vb.evaluate(() => document.querySelector('.course.open .tpl-line .tpl-old').click())
   await vb.waitForSelector('.tpl-modal')
   smallAll.push(...(await smallText(vb, '.tpl-modal')).map((s) => `ひな形の窓:${s}`))
@@ -1735,6 +1751,10 @@ await withEdge(async (browser) => {
   await dialogLog(tv)
   await tv.setViewport({ width: 1366, height: 768 })
   await tv.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
+  // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からの確かめは、いちばん上のコースを開いて
+  await tv.waitForSelector('.course .open-btn')
+  await tv.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
+  await sleep(200)
   await tv.waitForSelector('.admin .content')
   await sleep(800)
   const teacherCount = await countScreen(tv)
@@ -1756,8 +1776,8 @@ await withEdge(async (browser) => {
   }
   await tv.setViewport({ width: 1366, height: 768 })
   check(
-    '先生の画面：左の見出しは「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つ。はじめのコースが開いていて、指導教員・お知らせ・ひな形・表の空の行（並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
-    teacherView.nav === 'コース|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|表の空の行' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
+    '先生の画面：左の見出しは「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つ。コースを開くと、指導教員・お知らせ・ひな形・表の空の行（並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
+    teacherView.nav === 'コースごとの設定|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|表の空の行' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
     JSON.stringify(teacherView),
   )
   // 見本は見開きで送る（mockups 案A：依頼者の選択 2026-10-22）。「‹」で表紙・抄録へ、「›」で本文へ。最初・最後の見開きでは押せない
@@ -1790,7 +1810,7 @@ await withEdge(async (browser) => {
   }
   await tv.setViewport({ width: 1366, height: 768 })
   const teacherLonelyAll = [...(await lonelyAtWidths(tv)), ...(await smallText(tv))]
-  await nav(tv, 'コース')
+  await nav(tv, 'コースごとの設定')
   teacherLonelyAll.push(...(await lonelyAtWidths(tv)), ...(await smallText(tv)))
   check('先生の画面も、1字だけの行がなく、字は13px以上', teacherLonelyAll.length === 0, teacherLonelyAll.slice(0, 6).join(' / '))
   await (await tv.$('.course.open textarea.notice')).type('先生のお知らせ')

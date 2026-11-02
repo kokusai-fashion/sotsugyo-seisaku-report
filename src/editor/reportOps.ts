@@ -1240,6 +1240,44 @@ export function linkWrittenRef(report: Report, paragraphId: string, targetId: st
   return mapBody(report, (b) => (b.id === paragraphId ? { ...paragraph, content: mergeTexts(kept) } : b))
 }
 
+/**
+ * 段落の字（contentToText の字）の中の、手で書いた図の番号のうち、その番号の図がまだないもの（「（図8）」と書いたが、図をまだ入れていない）。
+ * 書く欄の近く・右の欄の「図nを入れる」で、図を入れてつなげる（mockups/v87 案B）
+ */
+export function missingFigureRefs(text: string, num: Numbering): { start: number; end: number; n: number }[] {
+  const found: { start: number; end: number; n: number }[] = []
+  for (const m of text.matchAll(WRITTEN_REF)) {
+    if ((m[1] ?? m[3]) !== '図') continue
+    const n = Number((m[2] ?? m[4]).normalize('NFKC'))
+    if (!num.figureByNumber.has(n)) found.push({ start: m.index, end: m.index + m[0].length, n })
+  }
+  return found
+}
+
+/**
+ * 段落の字の start〜end（手で書いた「（図n）」）を、図表 targetId への参照にする（番号は、図表の順で自動で付く）。
+ * その範囲が、ひと続きの文字の中になければ null（mockups/v87 案B：「図nを入れる」）
+ */
+export function linkRefRange(report: Report, paragraphId: string, start: number, end: number, targetId: string): Report | null {
+  const paragraph = findParagraph(report, paragraphId)
+  if (!paragraph || end <= start) return null
+  const num = numbering(report)
+  const content: InlineNode[] = []
+  let pos = 0
+  let linked = false
+  for (const node of paragraph.content) {
+    const length = contentToText([node], num).length
+    if (!linked && node.type === 'text' && start >= pos && end <= pos + length) {
+      const written = node.text.slice(start - pos, end - pos)
+      content.push({ type: 'text', text: node.text.slice(0, start - pos) }, { type: 'ref', targetId, withParens: /^[（(]/.test(written) }, { type: 'text', text: node.text.slice(end - pos) })
+      linked = true
+    } else content.push(node)
+    pos += length
+  }
+  if (!linked) return null
+  return mapBody(report, (b) => (b.id === paragraphId ? { ...paragraph, content: mergeTexts(content) } : b))
+}
+
 /** 書いた中身のない章（段落はどれも空。小見出しは「〇〇〇〇」などの仮の名前だけ。図・表はない） */
 export function chapterUnwritten(chapter: Chapter): boolean {
   return chapter.blocks.every(

@@ -1200,7 +1200,9 @@ async function adminShots(browser) {
   }
 
   // ---- コース（開いたコースのカード：ひな形を作る画面を開く・お知らせ） ----
-  await nav(page, 'コース')
+  await nav(page, 'コースごとの設定')
+  // はじめは閉じているので、いちばん上のコースを開く（2026-11-02 から。最後に開いていたコースを覚える）
+  await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
   await page.waitForSelector('.course.open .tpl-open')
   await page.mouse.move(5, 5)
   await capture(page, 'g-admin-course', pad(await page.evaluate(rectOf, '.course.open'), 10), [
