@@ -256,7 +256,7 @@ await withEdge(async (browser) => {
     const sec = document.querySelector('.side .sec.check')
     const red = [...sec.querySelectorAll('*')].filter((e) => { const cs = getComputedStyle(e); return cs.color === 'rgb(181, 68, 59)' || cs.backgroundColor === 'rgb(181, 68, 59)' }).map((e) => e.className || e.tagName)
     return {
-      // 数は小見出しの横の小さな札（mockups/v37。直すところは 0 なので出さない）。小見出しの右のひとことは、マウスを乗せたときだけ（title）
+      // 数は中見出しの横の小さな札（mockups/v37。直すところは 0 なので出さない）。中見出しの右のひとことは、マウスを乗せたときだけ（title）
       tally: [...sec.querySelectorAll('.check-sub')].map((s) => s.textContent.replace(/\s/g, '')).join(','),
       oldTally: !!document.querySelector('.side .tally'),
       hints: [...sec.querySelectorAll('.check-sub')].map((s) => s.title).join(','),
@@ -277,7 +277,7 @@ await withEdge(async (browser) => {
   })
   await page.screenshot({ path: `${OUT}/0-check-fresh.png` })
   check(
-    '書き始め（表紙だけ入れた）の右の欄：「進み具合 あと3」（数は小見出しの横。直すところは 0 なので数を出さない）で赤い字・印がなく、まだのところは表紙 ✓・本文のページ／本文の段落／作品写真 ○・抄録「先生の許可のあと」（図の枚数の行はない。直すところがないので ✓ の行はたたまない）。直すところは「いま直すところはありません」（凡例は出さない）。「押すと、その場所へ」「書いた文の間違い」はマウスを乗せたときだけ',
+    '書き始め（表紙だけ入れた）の右の欄：「進み具合 あと3」（数は中見出しの横。直すところは 0 なので数を出さない）で赤い字・印がなく、まだのところは表紙 ✓・本文のページ／本文の段落／作品写真 ○・抄録「先生の許可のあと」（図の枚数の行はない。直すところがないので ✓ の行はたたまない）。直すところは「いま直すところはありません」（凡例は出さない）。「押すと、その場所へ」「書いた文の間違い」はマウスを乗せたときだけ',
     freshPanel.tally === '進み具合あと3,直すところ' &&
       !freshPanel.oldTally &&
       freshPanel.hints === '押すと、その場所へ,書いた文の間違い' &&
@@ -815,7 +815,7 @@ await withEdge(async (browser) => {
     icons: [...document.querySelectorAll('.side .sev-legend .dot')].map((i) => getComputedStyle(i, '::before').content),
     chips: document.querySelectorAll('.side .issue .src').length,
     chipText: /手順書|補助/.test([...document.querySelectorAll('.side .issue .ttl')].map((t) => t.textContent).join('')),
-    // 凡例と指摘は「直すところ」の中（mockups/v35 ① 案A）。数は小見出し「直すところ」の横の赤い札（mockups/v37）
+    // 凡例と指摘は「直すところ」の中（mockups/v35 ① 案A）。数は中見出し「直すところ」の横の赤い札（mockups/v37）
     inFix: !!document.querySelector('.side .sec.check .check-sub.fix ~ .sev-legend'),
     tally: document.querySelector('.side .check-sub.fix')?.textContent.replace(/\s/g, '') ?? '',
     tallyRed: getComputedStyle(document.querySelector('.side .check-sub.fix .count-badge')).color === 'rgb(181, 68, 59)',
@@ -1094,7 +1094,7 @@ await withEdge(async (browser) => {
     const afterUndo = (await snap()).report.body.flatMap((c) => c.blocks).find((b) => b.type === 'figureRow')?.figures.length
     check('図を押して選び、Delete キーで消せる（元に戻すで戻る）', !afterDelete && afterUndo === 1, JSON.stringify({ afterDelete, afterUndo }))
   }
-  // 図を選んで「小見出しの終わりへ」：小見出しのまとまりのいちばん下へ動く。そこでは「段落の下へ戻す」になり、押すと参照している段落のすぐ下に戻る（依頼者の選択 2026-10-22 案A）
+  // 図を選んで「中見出しの終わりへ」：中見出しのまとまりのいちばん下へ動く。そこでは「段落の下へ戻す」になり、押すと参照している段落のすぐ下に戻る（依頼者の選択 2026-10-22 案A）
   {
     // 図の後ろに段落を1つ足して、動かせる所を作る（あとで元に戻す）
     const figId = await page.evaluate(() => {
@@ -1125,8 +1125,8 @@ await withEdge(async (browser) => {
         }
       }, pid)
     const m0 = await order(firstParagraph)
-    // 小見出しのない章では「大見出しの終わりへ」（PC の試し 2026-10-25）
-    const endLabel = m0.tools.find((t) => /^(小|大)見出しの終わりへ$/.test(t)) ?? '小見出しの終わりへ'
+    // 中見出しのない章では「大見出しの終わりへ」（PC の試し 2026-10-25）
+    const endLabel = m0.tools.find((t) => /^(小|大)見出しの終わりへ$/.test(t)) ?? '中見出しの終わりへ'
     await clickPaletteButton(endLabel)
     await ready()
     const m1 = await order(firstParagraph)
@@ -1134,7 +1134,7 @@ await withEdge(async (browser) => {
     const fig1 = m1.ids.indexOf('FIG')
     const next1 = m1.ids.slice(fig1 + 1).filter((x) => x !== 'PB')[0]
     check(
-      '図を選ぶと道具に「小見出しの終わりへ」。押すと、図が小見出しのまとまりのいちばん下へ動き（後ろは次の小見出しか章の終わり）、図は選んだまま。道具は「段落の下へ戻す」になる',
+      '図を選ぶと道具に「中見出しの終わりへ」。押すと、図が中見出しのまとまりのいちばん下へ動き（後ろは次の中見出しか章の終わり）、図は選んだまま。道具は「段落の下へ戻す」になる',
       m0.tools.includes(endLabel) && !m0.tools.includes('段落の下へ戻す') && fig1 > m1.ids.indexOf('p-e2e-after') && (next1 === undefined || next1 === 'SUB') && m1.selected === figId && m1.tools.includes('段落の下へ戻す') && !m1.tools.includes(endLabel),
       JSON.stringify({ before: m0.ids.slice(0, 8), after: m1.ids.slice(0, 12), tools: [m0.tools, m1.tools] }),
     )
@@ -1142,7 +1142,7 @@ await withEdge(async (browser) => {
     await ready()
     const m2 = await order(firstParagraph)
     check(
-      '「段落の下へ戻す」で、図はその図のことを書いた段落のすぐ下に戻る（道具は「小見出し（大見出し）の終わりへ」に戻る）',
+      '「段落の下へ戻す」で、図はその図のことを書いた段落のすぐ下に戻る（道具は「中見出し（大見出し）の終わりへ」に戻る）',
       m2.ids[m2.ids.indexOf(firstParagraph) + 1] === 'FIG' && m2.selected === figId && m2.tools.includes(endLabel),
       JSON.stringify({ after: m2.ids.slice(0, 8), tools: m2.tools }),
     )
@@ -1896,33 +1896,33 @@ await withEdge(async (browser) => {
       await page.keyboard.up('Control')
     }
 
-    // 段落を分けて書き、すぐ「小見出し」を押して、すぐ打つ：見出しの文字は消えず、書いていた段落の後ろに入る（前は、組み直すまでの1秒ほどの間に打った文字が消え、見出しが段落の前に入っていた）
+    // 段落を分けて書き、すぐ「中見出し」を押して、すぐ打つ：見出しの文字は消えず、書いていた段落の後ろに入る（前は、組み直すまでの1秒ほどの間に打った文字が消え、見出しが段落の前に入っていた）
     await clickBlock('fpA')
     await ctrlEnd()
     await page.keyboard.press('Enter')
     await page.keyboard.type('分けた段落に書いた。')
-    await clickPaletteButton('小見出し')
+    await clickPaletteButton('中見出し')
     await page.keyboard.type('すぐ打った見出し')
     const openedAt = await page.evaluate(() => ({ editing: window.__editor.getSnapshot().editingKind, rendering: window.__editor.getSnapshot().rendering }))
     await page.keyboard.press('Escape')
     await ready()
     let fc1 = (await blocksOf('fc1')).map(textOf)
     check(
-      '段落を分けて書き、すぐ「小見出し」を押してすぐ打っても、見出しの文字は消えず、書いていた段落の後ろに入る（組み直すのを待たずに書く欄が開く）',
+      '段落を分けて書き、すぐ「中見出し」を押してすぐ打っても、見出しの文字は消えず、書いていた段落の後ろに入る（組み直すのを待たずに書く欄が開く）',
       JSON.stringify(fc1.slice(0, 4)) === JSON.stringify(['最初に生地の色を確かめ、汚れや傷がないかを見た。次に型紙を写した。', '分けた段落に書いた。', '【すぐ打った見出し】', '次の段落である。']) && openedAt.editing === 'subheading',
       JSON.stringify({ fc1, openedAt }),
     )
 
-    // 何も書いていない段落で「小見出し」：その段落を見出しに置き換える（空の段落を残さない）
+    // 何も書いていない段落で「中見出し」：その段落を見出しに置き換える（空の段落を残さない）
     await clickBlock('fpB')
     await ctrlEnd()
     await page.keyboard.press('Enter')
-    await clickPaletteButton('小見出し')
+    await clickPaletteButton('中見出し')
     await page.keyboard.type('置き換えた見出し')
     await page.keyboard.press('Escape')
     await ready()
     fc1 = (await blocksOf('fc1')).map(textOf)
-    check('何も書いていない段落で「小見出し」を押すと、その段落が見出しになる（空の段落が残らない）', JSON.stringify(fc1.slice(3, 6)) === JSON.stringify(['次の段落である。', '【置き換えた見出し】', '']) && fc1.length === 7, JSON.stringify(fc1))
+    check('何も書いていない段落で「中見出し」を押すと、その段落が見出しになる（空の段落が残らない）', JSON.stringify(fc1.slice(3, 6)) === JSON.stringify(['次の段落である。', '【置き換えた見出し】', '']) && fc1.length === 7, JSON.stringify(fc1))
 
     // ひな形の説明のある空の段落：開いて何も書かずに閉じても、説明は消えない
     await clickBlock('fpH')
@@ -1935,19 +1935,19 @@ await withEdge(async (browser) => {
     }))
     check('ひな形の説明のある空の段落を開いて、何も書かずに閉じても、説明（「ここに書くこと」）は消えない', kept.hint === '工夫した点を書く' && kept.placeholder.includes('工夫した点を書く'), JSON.stringify(kept))
 
-    // ひな形の説明（薄字）だけの段落で「小見出し」：その段落を見出しに置き換える（薄字が見出しの上に残らない。学生の試し 2026-10-31）
+    // ひな形の説明（薄字）だけの段落で「中見出し」：その段落を見出しに置き換える（薄字が見出しの上に残らない。学生の試し 2026-10-31）
     await clickBlock('fpH')
     await waitEditing(() => window.__editor.getSnapshot().editingId === 'fpH')
-    await clickPaletteButton('小見出し')
+    await clickPaletteButton('中見出し')
     await page.keyboard.type('説明の所の見出し')
     await page.keyboard.press('Escape')
     await ready()
     fc1 = (await blocksOf('fc1')).map(textOf)
-    check('ひな形の説明だけの段落で「小見出し」を押すと、その段落が見出しになる（薄字の段落が上に残らない）', JSON.stringify(fc1.slice(3)) === JSON.stringify(['次の段落である。', '【置き換えた見出し】', '【説明の所の見出し】', '【（1）素材】']), JSON.stringify(fc1))
+    check('ひな形の説明だけの段落で「中見出し」を押すと、その段落が見出しになる（薄字の段落が上に残らない）', JSON.stringify(fc1.slice(3)) === JSON.stringify(['次の段落である。', '【置き換えた見出し】', '【説明の所の見出し】', '【（1）素材】']), JSON.stringify(fc1))
 
-    // 小見出しに手で書いた「（1）」：警告で、消す番号を書く（番号の「ⅰ．」は自動で付く）。押すと「（1）」の後ろにカーソルが来るので、Backspace で自分で消す
+    // 中見出しに手で書いた「（1）」：警告で、消す番号を書く（番号の「ⅰ．」は自動で付く）。押すと「（1）」の後ろにカーソルが来るので、Backspace で自分で消す
     const headingFix = await page.evaluate(() => {
-      const li = [...document.querySelectorAll('.side .issue')].find((x) => x.textContent.includes('小見出しに番号を手で書いている'))
+      const li = [...document.querySelectorAll('.side .issue')].find((x) => x.textContent.includes('中見出しに番号を手で書いている'))
       const info = { shown: !!li, warning: !!li?.classList.contains('warning'), fix: !!li?.querySelector('.fix'), detail: li?.querySelector('.detail')?.textContent ?? '' }
       li?.click()
       return info
@@ -1957,7 +1957,7 @@ await withEdge(async (browser) => {
     await page.keyboard.press('Escape')
     await ready()
     const fixedTitle = (await blocksOf('fc1')).find((b) => b.id === 'fsN')?.title
-    check('小見出しに手で書いた「（1）」は警告になり、「「（1）」を消します」と書く（「直す」はない）。押して移り、自分で消すと番号のない見出しになる', headingFix.shown && headingFix.warning && !headingFix.fix && headingFix.detail.includes('「（1）」を消します') && fixedTitle === '素材', JSON.stringify({ headingFix, fixedTitle }))
+    check('中見出しに手で書いた「（1）」は警告になり、「「（1）」を消します」と書く（「直す」はない）。押して移り、自分で消すと番号のない見出しになる', headingFix.shown && headingFix.warning && !headingFix.fix && headingFix.detail.includes('「（1）」を消します') && fixedTitle === '素材', JSON.stringify({ headingFix, fixedTitle }))
 
     // Enter を押して何も書かずに閉じた空の段落：「空の段落がある」を押すとその段落が開き、道具の「削除」で消せる（「段落を削除しました［戻す］」が出る）
     await clickBlock('fpZ')
@@ -2110,13 +2110,13 @@ await withEdge(async (browser) => {
         return { shown: !!b && !b.hidden && r.height > 0, below: !!h && !!r && r.top >= h.bottom, x: r ? r.left + r.width / 2 : 0, y: r ? r.top + r.height / 2 : 0, bottom: r?.bottom ?? 0, left: h?.left ?? 0 }
       })
 
-    // 章の最後の小見出し（足したばかりで、後ろに何もない）の下に「＋ 文章の続きを書く」が出る（mockups/v32 ① 案A を見出しにも）
+    // 章の最後の中見出し（足したばかりで、後ろに何もない）の下に「＋ 文章の続きを書く」が出る（mockups/v32 ① 案A を見出しにも）
     await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('gs1'), 'none'))
     await ready()
     await pause0(300)
     const headRow = await rowAt()
     await page.screenshot({ path: `${OUT}/g1-heading-row.png` })
-    check('章の最後の小見出し（後ろに何もない）の下が空いていれば、そのすぐ下に「＋ 文章の続きを書く」が出る', headRow.shown && headRow.below, JSON.stringify(headRow))
+    check('章の最後の中見出し（後ろに何もない）の下が空いていれば、そのすぐ下に「＋ 文章の続きを書く」が出る', headRow.shown && headRow.below, JSON.stringify(headRow))
     // 見出しの下の空いた所を押して打っても、見出しの続きにならない（前は「素材の選定使う布」になった）
     await page.mouse.click(headRow.left + 60, headRow.bottom + 80)
     await pause0(300)
@@ -2788,7 +2788,7 @@ async function pdfSaveCheck(browser) {
   const errorsNow = await page.evaluate(() => window.__editor.getSnapshot().findings.filter((f) => f.severity === 'error').map((f) => f.title))
   // 右の欄：指摘のない原稿は「直すところ 0、まだ 0」、まだのところは全部 ✓（抄録は書いている）、「直すところ・まだのところはありません」（mockups/v35 ① 案A）
   const zeroPanel = await page.evaluate(() => ({
-    // 数は小見出しの横（mockups/v37）。0 のときは出さない
+    // 数は中見出しの横（mockups/v37）。0 のときは出さない
     tally: [...document.querySelectorAll('.side .check-sub')].map((s) => s.textContent.replace(/\s/g, '')).join(','),
     rows: [...document.querySelectorAll('.side .check-prog li')].map((li) => li.className).join(','),
     note: document.querySelector('.side-foot .export-note')?.textContent ?? '',

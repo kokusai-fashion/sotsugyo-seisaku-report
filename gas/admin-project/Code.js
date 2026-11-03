@@ -31,7 +31,7 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+$/
 /** 下書きのひな形の部品の種類と、その呼び名（管理ページのひな形の窓と同じ。改ページ・ふつうの表は mockups/v44 で足した） */
 const BLOCK_TYPES = ['chapter', 'subheading', 'paragraph', 'figure', 'materialTable', 'pageBreak', 'table']
 // text：本文に入る文の段落の呼び名（行の種類ではない。mockups/v70）
-const BLOCK_LABELS = { chapter: '大見出し', subheading: '小見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表', text: '本文に入る文' }
+const BLOCK_LABELS = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表', text: '本文に入る文' }
 /** 文字数・数の上限（学生のツールの src/config/validate.ts の LIMITS と同じ値にする。tableColumns・tableRows：ひな形の表の列の数と、見出しの下の行の数） */
 const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
 
@@ -239,10 +239,12 @@ function cleanTemplate_(template, courseName) {
     const key = block.type === 'chapter' || block.type === 'subheading' ? 'title' : block.type === 'paragraph' ? 'hint' : 'caption'
     const row = label + 'の' + rowName_(i, block.type, block[key])
     const text = checkText_(block[key], key === 'hint' ? LIMITS.hint : LIMITS.name, row)
-    // 段落の説明は空でもよい（大見出し・小見出し・図・表の名前は空にしない）
+    // 段落の説明は空でもよい（大見出し・中見出し・図・表の名前は空にしない）
     if (key !== 'hint' && !text.trim()) throw new Error(row + 'の名前が空です')
     const out = { type: block.type }
     out[key] = text
+    // 小見出し（（1））は、中見出しに level: 3 の印（見出しを大・中・小の3つにした：依頼者の選択 2026-11-03）
+    if (block.type === 'subheading' && block.level === 3) out.level = 3
     // 段落の本文に入る文（学生の本文にそのまま入る。空なら持たない。mockups/v70）
     if (block.type === 'paragraph' && block.text !== undefined) {
       const fixed = checkText_(block.text, LIMITS.text, label + 'の' + rowName_(i, 'text', block.text))

@@ -6,7 +6,7 @@
 // ④ スマホ：抄録を書いている間の字数
 // ⑤ スマホ：表のマスの「次のマス」
 // ⑥ スマホ：作品写真の空いた枠は、並べ方の左の「＋ 写真」（下の帯は出さない）
-// ⑦ 短い段落の「小見出しにする」
+// ⑦ 短い段落の「中見出しにする」
 import { withEdge } from '../poc/edge.mjs'
 import { stubConfig } from './configStub.mjs'
 import { setupWriting } from './sampleReport.mjs'
@@ -70,14 +70,14 @@ await withEdge(async (browser) => {
     const cdp = await page.createCDPSession()
     await cdp.send('Browser.setDownloadBehavior', { behavior: 'deny', browserContextId: context.id })
 
-    // ⑦ 短い段落の「小見出しにする」
+    // ⑦ 短い段落の「中見出しにする」
     await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c, i) => (i === 1 ? { ...c, blocks: [{ type: 'paragraph', id: 'px', content: [{ type: 'text', text: '2-1 パターンと仮縫い' }] }, ...c.blocks] } : c)) })))
     await wait(1000)
     await ready()
     await goTo(page, ready, 'px')
     await openAt(page, 'px', 3)
-    const tool = await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].some((b) => b.textContent.replace(/\s/g, '').endsWith('小見出しにする')))
-    await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.replace(/\s/g, '').endsWith('小見出しにする'))?.click())
+    const tool = await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].some((b) => b.textContent.replace(/\s/g, '').endsWith('中見出しにする')))
+    await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.replace(/\s/g, '').endsWith('中見出しにする'))?.click())
     await wait(1200)
     await ready()
     const sub = await page.evaluate(() => { const c = window.__editor.getSnapshot().report.body[1]; return { first: c.blocks[0]?.type, title: c.blocks[0]?.title, toast: document.querySelector('.undo-toast')?.textContent ?? '' } })
@@ -88,13 +88,13 @@ await withEdge(async (browser) => {
     const longTool = await (async () => {
       await goTo(page, ready, 'p2')
       await openAt(page, 'p2', 3)
-      return page.evaluate(() => [...document.querySelectorAll('.palette .tb')].some((b) => b.textContent.replace(/\s/g, '').endsWith('小見出しにする')))
+      return page.evaluate(() => [...document.querySelectorAll('.palette .tb')].some((b) => b.textContent.replace(/\s/g, '').endsWith('中見出しにする')))
     })()
     await page.evaluate(() => document.activeElement?.blur())
     await wait(500)
     check(
-      '短く「。」のない段落には「この段落」に「小見出しにする」が出て、押すと番号を除いた小見出し「パターンと仮縫い」になる（知らせ・元に戻すで段落に戻る）。文の段落には出ない',
-      tool && sub.first === 'subheading' && sub.title === 'パターンと仮縫い' && sub.toast.includes('小見出し') && undone?.type === 'paragraph' && !longTool,
+      '短く「。」のない段落には「この段落」に「中見出しにする」が出て、押すと番号を除いた中見出し「パターンと仮縫い」になる（知らせ・元に戻すで段落に戻る）。文の段落には出ない',
+      tool && sub.first === 'subheading' && sub.title === 'パターンと仮縫い' && sub.toast.includes('中見出し') && undone?.type === 'paragraph' && !longTool,
       JSON.stringify({ tool, sub, undone: undone?.type, longTool }),
     )
 

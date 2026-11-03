@@ -60,7 +60,7 @@ const KIND_NAMES: Record<EditableKind, string> = {
   field: '表紙の項目',
   abstractParagraph: '抄録の段落',
   chapter: '大見出し',
-  subheading: '小見出し',
+  subheading: '中見出し',
   paragraph: '段落',
   figureCaption: '図のタイトル',
   tableCaption: '表のタイトル',

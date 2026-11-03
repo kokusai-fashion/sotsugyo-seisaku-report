@@ -44,7 +44,7 @@ const chapters: Chapter[] = [
 ]
 
 describe('番号付け', () => {
-  it('大見出しと小見出しはテンプレートの形式', () => {
+  it('大見出しと中見出しはテンプレートの形式', () => {
     expect(chapterLabel(0)).toBe('Ⅰ．')
     expect(chapterLabel(2)).toBe('Ⅲ．')
     expect(subheadingLabel(0)).toBe('ⅰ．')
@@ -70,7 +70,7 @@ describe('buildBodyDocument', () => {
 
   const text = (s: string) => s.replace(/<[^>]+>/g, '')
 
-  it('小見出しの番号は章ごとに振り直す', () => {
+  it('中見出しの番号は章ごとに振り直す', () => {
     expect(text(html)).toContain('Ⅱ．制作過程')
     expect(text(html)).toContain('ⅰ．ジャケット')
   })

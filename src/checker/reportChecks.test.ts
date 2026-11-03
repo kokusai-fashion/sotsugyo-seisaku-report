@@ -410,7 +410,7 @@ describe('図表の番号の二重（ツールで書いているときだけの�
 describe('見出しに手で書いた番号（自動で付く「ⅰ．」と二重になる。ツールで書いているときだけの指摘）', () => {
   const finding = (r: Report, id: string) => checkReportDetailed(r, currentConfig, layout()).findings.find((x) => x.ruleId === 'heading-number' && x.blockId === id)
 
-  it('小見出し・大見出しの初めの「（1）」「1.」「①」「ⅰ．」「Ⅰ．」「第1章」などを警告し、消す番号を detail に書く（下線は後ろの空白まで）', () => {
+  it('中見出し・大見出しの初めの「（1）」「1.」「①」「ⅰ．」「Ⅰ．」「第1章」などを警告し、消す番号を detail に書く（下線は後ろの空白まで）', () => {
     for (const [title, rest] of [
       ['（1）担当衣装のキャラクター', '担当衣装のキャラクター'],
       ['(2) デザイン説明', 'デザイン説明'],
@@ -424,7 +424,7 @@ describe('見出しに手で書いた番号（自動で付く「ⅰ．」と二�
     ]) {
       const r = ops.setText(cleanReport(), 's1', title)
       const f = finding(r, 's1')
-      expect(f, title).toMatchObject({ severity: 'warning', source: 'supplementary', area: 'body', start: 0, title: '小見出しに番号を手で書いている' })
+      expect(f, title).toMatchObject({ severity: 'warning', source: 'supplementary', area: 'body', start: 0, title: '中見出しに番号を手で書いている' })
       expect(f?.detail, title).toContain(`「${title.slice(0, f!.end!).trim()}」を消します`)
       // 下線のところを消すと、番号のない見出しになる
       expect(title.slice(f!.end!), title).toBe(rest)

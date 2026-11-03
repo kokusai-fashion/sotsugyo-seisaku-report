@@ -441,7 +441,7 @@ export class ReportEditor {
           this.emptyEnterNoticed = true
           this.showNotice(`次のページから書くときは、${this.phone ? '「追加」の' : '道具の'}「改ページ」を使います（空の段落は「直すところ」に出ます）`)
         }
-        // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って小見出しにしたもの）を段落に戻す
+        // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って中見出しにしたもの）を段落に戻す
         const reverted = editing === 'paragraph' ? this.revertListHeading(this.report, id, before) : null
         if (reverted) {
           this.pushHistory(this.reportBeforeEdit ?? this.report)
@@ -969,7 +969,7 @@ export class ReportEditor {
   /** 先に見せている間に、ページを送るよう頼まれた（組み終えてから送る：goToPage） */
   private turnQueued = false
   /** 先に見せている間に頼まれた、まだ組んでいないページへの移動（そのページを組み終えたら、1回だけ移る。最後に頼んだもの） */
-  private queuedNav: { index: number; effect: PageEffect } | null = null
+  private queuedNav: { index: number; effect: PageEffect; keepZoom?: boolean } | null = null
   private queuedNavDone: (() => void)[] = []
   /** 開いた直後に紙面を組んでいる間の、残りのページの見込み（「紙面を準備しています…（あと3ページ）」） */
   private pagesLeft: number | null = null
@@ -1066,7 +1066,7 @@ export class ReportEditor {
     if (!nav || (this.provisional && !this.pageReady(nav.index))) return
     this.queuedNav = null
     const done = this.queuedNavDone.splice(0)
-    void this.goToPage(nav.index, nav.effect).then(() => done.forEach((resolve) => resolve()))
+    void this.goToPage(nav.index, nav.effect, nav.keepZoom).then(() => done.forEach((resolve) => resolve()))
   }
 
   /** 打つ手が止まったら組み直す（打っている途中の組み直しは急ぎでない：組んでいる間にまた打っても、組み終えた紙面を出す） */
@@ -1526,9 +1526,10 @@ export class ReportEditor {
 
   /**
    * page ページ目（0 から）を表示する。
-   * turn：隣のページは本のようにめくる（離れたページはふわっと切り替える）／fade：ふわっと切り替える／none：すぐ切り替える
+   * turn：隣のページは本のようにめくる（離れたページはふわっと切り替える）／fade：ふわっと切り替える／none：すぐ切り替える。
+   * keepZoom：スマホで拡大しているとき、拡大のまま送った先のページの上を見せる（「◀ ▶」・左右にはらう。依頼者の選択 2026-11-03 mockups/v98 ②）
    */
-  goToPage(index: number, effect: PageEffect = 'turn'): Promise<void> {
+  goToPage(index: number, effect: PageEffect = 'turn', keepZoom = false): Promise<void> {
     const to = Math.max(0, Math.min(index, this.renderer.pageCount() - 1))
     if (this.provisional) {
       // 開いたときに先に見せたページのほかを、まだ組んでいる。組み終えたときに、覚えていたページへ戻さない（movedSinceFirstShow）
@@ -1536,7 +1537,7 @@ export class ReportEditor {
       // 移る先のページをまだ組んでいない（中が空）：そのページを組み終えたら、すぐ移る。何度押しても移るのは1回（最後に頼んだページへ。flushQueuedNav）。
       // 前は、すべて組み終えるまで（スマホで十数秒）待ってから移っていた
       if (!this.pageReady(to)) {
-        this.queuedNav = { index: to, effect }
+        this.queuedNav = { index: to, effect, keepZoom }
         return new Promise((resolve) => this.queuedNavDone.push(resolve))
       }
       // 組み終えたページへ移るなら、それまでに頼まれていた、まだ組んでいないページへの移動はやめる
@@ -1544,7 +1545,7 @@ export class ReportEditor {
     }
     // めくっている途中に、また送るよう頼まれた：いまの動きをすぐ終えて、続けて送る（押した数だけ送る。前は、めくっている間に押しても送らなかった）
     if (this.turning) {
-      this.queuedTurn = { index: to, effect }
+      this.queuedTurn = { index: to, effect, keepZoom }
       this.renderer.hurryTurn()
       return this.turning.then(() => this.turning ?? undefined)
     }
@@ -1564,8 +1565,9 @@ export class ReportEditor {
     const focused = this.paperFocus()
     this.page = to
     // スマホ：拡大したまま移ると、送った先のページの一部（作品写真のページでは白い所）しか見えず、ページ送りと帯も隠れたままだった。
-    // ページを替えたら、ページ全体の表示に戻す（指摘へ移って書き始めるときは、書く欄を開くときにまた拡大する）
-    if (this.phone && this.stage.zoomed) this.stage.setZoom(false)
+    // ページを替えたら、ページ全体の表示に戻す（指摘へ移って書き始めるときは、書く欄を開くときにまた拡大する）。
+    // 「◀ ▶」・左右にはらって送るときは、拡大のまま（拡大中もページ送りを出すようにした：mockups/v98 ② 案A）
+    if (this.phone && this.stage.zoomed && !keepZoom) this.stage.setZoom(false)
     this.setRevealRoom(0, 0)
     this.scroller.scrollTop = 0
     this.turning = this.renderer.turn(from, to, effect).finally(() => {
@@ -1575,14 +1577,14 @@ export class ReportEditor {
       // めくっている間に、続けて送るよう頼まれていた
       const next = this.queuedTurn
       this.queuedTurn = null
-      if (next) void this.goToPage(next.index, next.effect)
+      if (next) void this.goToPage(next.index, next.effect, next.keepZoom)
     })
     this.notify()
     return this.turning
   }
 
   /** めくっている間に頼まれた、次のページ送り（めくり終えたら、続けて送る） */
-  private queuedTurn: { index: number; effect: PageEffect } | null = null
+  private queuedTurn: { index: number; effect: PageEffect; keepZoom?: boolean } | null = null
 
   /** 頼まれている移動の行き先（めくっている途中・組み終えるのを待っているなら、その行き先。なければ見ているページ） */
   private get pageAhead(): number {
@@ -1605,7 +1607,7 @@ export class ReportEditor {
     const at = this.pageAhead
     const to = this.stage.spread ? at - (at % 2) + 2 * dir : at + dir
     if (to < 0 || to > this.renderer.pageCount() - 1) return Promise.resolve()
-    return this.goToPage(to)
+    return this.goToPage(to, 'turn', true)
   }
 
   // ---- 見開き（mockups/v35 ③ 案A。PC だけ） ----
@@ -2078,9 +2080,9 @@ export class ReportEditor {
   }
 
   /**
-   * 書いている短い段落を、小見出しにする（左の道具の「この段落」の「小見出しにする」）。Word から読み込んだ「2-1 パターンと仮縫い」が段落になり、
-   * 「小見出し」を押しても下に空の小見出しが増えるだけで、直し方が分からなかった（学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑦ 案A）。
-   * 打って Enter で見出しにしたときと同じく、画面に「小見出し「…」にしました［戻す］」を出し、戻すと段落に戻る
+   * 書いている短い段落を、中見出しにする（左の道具の「この段落」の「中見出しにする」）。Word から読み込んだ「2-1 パターンと仮縫い」が段落になり、
+   * 「中見出し」を押しても下に空の中見出しが増えるだけで、直し方が分からなかった（学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑦ 案A）。
+   * 打って Enter で見出しにしたときと同じく、画面に「中見出し「…」にしました［戻す］」を出し、戻すと段落に戻る
    */
   convertToSubheading(): void {
     const id = this.overlay.blockId
@@ -2104,7 +2106,7 @@ export class ReportEditor {
     this.writingBefore.set(typed, { id, caret: ops.findEditable(typed, id)?.text.length ?? 0 })
     this.report = result.report
     const step = this.headingStep(typed, [[id, text]], this.headingNoticeBody(result.report, result.headingId, heading))
-    // 小見出しにした所で、そのまま書き続ける（前は書く欄が閉じ、続けて打った字が入らなかった：学生の試し 3回目 2026-10-29）
+    // 中見出しにした所で、そのまま書き続ける（前は書く欄が閉じ、続けて打った字が入らなかった：学生の試し 3回目 2026-10-29）
     this.reopenAfterRender(result.headingId, title.length, { id, place: 'over' })
     this.noticeHeading(step)
   }
@@ -2334,7 +2336,7 @@ export class ReportEditor {
   /** 入力欄を閉じて、書いた文字を確定する。frozen：閉じる前の入力欄の見た目を写した要素（紙面に重ねる。PC だけ） */
   private onCommitEdit(id: string, text: string, byKey: boolean, frozen: HTMLElement | null = null): void {
     const tidy = this.tidyText(id, text)
-    // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って小見出しにしたもの）を段落に戻す（Enter のときと同じ）
+    // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って中見出しにしたもの）を段落に戻す（Enter のときと同じ）
     const kindNow = ops.findEditable(this.report, id)?.kind
     const reverted = kindNow === 'paragraph' && tidy !== ops.findEditable(this.reportBeforeEdit ?? this.report, id)?.text ? this.revertListHeading(this.report, id, tidy) : null
     if (reverted) this.showNotice('番号の行が続いたので、見出しにせず箇条書き（段落）にしました')
@@ -2841,9 +2843,9 @@ export class ReportEditor {
   }
 
   /**
-   * 原稿を変えたあと、id の欄を書き始める（小見出し・段落・大見出しを足した、図・表を入れた、「＋ 文章の続きを書く」など）。
+   * 原稿を変えたあと、id の欄を書き始める（中見出し・段落・大見出しを足した、図・表を入れた、「＋ 文章の続きを書く」など）。
    * PC は、紙面を組み直すのを待たずに、すぐ入力欄を開く（openBeforeRender）。組み直しは長い原稿では1秒以上かかり、
-   * 待つ間に打った文字が消えていたため（「小見出し」を押してすぐ打つと、見出しの文字が入らなかった）。
+   * 待つ間に打った文字が消えていたため（「中見出し」を押してすぐ打つと、見出しの文字が入らなかった）。
    * near：足した位置の目印（入力欄を、紙面に出るまで仮にその近くに置く）。開けないとき・スマホは、組み直してから開く
    */
   private reopenAfterRender(id: string, caret: number, near: InsertNear | null = null): void {
@@ -2998,25 +3000,25 @@ export class ReportEditor {
   // ---- 段落に打った見出し（「Ⅲ．まとめ」のように、手順書の番号の形で打った段落を、見出しにする。形を見分けるのは model/headingText.ts） ----
 
   /**
-   * 段落 id に打った1行 line が、見出しにする形か（見出しにするなら、大見出しか小見出しかと、番号を除いた名前）。
+   * 段落 id に打った1行 line が、見出しにする形か（見出しにするなら、大見出しか中見出しかと、番号を除いた名前）。
    * 本文の段落だけ（抄録・図表のタイトル・表のセル・表紙・見出しはしない）。図表の参照（「（図1）」）のある行はしない。
    * 見出しにしたのを「戻す」で戻した段落は、同じ文のままなら、もうしない
    */
   private headingOf(id: string, line: string, report: Report = this.report): HeadingText | null {
     const heading = typedHeading(line)
-    // 戻した文に書き足しただけ（戻した文で始まる）なら、やはり見出しにしない（書き足して閉じると、また小見出しになっていた：学生の試し 5回目 2026-10-30）
+    // 戻した文に書き足しただけ（戻した文で始まる）なら、やはり見出しにしない（書き足して閉じると、また中見出しになっていた：学生の試し 5回目 2026-10-30）
     const declined = this.declined.get(id)
     if (!heading || (declined !== undefined && line.trim().startsWith(declined))) return null
     if (ops.findEditable(report, id)?.kind !== 'paragraph' || ops.refRanges(line, ops.numbering(report)).length > 0) return null
-    // 本文をはさまずに箇条書きの形の行が続いた（すぐ前が、打って小見出しにした「1．ミシン」か、段落の「1．ミシン」）：見出しにしない
+    // 本文をはさまずに箇条書きの形の行が続いた（すぐ前が、打って中見出しにした「1．ミシン」か、段落の「1．ミシン」）：見出しにしない
     if (this.listContinues(id, line, report)) return null
     return heading
   }
 
-  /** 打って小見出しにした、箇条書きの形の行（小見出しの ID → 打った文）。すぐ後ろに同じ形の行が続いたら、段落に戻す */
+  /** 打って中見出しにした、箇条書きの形の行（中見出しの ID → 打った文）。すぐ後ろに同じ形の行が続いたら、段落に戻す */
   private listHeadings = new Map<string, string>()
 
-  /** line（id の段落）が箇条書きの形で、すぐ前のブロックも箇条書きの形の行（打って小見出しにしたもの・段落）か */
+  /** line（id の段落）が箇条書きの形で、すぐ前のブロックも箇条書きの形の行（打って中見出しにしたもの・段落）か */
   private listContinues(id: string, line: string, report: Report): boolean {
     if (!listItemLine(line)) return false
     const prev = ops.blockBefore(report, id)
@@ -3025,7 +3027,7 @@ export class ReportEditor {
   }
 
   /**
-   * id の段落に箇条書きの形の行を打ったとき、すぐ前が打って小見出しにした箇条書きの形の行なら、その小見出しを段落に戻す（箇条書きとみなす）。
+   * id の段落に箇条書きの形の行を打ったとき、すぐ前が打って中見出しにした箇条書きの形の行なら、その中見出しを段落に戻す（箇条書きとみなす）。
    * 戻したら、戻した原稿（戻さなければ null）
    */
   private revertListHeading(report: Report, id: string, line: string): Report | null {
@@ -3116,7 +3118,7 @@ export class ReportEditor {
     let report = plain
     const headingIds = new Map<string, string>()
     const declined: [string, string][] = []
-    // 番号の行（「1.⇥ミシン」「①シーチング」）が続いて並ぶ所は、箇条書きなので見出しにしない（打ったときと同じ。前は全部が小見出しになった：学生の試し 5回目 2026-10-30）
+    // 番号の行（「1.⇥ミシン」「①シーチング」）が続いて並ぶ所は、箇条書きなので見出しにしない（打ったときと同じ。前は全部が中見出しになった：学生の試し 5回目 2026-10-30）
     const listish = ids.map((id) => {
       const line = texts.get(id)
       return line?.kind === 'paragraph' && listishLine(line.text)
@@ -3151,7 +3153,7 @@ export class ReportEditor {
     }
   }
 
-  /** 「＋ 文章の続きを書く」：図・表・見出し（objectId は図・表・小見出しの ID か、大見出しの章の ID）のすぐ後ろに新しい段落を作り、書き始める */
+  /** 「＋ 文章の続きを書く」：図・表・見出し（objectId は図・表・中見出しの ID か、大見出しの章の ID）のすぐ後ろに新しい段落を作り、書き始める */
   continueAfter(objectId: string): void {
     if (this.settlingRemoval || !ops.paragraphBelow(this.report, objectId)) return
     this.marker.hidden = true
@@ -3185,7 +3187,7 @@ export class ReportEditor {
 
   /**
    * 「＋ 文章の続きを書く」を出す図・表・見出し（なければ null）。
-   * 見出し（大見出し・小見出し）は、章のいちばん最後にあるときだけ（見出しの下の空いた所を押して書くと、見出しの続きになっていたため）
+   * 見出し（大見出し・中見出し）は、章のいちばん最後にあるときだけ（見出しの下の空いた所を押して書くと、見出しの続きになっていたため）
    */
   private continueTarget(): ContinueTarget | null {
     // 削除・組み直しの途中、ページを送っている途中、段落などを書いている途中は出さない（書いて行が増えると、図・表が動くため）
@@ -3341,7 +3343,7 @@ export class ReportEditor {
     const point = keyHit === undefined ? this.renderer.pageView.offsetFromPoint(x, y) : null
     let hit = keyHit !== undefined ? keyHit : clickedBlock ? { blockId: clickedBlock, offset: point?.blockId === clickedBlock ? point.offset : 0 } : point
     // 押した点が、見出し・図表のタイトルの行より下（その下の空いた所）なら、その欄は開かない。
-    // 近い文字が見出しになり、足したばかりの小見出しの下を押して書くと、見出しの続きになっていた（「素材の選定使う布」）。続きは「＋ 文章の続きを書く」から
+    // 近い文字が見出しになり、足したばかりの中見出しの下を押して書くと、見出しの続きになっていた（「素材の選定使う布」）。続きは「＋ 文章の続きを書く」から
     if (hit && !clickedBlock && keyHit === undefined && this.belowLine(hit.blockId, y)) hit = null
     if (hit?.blockId === FIELD_IDS.course || target.closest(`[data-block-id="${FIELD_IDS.course}"]`)) {
       this.callbacks.onCourseClick((target.closest('[data-block-id]') ?? target).getBoundingClientRect())
@@ -3692,12 +3694,12 @@ export class ReportEditor {
     this.afterChange({ render: 'now', save: true })
   }
 
-  /** 左の道具の並びが変わる操作（削除・小見出しにする）をした時刻（toolsJustChanged） */
+  /** 左の道具の並びが変わる操作（削除・中見出しにする）をした時刻（toolsJustChanged） */
   private toolsChangedAt = 0
 
   /**
-   * 左の道具の並びが変わる操作（段落・図・表の「削除」、「小見出しにする」）をしたすぐあと（ダブルクリックの間）。左の道具の「元に戻す」は、このときは戻さない
-   * （ダブルクリックの2回目が、並び直った道具の「元に戻す」に当たり、消えてすぐ戻っていた：学生の試し 3回目 2026-10-29。表・小見出しにする：4回目 2026-10-30）
+   * 左の道具の並びが変わる操作（段落・図・表の「削除」、「中見出しにする」）をしたすぐあと（ダブルクリックの間）。左の道具の「元に戻す」は、このときは戻さない
+   * （ダブルクリックの2回目が、並び直った道具の「元に戻す」に当たり、消えてすぐ戻っていた：学生の試し 3回目 2026-10-29。表・中見出しにする：4回目 2026-10-30）
    */
   get toolsJustChanged(): boolean {
     return performance.now() - this.toolsChangedAt < DOUBLE_PRESS_MS
@@ -4184,7 +4186,7 @@ export class ReportEditor {
    * - 本文を書いているときは、書いているブロックの後ろ（Enter で分けたばかりで、まだ紙面に出ていない段落も）
    * - 書いていなければ、最後に触ったブロックが見えているページにある（足したばかりで、まだ紙面に出ていないときも）ならその後ろ
    * - どちらでもなければ、見えているページの最後の後ろ
-   * 前は、紙面に出ているかで決めていたため、分けたばかりの段落を書いてすぐ「小見出し」を押すと、その段落の前に入っていた
+   * 前は、紙面に出ているかで決めていたため、分けたばかりの段落を書いてすぐ「中見出し」を押すと、その段落の前に入っていた
    */
   private insertionAnchor(): string | null {
     const view = this.renderer.pageView
@@ -4197,7 +4199,7 @@ export class ReportEditor {
         if (blocks[blocks.findIndex((b) => b.id === editing) + 1]?.id === pb.pb) return pb.pb
       }
       // 図・表のタイトル・見出しの Enter で作った、まだ何も書いていない段落：確定すると消えるので、その前（図・表・見出し）の後ろに足す
-      // （図のタイトルで Enter → すぐ「小見出し」で、見出しが本文のいちばん後ろに入っていた：学生の試し 7回目 2026-10-30）
+      // （図のタイトルで Enter → すぐ「中見出し」で、見出しが本文のいちばん後ろに入っていた：学生の試し 7回目 2026-10-30）
       if (this.captionParagraph?.id === editing && !this.overlay.text.trim()) {
         const blocks = this.report.body.flatMap((c) => c.blocks)
         return blocks[blocks.findIndex((b) => b.id === editing) - 1]?.id ?? editing
@@ -4242,8 +4244,8 @@ export class ReportEditor {
     this.marker.hidden = true
     this.commitForChange()
     this.pushHistory(this.report)
-    // 何も書いていない段落で小見出しを押したときは、その段落を小見出しに置き換える（同じ位置。空の段落を残さない）。
-    // ひな形の説明（薄字）だけの段落も置き換える（説明は消える）。前は残して後ろに足していたが、薄字が小見出しの上に残り、
+    // 何も書いていない段落で中見出しを押したときは、その段落を中見出しに置き換える（同じ位置。空の段落を残さない）。
+    // ひな形の説明（薄字）だけの段落も置き換える（説明は消える）。前は残して後ろに足していたが、薄字が中見出しの上に残り、
     // 「このままでいいの？」と迷った（学生の試し 2026-10-31。依頼者の選択）
     const replace = block.type === 'subheading' && !!after && ops.paragraphEmpty(this.report, after)
     this.report = replace && after ? ops.replaceBlock(this.report, after, block) : ops.insertAfter(this.report, after, block)
@@ -4310,7 +4312,7 @@ export class ReportEditor {
     const ci = id && (kind === 'subheading' || kind === 'chapter' || paragraphHead) ? this.report.body.findIndex((c) => c.id === id || c.blocks.some((b) => b.id === id)) : -1
     if (ci < 0) return { after: this.insertionAnchor(), before: null }
     const chapter = this.report.body[ci]
-    // 章の見出しなら -1。段落の頭で、すぐ上が小見出しなら、その小見出し
+    // 章の見出しなら -1。段落の頭で、すぐ上が中見出しなら、その中見出し
     let at = chapter.id === id ? -1 : chapter.blocks.findIndex((b) => b.id === id)
     if (at > 0 && chapter.blocks[at].type === 'paragraph' && chapter.blocks[at - 1].type === 'subheading') at -= 1
     if (at > 0) return { after: chapter.blocks[at - 1].id, before: chapter.blocks[at].id }
@@ -4421,7 +4423,7 @@ export class ReportEditor {
   }
 
   /**
-   * 足す道具（小見出し・大見出し）をすばやく2回押した：2回目は足さない（ダブルクリックで、空の見出し・章が2つできていた：学生の試し 3回目 2026-10-29）。
+   * 足す道具（中見出し・大見出し）をすばやく2回押した：2回目は足さない（ダブルクリックで、空の見出し・章が2つできていた：学生の試し 3回目 2026-10-29）。
    * 1回目で足した見出しをまだ書き始めていないときだけ（ほかの所へ移って、すぐ押した2回目は足す）
    */
   private doubleAdd(kind: 'subheading' | 'chapter', id: string): boolean {
@@ -4434,10 +4436,11 @@ export class ReportEditor {
   }
   private lastAdd: { kind: 'subheading' | 'chapter'; at: number; id: string } | null = null
 
-  addSubheading(): void {
+  /** 中見出し（ⅰ．）を足す。level 3 は小見出し（（1）。見出しを大・中・小の3つにした：依頼者の選択 2026-11-03） */
+  addSubheading(level?: 3): void {
     const id = ops.newId('s')
     if (this.settlingRemoval || this.doubleAdd('subheading', id)) return
-    this.insertAndEdit({ type: 'subheading', id, title: '' }, id)
+    this.insertAndEdit({ type: 'subheading', id, title: '', ...(level === 3 ? { level } : {}) }, id)
   }
 
   addChapter(): void {
@@ -4448,7 +4451,7 @@ export class ReportEditor {
     this.commitForChange()
     const chapter: Chapter = { id: chapterId, title: '', blocks: [{ type: 'paragraph', id: ops.newId('p'), content: [{ type: 'text', text: '' }] }] }
     this.pushHistory(this.report)
-    // Enter で作った、何も書いていない段落（説明もない）で押したときは、その段落を消してから章を作る（小見出しと同じく、空の段落を残さない。
+    // Enter で作った、何も書いていない段落（説明もない）で押したときは、その段落を消してから章を作る（中見出しと同じく、空の段落を残さない。
     // 前の章の最後に残り、「空の段落がある」と出ていた：2026-10-31。依頼者の選択）。章の中の段落がそれだけのときは残す
     const owner = after ? this.report.body.find((c) => c.blocks.some((b) => b.id === after)) : undefined
     if (after && owner && owner.blocks.length > 1 && ops.isBlankParagraph(this.report, after)) {
@@ -4653,7 +4656,7 @@ export class ReportEditor {
   }
 
   /**
-   * 選んでいる図（のまとまり）を、その小見出しのまとまりのいちばん下へ（'sectionEnd'）・最初に参照している段落のすぐ下へ（'paragraph'）動かす
+   * 選んでいる図（のまとまり）を、その中見出しのまとまりのいちばん下へ（'sectionEnd'）・最初に参照している段落のすぐ下へ（'paragraph'）動かす
    * （依頼者の選択 2026-10-22 案A）。1つ上へ（'up'）・1つ下へ（'down'。2026-10-23）も。元に戻す1回で戻る。動かした先のページを見せ、図は選んだまま
    */
   /** つかんで運んだ図を、置いた所へ動かす（figureDrag.ts）。図を選び、図が出たページを見せて、少しの間光らせる */
@@ -4756,13 +4759,13 @@ export class ReportEditor {
     }
   }
 
-  /** 段落・小見出し・大見出し（章ごと）を削除する。削除したばかりで、まだ組み直していなければ何もしない（removed） */
+  /** 段落・中見出し・大見出し（章ごと）を削除する。削除したばかりで、まだ組み直していなければ何もしない（removed） */
   removeBlock(id: string): void {
     const editable = ops.findEditable(this.report, id)
     if (!editable || this.removed.size > 0) return
     this.hideStyle.textContent = ''
     this.currentId = null
-    const what = editable.kind === 'chapter' ? '大見出し（章）' : editable.kind === 'subheading' ? '小見出し' : '段落'
+    const what = editable.kind === 'chapter' ? '大見出し（章）' : editable.kind === 'subheading' ? ops.subheadingName(this.report, editable.id) : '段落'
     this.removeNow((r) => (editable.kind === 'chapter' ? ops.removeChapter(r, id) : ops.removeBlock(r, id)), what)
   }
 

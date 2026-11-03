@@ -10,11 +10,13 @@ import type { BasicInfo, Chapter } from '../model/types'
 export interface WordFiles {
   body: File
   cover?: File
+  /** 目次（03_目次.docx）：目次にだけ書いた見出しも本文に入れる（依頼者 2026-11-03 の会議のあと。wordToc.ts） */
+  toc?: File
 }
 
 /** 本文の組み立て（写す前の確認の窓に出す一覧の1行） */
 export interface OutlineItem {
-  level: 1 | 2
+  level: 1 | 2 | 3
   /** 番号（Ⅰ．ⅰ．）を除いた見出し */
   title: string
   paragraphs: number
@@ -31,6 +33,8 @@ export interface OutlineItem {
   keptFromTool?: boolean
   /** 読み取れなかった所がある（確認の窓で、その行に印を付ける） */
   problem?: boolean
+  /** Word の目次にだけ書いてあった見出し（本文に入れる。wordToc.ts） */
+  fromToc?: boolean
 }
 
 /** 図（確認の窓に、小さな画像とタイトルを出す） */

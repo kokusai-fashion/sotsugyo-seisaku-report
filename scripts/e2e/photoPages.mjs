@@ -271,7 +271,7 @@ const savedPdf = async (name) => {
   return { pages: (text.match(/\/Type\s*\/Page[^s]/g) ?? []).length, head: text.slice(0, 5) }
 }
 
-// 見本の本文は6ページ（入りきらない図を、次の小見出しを越えて送らなくなり、1ページ増えた：依頼者の選択 2026-10-26）
+// 見本の本文は6ページ（入りきらない図を、次の中見出しを越えて送らなくなり、1ページ増えた：依頼者の選択 2026-10-26）
 /** スマホ（390×844）：下の道具の並べ方（4つ）の横に「ページを足す」「ページを消す」。ページ送りは「作品写真 2 11 / 11」 */
 export async function photoPagesPhone(browser, check) {
   const { context, page, ready } = await openSample(browser, { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true })

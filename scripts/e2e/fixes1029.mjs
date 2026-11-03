@@ -1,7 +1,7 @@
 // 学生の試し 1回目（2026-10-29。パソコン・スマホ・Word・うっかりの4人。poc-output/firsttime/r1029/）の、見た目を変えない直し。
 // これだけを流すときは node scripts/e2e/run.mjs fixes1029
 // - 素材表を入れて、選ばれたタイトルのまま Enter：タイトルは消えず、1つ目のマスへ
-// - 空にした小見出しを Backspace で消すと、上の図のタイトルではなく、その前の段落へ移る
+// - 空にした中見出しを Backspace で消すと、上の図のタイトルではなく、その前の段落へ移る
 // - 「改ページ」をダブルクリックしても、改ページは1つ（白紙のページを作らない）
 // - 見出しを書いているとき・見出しのすぐ下の段落の頭で改ページ：見出しの前に入る。大見出し（章の頭）には入れない
 // - Ctrl+Enter のあとも書き続ける（段落の終わりなら、改ページの後ろの新しい段落で）
@@ -99,7 +99,7 @@ await withEdge(async (browser) => {
     await wait(600)
     await ready()
 
-    // 空にした小見出し（すぐ上が図2）を Backspace で消す
+    // 空にした中見出し（すぐ上が図2）を Backspace で消す
     const f2 = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'r2').figures[0].caption)
     await editAt(page, ready, 's3', 0)
     await page.keyboard.down('Control')
@@ -110,7 +110,7 @@ await withEdge(async (browser) => {
     await page.keyboard.press('Backspace')
     await wait(900)
     const back = { ...(await snap(page)), sub: await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).some((b) => b.id === 's3')), caption: await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 'r2').figures[0].caption) }
-    check('空にした小見出しを Backspace で消すと、すぐ上の図のタイトルではなく、その前の段落へ移る（図のタイトルはそのまま）', !back.sub && back.editingId === 'p4b' && back.caption === f2, JSON.stringify(back))
+    check('空にした中見出しを Backspace で消すと、すぐ上の図のタイトルではなく、その前の段落へ移る（図のタイトルはそのまま）', !back.sub && back.editingId === 'p4b' && back.caption === f2, JSON.stringify(back))
     await page.keyboard.press('Escape')
     await wait(400)
     await page.evaluate(() => window.__editor.undo())
@@ -150,7 +150,7 @@ await withEdge(async (browser) => {
     await wait(600)
     await ready()
     check(
-      '小見出しを書いているとき・小見出しのすぐ下の段落の頭で改ページ：小見出しの前に入る（Ctrl+Enter のあとも同じ小見出しを書き続ける）',
+      '中見出しを書いているとき・中見出しのすぐ下の段落の頭で改ページ：中見出しの前に入る（Ctrl+Enter のあとも同じ中見出しを書き続ける）',
       sub.blocks.includes('p2 PB s2') && sub.editingId === 's2' && underSub.includes('p2 PB s2 p3') && (await blocksOf(page)) === base,
       JSON.stringify({ sub, underSub }),
     )
@@ -405,8 +405,9 @@ await withEdge(async (browser) => {
     await tapBar('戻す')
     await tapBar('戻す')
     const undone = await textOf(page, 'p1')
-    await tapBar('やり直す')
-    await tapBar('やり直す')
+    // 書いている間の道具に「やり直す」はない（mockups/v96 案2）。書く欄の中のやり直しで、打った字に戻す
+    await page.evaluate(() => { window.__editor.redoTyping(); window.__editor.redoTyping() })
+    await wait(700)
     const redone = await textOf(page, 'p1')
     // 「完了」で書き終えたときも「。」
     await cdp.send('Input.insertText', { text: 'もう一文' })
@@ -415,7 +416,7 @@ await withEdge(async (browser) => {
     await wait(900)
     const done = await textOf(page, 'p1')
     check('スマホ：「完了」で書き終えたときも、段落の終わりに「。」を付ける', done.endsWith('もう一文。'), done.slice(-10))
-    check('スマホ：書いている間の「戻す」2回で書いた文が戻り、「やり直す」2回で全部もとに戻る', typed === `${original}一つ目の文を足した。二つ目の文。` && undone === original && redone === typed, JSON.stringify({ original: original.slice(-10), typed: typed.slice(-16), undone: undone.slice(-10), redone: redone.slice(-16) }))
+    check('スマホ：書いている間の「戻す」2回で書いた文が戻り、やり直し2回で全部もとに戻る', typed === `${original}一つ目の文を足した。二つ目の文。` && undone === original && redone === typed, JSON.stringify({ original: original.slice(-10), typed: typed.slice(-16), undone: undone.slice(-10), redone: redone.slice(-16) }))
     await context.close()
   }
 })

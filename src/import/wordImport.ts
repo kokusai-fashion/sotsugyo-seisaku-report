@@ -1,15 +1,16 @@
 import { courseIdInText, findCourse, type YearConfig } from '../config'
-import { newId, normalizeParagraph, numbering, setCourse, textToContent, type Numbering } from '../editor/reportOps'
-import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
+import { chapterNotStarted, newId, normalizeParagraph, numbering, setCourse, textToContent, type Numbering } from '../editor/reportOps'
+import { chapterLabel, minorHeadingLabel, subheadingLabel } from '../layout/bodyHtml'
 import { tidyName } from '../model/personName'
 import type { StoredImage } from '../model/storage'
 import { abstractEmpty, abstractHint, bodyFromTemplate, courseTemplate, emptyParagraph } from '../model/template'
-import { headingFromText, type HeadingText } from '../model/headingText'
+import { headingFromText, minorFromText } from '../model/headingText'
 import type { BodyBlock, Chapter, ParagraphBlock, Report, TableBlock, TableRow } from '../model/types'
 import type { FigurePreview, ImportProblem, OutlineItem, TablePreview, WordFiles, WordImportResult } from './types'
 import { attr, documentContext, is, readDocument, type ImageRef, type TextBox, type WordBlock, type WordTable } from './wordDocument'
 import { browserReadable, imageFingerprint, imageInfo, KIND_NAMES, prepareImage, TEMPLATE_IMAGE_FINGERPRINTS } from './wordImages'
 import { openWordFile, WordImportError, type WordPackage } from './wordPackage'
+import { mergeTocHeadings, outlineWithToc, stripTocLeader, tocOutline } from './wordToc'
 
 export { WordImportError } from './wordPackage'
 
@@ -52,7 +53,7 @@ const coreText = (text: string) => text.replace(REF_RE, '').replace(PLACEHOLDER_
 const TEMPLATE_PHRASES = new Set(['筆者が担当したのは、', '表1に使用した素材をまとめる。'].map(coreText))
 
 /**
- * 学科の Word のひな形（04_本文.docx・03_目次.docx）にもとからある見出し。これだけの章・小見出しは、書いたことにしない。
+ * 学科の Word のひな形（04_本文.docx・03_目次.docx）にもとからある見出し。これだけの章・中見出しは、書いたことにしない。
  * コースのひな形（管理ページで決める）がないコースや、ひな形の見出しの名前が Word と違うコースでも、同じに見分けるため、
  * コースのひな形の見出しとは別に持つ
  */
@@ -205,7 +206,8 @@ type Event =
   /** 「参考文献」の行（写さない）と、その下の行（写さない） */
   | { k: 'refs' }
   | { k: 'refsLine' }
-  | { k: 'sub'; title: string }
+  /** minor：小見出し（（1）） */
+  | { k: 'sub'; title: string; minor?: boolean }
   | { k: 'para'; text: string; headingLike: boolean }
   /** 仮の文字だけで、写さない行 */
   | { k: 'skip' }
@@ -219,7 +221,7 @@ type Event =
   /** Word の改ページ（依頼者の選択 2026-10-23 案1：Word の改ページを引き継ぐ。大見出しの前・章のはじめ・最後のものは入れない） */
   | { k: 'pageBreak' }
   /** 目次の行（写さない：isTocLine） */
-  | { k: 'toc' }
+  | { k: 'toc'; text?: string }
 
 /** セルの文字：行ごとに前後の空白を除き、空の行を除く */
 function cellText(text: string): string {
@@ -291,21 +293,27 @@ function joinLines(lines: string[]): string[] {
   return paragraphs
 }
 
-/** コースのひな形の、大見出し・小見出しの名前（比べる形） */
+/**
+ * コースのひな形の、大見出し・中見出し・小見出しの名前（比べる形）。
+ * tocMinors：目次のファイル（03_目次.docx）の小見出し（「（1）素材」の形の行）の名前。本文で同じ形の行を小見出しにする
+ */
 interface KnownHeadings {
   chapters: Set<string>
   subheadings: Set<string>
+  minors: Set<string>
+  tocMinors: Set<string>
 }
 
 /**
  * 番号が「Ⅰ．」の形でない（「1．企画・立案」「第1章 企画・立案」）か、番号のない短い行でも、
- * 名前がコースのひな形の大見出し・小見出しと同じなら、その見出しとみなす
+ * 名前がコースのひな形の大見出し・中見出しと同じなら、その見出しとみなす
  */
-function knownHeading(line: string, known: KnownHeadings): HeadingText | null {
+function knownHeading(line: string, known: KnownHeadings): { level: 1 | 2 | 3; title: string } | null {
   const title = stripHeadingNumber(line)
   const key = comparable(title)
   if (!key) return null
   if (known.chapters.has(key)) return { level: 1, title }
+  if (known.minors.has(key)) return { level: 3, title }
   if (known.subheadings.has(key)) return { level: 2, title }
   return null
 }
@@ -318,7 +326,7 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
   /** タイトルがまだない表（すぐ後ろにタイトルがあれば、それにする） */
   let awaiting: DraftTable | null = null
   /**
-   * まだ入れていない改ページ。次に写す文・表・小見出しの前に入れる（図の段落の改ページは、そのあとのタイトルの枠も図にまとめてから入れる）。
+   * まだ入れていない改ページ。次に写す文・表・中見出しの前に入れる（図の段落の改ページは、そのあとのタイトルの枠も図にまとめてから入れる）。
    * 大見出しの前なら入れない（ツールでは、大見出しはいつも新しいページから始まる）。最後まで残ったものも入れない
    */
   let pendingBreak = false
@@ -363,6 +371,8 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
 
   /** 目次の中（目次の題・ページ番号のある目次の行のあと） */
   let inToc = false
+  /** 目次の小見出しの名前（目次のファイルのものと、本文のファイルの目次の行のもの） */
+  const tocMinors = new Set(known.tocMinors)
   /** 参考文献の中（「参考文献」の行のあと。次の大見出しまで） */
   let inRefs = false
   for (const [at, block] of blocks.entries()) {
@@ -391,12 +401,14 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
     }
 
     const p = block
-    // 目次の行は写さない（目次は、ツールが見出しから自動で作る）。学科の目次のひな形では、小見出しの行にはページ番号がないので、
+    // 目次の行は写さない（目次は、ツールが見出しから自動で作る）。学科の目次のひな形では、中見出しの行にはページ番号がないので、
     // 目次の題・ページ番号のある行のあとの、見出しの形の行と空の行も、目次の行とみなす（文・図・表・改ページで目次は終わり）
     if (!p.images.length && !p.boxes.length) {
       const text = p.text.trim()
-      if (isTocLine(p.text) || (inToc && (!text || (!!headingFromText(text) && text.length <= 40)))) {
-        if (text) events.push({ k: 'toc' })
+      if (isTocLine(p.text) || (inToc && (!text || ((!!headingFromText(text) || !!minorFromText(text)) && text.length <= 40)))) {
+        if (text) events.push({ k: 'toc', text })
+        const minor = minorFromText(stripTocLeader(text))
+        if (minor) tocMinors.add(comparable(minor))
         inToc = p.pageBreak !== 'after'
         continue
       }
@@ -406,9 +418,12 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
     const line = p.text.replace(/[\n\t]/g, '').trim()
     const short = line.length <= 40 && !/[。！？]$/.test(line)
     const headingText = headingFromText(p.text) ?? (short && !p.headingLevel ? knownHeading(line, known) : null)
-    const level = headingText?.level ?? p.headingLevel ?? (p.romanLevel && short ? p.romanLevel : null)
+    // 「（1）素材」の形の行は、目次にも同じ小見出しがあるときだけ、小見出しにする（箇条書きの印にも使うので。Word の段落番号の「(1)」も見る）
+    const minorTitle = short ? minorFromText(p.listPrefix + line) : null
+    const tocMinor = minorTitle !== null && tocMinors.has(comparable(minorTitle))
+    const level = headingText?.level ?? p.headingLevel ?? (p.romanLevel && short ? p.romanLevel : null) ?? (tocMinor ? 3 : null)
     // 参考文献：「参考文献」の行（見出しでも）から、次の大見出しまでは写さない（ツールでは「参考文献」の道具で入れる。依頼者の選択 2026-10-27）
-    const title = level && line ? (headingText?.title ?? stripHeadingNumber(p.text)) : ''
+    const title = level && line ? (headingText?.title ?? (tocMinor && minorTitle !== null && !p.headingLevel ? minorTitle : stripHeadingNumber(p.text))) : ''
     if (isReferencesTitle(level ? title : line)) {
       closeGroup()
       inRefs = true
@@ -426,7 +441,7 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
       awaiting = null
       if (level === 1) pendingBreak = false
       else flushBreak()
-      events.push(level === 1 ? { k: 'chapter', title, at } : { k: 'sub', title })
+      events.push(level === 1 ? { k: 'chapter', title, at } : { k: 'sub', title, ...(level === 3 ? { minor: true } : {}) })
       addFigures(p.images, p.boxes)
       if (p.notes) events.push({ k: 'notes', count: p.notes })
       if (p.pageBreak === 'after') pendingBreak = true
@@ -468,7 +483,7 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
   return events
 }
 
-// ---- 2回目：章・小見出しごとに分け、図の画像とタイトルを組にする ----
+// ---- 2回目：章・中見出しごとに分け、図の画像とタイトルを組にする ----
 
 interface DraftFigure {
   image: ImageRef | null
@@ -480,8 +495,10 @@ interface DraftFigure {
 type DraftBlock = { t: 'para'; text: string; headingLike: boolean } | { t: 'figs'; figures: DraftFigure[] } | { t: 'table'; table: DraftTable } | { t: 'break' }
 
 interface Section {
-  /** 小見出し（章の最初の、小見出しより前の部分は null） */
+  /** 中見出し（章の最初の、中見出しより前の部分は null） */
   sub: string | null
+  /** sub が小見出し（（1）） */
+  minor?: boolean
   blocks: DraftBlock[]
   skipped: number
   boxTexts: string[]
@@ -555,7 +572,7 @@ function buildChapters(events: Event[]): DraftChapter[] {
         break
       case 'sub':
         current()
-        chapters[chapters.length - 1].sections.push(newSection(ev.title))
+        chapters[chapters.length - 1].sections.push(ev.minor ? { ...newSection(ev.title), minor: true } : newSection(ev.title))
         break
       case 'para':
         current().blocks.push({ t: 'para', text: ev.text, headingLike: ev.headingLike })
@@ -573,7 +590,7 @@ function buildChapters(events: Event[]): DraftChapter[] {
       case 'table': {
         // タイトルのない表：同じ見出しの中で、前に表の見つからなかったタイトルがあれば、その表のタイトルにする（タイトルと表の間に
         // 段落があった。前は「表が見つかりませんでした」と出たのに、表はタイトルなしで写っていた：学生の試し 2026-10-29）
-        // 同じ見出しになければ、同じ章の前の見出しの中も探す（タイトルの下に学生が小見出しを足し、その下に表があった：学生の試し 3回目 2026-10-29）
+        // 同じ見出しになければ、同じ章の前の見出しの中も探す（タイトルの下に学生が中見出しを足し、その下に表があった：学生の試し 3回目 2026-10-29）
         current()
         const sections = chapters[chapters.length - 1].sections
         const holder = [...sections].reverse().find((x) => x.lostTableCaptions.length > 0)
@@ -626,7 +643,7 @@ export function rowsOf<F extends { line?: number | null; image: unknown }>(figur
 }
 
 /**
- * 図の画像とタイトルを組にする。まず図のまとまりの中で組にし、組にならなかったタイトルは、同じ小見出しの中の
+ * 図の画像とタイトルを組にする。まず図のまとまりの中で組にし、組にならなかったタイトルは、同じ中見出しの中の
  * タイトルのない図のうち、番号の合う（前の図の番号の次になる）ものに付ける（浮かせた画像とタイトルの枠が、別の段落に付いていることがあるため）。
  * それでも残ったタイトルは、画像のない図（枠だけ）にする
  */
@@ -988,16 +1005,24 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
   const problems: ImportProblem[] = []
   const bodyPkg = await openWordFile(files.body, '本文')
   const coverPkg = files.cover ? await openWordFile(files.cover, '表紙') : null
+  const tocPkg = files.toc ? await openWordFile(files.toc, '目次') : null
 
   // コースのひな形（まだ書いていない章を続けるのと、見出しの名前を比べるのに使う）
   const template = bodyFromTemplate(courseTemplate(config, courseId))
-  // ひな形の仮の名前（「〇〇〇〇」の小見出しなど）は、見出しの名前として使わない（Word の「〇〇〇〇」だけの行を、見出しと取り違えないように）
+  // ひな形の仮の名前（「〇〇〇〇」の中見出しなど）は、見出しの名前として使わない（Word の「〇〇〇〇」だけの行を、見出しと取り違えないように）
   const named = (titles: string[]) => titles.filter((t) => !isPlaceholderOnly(t)).map(comparable)
   const templateChapters = new Set(named([...WORD_TEMPLATE_CHAPTERS, ...template.map((c) => c.title)]))
   const templateSubheadings = new Set(named([...WORD_TEMPLATE_SUBHEADINGS, ...template.flatMap((c) => c.blocks.flatMap((b) => (b.type === 'subheading' ? [b.title] : [])))]))
+  const templateMinors = new Set(named(template.flatMap((c) => c.blocks.flatMap((b) => (b.type === 'subheading' && b.level === 3 ? [b.title] : [])))))
+  // 目次のファイル（03_目次.docx）の行。小見出し（「（1）素材」の形）の名前は、本文の見分けにも使う
+  const tocFileText = tocPkg ? readDocument(tocPkg.document, documentContext(tocPkg.styles, tocPkg.numbering)).flatMap((b) => (b.type === 'paragraph' ? [b.text] : [])) : null
+  const tocFileMinors = new Set((tocFileText ?? []).flatMap((t) => {
+    const minor = minorFromText(stripTocLeader(t))
+    return minor ? [comparable(minor)] : []
+  }))
 
   const blocks = readDocument(bodyPkg.document, documentContext(bodyPkg.styles, bodyPkg.numbering))
-  const allEvents = classify(blocks, { chapters: templateChapters, subheadings: templateSubheadings })
+  const allEvents = classify(blocks, { chapters: templateChapters, subheadings: templateSubheadings, minors: templateMinors, tocMinors: tocFileMinors })
   checkBodyFile(blocks, allEvents, bodyPkg.fileName)
   // 表紙・抄録（・目次）から本文まで、1つのファイルに書いた：最初の大見出しより前の表紙・抄録は写さない。
   // 表紙のファイルを選んでいなければ、表紙の学籍番号・氏名・サブタイトルは、ここから読む（依頼者の選択 2026-10-27。
@@ -1040,7 +1065,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       skip(chapter, placeholderLines)
       continue
     }
-    // 書いた章の中でも、仮の小見出し（「ⅱ．〇〇〇〇」）の下に何も書いていなければ、その小見出しごと写さない
+    // 書いた章の中でも、仮の中見出し（「ⅱ．〇〇〇〇」）の下に何も書いていなければ、その中見出しごと写さない
     const sections = chapter.sections.filter((s, i) => !(isPlaceholderTitle(s.sub) && !written[i]))
     // 写す見出し（仮の名前のままでも、下に書いたものがある見出し）は、写さなかった行に数えない
     skip(chapter, placeholderLines - (isPlaceholderTitle(chapter.title) ? 1 : 0) - sections.filter((s) => isPlaceholderTitle(s.sub)).length)
@@ -1128,7 +1153,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       const stats = { paragraphs: 0 }
       sectionStats[ci].push(stats)
       const subheadingAt = blocks.length
-      if (section.sub !== null) blocks.push({ type: 'subheading', id: newId('s'), title: section.sub })
+      if (section.sub !== null) blocks.push({ type: 'subheading', id: newId('s'), title: section.sub, ...(section.minor ? { level: 3 as const } : {}) })
       for (const b of section.blocks) {
         if (b.t === 'para') {
           const id = newId('p')
@@ -1182,7 +1207,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
           blocks.push(table)
         }
       }
-      // 小見出しの下に段落がなければ、書くための空の段落を入れる（ひな形の説明があれば薄く出す）
+      // 中見出しの下に段落がなければ、書くための空の段落を入れる（ひな形の説明があれば薄く出す）
       if (section.sub !== null && !section.blocks.some((b) => b.t === 'para')) blocks.splice(subheadingAt + 1, 0, emptyParagraph(hintFor(section.sub)))
     })
     if (blocks.length === 0) blocks.push(emptyParagraph())
@@ -1203,8 +1228,13 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
     chapter.title = template[r.template].title
   }
   body.splice(0, body.length, ...slots.map((s) => ('word' in s ? wordChapters[s.word] : template[s.template])))
+  // 目次にだけ書いた見出しも入れる（依頼者 2026-11-03 の会議のあと。wordToc.ts）。目次のファイル（03_目次.docx）を選んだときはそこから、
+  // 選んでいなければ、本文のファイルの目次の行（表紙から本文まで1つのファイルに書いた Word）から
+  const tocText = tocFileText ?? events.flatMap((e) => (e.k === 'toc' && e.text ? [e.text] : []))
+  const fromToc = mergeTocHeadings(body, tocOutline(tocText), newId, chapterNotStarted)
+  body.splice(0, body.length, ...fromToc.body)
   /** Word で書いた章（kept の番目）が、読み込んだあとの並びの何番目か（見出しの番号 Ⅰ．Ⅱ．…を、読み込んだあとの並びで出す） */
-  const placeOf = new Map(slots.flatMap((s, k) => ('word' in s ? [[s.word, k] as const] : [])))
+  const placeOf = new Map(wordChapters.map((c, ci) => [ci, body.findIndex((b) => b.id === c.id)] as const).filter(([, k]) => k >= 0))
 
   // 本文の「（図1）」「（表1）」を、Word のタイトルの番号のとおりに、図・表へのつながりにする
   // （reportOps.setText と同じ変換。番号の合わないものは文字のまま残り、ツールのセルフチェックが知らせる）
@@ -1236,9 +1266,20 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
   const where = (ci: number, si: number): string => {
     const chapter = kept[ci]
     const head = chapterHead(ci)
-    const subs = chapter.sections.slice(0, si + 1).filter((s) => s.sub !== null)
-    const sub = chapter.sections[si].sub
-    return sub === null ? head : `${head}　${subheadingLabel(subs.length - 1)}${sub}`
+    const section = chapter.sections[si]
+    if (section.sub === null) return head
+    // 中見出し・小見出しの番号（小見出しは、中見出しごとに（1）から）
+    let sub = 0
+    let minor = 0
+    for (const s of chapter.sections.slice(0, si + 1)) {
+      if (s.sub === null) continue
+      if (s.minor) minor++
+      else {
+        sub++
+        minor = 0
+      }
+    }
+    return `${head}　${section.minor ? minorHeadingLabel(minor - 1) : subheadingLabel(sub - 1)}${section.sub}`
   }
   const sectionProblems = new Set<string>()
   /** 知らせる順（本文の中の位置の順。表紙などは後ろ） */
@@ -1283,7 +1324,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       if (lines.length > 0)
         addProblem(ci, si, {
           message: `見出しの形でない行があります：${lines.slice(0, 2).map((t) => `「${t}」`).join('')}${lines.length > 2 ? `など${lines.length}行` : ''}`,
-          detail: '「Ⅰ．」「ⅰ．」の形でないため、ふつうの段落として写します。小見出しにするときは、読み込んだあと、その行の終わりを押して Enter を押します。',
+          detail: '「Ⅰ．」「ⅰ．」の形でないため、ふつうの段落として写します。中見出しにするときは、読み込んだあと、その行の終わりを押して Enter を押します。',
         })
       if (section.lostTableCaptions.length > 0)
         addProblem(ci, si, {
@@ -1361,10 +1402,10 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       continue
     }
     const ci = slot.word
-    // 章の最初の部分（小見出しより前）は、大見出しの行に数える
+    // 章の最初の部分（中見出しより前）は、大見出しの行に数える
     kept[ci].sections.forEach((section, si) => {
       const item: OutlineItem = {
-        level: section.sub === null ? 1 : 2,
+        level: section.sub === null ? 1 : section.minor ? 3 : 2,
         title: section.sub ?? wordChapters[ci].title,
         paragraphs: sectionStats[ci][si].paragraphs,
         figures: figureMetas.filter((f) => f.chapter === ci && f.section === si).map((f) => label('図', f.id)),
@@ -1374,6 +1415,8 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
       outline.push(item)
     })
   }
+  // 目次から入れた見出しも、確認の窓の一覧に出す（「目次から入れる」）
+  if (fromToc.added.length > 0) outline.splice(0, outline.length, ...outlineWithToc(outline, body, fromToc.added))
 
   const figures: FigurePreview[] = figureMetas.map((f) => ({ label: label('図', f.id), caption: f.caption, imageId: f.imageId }))
   const tables: TablePreview[] = tableMetas.map((t) => ({ label: label('表', t.id), caption: t.caption, rows: t.rows }))

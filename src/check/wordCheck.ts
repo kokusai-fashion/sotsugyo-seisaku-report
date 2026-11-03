@@ -205,7 +205,7 @@ const PART_OF_AREA: Record<Area, PartId> = { cover: 'cover', abstract: 'abstract
 /**
  * 出さない指摘：ツールの中でしか意味がないもの。
  * abstract-not-started（抄録を書き始める前の決まり）・photos-*（ツールの作品写真のページ）・manual-ref（ツールの図表とつなげる）・
- * paragraph-empty（Word で書いていない小見出しに、読み取りが足した空の段落）
+ * paragraph-empty（Word で書いていない中見出しに、読み取りが足した空の段落）
  */
 const DROPPED = new Set(['abstract-not-started', 'photos-required', 'photos-empty-slot', 'photos-empty-page', 'manual-ref', 'paragraph-empty'])
 

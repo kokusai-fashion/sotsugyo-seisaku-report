@@ -10,7 +10,7 @@
 // - キーボードの上の道具の、薄い（押せない）「やり直す」を押しても、書き終わりにならない
 // - 表のマスで打った字を、道具の「戻す」で戻せる（前は薄いままで戻せなかった）
 // - 「行を消す」のあとも、上の行のマスを書き続け、「表の行を消しました［戻す］」が出る。「戻す」で行が戻り、書き続ける
-// - 足した空の小見出しで Backspace：小見出しを消して、前の欄の終わりへ移る
+// - 足した空の中見出しで Backspace：中見出しを消して、前の欄の終わりへ移る
 // - 表紙のサブタイトルを書く間も、後ろの「の衣装制作―」が見える（書く欄の字のすぐ後ろ）
 // - 「追加」の欄の説明は、言葉の切れ目で折り返す（「…から）。」の「ら）。」だけの行にならない）
 import { mkdirSync } from 'node:fs'
@@ -341,7 +341,7 @@ export async function trialFixesPhone(browser, check) {
     await ready()
   }
 
-  // ---- 1. 薄い「やり直す」を押しても、書き終わりにならない ----
+  // ---- 1. 薄い「戻す」を押しても（書いている間の道具に「やり直す」はない：mockups/v96 案2）、書き終わりにならない ----
   await goTo('p7')
   await tapPaper('[data-block-id="p7"]')
   // （mockups/v48 A）はじめて紙面で書くとき1回だけ「字を大きくするには／2本の指で広げます」。書いている行は、その知らせに隠れない。× で閉じる
@@ -358,10 +358,10 @@ export async function trialFixesPhone(browser, check) {
     !!tip.text && tip.text.includes('2本の指で広げます') && tip.below && tipClosed.gone && tipClosed.editing === 'p7',
     JSON.stringify({ tip, tipClosed }),
   )
-  const redoOff = await page.evaluate(() => [...document.querySelectorAll('.direct-bar .db-row button')].find((b) => b.textContent.includes('やり直す'))?.getAttribute('aria-disabled'))
-  await tapButton(page, '.direct-bar .db-row button', 'やり直す')
+  const redoOff = await page.evaluate(() => [...document.querySelectorAll('.direct-bar .db-row button')].find((b) => b.textContent.includes('戻す'))?.getAttribute('aria-disabled'))
+  await tapButton(page, '.direct-bar .db-row button', '戻す')
   const afterGrey = await snap()
-  check('スマホ：キーボードの上の道具の、薄い（押せない）「やり直す」を押しても、書き終わりにならない（紙面の拡大もそのまま）', redoOff === 'true' && afterGrey.editing === 'p7' && afterGrey.zoomed, JSON.stringify({ redoOff, afterGrey }))
+  check('スマホ：キーボードの上の道具の、薄い（押せない）「戻す」を押しても、書き終わりにならない（紙面の拡大もそのまま）', redoOff === 'true' && afterGrey.editing === 'p7' && afterGrey.zoomed, JSON.stringify({ redoOff, afterGrey }))
   await stop()
 
   // ---- 2. 表のマスで打った字を、道具の「戻す」で戻せる ----
@@ -397,13 +397,13 @@ export async function trialFixesPhone(browser, check) {
   )
   await stop()
 
-  // ---- 4. 「追加」→「小見出し」で足した空の小見出しで Backspace：消して、前の欄の終わりへ ----
+  // ---- 4. 「追加」→「中見出し」で足した空の中見出しで Backspace：消して、前の欄の終わりへ ----
   await goTo('p7')
   await tapPaper('[data-block-id="p7"]')
   await stop()
   await tapButton(page, '.p-nav button', '追加')
   const hint = await linesIn(page, '.sheet .sheet-hint')
-  await tapButton(page, '.sheet button', '小見出し')
+  await tapButton(page, '.sheet button', '中見出し')
   await ready()
   await wait(800)
   await keyboard(page, KB)
@@ -415,7 +415,7 @@ export async function trialFixesPhone(browser, check) {
   await ready()
   const removed = { subs: await subs(), ...(await snap()) }
   check(
-    'スマホ：「追加」の「小見出し」で足した空の小見出しで Backspace を押すと、小見出しを消して前の段落の終わりを書く（足してしまった見出しを消せる）',
+    'スマホ：「追加」の「中見出し」で足した空の中見出しで Backspace を押すと、中見出しを消して前の段落の終わりを書く（足してしまった見出しを消せる）',
     added.kind === 'subheading' && removed.subs === s0 - 1 && removed.editing === 'p7' && removed.zoomed,
     JSON.stringify({ added, s0, removed }),
   )

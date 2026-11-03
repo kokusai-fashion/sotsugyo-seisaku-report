@@ -9,7 +9,7 @@ const svg = (children: ReactNode) => (
 
 export const Icon = {
   paragraph: svg(<path d="M8.5 6.5H19M5 10.5h14M5 14.5h14M5 18.5h9" />),
-  // 見出しは、報告書の番号（大見出し Ⅰ．・小見出し ⅰ．）を、点も付けて大きく絵にする（紙面と同じ明朝体。依頼者の選択 2026-10-24 mockups/v54 案C・点あり。
+  // 見出しは、報告書の番号（大見出し Ⅰ．・中見出し ⅰ．）を、点も付けて大きく絵にする（紙面と同じ明朝体。依頼者の選択 2026-10-24 mockups/v54 案C・点あり。
   // 前は小さな番号と線の絵で、どちらがどちらか分かりにくかった）
   heading2: svg(
     <>
@@ -23,6 +23,12 @@ export const Icon = {
       <circle cx={17.4} cy={18.3} r={1.7} fill="currentColor" stroke="none" />
     </>,
   ),
+  // 小見出し（（1））：見出しを大・中・小の3つにした（依頼者の選択 2026-11-03）
+  heading3: svg(
+    <text x={12} y={17.6} textAnchor="middle" fontSize={13} fontWeight={700} fontFamily="'BIZ UDMincho', serif" fill="currentColor" stroke="none">(1)</text>,
+  ),
+  // スマホの書く道具の「見出し」（押すと、大見出し・中見出し・小見出しを選ぶ。mockups/v96 案2）
+  headings: svg(<path d="M5 6.5h14M5 12h10M5 17.5h6" />),
   figure: svg(
     <>
       <rect x="4" y="5" width="16" height="14" rx="2" />
@@ -73,7 +79,7 @@ export const Icon = {
       <rect x="13" y="6" width="7.5" height="11" rx="1.2" strokeDasharray="2 2" />
     </>,
   ),
-  // 図を小見出しの終わりへ（四角と下向きの矢印と線）・段落の下へ戻す（上向きの矢印）。依頼者の選択 2026-10-22 案A
+  // 図を中見出しの終わりへ（四角と下向きの矢印と線）・段落の下へ戻す（上向きの矢印）。依頼者の選択 2026-10-22 案A
   toSectionEnd: svg(<path d="M6 4.5h12v6H6zM12 13v5M9.5 15.5L12 18l2.5-2.5M5 20.5h14" />),
   // 表の画像を切り抜く（トンボ）・全体に戻す（枠）
   crop: svg(<path d="M7 3v14h14M3 7h14v14" />),

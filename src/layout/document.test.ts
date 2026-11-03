@@ -220,7 +220,7 @@ describe('目次の行の行き先（mockups/v41 案C：目次の行を押すと
   }
   const toc = buildReportParts(report, currentConfig, options).toc
 
-  it('大見出し・小見出しの行は、見出しの ID で結ぶ（同じ名前の見出しでも、別の行き先）', () => {
+  it('大見出し・中見出しの行は、見出しの ID で結ぶ（同じ名前の見出しでも、別の行き先）', () => {
     expect(toc).toContain(`<div class="toc-ch" ${TOC_TARGET_ATTR}="c1"><span>Ⅰ．制作過程</span>`)
     expect(toc).toContain(`<div class="toc-ch next" ${TOC_TARGET_ATTR}="c2"><span>Ⅱ．制作過程</span>`)
     expect(toc).toContain(`<div class="toc-sub" ${TOC_TARGET_ATTR}="s1"><span>ⅰ．仮縫い</span></div>`)

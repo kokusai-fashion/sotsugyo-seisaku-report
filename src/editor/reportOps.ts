@@ -1,4 +1,4 @@
-import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
+import { chapterLabel, headingLabels } from '../layout/bodyHtml'
 import { setCellText } from '../model/table'
 import type { BasicInfo, BodyBlock, Chapter, Figure, InlineNode, ParagraphBlock, Report, SubheadingBlock, TableBlock, FigureRowBlock } from '../model/types'
 
@@ -9,7 +9,7 @@ import type { BasicInfo, BodyBlock, Chapter, Figure, InlineNode, ParagraphBlock,
  * - 表紙の項目      basic:studentId / basic:name / basic:subtitleInput
  * - 抄録の段落      段落の ID
  * - 大見出し        章の ID
- * - 小見出し・段落  ブロックの ID
+ * - 中見出し・段落  ブロックの ID
  * - 図・表のタイトル 図の ID ／ 表の ID
  * - 素材表のセル    {行の ID}:name ／ {行の ID}:usage
  *
@@ -318,7 +318,7 @@ export function paragraphAfter(report: Report, id: string, created = newId('p'))
 
 /**
  * 「＋ 文章の続きを書く」：図・表・見出しのすぐ後ろに、空の段落を作る（mockups/v32 ① 案A）。
- * 図・表は paragraphAfter と同じ。小見出しは、そのすぐ後ろ。大見出し（章の ID）は、その章のいちばん初め。
+ * 図・表は paragraphAfter と同じ。中見出しは、そのすぐ後ろ。大見出し（章の ID）は、その章のいちばん初め。
  * どれでもなければ null
  */
 export function paragraphBelow(report: Report, id: string, created = newId('p')): { report: Report; newId: string } | null {
@@ -333,7 +333,7 @@ export function paragraphBelow(report: Report, id: string, created = newId('p'))
 }
 
 /**
- * 見出し（大見出しは章の ID、小見出しはその ID）のすぐ後ろにある、何も書いていない段落（ひな形の説明もない）の ID。なければ null。
+ * 見出し（大見出しは章の ID、中見出しはその ID）のすぐ後ろにある、何も書いていない段落（ひな形の説明もない）の ID。なければ null。
  * 見出しで Enter を押したとき、その段落があれば、新しい段落を作らずにそこへ移る（「大見出し」を足すと付いてくる空の段落を、
  * もう1つ増やして、空のまま残さないように）
  */
@@ -352,7 +352,7 @@ export function blankParagraphAfterHeading(report: Report, id: string): string |
   return null
 }
 
-/** 見出し（大見出しは章の ID、小見出しはその ID）が、その章のいちばん最後か（大見出しは、章の中に何もないとき） */
+/** 見出し（大見出しは章の ID、中見出しはその ID）が、その章のいちばん最後か（大見出しは、章の中に何もないとき） */
 export function headingEndsChapter(report: Report, id: string): boolean {
   const chapter = report.body.find((c) => c.id === id)
   if (chapter) return chapter.blocks.length === 0
@@ -419,7 +419,7 @@ export function nextParagraphId(report: Report, id: string): string | null {
  * スマホのキーボードの上の道具には「削除」がなく、足してしまった空の段落・見出しを消せなかった（はじめて使う学生の試し 2026-10-21）。
  * 消せないとき（字がある・抄録・前に移る欄がない）は null
  */
-export function removeEmptyBackward(report: Report, id: string, text: string): { report: Report; targetId: string; caret: number; what: '段落' | '小見出し' | '大見出し（章）' } | null {
+export function removeEmptyBackward(report: Report, id: string, text: string): { report: Report; targetId: string; caret: number; what: '段落' | '中見出し' | '小見出し' | '大見出し（章）' } | null {
   if (text !== '') return null
   const kind = findEditable(report, id)?.kind
   let prev = neighbor(report, id, 'prev')
@@ -431,7 +431,7 @@ export function removeEmptyBackward(report: Report, id: string, text: string): {
   const to = { targetId: prev.id, caret: prev.text.length }
   // ひな形の段落（先生の「ここに書くこと」が付いた段落）は消さない（書く前に、うっかり Backspace を押して説明ごと消さないように）
   if (kind === 'paragraph') return findParagraph(report, id)?.hint ? null : { report: removeBlock(report, id), ...to, what: '段落' }
-  if (kind === 'subheading') return { report: removeBlock(report, id), ...to, what: '小見出し' }
+  if (kind === 'subheading') return { report: removeBlock(report, id), ...to, what: subheadingName(report, id) }
   if (kind === 'chapter') {
     const num = numbering(report)
     const chapter = report.body.find((c) => c.id === id)
@@ -461,7 +461,7 @@ export function replaceWithParagraphs(report: Report, id: string, texts: string[
 
 /**
  * 本文の段落 id を、見出しにする（段落に「Ⅲ．まとめ」のように、手順書の番号の形で打った。番号は除いた名前 title だけを持つ。番号は自動で付く）。
- * - 小見出し（level 2）：その位置に入る
+ * - 中見出し（level 2）：その位置に入る
  * - 大見出し（level 1）：そこから新しい章を始める。同じ章の、その段落より後ろのブロックは、新しい章に入る（章を2つに分ける）
  * rest：見出しのすぐ後ろに続ける段落の文字（Enter で分けたとき。カーソルより後ろの文字。空でも段落を作る）。なければ段落は作らない。
  * ひな形の説明（hint）は、続ける段落に移す（見出しには残せないため。続ける段落がなければ、なくなる）。
@@ -494,8 +494,8 @@ export function paragraphToHeading(report: Report, id: string, heading: { level:
 }
 
 /**
- * 小見出しを、text の段落に戻す（打って小見出しにした「1．ミシン」のあとに、続けて「2．アイロン」と打った：箇条書きとみなす。PC の試し 2026-10-25）。
- * 小見出しでなければ同じ原稿
+ * 中見出しを、text の段落に戻す（打って中見出しにした「1．ミシン」のあとに、続けて「2．アイロン」と打った：箇条書きとみなす。PC の試し 2026-10-25）。
+ * 中見出しでなければ同じ原稿
  */
 export function subheadingToParagraph(report: Report, headingId: string, text: string): Report {
   let changed = false
@@ -517,14 +517,19 @@ export function blockBefore(report: Report, id: string): BodyBlock | undefined {
   return undefined
 }
 
-/** 見出し（大見出しは章の ID、小見出しはその ID）の、番号を付けた名前（「Ⅲ．まとめ」「ⅱ．袖の刺繍」。紙面と同じ番号）。見出しでなければ null */
+/** 見出し（大見出しは章の ID、中見出しはその ID）の、番号を付けた名前（「Ⅲ．まとめ」「ⅱ．袖の刺繍」。紙面と同じ番号）。見出しでなければ null */
+/** 中見出し・小見出しの呼び名（小見出しは level: 3） */
+export function subheadingName(report: Report, id: string): '中見出し' | '小見出し' {
+  const b = report.body.flatMap((c) => c.blocks).find((x) => x.id === id)
+  return b?.type === 'subheading' && b.level === 3 ? '小見出し' : '中見出し'
+}
+
 export function headingLabel(report: Report, id: string): string | null {
   const ci = report.body.findIndex((c) => c.id === id)
   if (ci >= 0) return chapterLabel(ci) + report.body[ci].title
   for (const c of report.body) {
-    const subs = c.blocks.filter((b): b is SubheadingBlock => b.type === 'subheading')
-    const k = subs.findIndex((b) => b.id === id)
-    if (k >= 0) return subheadingLabel(k) + subs[k].title
+    const sub = c.blocks.find((b): b is SubheadingBlock => b.type === 'subheading' && b.id === id)
+    if (sub) return (headingLabels(c.blocks).get(id) ?? '') + sub.title
   }
   return null
 }
@@ -585,7 +590,7 @@ export function paragraphEmpty(report: Report, id: string): boolean {
 
 /**
  * 何も書いていない、ひな形の説明もない段落か（Enter を押して何も書かなかったときなどにできる段落）。
- * 小見出し・図・表をそこで入れるときは、その段落と置き換える（空の段落を残さない）
+ * 中見出し・図・表をそこで入れるときは、その段落と置き換える（空の段落を残さない）
  */
 export function isBlankParagraph(report: Report, id: string): boolean {
   return paragraphEmpty(report, id) && !findParagraph(report, id)?.hint
@@ -828,9 +833,9 @@ function orderByRefs(figures: Figure[], paragraph: ParagraphBlock): Figure[] {
 }
 
 /**
- * 図のまとまり（figureId の図を含む）の、動かせる先（依頼者の選択 2026-10-22 案A：「小見出しの終わりへ」「段落の下へ戻す」）。
- * - sectionEnd：その小見出しのまとまり（大見出しのはじめの部分なら、最初の小見出しの前まで）のいちばん下。
- *   まとまりの終わりに改ページがあれば、その手前（改ページの後ろは、次の小見出しのページ）。いまそこにあれば null
+ * 図のまとまり（figureId の図を含む）の、動かせる先（依頼者の選択 2026-10-22 案A：「中見出しの終わりへ」「段落の下へ戻す」）。
+ * - sectionEnd：その中見出しのまとまり（大見出しのはじめの部分なら、最初の中見出しの前まで）のいちばん下。
+ *   まとまりの終わりに改ページがあれば、その手前（改ページの後ろは、次の中見出しのページ）。いまそこにあれば null
  * - paragraph：まとまりの図を最初に参照している段落（同じ章の中）のすぐ下。いまそこ（段落のすぐ下に続く図・表の中）にあれば null
  * 返す値は、まとまりを抜いた章の blocks に入れる位置
  */
@@ -862,7 +867,7 @@ function figureRowTargets(
   const refOf = (ids: Set<string>) => rest.findIndex((b) => b.type === 'paragraph' && b.content.some((n) => n.type === 'ref' && ids.has(n.targetId)))
   const ids = new Set(row.figures.map((f) => f.id))
   const ref = refOf(ids)
-  // まとまりの終わり（抜いたあとの位置で）：次の小見出しの前、なければ章の終わり。続く改ページの手前まで戻る
+  // まとまりの終わり（抜いたあとの位置で）：次の中見出しの前、なければ章の終わり。続く改ページの手前まで戻る
   let end = rest.findIndex((b, i) => i >= from && b.type === 'subheading')
   if (end < 0) end = rest.length
   while (end > from && rest[end - 1].type === 'pageBreak') end--
@@ -898,7 +903,7 @@ function figureRowTargets(
   // 図の後ろに図・表しか続かないなら、もう終わりにある（いくつかの図を終わりへ動かしたとき、前の図にも「段落の下へ戻す」を出す）
   const atEnd = rest.slice(from, end).every(isAttachment)
   // 「上へ」「下へ」：前・後ろの1つ（段落・図・表・改ページ）と入れ替える（依頼者の選択 2026-10-23：学生の試しで、図の枠を動かせなかった）。
-  // 「上へ」は、本文の（図n）がある段落より上には動かさない。どちらも、小見出しの境は越えない（依頼者の要望 2026-10-24。図は、本文で出てくる所より下に置く）
+  // 「上へ」は、本文の（図n）がある段落より上には動かさない。どちらも、中見出しの境は越えない（依頼者の要望 2026-10-24。図は、本文で出てくる所より下に置く）
   const refHere = chapter.blocks.findIndex((b) => b.type === 'paragraph' && b.content.some((n) => n.type === 'ref' && ids.has(n.targetId)))
   const above = chapter.blocks[from - 1]
   const below = chapter.blocks[from + 1]
@@ -925,7 +930,7 @@ function figureRowTargets(
             ? 'order'
             : null
   const downBlock: FigureMoveBlock | null = joinDown ? null : !below ? 'chapter' : below.type === 'subheading' ? 'subheading' : !keepsOrder(below, true) ? 'order' : null
-  // 図の前に小見出しがあるか（なければ「大見出しの終わりへ」と言う：PC の試し 2026-10-25）
+  // 図の前に中見出しがあるか（なければ「大見出しの終わりへ」と言う：PC の試し 2026-10-25）
   const inSubsection = chapter.blocks.slice(0, from).some((b) => b.type === 'subheading')
   return {
     from,
@@ -942,13 +947,13 @@ function figureRowTargets(
 }
 
 /**
- * 図を「上へ」「下へ」動かせないわけ（道具に出す説明を、わけに合わせる。前は「下へ」がいつも「小見出しの外には動かせません」だった：PC の試し 2026-10-24）。
- * chapter：大見出しの初め・終わり／subheading：小見出しの境／ref：本文の（図n）がある段落のすぐ下／refLater：本文の（図n）が後ろの章にしかない／
+ * 図を「上へ」「下へ」動かせないわけ（道具に出す説明を、わけに合わせる。前は「下へ」がいつも「中見出しの外には動かせません」だった：PC の試し 2026-10-24）。
+ * chapter：大見出しの初め・終わり／subheading：中見出しの境／ref：本文の（図n）がある段落のすぐ下／refLater：本文の（図n）が後ろの章にしかない／
  * order：ほかの図を越えると、本文で出てくる順と入れ替わる
  */
 export type FigureMoveBlock = 'chapter' | 'subheading' | 'ref' | 'refLater' | 'order'
 
-/** 図のまとまりを動かせるか（図を押したときの道具に「上へ」「下へ」「小見出しの終わりへ」「段落の下へ戻す」を出すか） */
+/** 図のまとまりを動かせるか（図を押したときの道具に「上へ」「下へ」「中見出しの終わりへ」「段落の下へ戻す」を出すか） */
 export function figurePlacement(
   report: Report,
   figureId: string,
@@ -991,11 +996,11 @@ function refOnlyLater(report: Report, chapter: Chapter, figureId: string): boole
   return at > report.body.indexOf(chapter)
 }
 
-/** 図を動かす先：小見出しのまとまりのいちばん下・最初に参照している段落のすぐ下・1つ上・1つ下 */
+/** 図を動かす先：中見出しのまとまりのいちばん下・最初に参照している段落のすぐ下・1つ上・1つ下 */
 export type FigureMove = 'sectionEnd' | 'paragraph' | 'up' | 'down'
 
 /**
- * 図のまとまりを、その小見出しのまとまりのいちばん下へ（to: 'sectionEnd'）・最初に参照している段落のすぐ下へ（to: 'paragraph'）・
+ * 図のまとまりを、その中見出しのまとまりのいちばん下へ（to: 'sectionEnd'）・最初に参照している段落のすぐ下へ（to: 'paragraph'）・
  * 1つ上へ（'up'）・1つ下へ（'down'）動かす。動かせなければ同じ原稿
  */
 export function moveFigureRow(report: Report, figureId: string, to: FigureMove): Report {
@@ -1035,9 +1040,9 @@ export type FigureDrop = { kind: 'gap'; at: number; after: string | null; before
 
 /**
  * 図をつかんで置ける所の一覧と、置けない所のわけを決める材料。決まりは「上へ」「下へ」と同じ（figureRowTargets）：
- * 小見出しのまとまりの外へは出さない・本文の（図n）がある段落より上へは置かない（後ろの章にしか（図n）がなければ、上へは動かさない）・
+ * 中見出しのまとまりの外へは出さない・本文の（図n）がある段落より上へは置かない（後ろの章にしか（図n）がなければ、上へは動かさない）・
  * 図の順は本文で出てくる順のまま。いまの所（動かさない）も gap に入れる。
- * section：まとまりの初めの小見出し（なければ null：大見出しの初め）と、次の小見出し（なければ null：大見出しの終わり）。ref：（図n）がある段落
+ * section：まとまりの初めの中見出し（なければ null：大見出しの初め）と、次の中見出し（なければ null：大見出しの終わり）。ref：（図n）がある段落
  */
 export function figureDrops(
   report: Report,
@@ -1050,7 +1055,7 @@ export function figureDrops(
     const row = chapter.blocks[from] as FigureRowBlock
     const ids = new Set(row.figures.map((f) => f.id))
     const rest = chapter.blocks.filter((_, i) => i !== from)
-    // 小見出しのまとまり（抜いたあとの位置で）：前の小見出しのすぐ後ろ〜次の小見出しの前
+    // 中見出しのまとまり（抜いたあとの位置で）：前の中見出しのすぐ後ろ〜次の中見出しの前
     let start = 0
     for (let i = from - 1; i >= 0; i--) if (rest[i].type === 'subheading') {
       start = i + 1
@@ -1333,7 +1338,7 @@ export function withoutNotStartedChapters(report: Report): Report {
   return body.length === report.body.length ? report : { ...report, body }
 }
 
-/** 書いた中身のない章（段落はどれも空。小見出しは「〇〇〇〇」などの仮の名前だけ。図・表はない） */
+/** 書いた中身のない章（段落はどれも空。中見出しは「〇〇〇〇」などの仮の名前だけ。図・表はない） */
 export function chapterUnwritten(chapter: Chapter): boolean {
   return chapter.blocks.every(
     (b) => (b.type === 'paragraph' && b.content.every((n) => n.type === 'text' && !n.text.trim())) || (b.type === 'subheading' && /^[〇○◯\s]*$/.test(b.title)) || b.type === 'pageBreak',

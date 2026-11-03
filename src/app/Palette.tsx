@@ -78,7 +78,7 @@ function Tool({
   /** 切り替えのボタン（押した状態を aria-pressed で示す。ひな形を作る画面の段落の種類：mockups/v70 案C） */
   pressed?: boolean
   /**
-   * 押すと道具の並びが変わる（削除・小見出しにする）：ダブルクリックの2回目を受け止めて捨てる（並び直った道具や押せないボタンに当たり、
+   * 押すと道具の並びが変わる（削除・中見出しにする）：ダブルクリックの2回目を受け止めて捨てる（並び直った道具や押せないボタンに当たり、
    * 書く欄が閉じて続けて打った字が入らなかった：学生の試し 4回目 2026-10-30）
    */
   once?: boolean
@@ -161,7 +161,7 @@ function TableMenu({ editor, disabled, template, onWhy }: { editor: ReportEditor
 // 番号は実際の番号で書く（「（図n）」の n が記号に見えた。「大見出し」も伝わりにくかった：スマホの試し 2026-10-26）
 const FIGURE_MOVE_WHY: Record<FigureMoveBlock, (dir: 'up' | 'down', n?: number) => string> = {
   chapter: (dir) => `図は、この章の${dir === 'up' ? '初めより上' : '終わりより下'}には動かせません`,
-  subheading: () => '図は、小見出しの外には動かせません',
+  subheading: () => '図は、中見出しの外には動かせません',
   ref: (_dir, n) => `図は、本文の「（図${n ?? 'n'}）」がある段落より上には動かせません`,
   refLater: () => 'この図が本文に出てくるのは後ろの章なので、上へは動かせません',
   order: (dir) => `${dir === 'up' ? '上' : '下'}の図を越えると、図の順番が本文で出てくる順と入れ替わるので、動かせません`,
@@ -565,16 +565,16 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
           />
         )}
         {!template && <Tool label="もう1枚" icon={Icon.beside} title="この図のすぐ後ろにもう1枚入れる（本文の参照の後ろにも「（図n）」が入ります）" onClick={() => void editor.addFigureBeside(figureId)} />}
-        {/* 1つ上へ・1つ下へ（段落・表を1つずつ越える。小見出しの中だけ。上は本文の（図n）の段落まで。依頼者の選択 2026-10-23・24） */}
+        {/* 1つ上へ・1つ下へ（段落・表を1つずつ越える。中見出しの中だけ。上は本文の（図n）の段落まで。依頼者の選択 2026-10-23・24） */}
         <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up', n) : place.upJoin ? 'この図を、上の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />
         <Tool label="下へ" className="tb-move" icon={Icon.moveDown} title={place.downBlock ? FIGURE_MOVE_WHY[place.downBlock]('down', n) : place.downJoin ? 'この図を、下の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ下（次の段落などの下）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.down} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'down')} />
-        {/* 図の置き場所（依頼者の選択 2026-10-22 案A）：小見出しのまとまりのいちばん下へ。そこにあれば、参照している段落の下へ戻す。
+        {/* 図の置き場所（依頼者の選択 2026-10-22 案A）：中見出しのまとまりのいちばん下へ。そこにあれば、参照している段落の下へ戻す。
             スマホの帯は、1列に入る5つ（差し替え・もう1枚・上へ・下へ・削除。依頼者の選択 2026-10-23 の見本）にするので出さない */}
         {phone ? null : place.toSectionEnd ? (
           <Tool
-            label={place.inSubsection ? '小見出しの\n終わりへ' : '大見出しの\n終わりへ'}
+            label={place.inSubsection ? '中見出しの\n終わりへ' : '大見出しの\n終わりへ'}
             icon={Icon.toSectionEnd}
-            title={`この図を、${place.inSubsection ? '小見出し' : '大見出し'}のまとまりのいちばん下へ動かす（図の番号は、紙面の順にそろいます）`}
+            title={`この図を、${place.inSubsection ? '中見出し' : '大見出し'}のまとまりのいちばん下へ動かす（図の番号は、紙面の順にそろいます）`}
             onClick={() => void editor.moveFigure(figureId, 'sectionEnd')}
           />
         ) : place.toParagraph ? (
@@ -691,7 +691,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
   // 紙面でコピーしたまとまりがあるときの「貼り付け」（Ctrl+V と同じ。コピーしていないときは出さない）
   const paste = snap.pasteReady && <Tool label={SELECTION_TEXTS.paste.label} icon={Icon.paste} title={SELECTION_TEXTS.paste.title()} onClick={() => editor.pasteFromTool()} />
   const remove = async () => {
-    if (editingKind === 'chapter' && editor.chapterWritten(editingId) && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（「元に戻す」で戻せます）', { ok: '削除する', danger: true }))) return
+    if (editingKind === 'chapter' && editor.chapterWritten(editingId) && !(await ask.confirm('大見出しを削除すると、その中の中見出し・段落・図表もすべて消えます。削除しますか？\n（「元に戻す」で戻せます）', { ok: '削除する', danger: true }))) return
     editor.removeBlock(editingId)
   }
   if (editingKind === 'paragraph') {
@@ -707,9 +707,9 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
           </>
         )}
         {paste}
-        {/* 短く「。」のない段落：小見出しにする（Word から読み込んだ「2-1 〇〇」など。mockups/v74 ⑦ 案A） */}
+        {/* 短く「。」のない段落：中見出しにする（Word から読み込んだ「2-1 〇〇」など。mockups/v74 ⑦ 案A） */}
         {!template && subheadingTitle(findEditable(snap.report, editingId)?.text ?? '') && (
-          <Tool label={'小見出し\nにする'} icon={Icon.heading2} once title="この段落を小見出しにする（番号は自動で付きます）" onClick={() => editor.convertToSubheading()} />
+          <Tool label={'中見出し\nにする'} icon={Icon.heading2} once title="この段落を中見出しにする（番号は自動で付きます）" onClick={() => editor.convertToSubheading()} />
         )}
         <Tool label="削除" icon={Icon.remove} danger once title="この段落を削除" onClick={remove} />
       </div>
@@ -728,7 +728,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
     return (
       <div className="group ctx">
         <div className="ctx-label">この見出し</div>
-        <Tool label="削除" icon={Icon.remove} danger title={editingKind === 'chapter' ? 'この大見出しを削除（中の段落なども消えます）' : 'この小見出しを削除'} onClick={remove} />
+        <Tool label="削除" icon={Icon.remove} danger title={editingKind === 'chapter' ? 'この大見出しを削除（中の段落なども消えます）' : 'この中見出しを削除'} onClick={remove} />
       </div>
     )
   }
@@ -768,7 +768,7 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
   // （本文に足す道具まで並べると、ノートパソコンの画面では表の「削除」「元に戻す」が下にはみ出して押せなかったため）
   // 入れたばかりの図・表が紙面に出るのを待っている間は、本文の道具のまま（押せない形。図・表が出たら、その物の道具に替わる。mockups/v58 案B）
   const onObject = !snap.waiting && (!!snap.selection || ['tableCell', 'tableCaption', 'figureCaption'].includes(snap.editingKind ?? ''))
-  // 道具が台の高さに入りきらないときは、低くする（index.css の fit-1〜4。作品写真を選んだときの道具がいちばん長い。
+  // 道具が台の高さに入りきらないときは、低くする（index.css の fit-1〜4・fit-photo。作品写真を選んだときの道具がいちばん長い。
   // 低いノートパソコンの画面で、下のボタンが隠れないように）。道具の中身が変わったとき・窓の大きさが変わったときに測り直す
   const navRef = useRef<HTMLElement>(null)
   useLayoutEffect(() => {
@@ -776,7 +776,7 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
     const stage = nav?.offsetParent
     if (!nav || !(stage instanceof HTMLElement)) return
     const fit = () => {
-      const steps = ['fit-1', 'fit-2', 'fit-3', 'fit-4']
+      const steps = ['fit-1', 'fit-photo', 'fit-2', 'fit-3', 'fit-4']
       nav.classList.remove(...steps)
       for (let i = 0; i <= steps.length; i++) {
         if (i > 0) nav.classList.add(steps[i - 1])
@@ -816,9 +816,10 @@ export function Palette({ editor, snap, onReferences, template }: Props) {
       {kind === 'body' && !onObject && (
         <>
           <div className="group">
-            {/* 大きい順（大見出し → 小見出し）に並べる（依頼者の判断 2026-10-21） */}
+            {/* 大きい順（大見出し → 中見出し → 小見出し）に並べる（依頼者の判断 2026-10-21。小見出しは 2026-11-03） */}
             <Tool label="大見出し" icon={Icon.heading1} title="大見出し（Ⅰ．）を足す" onPreview={preview} onClick={() => editor.addChapter()} />
-            <Tool label="小見出し" icon={Icon.heading2} title="小見出し（ⅰ．）を足す" onPreview={preview} onClick={() => editor.addSubheading()} />
+            <Tool label="中見出し" icon={Icon.heading2} title="中見出し（ⅰ．）を足す" onPreview={preview} onClick={() => editor.addSubheading()} />
+            <Tool label="小見出し" icon={Icon.heading3} title="小見出し（（1））を足す（中見出しの下の見出し）" onPreview={preview} onClick={() => editor.addSubheading(3)} />
             <Tool label="改ページ" icon={Icon.pageBreak} title={`ここで改ページする（この後ろは次のページから始まります。${shortcut('Enter')} でも）`} onPreview={(on) => editor.previewInsert(on, 'pageBreak')} onClick={() => editor.addPageBreak()} />
           </div>
           <div className="group">

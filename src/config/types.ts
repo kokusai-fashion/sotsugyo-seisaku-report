@@ -115,7 +115,7 @@ export interface Course {
  */
 export type TemplateBlock =
   | { type: 'chapter'; title: string }
-  | { type: 'subheading'; title: string }
+  | { type: 'subheading'; title: string; level?: 3 }
   | { type: 'paragraph'; hint: string; text?: string }
   | { type: 'figure'; caption: string }
   | { type: 'materialTable'; caption: string }

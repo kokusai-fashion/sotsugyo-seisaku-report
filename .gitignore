@@ -37,3 +37,4 @@ gas/admin-links.local.json
 dist-e2e/
 # 使い方の写真・動画に重ねるキーボードの絵（依頼者が用意した素材。素材そのものは公開しない：scripts/phoneKeyboard.mjs）
 *.private.png
+dist-e2e2/

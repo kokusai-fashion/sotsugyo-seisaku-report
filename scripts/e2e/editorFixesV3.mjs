@@ -490,7 +490,7 @@ export async function editorFixesV3Phone(browser, check) {
   const addText = await page.evaluate(() => document.querySelector('.sheet .sheet-body').textContent)
   await page.click('.sheet .sheet-close')
   await wait(200)
-  check('スマホ：開いた直後に本文のページで「追加」を押すと、本文の道具が出る（「本文のページで足せます」と言わない）', !addText.includes('本文のページで足せます') && addText.includes('小見出し'), addText.slice(0, 80))
+  check('スマホ：開いた直後に本文のページで「追加」を押すと、本文の道具が出る（「本文のページで足せます」と言わない）', !addText.includes('本文のページで足せます') && addText.includes('中見出し'), addText.slice(0, 80))
 
   // ページの一覧：まだ組んでいないページは「準備中」（白いページにしない）
   await page.click('.p-nav button')

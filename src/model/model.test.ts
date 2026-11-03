@@ -95,7 +95,7 @@ describe('下書きのひな形', () => {
     const bad: YearConfig = { ...twoCourses, courses: [{ ...twoCourses.courses[1], template: [{ type: 'subheading', title: '' }] }] }
     const messages = validateConfig(bad).map((p) => p.message)
     expect(messages.some((m) => m.includes('大見出しから始めて'))).toBe(true)
-    expect(messages.some((m) => m.includes('名前が空の小見出し'))).toBe(true)
+    expect(messages.some((m) => m.includes('名前が空の中見出し'))).toBe(true)
   })
 })
 

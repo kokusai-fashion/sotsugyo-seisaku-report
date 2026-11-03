@@ -23,7 +23,7 @@ const fs: { existsSync(p: string): boolean; readFileSync(p: string): Uint8Array;
 const COURSE = 'film-stage-costume'
 const context = { config: currentConfig, courseId: COURSE }
 /**
- * 公開中の設定の写し（通しテストで使うもの）。コースのひな形（template）がなく、標準のひな形（小見出しなし）になる。
+ * 公開中の設定の写し（通しテストで使うもの）。コースのひな形（template）がなく、標準のひな形（中見出しなし）になる。
  * ツールに入っている設定（2026.json）とは、ひな形の見出しが違うので、両方で同じに読めるかを確かめる
  */
 const publishedConfig = JSON.parse(new TextDecoder().decode(fs.readFileSync('scripts/e2e/config-fixture.json'))) as YearConfig
@@ -96,7 +96,7 @@ afterEach(() => {
 })
 
 describe('文字の見分け方', () => {
-  it('行の頭のローマ数字で、大見出し・小見出しを見分け、番号を除く', () => {
+  it('行の頭のローマ数字で、大見出し・中見出しを見分け、番号を除く', () => {
     expect(headingFromText('Ⅰ．企画・立案')).toEqual({ level: 1, title: '企画・立案' })
     expect(headingFromText('Ⅱ　制作過程')).toEqual({ level: 1, title: '制作過程' })
     expect(headingFromText('II. 制作過程')).toEqual({ level: 1, title: '制作過程' })
@@ -294,6 +294,21 @@ describe('学生の書き方の違い', () => {
     ])
   })
 
+  it('小見出し（（1）。見出しを大・中・小の3つにした 2026-11-03）：見出し3のスタイルの段落と、目次のファイルにも同じ行がある「（1）」の行', async () => {
+    const styles = '<w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:pPr><w:outlineLvl w:val="2"/></w:pPr></w:style>'
+    const body = makeDocx({
+      styles,
+      body: [p('Ⅱ．制作過程'), p('ⅰ．ブラウス'), styled('Heading3', '（1）パターン'), p('段落である。'), p('（2）縫製'), p('段落である。'), p('（1）箇条書きの行'), p('（2）箇条書きの行')].join(''),
+    })
+    const toc = makeDocx({ body: [p('目次'), p('Ⅱ．制作過程・・・・1'), p('ⅰ．ブラウス'), p('（1）パターン'), p('（2）縫製')].join('') })
+    const result = await readWordFiles({ body: file(body), toc: file(toc, '03_目次.docx') }, context)
+    const chapter = result.body.find((c) => c.title === '制作過程')!
+    const heads = chapter.blocks.flatMap((b) => (b.type === 'subheading' ? [`${b.level === 3 ? '小' : '中'}:${b.title}`] : []))
+    // 目次にない「（1）」の行（箇条書き）は、段落のまま
+    expect(heads).toEqual(['中:ブラウス', '小:パターン', '小:縫製'])
+    expect(result.outline.filter((o) => o.level === 3).map((o) => o.title)).toEqual(['パターン', '縫製'])
+  })
+
   it('「1．企画・立案」「第2章　制作過程」や番号のない行でも、名前がコースのひな形の見出しと同じなら見出しにする', async () => {
     const result = await read(
       makeDocx({
@@ -362,7 +377,7 @@ describe('学生の書き方の違い', () => {
     expect(result.problems).toEqual([])
   })
 
-  it('目次の行（ページ番号のある行・Word の自動の目次・その下のページ番号のない小見出しの行）は写さず、知らせる（試し 2026-10-27）', async () => {
+  it('目次の行（ページ番号のある行・Word の自動の目次・その下のページ番号のない中見出しの行）は写さず、知らせる（試し 2026-10-27）', async () => {
     const result = await read(
       makeDocx({
         body: [
@@ -386,10 +401,15 @@ describe('学生の書き方の違い', () => {
         ].join(''),
       }),
     )
-    // 目次の行は大見出し・小見出しにしない（章が2つずつにならない）
+    // 目次の行は大見出し・中見出しにしない（章が2つずつにならない）
     expect(result.counts).toMatchObject({ chapters: 3, subheadings: 2 })
     expect(result.body.slice(0, 3).map((c) => c.title)).toEqual(['', '企画・立案', '制作過程'])
+    // 目次にだけある中見出し（ⅱ．デザイン説明）は、本文の同じ章に入れる（依頼者 2026-11-03 の会議のあと。wordToc.ts）
+    // （読み取れなかった所ではないので、知らせ（problems）には出さず、確認の窓の一覧に「目次から入れる」と出す）
     expect(result.problems.map((x) => x.message)).toEqual(['目次の行（6行）は写していません', '最初の大見出しより前に、文があります'])
+    const planning = result.body.find((c) => c.title === '企画・立案')!
+    expect(planning.blocks.flatMap((b) => (b.type === 'subheading' ? [b.title] : []))).toEqual(['担当衣装のキャラクター', 'デザイン説明'])
+    expect(result.outline.some((o) => o.title === 'デザイン説明' && o.fromToc)).toBe(true)
   })
 
   it('表紙・抄録から本文まで1つのファイル：最初の大見出しより前の表紙・抄録は写さず、表紙の項目はそこから読む（表紙のファイルを選んでいれば、そちら。依頼者の選択 2026-10-27）', async () => {
@@ -805,7 +825,7 @@ describe.each(CONFIGS)('仮の文字だけの章（%s）', (_, ctx) => {
       undefined,
       ctx,
     )
-    // Ⅲ「考察」は、ひな形にない名前の章なので、書いた章として写す（中の仮の小見出しは写さない）。
+    // Ⅲ「考察」は、ひな形にない名前の章なので、書いた章として写す（中の仮の中見出しは写さない）。
     // 同じ3番目のひな形の章（まとめ）の代わりに入れる（前は、いちばん前に入り、まとめも残って章が4つになっていた）
     expect(result.body.map((c) => c.title)).toEqual(['企画・立案', '制作過程', '考察'])
     expect(result.outline.map((o) => [o.title, !!o.fromTemplate])).toEqual([
@@ -967,8 +987,8 @@ describe('章の並び（Word で書いた章と、ツールのひな形の章�
     expect(result.problems.map((x) => [x.where, x.message])).toContainEqual(['Ⅱ．制作過程', 'ひな形の「制作の流れ」の章の代わりに、Word の「制作過程」の章を入れます'])
   })
 
-  it('ひな形に「〇〇〇〇」の小見出し・図があっても（学科の Word のひな形に合わせたもの）、Word の「〇〇〇〇」だけの行を見出しにしない', async () => {
-    // 映画・舞台衣装デザイナーコースのひな形（依頼者の依頼 2026-10-22：学科の Word のひな形に合わせる。Ⅱ の小見出しは2つ）
+  it('ひな形に「〇〇〇〇」の中見出し・図があっても（学科の Word のひな形に合わせたもの）、Word の「〇〇〇〇」だけの行を見出しにしない', async () => {
+    // 映画・舞台衣装デザイナーコースのひな形（依頼者の依頼 2026-10-22：学科の Word のひな形に合わせる。Ⅱ の中見出しは2つ）
     const template: TemplateBlock[] = [
       { type: 'chapter', title: '企画・立案' },
       { type: 'subheading', title: '担当衣装のキャラクター' },
@@ -981,11 +1001,11 @@ describe('章の並び（Word で書いた章と、ツールのひな形の章�
       { type: 'materialTable', caption: '使用材料表' },
       { type: 'chapter', title: '制作過程' },
       { type: 'subheading', title: '〇〇〇〇' },
-      { type: 'paragraph', hint: '小見出しの〇〇〇〇を作業の名前に直し、作った順に工夫した点を書く。写真は図として入れ、文中に「（図2）」と書く' },
+      { type: 'paragraph', hint: '中見出しの〇〇〇〇を作業の名前に直し、作った順に工夫した点を書く。写真は図として入れ、文中に「（図2）」と書く' },
       { type: 'figure', caption: '〇〇〇〇' },
       { type: 'figure', caption: '〇〇〇〇' },
       { type: 'subheading', title: '〇〇〇〇' },
-      { type: 'paragraph', hint: '次の作業について書く。小見出しが足りなければ、道具の「小見出し」で足す' },
+      { type: 'paragraph', hint: '次の作業について書く。中見出しが足りなければ、道具の「中見出し」で足す' },
       { type: 'chapter', title: 'まとめ' },
       { type: 'paragraph', hint: '完成した衣装を振り返り、できたこと・課題を書く' },
     ]
@@ -999,7 +1019,7 @@ describe('章の並び（Word で書いた章と、ツールのひな形の章�
     expect(result.body.map((c) => c.title)).toEqual(['企画・立案', '制作過程', 'まとめ'])
     // 「〇〇〇〇」だけの行は見出しにせず、Ⅰ の段落も1つの章のまま
     expect(kinds(result.body[0]).filter((k) => k.startsWith('s:'))).toEqual([])
-    // Ⅱ は書いていないので、ひな形の Ⅱ（〇〇〇〇 の小見出し2つと、図の枠2つ）が入る（ひな形の図の枠は、1つずつの行になる）
+    // Ⅱ は書いていないので、ひな形の Ⅱ（〇〇〇〇 の中見出し2つと、図の枠2つ）が入る（ひな形の図の枠は、1つずつの行になる）
     expect(kinds(result.body[1])).toEqual(['s:〇〇〇〇', 'paragraph', 'figureRow', 'figureRow', 's:〇〇〇〇', 'paragraph'])
   })
 
@@ -1218,7 +1238,7 @@ describe('画像', () => {
 })
 
 describe.each(CONFIGS)('通しテスト用の見本（scripts/e2e/fixtures/word-sample-*.docx。%s）', (_, ctx) => {
-  it('読み込むと、大見出し1・小見出し3・段落3・図2・表1、表紙は 00ZZ0123・文化　花子・シンドバッド', async () => {
+  it('読み込むと、大見出し1・中見出し3・段落3・図2・表1、表紙は 00ZZ0123・文化　花子・シンドバッド', async () => {
     const dir = 'scripts/e2e/fixtures'
     const result = await read(fs.readFileSync(`${dir}/word-sample-body.docx`), fs.readFileSync(`${dir}/word-sample-cover.docx`), ctx)
     expect(result.counts).toEqual({ chapters: 1, subheadings: 3, paragraphs: 3, figures: 2, tables: 1 })

@@ -18,7 +18,7 @@ import { Keep } from './keepPhrases'
 /**
  * 右の欄（PC）。上から：名前と年度・「≡ メニュー」（使い方・手順書・バックアップ・作り直す・今年度だけ Word の読み込み。app/SideMenu.tsx）／
  * 保存のようすと締切（1行）／Word から写したあとの「つぎにすること」（今年度だけ）／コースからのお知らせ／
- * セルフチェック（まだのところ・直すところ。数は小見出しの横）／PDFの書き出し。
+ * セルフチェック（まだのところ・直すところ。数は中見出しの横）／PDFの書き出し。
  * 上の物をメニューに入れて減らし、字を大きく・行の間を広くしても、セルフチェックを広く見せる（mockups/v37 案C。前は mockups/v35 ①）。
  * 引用・参考文献を入れるボタンは、ここには置かない（使い方の「引用・参考文献」から入れる。入れた後は、そのページをクリックして直す）
  */
@@ -488,7 +488,7 @@ export function HelpButton({ onClick }: { onClick: () => void }) {
  * セルフチェックの中身（mockups/v35 ① 案A）。PC は右の欄、スマホは下から出る欄に置く。
  * - まだのところ：まだ書いていない・入れていないだけのもの。決まった行の進み具合（赤くしない。押すとその場所へ）
  * - 直すところ：書いた文の間違い。エラーと要確認の意味（凡例）と、場所ごとにまとめた指摘（押すとその箇所へ）
- * pc：PC の右の欄（mockups/v37 案C）。数は小見出しの横の小さな札（直すところは赤。0 のときは出さない）、小見出しの右のひとことは
+ * pc：PC の右の欄（mockups/v37 案C）。数は中見出しの横の小さな札（直すところは赤。0 のときは出さない）、中見出しの右のひとことは
  * マウスを乗せたときだけ出す。直すところがあるときは、まだのところの済んだ（✓）行を1行にたたむ（DoneLine）。スマホは今までどおり
  */
 export function CheckBody({ editor, snap, config, onPick, pc }: { editor: ReportEditor; snap: EditorSnapshot; config: YearConfig; onPick?: () => void; pc?: boolean }) {
@@ -502,7 +502,7 @@ export function CheckBody({ editor, snap, config, onPick, pc }: { editor: Report
     if (here) listRef.current?.querySelector('.issue.here')?.scrollIntoView({ block: 'nearest', behavior })
   }, [here])
   const { rows, fixes, notYet } = checkSummary(snap, config)
-  // PC：小見出しの横の数（紙面を組み終えるまでは出さない。ページ数などのチェックが加わって、数が変わるため）
+  // PC：中見出しの横の数（紙面を組み終えるまでは出さない。ページ数などのチェックが加わって、数が変わるため）
   const count = (n: number, error?: boolean, prefix = '') => pc && !snap.pageChecksPending && n > 0 && <span className={`count-badge${error ? ' e' : ''}`}>{prefix}{n}</span>
   // PC で直すところがあるときは、済んだ行を1行にたたむ（まだ・先生の許可のあとなどの行は、そのまま）
   const fold = !!pc && fixes.length > 0
@@ -617,7 +617,7 @@ export function SidePanel({ editor, snap, config, saveState, drive, driveStopped
       <CourseNotice config={config} courseId={snap.report.basicInfo.courseId} short />
 
       <section className="sec check">
-        {/* 数は、小見出し（まだのところ・直すところ）の横に出す（mockups/v37。スマホは見出しの横の Tally のまま） */}
+        {/* 数は、中見出し（まだのところ・直すところ）の横に出す（mockups/v37。スマホは見出しの横の Tally のまま） */}
         <div className="sec-h">
           <span>セルフチェック</span>
         </div>

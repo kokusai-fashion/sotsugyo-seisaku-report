@@ -23,7 +23,7 @@ export function termsOf(query: string): string[] {
   return [...new Set(normalize(query).split(/[\s、,・]+/).filter(Boolean))]
 }
 
-/** 項目の中の、探す対象の1行（label：結果に出す小見出し。端末の名前など） */
+/** 項目の中の、探す対象の1行（label：結果に出す中見出し。端末の名前など） */
 export interface HelpLine {
   label?: string
   text: string

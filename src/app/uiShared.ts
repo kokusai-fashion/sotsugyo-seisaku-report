@@ -285,9 +285,13 @@ export function useSwipe(target: React.RefObject<HTMLElement | null>, editor: Re
       const dx = e.clientX - s.x
       const dy = e.clientY - s.y
       const snap = editor.getSnapshot()
-      if (snap.editingId || snap.zoomed) return
+      if (snap.editingId) return
+      const sideways = Math.abs(dx) >= 60 && Math.abs(dx) >= Math.abs(dy) * 2
+      // 拡大中は、左右にはらったときだけ送る（拡大のまま。上下は紙面を動かす。依頼者の選択 2026-11-03 mockups/v98 ②）。
+      // 指で紙面を画面より広げているとき（台の印 pan-x）は、左右にも紙面を動かすので送らない
+      if (snap.zoomed && (!sideways || el.classList.contains('pan-x'))) return
       // 左右にはらう：左へで次のページ。上下にはらう（拡大していないときだけ。拡大中は上下に動かす）：上へで次のページ
-      if (Math.abs(dx) >= 60 && Math.abs(dx) >= Math.abs(dy) * 2) {
+      if (sideways) {
         if (dx < 0) editor.nextPage()
         else editor.prevPage()
       } else if (Math.abs(dy) >= 60 && Math.abs(dy) >= Math.abs(dx) * 2) {

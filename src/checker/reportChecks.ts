@@ -1,5 +1,5 @@
 import { findCourse, subtitleInputOnly, type YearConfig } from '../config'
-import { contentToText, editables, figureMentionOrder, numbering, parenthetical, type EditableKind } from '../editor/reportOps'
+import { contentToText, editables, figureMentionOrder, numbering, parenthetical, subheadingName, type EditableKind } from '../editor/reportOps'
 import { COVER_SUBTITLE, OVERFLOW_RATIO, yearDigits } from '../layout/document'
 import type { LayoutInfo } from '../layout/measure'
 import type { HeadingText } from '../model/headingText'
@@ -248,13 +248,13 @@ export function toolFindings(report: Report, config: YearConfig): ReportFinding[
     const m = HEADING_NUMBER.exec(e.text)
     const number = m?.[0].trim()
     if (!m || !number) continue
-    const name = e.kind === 'chapter' ? '大見出し' : '小見出し'
+    const name = e.kind === 'chapter' ? '大見出し' : subheadingName(report, e.id)
     findings.push({
       ruleId: 'heading-number',
       severity: 'warning',
       source: 'supplementary',
       title: `${name}に番号を手で書いている`,
-      detail: `${name}の番号（${e.kind === 'chapter' ? 'Ⅰ．' : 'ⅰ．'}）は自動で付くので、目次と PDF で二重になります。「${number}」を消します`,
+      detail: `${name}の番号（${e.kind === 'chapter' ? 'Ⅰ．' : name === '小見出し' ? '（1）' : 'ⅰ．'}）は自動で付くので、目次と PDF で二重になります。「${number}」を消します`,
       area: 'body',
       blockId: e.id,
       start: 0,
@@ -445,7 +445,7 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   // 画像の枚数（1ページあたりの目安）は確かめない（依頼者の判断 2026-10-27：実際には決まりにしていない。管理ページの「画像の目安」ごと外した）
   for (const e of list) {
     if (!e.text.trim() && ['chapter', 'subheading', 'figureCaption', 'tableCaption'].includes(e.kind)) {
-      const what = { chapter: '大見出し', subheading: '小見出し', figureCaption: '図のタイトル', tableCaption: '表のタイトル' }[e.kind as string]
+      const what = e.kind === 'subheading' ? subheadingName(report, e.id) : { chapter: '大見出し', figureCaption: '図のタイトル', tableCaption: '表のタイトル' }[e.kind as string]
       findings.push(guide('required-text', 'error', `${what}が入力されていない`, 'body', { blockId: e.id }))
     }
   }

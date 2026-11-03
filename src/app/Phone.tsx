@@ -56,7 +56,7 @@ const KIND_LABELS: Record<EditableKind, string> = {
   field: '表紙の項目',
   abstractParagraph: '段落',
   chapter: '大見出し',
-  subheading: '小見出し',
+  subheading: '中見出し',
   paragraph: '段落',
   figureCaption: '図のタイトル',
   tableCaption: '表のタイトル',
@@ -221,7 +221,7 @@ function EditSheet({ editor, snap, hostRef }: { editor: ReportEditor; snap: Edit
             className="danger"
             onMouseDown={keepFocus}
             onClick={async () => {
-              if (snap.editingKind === 'chapter' && editor.chapterWritten(id!) && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
+              if (snap.editingKind === 'chapter' && editor.chapterWritten(id!) && !(await ask.confirm('大見出しを削除すると、その中の中見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
               editor.removeBlock(id!)
             }}
           >
@@ -440,7 +440,7 @@ function DirectBar({ editor, snap, guiding, issue }: { editor: ReportEditor; sna
   const cellImage = !!tableId && snap.editingKind === 'tableCell' && editor.currentCellHasImage(tableId)
   const [tableSheet, setTableSheet] = useState(false)
   const [shapeSheet, setShapeSheet] = useState(false)
-  // 「＋追加」：本文の段落・見出しを書いているとき。押すと、道具の上に大見出し・小見出し・改ページ（ほかの欄に移ったら閉じる）
+  // 「＋追加」：本文の段落・見出しを書いているとき。押すと、道具の上に大見出し・中見出し・改ページ（ほかの欄に移ったら閉じる）
   const addable = paragraph || snap.editingKind === 'subheading' || snap.editingKind === 'chapter'
   const [addFor, setAddFor] = useState<string | null>(null)
   const addOpen = addable && !!id && addFor === id
@@ -484,34 +484,31 @@ function DirectBar({ editor, snap, guiding, issue }: { editor: ReportEditor; sna
           </p>
         )}
         {/* 大見出しの入る場所（その章のいちばん後ろ）を書いておく（打って作る「Ⅱ．〇〇」はその場で分かれ、入る場所が違うため。依頼者の選択 2026-10-24 mockups/v53 ⑤ 案B） */}
-        {addOpen && <p className="db-hint db-add-note">大見出しは、この章のいちばん後ろに新しい章を足します（小見出しは書いている所の後ろ。改ページは書いている段落の後ろで、次のページから続けて書けます）</p>}
+        {addOpen && <p className="db-hint db-add-note">大見出しは、この章のいちばん後ろに新しい章を足します（中見出し・小見出しは書いている所の後ろ）</p>}
         {addOpen && (
-          <div className="db-row db-add" role="group" aria-label="書いている所の後ろに入れる">
-            {/* 大きい順（大見出し → 小見出し）。下のタブの「追加」と同じ並び */}
+          <div className="db-row db-add" role="group" aria-label="書いている所の後ろに見出しを入れる">
+            {/* 大きい順（大見出し → 中見出し → 小見出し）。下のタブの「追加」と同じ並び */}
             <button onMouseDown={keepFocus} onClick={addThen(() => editor.addChapter())}>
               {Icon.heading1}
               <span>大見出し</span>
             </button>
             <button onMouseDown={keepFocus} onClick={addThen(() => editor.addSubheading())}>
               {Icon.heading2}
-              <span>小見出し</span>
+              <span>中見出し</span>
             </button>
-            <button onMouseDown={keepFocus} onClick={addThen(() => editor.addPageBreak())}>
-              {Icon.pageBreak}
-              <span>改ページ</span>
+            <button onMouseDown={keepFocus} onClick={addThen(() => editor.addSubheading(3))}>
+              {Icon.heading3}
+              <span>小見出し</span>
             </button>
           </div>
         )}
         <div className="db-row">
+          {/* 「やり直す」は画面の上の帯だけにした（見出し・改ページを「＋追加」に入れず、じかに押せるようにするため：依頼者の選択 2026-11-03、mockups/v96 案2） */}
           <button onMouseDown={keepFocus} {...offWhen(!snap.typingUndo && !snap.canUndo)} onClick={() => (snap.typingUndo || snap.canUndo) && undoRedo(() => editor.undoTyping(), () => editor.undo())}>
             {Icon.undo}
             <span>戻す</span>
           </button>
-          <button onMouseDown={keepFocus} {...offWhen(!snap.typingRedo && !snap.canRedo)} onClick={() => (snap.typingRedo || snap.canRedo) && undoRedo(() => editor.redoTyping(), () => editor.redo())}>
-            {Icon.redo}
-            <span>やり直す</span>
-          </button>
-          {/* 「図を入れる」「表を入れる」は、「＋追加」を並べるため「図」「表」に短くした（依頼者の選択 2026-10-22 案X） */}
+          {/* 「図を入れる」「表を入れる」は、道具を1列に並べるため「図」「表」に短くした（依頼者の選択 2026-10-22 案X） */}
           {paragraph && (
             <button onMouseDown={keepFocus} onClick={() => void editor.addFigure()} aria-label="図を入れる">
               {Icon.figure}
@@ -524,11 +521,17 @@ function DirectBar({ editor, snap, guiding, issue }: { editor: ReportEditor; sna
               <span>表</span>
             </button>
           )}
-          {/* 書いている段落・見出しの後ろに、大見出し・小見出し・改ページを入れる（完了して下のタブの「追加」に行かなくてよい：依頼者の選択 2026-10-22 案X） */}
+          {/* 書いている段落・見出しの後ろに見出しを入れる：押すと、上に 大見出し・中見出し・小見出し（mockups/v96 案2）。改ページは、じかに押す */}
           {addable && (
-            <button className={addOpen ? 'on' : undefined} onMouseDown={keepFocus} onClick={() => setAddOpen(!addOpen)} aria-expanded={addOpen} aria-label="追加（大見出し・小見出し・改ページ）">
-              {Icon.plus}
-              <span>追加</span>
+            <button className={addOpen ? 'on' : undefined} onMouseDown={keepFocus} onClick={() => setAddOpen(!addOpen)} aria-expanded={addOpen} aria-label="見出し（大見出し・中見出し・小見出し）">
+              {Icon.headings}
+              <span>見出し</span>
+            </button>
+          )}
+          {addable && (
+            <button onMouseDown={keepFocus} onClick={addThen(() => editor.addPageBreak())} aria-label="改ページ">
+              {Icon.pageBreak}
+              <span>改ページ</span>
             </button>
           )}
           {removable && id && (
@@ -536,7 +539,7 @@ function DirectBar({ editor, snap, guiding, issue }: { editor: ReportEditor; sna
               className="danger"
               onMouseDown={keepFocus}
               onClick={async () => {
-                if (snap.editingKind === 'chapter' && editor.chapterWritten(id!) && !(await ask.confirm('大見出しを削除すると、その中の小見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
+                if (snap.editingKind === 'chapter' && editor.chapterWritten(id!) && !(await ask.confirm('大見出しを削除すると、その中の中見出し・段落・図表もすべて消えます。削除しますか？\n（画面の上の「戻す」で戻せます）', { ok: '削除する', danger: true }))) return
                 editor.removeBlock(id)
               }}
             >
@@ -663,9 +666,10 @@ function AddTools({ editor, snap, onDone, direct }: { editor: ReportEditor; snap
     <>
       <p className="sheet-hint">{pageName(snap)}の、最後に触ったところの後ろに入ります（大見出しは、その章のいちばん後ろに新しい章を足します）。段落は、{direct ? '' : '書く欄で'}改行すると分かれます。</p>
       <div className="add-grid">
-        {/* 大きい順（大見出し → 小見出し）に並べる（依頼者の判断 2026-10-21） */}
+        {/* 大きい順（大見出し → 中見出し）に並べる（依頼者の判断 2026-10-21） */}
         {tool('大見出し', Icon.heading1, () => editor.addChapter())}
-        {tool('小見出し', Icon.heading2, () => editor.addSubheading())}
+        {tool('中見出し', Icon.heading2, () => editor.addSubheading())}
+        {tool('小見出し', Icon.heading3, () => editor.addSubheading(3))}
         {tool('改ページ', Icon.pageBreak, () => editor.addPageBreak())}
       </div>
       {/* 図・表は、入れたい所を押してから入れる（書く欄を閉じたあとも入れられる形は、仕組みが複雑で分かりにくくなるのでやめた：依頼者の判断 2026-10-30）。
@@ -828,7 +832,9 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
         </button>
       </header>
 
-      {snap.layout && !snap.zoomed && (
+      {/* 拡大中もページ送りを出し、右に「全体」（ページ全体に戻す）を付ける。前は拡大中は「ページ全体に戻す」だけで、送れないことに気づきにくかった
+          （依頼者 2026-11-03、mockups/v98 ② 案A）。書いている間は出さない（下に書く道具が出る） */}
+      {snap.layout && !(snap.zoomed && snap.editingId) && (
         <div className="pager">
           <button aria-label="前のページ" disabled={snap.page <= 0} onClick={() => editor.prevPage()}>
             {Icon.prev}
@@ -839,12 +845,15 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
           <button aria-label="次のページ" disabled={snap.page >= snap.pageCount - 1} onClick={() => editor.nextPage()}>
             {Icon.next}
           </button>
+          {snap.zoomed && (
+            <>
+              <span className="sep" aria-hidden="true" />
+              <button className="unzoom" aria-label="ページ全体に戻す" onClick={() => editor.setZoom(false)}>
+                {Icon.fit}全体
+              </button>
+            </>
+          )}
         </div>
-      )}
-      {snap.zoomed && !snap.editingId && (
-        <button className="unzoom" onClick={() => editor.setZoom(false)}>
-          {Icon.fit}ページ全体に戻す
-        </button>
       )}
 
       {showSelection && (

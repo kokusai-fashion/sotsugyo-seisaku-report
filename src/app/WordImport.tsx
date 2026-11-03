@@ -4,7 +4,7 @@ import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { deviceName } from '../drive/device'
 import type { OutlineItem, WordImportResult } from '../import/types'
 import type { LostChapter } from '../import/wordImport'
-import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
+import { chapterLabel, minorHeadingLabel, subheadingLabel } from '../layout/bodyHtml'
 import { bodyFromTemplate, courseTemplate } from '../model/template'
 import type { Report } from '../model/types'
 import { tidyName } from '../model/personName'
@@ -138,11 +138,13 @@ function CloudHint() {
   )
 }
 
-type Slot = 'body' | 'cover'
+type Slot = 'body' | 'cover' | 'toc'
 
 const SLOT_TEXT: Record<Slot, { title: string; tag: string; example: string; note?: string }> = {
   body: { title: '本文の Word', tag: '必ず', example: '04_本文.docx' },
   cover: { title: '表紙の Word', tag: '書いていれば', example: '01_表紙.docx', note: '（学籍番号・氏名・サブタイトルを写します）' },
+  // 目次にだけ書いた見出しも入れる（依頼者 2026-11-03 の会議のあと。import/wordToc.ts）
+  toc: { title: '目次の Word', tag: '書いていれば', example: '03_目次.docx', note: '（本文にまだない見出しを入れます）' },
 }
 
 /**
@@ -203,7 +205,7 @@ function FileRow({
         <button className={slot === 'body' && !file ? 'primary' : ''} disabled={disabled} onClick={() => input.current?.click()}>
           {file || rejected ? '選び直す' : 'ファイルを選ぶ'}
         </button>
-        {slot === 'cover' && file && (
+        {slot !== 'body' && file && (
           <button className="link" disabled={disabled} onClick={onClear}>
             外す
           </button>
@@ -282,7 +284,7 @@ export function WordImportDialog({ config, report, onImport, onClose, accountStu
   const readAs = async (forCourse: string): Promise<ReadResult | null> => {
     if (!files.body) return null
     const { readWordFiles, lostByImport, keepWrittenChapters, importPrints } = await loadWordReader()
-    const r = keepWrittenChapters(report, await readWordFiles({ body: files.body, cover: files.cover }, { config, courseId: forCourse }))
+    const r = keepWrittenChapters(report, await readWordFiles({ body: files.body, cover: files.cover, toc: files.toc }, { config, courseId: forCourse }))
     // ひな形に入っている文（「使用した素材を表1にまとめる。」など）も、ツールで書いた分に数えない
     // （何も書いていないのに「ツールで書いた1段落は消えます」と出ていた：学生の試し 2026-11-01 録画2）
     const template = importPrints(bodyFromTemplate(courseTemplate(config, report.basicInfo.courseId)))
@@ -387,7 +389,7 @@ export function WordImportDialog({ config, report, onImport, onClose, accountStu
         学科のひな形（Word）に書いた分を、このツールに写します。見出し・段落・図・表と、表紙の学籍番号・氏名・サブタイトルを写します（Word の文字の大きさや配置は写さず、ツールの決まった形で組み直します）。
       </p>
       <div className="word-files">
-        {(['body', 'cover'] as const).map((slot) => (
+        {(['body', 'cover', 'toc'] as const).map((slot) => (
           <FileRow
             key={slot}
             slot={slot}
@@ -439,21 +441,27 @@ function lostCounts(l: LostChapter): string {
 }
 
 /**
- * 本文の組み立ての一覧（大見出し・小見出しと、それぞれの段落・図・表の数）。
+ * 本文の組み立ての一覧（大見出し・中見出しと、それぞれの段落・図・表の数）。
  * lost：読み込むと消える、ツールで書いた本文。Word でまだ書いていない章でも、ツールで書いていれば、ひな形に戻って消えることを出す
  */
 function Outline({ outline, untitled, lost }: { outline: OutlineItem[]; untitled: Set<string>; lost: LostChapter[] }) {
-  // 番号（Ⅰ．ⅰ．）は、ツールで組んだときと同じに振る（小見出しは章ごとに振り直す）
+  // 番号（Ⅰ．ⅰ．（1））は、ツールで組んだときと同じに振る（中見出しは章ごとに、小見出しは中見出しごとに振り直す）
   const labels: string[] = []
   let chapter = -1
   let sub = -1
+  let minor = -1
   for (const item of outline) {
     if (item.level === 1) {
       chapter += 1
       sub = -1
+      minor = -1
       labels.push(chapterLabel(chapter))
+    } else if (item.level === 3) {
+      minor += 1
+      labels.push(minorHeadingLabel(minor))
     } else {
       sub += 1
+      minor = -1
       labels.push(subheadingLabel(sub))
     }
   }
@@ -468,12 +476,14 @@ function Outline({ outline, untitled, lost }: { outline: OutlineItem[]; untitled
         // （前は、いちばん下の囲みにしか書いていなかった。学生の試し 2026-10-24。mockups/v53 ⑧）
         const replaced = !item.fromTemplate && item.level === 1 ? lost.find((l) => l.title.trim() === title) : undefined
         return (
-          <li key={i} className={`${item.level === 1 ? 'ch' : 'sh'}${item.fromTemplate && !item.keptFromTool ? ' tpl' : ''}${gone ? ' lost' : ''}${item.problem ? ' problem' : ''}`}>
+          <li key={i} className={`${item.level === 1 ? 'ch' : item.level === 3 ? 'sh minor' : 'sh'}${item.fromTemplate && !item.keptFromTool ? ' tpl' : ''}${gone ? ' lost' : ''}${item.problem ? ' problem' : ''}`}>
             <span className="ttl">
               {labels[i]}
-              {title || <span className="noname">{item.level === 1 ? '（名前のない大見出し）' : '（名前のない小見出し）'}</span>}
+              {title || <span className="noname">{item.level === 1 ? '（名前のない大見出し）' : item.level === 3 ? '（名前のない小見出し）' : '（名前のない中見出し）'}</span>}
             </span>
-            {item.fromTemplate ? (
+            {item.fromToc ? (
+              <span className="cnt">目次から入れる</span>
+            ) : item.fromTemplate ? (
               <span className="cnt">
                 {item.keptFromTool ? (
                   'ツールで書いたまま残す'
@@ -584,6 +594,7 @@ function WordConfirm({
   const { counts, cover, problems } = result
   const untitled = new Set(result.figures.filter((f) => !f.caption.trim()).map((f) => f.label))
   const fromTemplate = result.outline.some((o) => o.fromTemplate && !o.keptFromTool)
+  const fromToc = result.outline.some((o) => o.fromToc)
   // 本文から写せるものが何もない（表紙の Word を本文に選んだなど）：写すと本文がひな形だけになるので、読み込ませない
   const nothing = !result.outline.some((o) => !o.fromTemplate) && counts.paragraphs === 0 && counts.figures === 0 && counts.tables === 0
   const course = findCourse(config, courseId)
@@ -630,6 +641,12 @@ function WordConfirm({
             表紙：<b><FileName name={files.cover.name} /></b>
           </span>
         )}
+        {files.toc && (
+          <span>
+            <WordIcon />
+            目次：<b><FileName name={files.toc.name} /></b>
+          </span>
+        )}
         <button className="link" disabled={busy} onClick={onBack}>
           選び直す
         </button>
@@ -665,7 +682,7 @@ function WordConfirm({
           大見出し<b>{counts.chapters}</b>
         </span>
         <span>
-          小見出し<b>{counts.subheadings}</b>
+          中見出し<b>{counts.subheadings}</b>
         </span>
         <span>
           段落<b>{counts.paragraphs}</b>
@@ -682,6 +699,8 @@ function WordConfirm({
           <h3>本文の組み立て</h3>
           <Outline outline={result.outline} untitled={untitled} lost={lost} />
           {fromTemplate && <p className="word-skip">「ツールのひな形で続ける」の章は、Word でまだ書いていない章です。ツールのひな形（書くことの説明）が入るので、続きはツールで書きます。</p>}
+          {/* 目次にだけ書いた見出し（import/wordToc.ts）。読み取れなかった所ではないので、上の黄色の囲みには出さない */}
+          {fromToc && <p className="word-skip">「目次から入れる」の見出しは、Word の目次にだけ書いてあった見出しです。見出しと空の段落が入るので、続きはツールで書きます。</p>}
           {result.skippedPlaceholders > 0 && <p className="word-skip">ひな形のままの行（「〇〇〇〇」「～～～～」だけの行）{result.skippedPlaceholders}行は写しません。</p>}
         </section>
         <section>

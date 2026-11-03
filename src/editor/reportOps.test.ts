@@ -113,7 +113,7 @@ describe('split / mergeBackward / replaceWithParagraphs', () => {
     expect(text(r, 'p4')).toBe('袖を大きくした（図1）。')
   })
 
-  it('空の段落・小見出し・大見出しで Backspace（前とつなげられない）：消して、前の欄の終わりへ移る。字がある・抄録・中身のある章は消さない', () => {
+  it('空の段落・中見出し・大見出しで Backspace（前とつなげられない）：消して、前の欄の終わりへ移る。字がある・抄録・中身のある章は消さない', () => {
     const blocks = report.body.flatMap((c) => c.blocks)
     // 見出し・図などのすぐ後ろ（前とつなげられない）の段落を空にする
     const after = report.body.flatMap((c) => c.blocks.filter((x, i) => x.type === 'paragraph' && i > 0 && c.blocks[i - 1].type !== 'paragraph'))[0]
@@ -124,10 +124,10 @@ describe('split / mergeBackward / replaceWithParagraphs', () => {
     expect(r1.targetId).toBe(ops.neighbor(withEmpty, after.id, 'prev')!.id)
     expect(r1.caret).toBe(ops.neighbor(withEmpty, after.id, 'prev')!.text.length)
     expect(ops.removeEmptyBackward(withEmpty, after.id, 'x')).toBeNull()
-    // 空の小見出し
+    // 空の中見出し
     const sub = blocks.find((b) => b.type === 'subheading')!
     const r2 = ops.removeEmptyBackward(ops.setText(report, sub.id, ''), sub.id, '')!
-    expect(r2.what).toBe('小見出し')
+    expect(r2.what).toBe('中見出し')
     // 大見出し：中身のある章は消さない。空の段落だけの章は消す
     const c2 = report.body[1]
     expect(ops.removeEmptyBackward(ops.setText(report, c2.id, ''), c2.id, '')).toBeNull()
@@ -149,7 +149,7 @@ describe('split / mergeBackward / replaceWithParagraphs', () => {
     const before = chapter.blocks.slice(0, at).reverse().find((b) => b.type === 'paragraph' || b.type === 'subheading')!
     const withSub = { ...report, body: report.body.map((c, i) => (i === 0 ? { ...c, blocks: [...c.blocks.slice(0, at + 1), { type: 'subheading' as const, id: 'sx', title: '' }, ...c.blocks.slice(at + 1)] } : c)) }
     const removed = ops.removeEmptyBackward(withSub, 'sx', '')!
-    expect(removed.what).toBe('小見出し')
+    expect(removed.what).toBe('中見出し')
     expect(removed.targetId).toBe(before.id)
     expect(ops.findEditable(withSub, removed.targetId)?.kind).not.toMatch(/Caption$/)
   })
@@ -448,7 +448,7 @@ describe('図・表の後ろに段落を作る（「＋ 文章の続きを書く
     expect(ids(r)).toEqual([['pa'], ['pc']])
   })
 
-  it('見出しの後ろ（「＋ 文章の続きを書く」）：小見出しはそのすぐ後ろ、大見出しは章のいちばん初めに空の段落ができる', () => {
+  it('見出しの後ろ（「＋ 文章の続きを書く」）：中見出しはそのすぐ後ろ、大見出しは章のいちばん初めに空の段落ができる', () => {
     const r = ops.insertAfter(base(), 'pa', { type: 'subheading', id: 's1', title: '素材の選定' })
     expect(ids(ops.paragraphBelow(r, 's1', 'pn')!.report)).toEqual([['pa', 's1', 'pn'], ['pc']])
     const empty: Report = { ...r, body: [...r.body, { id: 'c3', title: 'まとめ', blocks: [] }] }
@@ -480,7 +480,7 @@ describe('見出しで Enter を押したときに移る、すぐ後ろの空の
     ],
   }
 
-  it('大見出しは章の最初、小見出しはすぐ後ろの段落が、何も書いていない（説明もない）ならその ID', () => {
+  it('大見出しは章の最初、中見出しはすぐ後ろの段落が、何も書いていない（説明もない）ならその ID', () => {
     expect(ops.blankParagraphAfterHeading(r, 'c1')).toBe('p1')
     expect(ops.blankParagraphAfterHeading(r, 's1')).toBe('p2')
   })
@@ -619,7 +619,7 @@ describe('図・表の参照は、カーソルのある文の終わりに入れ�
   })
 })
 
-describe('空の段落と置き換える（小見出し・図・表を、何も書いていない段落で入れたとき）', () => {
+describe('空の段落と置き換える（中見出し・図・表を、何も書いていない段落で入れたとき）', () => {
   const base = (): Report => ({
     ...demoReport(),
     body: [
@@ -659,7 +659,7 @@ describe('空の段落と置き換える（小見出し・図・表を、何も�
 })
 
 describe('段落に打った見出し（paragraphToHeading・headingLabel）', () => {
-  /** c2：小見出し s4、段落 p4・p5。段落 px を p4 と p5 の間に足した原稿 */
+  /** c2：中見出し s4、段落 p4・p5。段落 px を p4 と p5 の間に足した原稿 */
   const withTyped = (text: string, hint?: string): Report => {
     const r = demoReport()
     return {
@@ -699,7 +699,7 @@ describe('段落に打った見出し（paragraphToHeading・headingLabel）', (
     expect(ops.headingLabel(result.report, result.headingId)).toBe('Ⅳ．振り返り')
   })
 
-  it('小見出し：その位置に入り（番号は章ごとに自動）、rest があればすぐ後ろに段落を作る', () => {
+  it('中見出し：その位置に入り（番号は章ごとに自動）、rest があればすぐ後ろに段落を作る', () => {
     const r = withTyped('ⅴ．縫製')
     const result = ops.paragraphToHeading(r, 'px', { level: 2, title: '縫製' }, '')!
     expect(ids(result.report)[1]).toBe(`c2:s4,p4,${result.headingId},${result.nextId},p5`)
@@ -723,7 +723,7 @@ describe('段落に打った見出し（paragraphToHeading・headingLabel）', (
     for (const id of ['a1', 's1', 'c1', 'f1', 't1', 'nothing']) expect(ops.paragraphToHeading(r, id, { level: 1, title: 'x' }), id).toBeNull()
   })
 
-  it('headingLabel：大見出しは章の番号、小見出しは章の中の番号。見出しでなければ null', () => {
+  it('headingLabel：大見出しは章の番号、中見出しは章の中の番号。見出しでなければ null', () => {
     const r = demoReport()
     expect(ops.headingLabel(r, 'c3')).toBe('Ⅲ．まとめ')
     expect(ops.headingLabel(r, 's3')).toBe('ⅲ．使用素材')
@@ -738,14 +738,14 @@ describe('段落に打った見出し（paragraphToHeading・headingLabel）', (
   })
 })
 
-describe('図の置き場所（「小見出しの終わりへ」「段落の下へ戻す」：依頼者の選択 2026-10-22 案A）', () => {
+describe('図の置き場所（「中見出しの終わりへ」「段落の下へ戻す」：依頼者の選択 2026-10-22 案A）', () => {
   const t = (text: string) => ({ type: 'text' as const, text })
   const p = (id: string, ref?: string) => ({ type: 'paragraph' as const, id, content: ref ? [t('…'), { type: 'ref' as const, targetId: ref, withParens: true }, t('。')] : [t(id)] })
   const row = (id: string, ...figs: string[]) => ({ type: 'figureRow' as const, id, figures: figs.map((f) => ({ id: f, imageId: '', caption: f })) })
   const report = (blocks: Report['body'][number]['blocks']): Report => ({ ...demoReport(), body: [{ id: 'c1', title: '企画・立案', blocks }] })
   const order = (r: Report) => r.body[0].blocks.map((b) => b.id)
 
-  it('小見出しのまとまりのいちばん下へ動かす（まとまりの終わりの改ページの手前）。動かしたあとは「段落の下へ戻す」で元の所へ', () => {
+  it('中見出しのまとまりのいちばん下へ動かす（まとまりの終わりの改ページの手前）。動かしたあとは「段落の下へ戻す」で元の所へ', () => {
     const r0 = report([{ type: 'subheading', id: 's2', title: 'デザイン説明' }, p('p1', 'f1'), row('r1', 'f1'), p('p2'), p('p3'), { type: 'pageBreak', id: 'pb' }, { type: 'subheading', id: 's3', title: '使用素材' }, p('p4')])
     expect(ops.figurePlacement(r0, 'f1')).toMatchObject({ toSectionEnd: true, toParagraph: false })
     const r1 = ops.moveFigureRow(r0, 'f1', 'sectionEnd')
@@ -755,7 +755,7 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(order(r2)).toEqual(order(r0))
   })
 
-  it('動かす先がいまの所なら、同じ原稿（段落が小見出しのまとまりの最後なら、どちらも出さない）。2枚並べた図は、まとめて動かす', () => {
+  it('動かす先がいまの所なら、同じ原稿（段落が中見出しのまとまりの最後なら、どちらも出さない）。2枚並べた図は、まとめて動かす', () => {
     const r0 = report([{ type: 'subheading', id: 's1', title: 'a' }, p('p1'), p('p2', 'f1'), row('r1', 'f1', 'f2'), { type: 'subheading', id: 's2', title: 'b' }])
     expect(ops.figurePlacement(r0, 'f2')).toMatchObject({ toSectionEnd: false, toParagraph: false })
     expect(ops.moveFigureRow(r0, 'f2', 'sectionEnd')).toBe(r0)
@@ -770,7 +770,7 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(order(ops.moveFigureRow(r0, 'f1', 'paragraph'))).toEqual(['s1', 'p1', 'r1', 'p2', 'p3', 'r2', 's2'])
   })
 
-  it('「上へ」「下へ」：前・後ろの1つと入れ替える。章（小見出し）の終わりでは、それ以上動かない（依頼者の選択 2026-10-23）', () => {
+  it('「上へ」「下へ」：前・後ろの1つと入れ替える。章（中見出し）の終わりでは、それ以上動かない（依頼者の選択 2026-10-23）', () => {
     const r0 = report([{ type: 'subheading', id: 's1', title: 'a' }, p('p1', 'f1'), row('r1', 'f1', 'f2'), p('p2'), { type: 'table', id: 't1', caption: '', rows: [] } as never, p('p3')])
     expect(ops.figurePlacement(r0, 'f2')).toMatchObject({ down: true })
     let down = r0
@@ -828,7 +828,7 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(ops.figurePlacement(r3, 'fb')).toMatchObject({ up: false, upJoin: false, upBlock: 'order' })
   })
 
-  it('つかんで運ぶ：置ける所は、小見出しの中・（図n）の段落より下・本文で出てくる順のまま。1枚だけの図の横にも置ける（2026-10-25）', () => {
+  it('つかんで運ぶ：置ける所は、中見出しの中・（図n）の段落より下・本文で出てくる順のまま。1枚だけの図の横にも置ける（2026-10-25）', () => {
     const sub = (id: string) => ({ type: 'subheading' as const, id, title: id })
     const gaps = (r: Report, id: string) => (ops.figureDrops(r, id)?.drops ?? []).flatMap((d) => (d.kind === 'gap' ? [`${d.after}|${d.before}`] : []))
     const joins = (r: Report, id: string) => (ops.figureDrops(r, id)?.drops ?? []).flatMap((d) => (d.kind === 'join' ? [d.figureId] : []))
@@ -880,13 +880,13 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(ops.figurePairing(report([row('ra', 'fa', 'fx'), row('rb', 'fb')]), 'fb').join).toBeNull()
   })
 
-  it('「上へ」「下へ」は、小見出しの境を越えない（小見出しの中だけ。依頼者の選択 2026-10-24）', () => {
+  it('「上へ」「下へ」は、中見出しの境を越えない（中見出しの中だけ。依頼者の選択 2026-10-24）', () => {
     const r0 = report([{ type: 'subheading', id: 's1', title: 'a' }, p('p1', 'f1'), row('r1', 'f1'), p('p2'), { type: 'subheading', id: 's2', title: 'b' }, p('p3')])
     const r1 = ops.moveFigureRow(r0, 'f1', 'down')
     expect(order(r1)).toEqual(['s1', 'p1', 'p2', 'r1', 's2', 'p3'])
     expect(ops.figurePlacement(r1, 'f1')).toMatchObject({ up: true, down: false })
     expect(ops.moveFigureRow(r1, 'f1', 'down')).toBe(r1)
-    // 参照のない図も、小見出しの上へは動かない
+    // 参照のない図も、中見出しの上へは動かない
     const top = report([{ type: 'subheading', id: 's1', title: 'a' }, p('p1'), { type: 'subheading', id: 's2', title: 'b' }, row('r2', 'f2'), p('p2')])
     expect(ops.figurePlacement(top, 'f2')).toMatchObject({ up: false, down: true })
   })
@@ -911,7 +911,7 @@ describe('図の置き場所（「小見出しの終わりへ」「段落の下�
     expect(order(ops.moveFigureRow(down, 'f3', 'paragraph'))).toEqual(order(r0))
   })
 
-  it('大見出しのはじめの部分（最初の小見出しの前）の図は、最初の小見出しの前まで。小見出しがなければ章の終わりまで', () => {
+  it('大見出しのはじめの部分（最初の中見出しの前）の図は、最初の中見出しの前まで。中見出しがなければ章の終わりまで', () => {
     const r0 = report([p('p1', 'f1'), row('r1', 'f1'), p('p2'), { type: 'subheading', id: 's1', title: 'a' }, p('p3')])
     expect(order(ops.moveFigureRow(r0, 'f1', 'sectionEnd'))).toEqual(['p1', 'p2', 'r1', 's1', 'p3'])
     const r1 = report([p('p1', 'f1'), row('r1', 'f1'), p('p2'), p('p3')])

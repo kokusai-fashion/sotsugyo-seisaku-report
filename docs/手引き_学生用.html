@@ -46,7 +46,7 @@
   .kband.thin h2 { margin-top: 0.6mm; font-size: 20pt; line-height: 1.2; letter-spacing: 0.04em; }
 
   /* はじめてから提出まで（1行） */
-  .route { display: flex; align-items: center; flex-wrap: wrap; gap: 1.4mm 2mm; margin-top: 4mm; font-size: 11pt; }
+  .route { display: flex; align-items: center; flex-wrap: wrap; gap: 1.4mm 2mm; margin-top: 3.4mm; font-size: 11pt; }
   .route b { color: var(--navy); }
   .route .step { display: inline-flex; align-items: center; gap: 1.2mm; }
   .route .step i { display: inline-grid; place-items: center; width: 5mm; height: 5mm; border-radius: 50%; background: var(--navy); color: #fff; font: 700 10.5pt/1 'Bahnschrift', 'Segoe UI', sans-serif; font-style: normal; }
@@ -55,12 +55,12 @@
   .memo { padding: 1.6mm 3mm; border-left: 1.2mm solid var(--mustard); background: var(--gray); font-size: 10.5pt; line-height: 1.45; }
   .memo b { color: var(--navy); }
 
-  .sec-h { margin: 4.5mm 0 2mm; font-size: 13pt; }
+  .sec-h { margin: 3.6mm 0 2mm; font-size: 13pt; }
   .sec-h small { font-size: 10.5pt; }
 
   /* 画面の地図：大きな画面と、番号の説明（3列） */
   .screen-map .shot { width: 100%; }
-  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.2mm 5mm; margin-top: 4mm; }
+  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.2mm 5mm; margin-top: 3mm; }
   .legend li { display: grid; grid-template-columns: 5.6mm 1fr; gap: 0 2mm; align-items: start; }
   .legend b { font-size: 11pt; line-height: 1.35; }
   .legend span.d2 { grid-column: 2; font-size: 10.5pt; line-height: 1.45; color: var(--muted); }
@@ -95,7 +95,7 @@
   .notes > .memo { margin: 0; }
   .must-line::before { content: '!'; position: absolute; left: 0; top: 0.4mm; width: 4.6mm; height: 4.6mm; border-radius: 50%; background: #c62828; color: #fff; font: 700 9pt/4.6mm 'Segoe UI', sans-serif; text-align: center; }
   /* 表から裏の「スマホで書く人へ」への案内 */
-  .to-back { margin-top: 2.6mm; padding: 1.6mm 4mm; background: #fdf3d9; border-left: 1.4mm solid #e8b64a; font-size: 10.5pt; }
+  .to-back { margin-top: 2mm; padding: 1.6mm 4mm; background: #fdf3d9; border-left: 1.4mm solid #e8b64a; font-size: 10.5pt; }
 
   /* スマホで書く人へ（mockups/v89 案B＋スマホの画面の絵）：紺の帯の見出し、左に画面の絵、右に気をつけること2つとホーム画面に追加 */
   .pb-band { margin-top: 2.4mm; padding: 1.4mm 4mm; background: var(--navy); color: #fff; font-size: 12.5pt; letter-spacing: 0.08em; }
@@ -148,7 +148,8 @@
   </p>
   <div class="notes">
     <p class="memo"><b>書くのはパソコンがおすすめ</b><br>画面が広く、道具が分かりやすく、間違えにくい。</p>
-    <p class="memo"><b>保存は自動</b><br><span class="must-line">共用のパソコンでは、最後に <span class="btn">この端末から原稿を消す</span></span></p>
+    <!-- ドライブのフォルダを消さない（依頼者の判断 2026-11-03 の会議のあと。ツールの使い方・フォルダの中の案内のファイル・クラスルームの配信文にも） -->
+    <p class="memo"><b>保存は自動</b><br><span class="must-line">共用のパソコンでは、最後に <span class="btn">この端末から原稿を消す</span></span><span class="must-line">ドライブの「卒業制作報告書」フォルダは消さない</span></p>
   </div>
 
   <!-- スマホで書く学生が多いので、表から裏の「スマホで書く人へ」へ案内する（mockups/v89 案B。依頼者 2026-11-02） -->
@@ -195,7 +196,7 @@
       <table>
         <tr><td>文を書く</td><td>紙面の文をクリック</td></tr>
         <tr><td>次の段落へ</td><td>Enter</td></tr>
-        <tr><td>見出しを入れる</td><td><span class="btn">大見出し</span> <span class="btn">小見出し</span></td></tr>
+        <tr><td>見出しを入れる</td><td><span class="btn">大見出し</span> <span class="btn">中見出し</span> <span class="btn">小見出し</span></td></tr>
         <tr><td>次のページから</td><td><span class="btn">改ページ</span></td></tr>
         <tr><td>段落を消す</td><td>この段落の <span class="btn">削除</span></td></tr>
       </table>

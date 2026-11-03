@@ -113,7 +113,8 @@ export function bodyHeadings(blocks: WordBlock[]): HeadingEntry[] {
   return blocks.flatMap((b) => {
     if (b.type !== 'paragraph') return []
     const text = b.text.replace(/[\n\t]/g, '').trim()
-    const h = headingFromText(text) ?? (b.headingLevel && text.length <= 40 ? { level: b.headingLevel, title: text } : null)
+    // 見出し3（小見出し）も、今までどおり中見出しと同じに数える
+    const h = headingFromText(text) ?? (b.headingLevel && text.length <= 40 ? { level: Math.min(b.headingLevel, 2) as 1 | 2, title: text } : null)
     return h && h.title && !isPlaceholderOnly(h.title) ? [{ level: h.level, title: h.title }] : []
   })
 }

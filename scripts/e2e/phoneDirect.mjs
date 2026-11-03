@@ -7,7 +7,7 @@
 // - 図表のタイトルは、書いている間も番号（図4.・表2.）のすぐ後ろから書く（書き終えたときと同じ。captionGap.mjs）
 // - キーボードのすぐ上の細い道具（キーボードは visualViewport の高さを変えて仮に出す）。書いている行はキーボード・道具に隠れない
 // - 「戻す」「やり直す」・Enter で段落を分ける・先頭の Backspace でつなげる・日本語の変換・段落に打った見出し・見出しの Enter・
-//   Android のような改行・消す入力だけの Enter・Backspace・ページの終わりから次のページへ続く・「追加」の「小見出し」・指摘へ移る
+//   Android のような改行・消す入力だけの Enter・Backspace・ページの終わりから次のページへ続く・「追加」の「中見出し」・指摘へ移る
 // - 2本の指で紙面を広げる・縮める（指の間の点は動かない。1ページ全体〜本文の幅の3倍。上の帯・道具は大きくしない）・広げたら指1本で動かす・
 //   広げてもページを送らない・書き始めない・広げ終えたあとのタップはふつう・書いている間に広げると、その大きさを覚えて次も使う
 // - 作品写真は、押して選んでから指で動かす（選んでいない写真の上ではらうと、ページを送る。依頼者の判断：案A）。2本の指では紙面を広げる
@@ -373,7 +373,7 @@ export async function phoneDirectPhone(browser, check) {
           if (rr) lines.add(Math.round(rr.top))
         }
       }
-      return { name: b.textContent.trim(), w: Math.round(q.width), h: Math.round(q.height), oneLine: lines.size === 1 }
+      return { name: b.textContent.trim(), w: Math.round(q.width), h: Math.round(q.height), left: Math.round(q.left), right: Math.round(q.right), oneLine: lines.size === 1 }
     })
     return { ...st, charW: r ? r.right - r.left : 0, fragTop: f.top, fragLeft: f.left, fragHidden: getComputedStyle(frag).visibility === 'hidden', buttons }
   })
@@ -394,8 +394,8 @@ export async function phoneDirectPhone(browser, check) {
   )
   const names = opened.buttons.map((b) => b.name)
   check(
-    'キーボードの上の道具に「戻す」「やり直す」「図」「表」「追加」「削除」「完了」（削除は mockups/v48 E。「追加」は依頼者の選択 2026-10-22 案X）。どれも 44px 四方以上で、名前は1行',
-    JSON.stringify(names) === JSON.stringify(['戻す', 'やり直す', '図', '表', '追加', '削除', '完了']) && opened.buttons.every((b) => b.w >= 44 && b.h >= 44 && b.oneLine),
+    'キーボードの上の道具に「削除」「戻す」「図」「表」「見出し」「改ページ」「完了」（削除は mockups/v48 E で左の端。見出し・改ページをじかに押せる：依頼者の選択 2026-11-03 mockups/v96 案2）。どれも 44px 四方以上で、名前は1行、画面の幅に入る',
+    JSON.stringify(names) === JSON.stringify(['戻す', '図', '表', '見出し', '改ページ', '削除', '完了']) && opened.buttons.every((b) => b.w >= 44 && b.h >= 44 && b.oneLine && b.left >= 0 && b.right <= 390),
     JSON.stringify(opened.buttons),
   )
 
@@ -454,19 +454,19 @@ export async function phoneDirectPhone(browser, check) {
     JSON.stringify({ typed: typedStarts.starts, paper: paperStarts, caret: [grown.caret, typedStarts.caret] }),
   )
 
-  // ---- 6. 道具の「戻す」「やり直す」（書く欄の中で打った字。キーボードは出たまま） ----
+  // ---- 6. 道具の「戻す」（書く欄の中で打った字。キーボードは出たまま）。「やり直す」は書いている間の道具にはない（mockups/v96 案2） ----
   const typedAll = grown.text
   await page.tap('.direct-bar .db-row button:nth-child(1)')
   await wait(200)
   const undone = await page.evaluate(() => window.__state())
-  await page.tap('.direct-bar .db-row button:nth-child(2)')
-  await wait(200)
-  const redone = await page.evaluate(() => ({ ...window.__state(), report: window.__text('p9') }))
   check(
-    '道具の「戻す」で打った字が戻り、「やり直す」でまた入る（書いたまま。書く欄から出ない）',
-    undone.text === before.text && undone.editing === 'p9' && undone.focused && redone.text === typedAll && redone.report === typedAll && redone.focused,
-    JSON.stringify({ undone: undone.text === before.text, focused: [undone.focused, redone.focused], redone: redone.text === typedAll }),
+    '道具の「戻す」で打った字が戻る（書いたまま。書く欄から出ない）',
+    undone.text === before.text && undone.editing === 'p9' && undone.focused,
+    JSON.stringify({ undone: undone.text === before.text, focused: undone.focused }),
   )
+  // 次の確かめのために、打った字に戻す（書く欄の中のやり直し）
+  await page.evaluate(() => window.__editor.redoTyping())
+  await wait(200)
 
   // ---- 7. Enter で段落を分ける（「。」を自動で付ける）・先頭の Backspace でつなげ直す・Android のような入力 ----
   await page.waitForFunction((t) => window.__frag('p9') && window.__editor.renderer.pageView.fragments('p9').map((f) => f.textContent).join('') === t, { timeout: 30000 }, typedAll)
@@ -531,8 +531,8 @@ export async function phoneDirectPhone(browser, check) {
     return { ...window.__state(), titles, toast: document.querySelector('.undo-toast')?.textContent ?? '' }
   })
   check(
-    '段落に「ⅳ．試着」と打って Enter で小見出しになり、続きは見出しの下の段落を紙面の上で書く（知らせも出る）',
-    headed.titles.includes('試着') && headed.onPaper && headed.focused && headed.text === '' && headed.toast.includes('小見出し'),
+    '段落に「ⅳ．試着」と打って Enter で中見出しになり、続きは見出しの下の段落を紙面の上で書く（知らせも出る）',
+    headed.titles.includes('試着') && headed.onPaper && headed.focused && headed.text === '' && headed.toast.includes('中見出し'),
     JSON.stringify({ titles: headed.titles, onPaper: headed.onPaper, toast: headed.toast }),
   )
 
@@ -646,12 +646,12 @@ export async function phoneDirectPhone(browser, check) {
   await wait(300)
   await ready()
 
-  // ---- 14. 「追加」→「小見出し」：足した小見出しを、すぐ紙面の上で書き始める ----
+  // ---- 14. 「追加」→「中見出し」：足した中見出しを、すぐ紙面の上で書き始める ----
   await page.tap('.p-nav .add')
   await page.waitForSelector('.add-grid .tb')
   await wait(300)
-  // 名前で探して押す（並びは大見出し → 小見出し）
-  await page.evaluate(() => [...document.querySelectorAll('.add-grid .tb')].find((b) => b.textContent.includes('小見出し')).setAttribute('data-test-sub', ''))
+  // 名前で探して押す（並びは大見出し → 中見出し）
+  await page.evaluate(() => [...document.querySelectorAll('.add-grid .tb')].find((b) => b.textContent.includes('中見出し')).setAttribute('data-test-sub', ''))
   await page.tap('.add-grid .tb[data-test-sub]')
   await wait(800)
   const added = await page.evaluate(() => window.__state())
@@ -659,7 +659,7 @@ export async function phoneDirectPhone(browser, check) {
   await wait(200)
   const addedTyped = await page.evaluate(() => window.__state())
   check(
-    '「追加」→「小見出し」で、足した小見出しを紙面の上ですぐ書き始める（追加の欄を閉じても、書く欄から出ない）',
+    '「追加」→「中見出し」で、足した中見出しを紙面の上ですぐ書き始める（追加の欄を閉じても、書く欄から出ない）',
     added.kind === 'subheading' && added.onPaper && added.zoomed && added.focused && addedTyped.text === '採寸' && addedTyped.focused,
     JSON.stringify({ kind: added.kind, onPaper: added.onPaper, zoomed: added.zoomed, focused: [added.focused, addedTyped.focused], text: addedTyped.text }),
   )
@@ -667,7 +667,7 @@ export async function phoneDirectPhone(browser, check) {
   await wait(300)
   await ready()
 
-  // ---- 14b. 書いている間に、キーボードの上の「追加」から大見出し・小見出し・改ページを入れる（書いている所の後ろ。依頼者の選択 2026-10-22 案X） ----
+  // ---- 14b. 書いている間に、キーボードの上の「追加」から大見出し・中見出し・改ページを入れる（書いている所の後ろ。依頼者の選択 2026-10-22 案X） ----
   await page.evaluate(() => {
     window.__savedReport = window.__editor.getSnapshot().report
     return window.__editor.goToPage(window.__editor.pageOfBlock('p10'), 'none')
@@ -693,12 +693,14 @@ export async function phoneDirectPhone(browser, check) {
   })
   await shotWithKeyboard(page, '2b-add-row')
   check(
-    '書いている間に道具の「追加」を押すと、道具の上の段に「大見出し」「小見出し」「改ページ」が出る（44px 四方以上）。道具はキーボードのすぐ上のまま、書いている行は道具より上で、書き続けられる',
-    JSON.stringify(addRow.names) === JSON.stringify(['大見出し', '小見出し', '改ページ']) && addRow.sizes.every(([w, h]) => w >= 44 && h >= 44) && addRow.above && addRow.expanded === 'true' && addRow.editing === 'p10' && addRow.focused && Math.abs(addRow.bar.bottom - (844 - KB)) < 1 && !!addRow.caretRect && addRow.caretRect.bottom <= addRow.bar.top - 2 && addRow.caretRect.top >= 48,
+    '書いている間に道具の「見出し」を押すと、道具の上の段に「大見出し」「中見出し」「小見出し」が出る（44px 四方以上）。道具はキーボードのすぐ上のまま、書いている行は道具より上で、書き続けられる',
+    JSON.stringify(addRow.names) === JSON.stringify(['大見出し', '中見出し', '小見出し']) && addRow.sizes.every(([w, h]) => w >= 44 && h >= 44) && addRow.above && addRow.expanded === 'true' && addRow.editing === 'p10' && addRow.focused && Math.abs(addRow.bar.bottom - (844 - KB)) < 1 && !!addRow.caretRect && addRow.caretRect.bottom <= addRow.bar.top - 2 && addRow.caretRect.top >= 48,
     JSON.stringify({ names: addRow.names, sizes: addRow.sizes, above: addRow.above, editing: addRow.editing, focused: addRow.focused, bar: addRow.bar, caret: addRow.caretRect }),
   )
-  await page.evaluate(() => [...document.querySelectorAll('.direct-bar .db-add button')].find((b) => b.textContent.includes('改ページ')).setAttribute('data-test-pb', ''))
-  await page.tap('.direct-bar .db-add button[data-test-pb]')
+  // 見出しの段を閉じて、道具の「改ページ」をじかに押す
+  await page.tap('.direct-bar button[aria-expanded]')
+  await wait(300)
+  await page.tap('.direct-bar button[aria-label="改ページ"]')
   await wait(800)
   await page.keyboard.type('続')
   await wait(300)
@@ -710,13 +712,13 @@ export async function phoneDirectPhone(browser, check) {
   })
   // 改ページの後ろの新しい段落（次のページの頭）で書き続ける（前は前の段落のままで、新しいページに書き始められなかった：学生の試し 2回目 2026-10-29）
   check(
-    '「追加」→「改ページ」：書いている段落の後ろに改ページが入り、段は閉じる。改ページの後ろの新しい段落で書き続けられる（キーボードは閉じない）',
+    '道具の「改ページ」：書いている段落の後ろに改ページが入る。改ページの後ろの新しい段落で書き続けられる（キーボードは閉じない）',
     afterPb.next === 'pageBreak' && !afterPb.rowOpen && !!afterPb.newId && afterPb.editing === afterPb.newId && afterPb.focused && afterPb.text === '続',
     JSON.stringify({ next: afterPb.next, rowOpen: afterPb.rowOpen, editing: afterPb.editing, newId: afterPb.newId, focused: afterPb.focused, text: afterPb.text }),
   )
   await page.tap('.direct-bar button[aria-expanded]')
   await wait(300)
-  await page.evaluate(() => [...document.querySelectorAll('.direct-bar .db-add button')].find((b) => b.textContent.includes('小見出し')).setAttribute('data-test-sub', ''))
+  await page.evaluate(() => [...document.querySelectorAll('.direct-bar .db-add button')].find((b) => b.textContent.includes('中見出し')).setAttribute('data-test-sub', ''))
   await page.tap('.direct-bar .db-add button[data-test-sub]')
   await wait(800)
   await page.keyboard.type('縫製')
@@ -728,7 +730,7 @@ export async function phoneDirectPhone(browser, check) {
     return { ...window.__state(), after: blocks.slice(i + 1, i + 4).map((b) => b.type), title: blocks[i + 3]?.title }
   })
   check(
-    '「追加」→「小見出し」：書いている所（改ページの後ろの段落）の後ろに小見出しが入り、すぐ紙面の上で書き始める（キーボードは閉じない）',
+    '「追加」→「中見出し」：書いている所（改ページの後ろの段落）の後ろに中見出しが入り、すぐ紙面の上で書き始める（キーボードは閉じない）',
     afterSub.kind === 'subheading' && afterSub.onPaper && afterSub.focused && afterSub.text === '縫製' && JSON.stringify(afterSub.after) === JSON.stringify(['pageBreak', 'paragraph', 'subheading']),
     JSON.stringify({ kind: afterSub.kind, onPaper: afterSub.onPaper, focused: afterSub.focused, text: afterSub.text, after: afterSub.after }),
   )

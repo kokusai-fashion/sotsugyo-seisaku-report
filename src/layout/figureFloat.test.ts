@@ -87,7 +87,7 @@ describe('図を次のページの上へ送るか（表の途中に入らない�
   })
 })
 
-describe('図を次のページの上へ送るか（小見出しを越えないように。依頼者の選択 2026-10-26）', () => {
+describe('図を次のページの上へ送るか（中見出しを越えないように。依頼者の選択 2026-10-26）', () => {
   const withSub: Chapter = {
     id: 'c2',
     title: '制作過程',
@@ -99,16 +99,16 @@ describe('図を次のページの上へ送るか（小見出しを越えない�
       { type: 'paragraph', id: 'p3', content: [{ type: 'text', text: '帯は' }] },
     ],
   }
-  it('送ると次の小見出しが今のページの空白に上がる（図の下から小見出しまでが空白より短い）なら送らない。小見出しが十分あとなら送る', () => {
-    // 1ページ目の下 72mm が空いている。図は2ページ目の上（25〜95mm）、次の小見出しは図のすぐあと（110mm。図から 15mm）
+  it('送ると次の中見出しが今のページの空白に上がる（図の下から中見出しまでが空白より短い）なら送らない。中見出しが十分あとなら送る', () => {
+    // 1ページ目の下 72mm が空いている。図は2ページ目の上（25〜95mm）、次の中見出しは図のすぐあと（110mm。図から 15mm）
     const near = layout({ blocks: { p1: [at(0, 180, 200)], s2: [at(1, 110, 118)] }, groups: { g1: [at(1, 25, 95)] } })
     expect(decideDeferredGroups(near, [withSub], new Set(), new Set())).toEqual(new Set())
-    // 小見出しが図から 100mm あと（空白 72mm より長い）なら、送っても小見出しは図より後ろ
+    // 中見出しが図から 100mm あと（空白 72mm より長い）なら、送っても中見出しは図より後ろ
     const far = layout({ blocks: { p1: [at(0, 180, 200)], s2: [at(1, 195, 203)] }, groups: { g1: [at(1, 25, 95)] } })
     expect(decideDeferredGroups(far, [withSub], new Set(), new Set())).toEqual(new Set(['g1']))
   })
-  it('送った結果、次の小見出しが図より前に出たら、送るのをやめる（この組み直しの間は、もう送らない）', () => {
-    // 送った結果：小見出しは1ページ目の下（250mm）に上がり、図は2ページ目の上
+  it('送った結果、次の中見出しが図より前に出たら、送るのをやめる（この組み直しの間は、もう送らない）', () => {
+    // 送った結果：中見出しは1ページ目の下（250mm）に上がり、図は2ページ目の上
     const l = layout({ blocks: { p1: [at(0, 180, 200)], s2: [at(0, 250, 258)] }, groups: { g1: [at(1, 25, 95)] } })
     const blocked = new Set<string>()
     expect(decideDeferredGroups(l, [withSub], new Set(['g1']), blocked)).toEqual(new Set())

@@ -363,11 +363,11 @@ await withEdge(async (browser) => {
   await openTemplate()
   await page.waitForSelector('.tpl-modal')
   await page.evaluate(() => document.querySelectorAll('.tpl-modal .row')[1].click())
-  await clickButton('＋ 小見出し')
-  await page.keyboard.type('試験の小見出し')
+  await clickButton('＋ 中見出し')
+  await page.keyboard.type('試験の中見出し')
   await sleep(500)
   const tplPreview = await page.evaluate(() => document.querySelector('.tpl-preview iframe').contentDocument.body.innerText)
-  check('ひな形の編集画面で、足した小見出しが見本にすぐ出る', tplPreview.includes('試験の小見出し'))
+  check('ひな形の編集画面で、足した中見出しが見本にすぐ出る', tplPreview.includes('試験の中見出し'))
   await page.screenshot({ path: `${OUT}/admin-template.png` })
   // 直したあとに「×」「やめる」・Esc を押すと、消えてよいか確かめる（キャンセルなら窓は開いたまま）
   check('直しているあいだは、タブを閉じる・読み込み直すときに確かめる', await leaveGuarded())
@@ -382,13 +382,13 @@ await withEdge(async (browser) => {
   dialogs.answer(true)
   check('直したひな形の窓で Esc・「やめる」・「×」を押すと確かめ、キャンセルなら閉じない', escAsked === '直した内容は反映されずに消えます。閉じますか？' && !!(await page.$('.tpl-modal')) && dialogs.count() === before + 3, escAsked)
   // 長すぎる行は、窓の中で赤く知らせ、「反映する」を押せなくする（行の番号・種類・字数を示す）
-  const subheading = await page.evaluateHandle(() => [...document.querySelectorAll('.tpl-modal .row input')].find((i) => i.value === '試験の小見出し'))
+  const subheading = await page.evaluateHandle(() => [...document.querySelectorAll('.tpl-modal .row input')].find((i) => i.value === '試験の中見出し'))
   await setValue(subheading, 'あ'.repeat(101))
   await sleep(300)
   const longProblem = await page.evaluate(() => [...document.querySelectorAll('.tpl-modal .problems .error')].map((e) => e.textContent).join('|'))
   const applyDisabled = await page.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent.includes('反映する')).disabled)
   await page.screenshot({ path: `${SHOTS}/1-template-long-row.png` })
-  check('ひな形の行が長すぎると、窓の中で行と字数を示し、「反映する」を押せない', /^\d+行目の小見出し「あ+…」が長すぎます（100字まで。今は101字）$/.test(longProblem) && applyDisabled, longProblem)
+  check('ひな形の行が長すぎると、窓の中で行と字数を示し、「反映する」を押せない', /^\d+行目の中見出し「あ+…」が長すぎます（100字まで。今は101字）$/.test(longProblem) && applyDisabled, longProblem)
   // 押せない理由は、「反映する」のとなりにも出す（mockups/v35-admin ④ 案A。行の書き出しは外した短い文。そのあいだ、下の案内は出さない）
   const footReason = () =>
     page.evaluate(() => ({
@@ -400,8 +400,8 @@ await withEdge(async (browser) => {
     }))
   const oneReason = await footReason()
   check(
-    '「反映する」を押せないときは、ボタンのとなりに理由を出す（「⚠ 3行目の小見出しが長すぎます（…）」。1つだけなら「ほか○件」はなく、下の案内の代わりに出す）',
-    /^\d+行目の小見出しが長すぎます（100字まで。今は101字）$/.test(oneReason.why) && oneReason.icon && oneReason.more === null && !oneReason.hint && oneReason.order === 'spacer|why|やめる|primary',
+    '「反映する」を押せないときは、ボタンのとなりに理由を出す（「⚠ 3行目の中見出しが長すぎます（…）」。1つだけなら「ほか○件」はなく、下の案内の代わりに出す）',
+    /^\d+行目の中見出しが長すぎます（100字まで。今は101字）$/.test(oneReason.why) && oneReason.icon && oneReason.more === null && !oneReason.hint && oneReason.order === 'spacer|why|やめる|primary',
     JSON.stringify(oneReason),
   )
   // 2つ目の問題（いちばん上の大見出しを空に）：1つ目の理由と「ほか1件」。「ほか1件」を押すと、左の欄のいちばん下の一覧へ動く
@@ -426,14 +426,14 @@ await withEdge(async (browser) => {
     JSON.stringify({ twoReasons, scrolled }),
   )
   await setValue(firstRow, firstRowTitle)
-  await setValue(subheading, '試験の小見出し')
+  await setValue(subheading, '試験の中見出し')
   await sleep(200)
   const fixedFoot = await footReason()
   check('直すと、となりの理由は消え、下の案内に戻る', fixedFoot.why === null && fixedFoot.hint, JSON.stringify(fixedFoot))
   await clickButton('反映する')
   await sleep(300)
   const summary = await page.evaluate(() => document.querySelector('.course.open .tpl-line b').textContent)
-  check('反映すると、コースのひな形の要約が変わる', summary.includes('小見出し4'), summary)
+  check('反映すると、コースのひな形の要約が変わる', summary.includes('中見出し4'), summary)
   check('ひな形を反映した知らせは、公開中の年度では「保存して学生に反映」を押すと届くと言う', (await messageText()) === 'ひな形を反映しました。「保存して学生に反映」を押すと、学生のツールに届きます', await messageText())
   await clickButton('保存して学生に反映')
   await page.waitForFunction(() => document.querySelector('.message.ok')?.textContent.includes('反映'))
@@ -636,7 +636,7 @@ await withEdge(async (browser) => {
   await page.waitForSelector('.admin .content')
   const savedConfig = (await savedYear(2026)).config
   const saved = savedConfig.courses[0]
-  check('先生が保存したひな形が、年度の設定に入る（ほかの設定は変わらない）', saved.template.some((b) => b.hint === '先生が足した説明') && saved.template.some((b) => b.title === '試験の小見出し'))
+  check('先生が保存したひな形が、年度の設定に入る（ほかの設定は変わらない）', saved.template.some((b) => b.hint === '先生が足した説明') && saved.template.some((b) => b.title === '試験の中見出し'))
   check('先生が書いたコースのお知らせも、いっしょに保存される', saved.notice === '先生が書いたお知らせ', saved.notice)
   check('先生が編集した書き間違えやすい語も、いっしょに保存される', savedConfig.wordChecks.length === 13 && !savedConfig.wordChecks.some((w) => w.wrong === '芯地(仮)'))
   await teacher.close()

@@ -550,7 +550,7 @@ async function studentShots(browser, config) {
       { n: 2, box: caption, at: 'r' },
     ])
   }
-  // 見出し・改ページ：左の道具の上の方（大見出し・小見出し・改ページ）
+  // 見出し・改ページ：左の道具の上の方（大見出し・中見出し・小見出し・改ページ）
   {
     const palette = await page.evaluate(rectOf, '.palette')
     const tool = (label) => page.evaluate(rectOf, '.palette .tb', label)
@@ -985,7 +985,7 @@ async function detailShots(browser, config) {
     await sleep(400)
   }
 
-  // ---- 図を押したときの道具（差し替え・もう1枚・小見出しの終わりへ・削除）。TOOLS_FIGURE（2枚並びの左の図）を押す ----
+  // ---- 図を押したときの道具（差し替え・もう1枚・中見出しの終わりへ・削除）。TOOLS_FIGURE（2枚並びの左の図）を押す ----
   {
     // ページを探すのは図の id で（図の並び r… の id ではページが見つからない）
     await goToBlock(page, TOOLS_FIGURE)
@@ -1003,7 +1003,7 @@ async function detailShots(browser, config) {
       { n: 1, box: await tool('差し替え'), at: 'r' },
       { n: 2, box: await tool('もう1枚'), at: 'r' },
       // 図の置き場所によっては「段落の下へ戻す」になる（そのときは番号を付けない）
-      { n: 3, box: await tool('小見出しの終わりへ'), at: 'r', optional: true },
+      { n: 3, box: await tool('中見出しの終わりへ'), at: 'r', optional: true },
     ])
     await page.keyboard.press('Escape')
     await sleep(300)
@@ -1059,7 +1059,7 @@ async function detailShots(browser, config) {
     await sleep(300)
   }
 
-  // ---- スマホ：書いているときの「追加」（大見出し・小見出し・改ページ） ----
+  // ---- スマホ：書いているときの「見出し」（大見出し・中見出し・小見出し） ----
   {
     const phone = await openTool(browser, drive, config, { phone: true })
     const pp = phone.page

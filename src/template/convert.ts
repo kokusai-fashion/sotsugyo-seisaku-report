@@ -1,7 +1,7 @@
 import { currentConfig, type Course, type TemplateBlock, type TemplateTable, type YearConfig } from '../config'
 import { LIMITS, repairConfig, templateProblems, tooLong } from '../config/validate'
 import { contentToText, numbering } from '../editor/reportOps'
-import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
+import { chapterLabel, minorHeadingLabel, subheadingLabel } from '../layout/bodyHtml'
 import { createReport } from '../model/newReport'
 import { colWidthsOf, isPlainMaterialTable } from '../model/table'
 import { bodyFromTemplate, DEFAULT_TEMPLATE, emptyParagraph } from '../model/template'
@@ -125,7 +125,7 @@ export function templateFromReport(report: Report): TemplateResult {
     const only = chapter.blocks.length === 1 ? chapter.blocks[0] : null
     if (only?.type === 'paragraph' && contentToText(only.content, num) === '') continue
     for (const b of chapter.blocks) {
-      if (b.type === 'subheading') push({ type: 'subheading', title: b.title }, b.id)
+      if (b.type === 'subheading') push({ type: 'subheading', title: b.title, ...(b.level === 3 ? { level: 3 as const } : {}) }, b.id)
       else if (b.type === 'paragraph') {
         // 本文に入る文（字が空なら、説明のない空の段落）
         const text = contentToText(b.content, num)
@@ -161,6 +161,7 @@ export function templateIssues({ template, abstractExample, ids, abstractId }: T
   if (template.length > LIMITS.blocks) push(null, `見出し・説明・図表・改ページが多すぎます（あわせて${LIMITS.blocks}個まで。今は${template.length}個）`)
   let chapter = -1
   let sub = 0
+  let minor = 0
   let figure = 0
   let table = 0
   template.forEach((b, i) => {
@@ -168,11 +169,14 @@ export function templateIssues({ template, abstractExample, ids, abstractId }: T
     if (b.type === 'chapter') {
       chapter += 1
       sub = 0
+      minor = 0
       const label = `大見出し「${chapterLabel(chapter)}」`
       if (!b.title.trim()) push(id, `${label}の名前が空です`)
       else if (b.title.length > LIMITS.name) push(id, `${label}の名前${tooLong(LIMITS.name, b.title.length)}`)
     } else if (b.type === 'subheading') {
-      const label = `小見出し「${chapterLabel(Math.max(0, chapter))}${subheadingLabel(sub++)}」`
+      // 小見出し（（1））は、中見出しごとに振り直す
+      if (b.level !== 3) minor = 0
+      const label = b.level === 3 ? `小見出し「${chapterLabel(Math.max(0, chapter))}${minorHeadingLabel(minor++)}」` : `中見出し「${chapterLabel(Math.max(0, chapter))}${subheadingLabel(sub++)}」`
       if (!b.title.trim()) push(id, `${label}の名前が空です`)
       else if (b.title.length > LIMITS.name) push(id, `${label}の名前${tooLong(LIMITS.name, b.title.length)}`)
     } else if (b.type === 'paragraph') {

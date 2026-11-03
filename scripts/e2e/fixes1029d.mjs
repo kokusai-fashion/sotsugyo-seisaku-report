@@ -2,9 +2,9 @@
 // これだけを流すときは node scripts/e2e/run.mjs fixes1029d
 // - Ctrl+Enter → すぐ Ctrl+Z → すぐ打つ：字が消えない
 // - Enter で分けて・Backspace でつないで、すぐ Ctrl+Z：書く欄を閉じず、続けて打った字が入る
-// - 「小見出しにする」のあと、すぐ打った字が小見出しに入る
-// - 「小見出し」のダブルクリックで1つだけ。表の大きさのます目のダブルクリックで、表のタイトルの書く欄が閉じない
-// - 「2-1 〇〇」を Enter で小見出しにして、何も書かずに離れると、空の段落が残らない
+// - 「中見出しにする」のあと、すぐ打った字が中見出しに入る
+// - 「中見出し」のダブルクリックで1つだけ。表の大きさのます目のダブルクリックで、表のタイトルの書く欄が閉じない
+// - 「2-1 〇〇」を Enter で中見出しにして、何も書かずに離れると、空の段落が残らない
 // - 残ったまま保存した PDF の一言は、直すところとまだのところの両方を言う
 // - はじめての案内で打ちかけのまま、ページの絵を押すと、案内が閉じてそのページへ移る
 // - スマホ：「次のマス」で生地見本の空いたマスに入っても、写真の入れ方を知らせる。改ページを消した知らせは「上の「戻す」」
@@ -114,30 +114,30 @@ await withEdge(async (browser) => {
     await wait(600)
     await ready()
 
-    // 「小見出しにする」のあと、すぐ打つ
+    // 「中見出しにする」のあと、すぐ打つ
     await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c, i) => (i === 1 ? { ...c, blocks: [{ type: 'paragraph', id: 'px', content: [{ type: 'text', text: '2-1 パターンと仮縫い' }] }, ...c.blocks] } : c)) })))
     await wait(1000)
     await ready()
     await editAt(page, ready, 'px', 12)
-    await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.replace(/\s/g, '').endsWith('小見出しにする'))?.click())
+    await page.evaluate(() => [...document.querySelectorAll('.palette .tb')].find((b) => b.textContent.replace(/\s/g, '').endsWith('中見出しにする'))?.click())
     await page.keyboard.type('の記録', { delay: 60 })
     await wait(1200)
     await ready()
     const conv = await page.evaluate(() => { const s = window.__editor.getSnapshot(); const c = s.report.body[1]; return { first: c.blocks[0]?.type, title: c.blocks[0]?.title, editing: s.editingKind } })
     await blur(page)
-    check('「小見出しにする」のあと、すぐ打った字が、その小見出しの終わりに入る', conv.first === 'subheading' && conv.title === 'パターンと仮縫いの記録' && conv.editing === 'subheading', JSON.stringify(conv))
+    check('「中見出しにする」のあと、すぐ打った字が、その中見出しの終わりに入る', conv.first === 'subheading' && conv.title === 'パターンと仮縫いの記録' && conv.editing === 'subheading', JSON.stringify(conv))
 
-    // 「小見出し」のダブルクリック
+    // 「中見出し」のダブルクリック
     const subs = () => page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).filter((b) => b.type === 'subheading').length)
     const before = await subs()
     await editAt(page, ready, 'p3', 2)
-    const subTool = await page.evaluate(() => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.replace(/\s/g, '').endsWith('小見出し') && !x.textContent.includes('にする')); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+    const subTool = await page.evaluate(() => { const b = [...document.querySelectorAll('.palette .tb')].find((x) => x.textContent.replace(/\s/g, '').endsWith('中見出し') && !x.textContent.includes('にする')); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
     await page.mouse.click(subTool.x, subTool.y, { count: 2 })
     await wait(1200)
     await ready()
     const afterDbl = await subs()
     await blur(page)
-    check('「小見出し」をダブルクリックしても、小見出しは1つだけ増える', afterDbl === before + 1, JSON.stringify({ before, afterDbl }))
+    check('「中見出し」をダブルクリックしても、中見出しは1つだけ増える', afterDbl === before + 1, JSON.stringify({ before, afterDbl }))
 
     // 「大見出し」のダブルクリック（ページが2枚増えていた）
     const chapters = () => page.evaluate(() => window.__editor.getSnapshot().report.body.length)
@@ -176,7 +176,7 @@ await withEdge(async (browser) => {
     await wait(500)
     check('表の大きさのます目をダブルクリックしても、表のタイトルの書く欄は閉じず、打った字がタイトルに入る', tbl.kind === 'tableCaption' && caption === '表題', JSON.stringify({ tbl, caption }))
 
-    // 「2-1 〇〇」を Enter で小見出しにして、何も書かずに離れる
+    // 「2-1 〇〇」を Enter で中見出しにして、何も書かずに離れる
     await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c, i) => (i === 2 ? { ...c, blocks: [{ type: 'paragraph', id: 'py', content: [{ type: 'text', text: '3-1 まとめの前に' }] }, ...c.blocks] } : c)) })))
     await wait(1000)
     await ready()
@@ -187,7 +187,7 @@ await withEdge(async (browser) => {
     await wait(900)
     await ready()
     const heading = await page.evaluate(() => { const c = window.__editor.getSnapshot().report.body[2]; return c.blocks.slice(0, 2).map((b) => (b.type === 'paragraph' ? `p:${b.content.map((n) => n.text ?? '').join('')}` : b.type)) })
-    check('「3-1 〇〇」を Enter で小見出しにして、何も書かずに離れると、後ろに空の段落が残らない', heading[0] === 'subheading' && heading[1] !== 'p:', JSON.stringify(heading))
+    check('「3-1 〇〇」を Enter で中見出しにして、何も書かずに離れると、後ろに空の段落が残らない', heading[0] === 'subheading' && heading[1] !== 'p:', JSON.stringify(heading))
 
     // 残ったまま保存した PDF の一言（直すところ・まだのところの両方）
     await page.evaluate(() => window.__editor.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, studentId: '' }, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p7' && b.type === 'paragraph' ? { ...b, content: b.content.map((n, i, a) => (i === a.length - 1 && n.type === 'text' ? { ...n, text: n.text.replace(/。$/, '') } : n)) } : b)) })) })))

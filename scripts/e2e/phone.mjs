@@ -236,16 +236,16 @@ await withEdge(async (browser) => {
   s = await snap()
   check('「完了」で書く欄が閉じ、紙面の表示が戻る', !s.editingId && !s.zoomed && !(await page.evaluate(() => document.querySelector('.edit-sheet').classList.contains('open'))))
 
-  // 追加：小見出しを足す（段落は、書く欄で改行して分ける）
+  // 追加：中見出しを足す（段落は、書く欄で改行して分ける）
   await page.click('.p-nav .add')
   await page.waitForSelector('.sheet .add-grid')
   await shot('4-add')
   const before = s.report.body[0].blocks.length
-  await page.evaluate(() => [...document.querySelectorAll('.sheet .add-grid .tb')].find((b) => b.textContent.includes('小見出し')).click())
+  await page.evaluate(() => [...document.querySelectorAll('.sheet .add-grid .tb')].find((b) => b.textContent.includes('中見出し')).click())
   await page.waitForFunction(() => window.__editor.getSnapshot().editingId, { timeout: 30000 })
   await ready()
   s = await snap()
-  check('「追加」から小見出しを足すと、すぐ書ける', s.report.body.flatMap((c) => c.blocks).length > before && !!s.editingId)
+  check('「追加」から中見出しを足すと、すぐ書ける', s.report.body.flatMap((c) => c.blocks).length > before && !!s.editingId)
   await page.click('.edit-sheet .done')
   await ready()
 
@@ -492,7 +492,7 @@ await withEdge(async (browser) => {
   await page.click('.edit-sheet .done')
   await ready()
   check('書いた文は、表の後ろの段落に入る', (await snap()).report.body.flatMap((c) => c.blocks).find((b) => b.id === contOpen.editing)?.content.map((n) => n.text ?? '').join('') === '素材は三種類を使った。')
-  // 書く欄で段落を削除すると知らせが出て、次の操作（「追加」で小見出しを足す）をすると消える
+  // 書く欄で段落を削除すると知らせが出て、次の操作（「追加」で中見出しを足す）をすると消える
   const contAt = await page.evaluate((id) => { const r = document.querySelector(`.page-viewport.front [data-block-id="${id}"]`).getBoundingClientRect(); return { x: r.left + 30, y: r.top + r.height / 2 } }, contOpen.editing)
   await page.touchscreen.tap(contAt.x, contAt.y)
   await page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 20000 }, contOpen.editing)
@@ -501,10 +501,10 @@ await withEdge(async (browser) => {
   const paraNotice = await page.evaluate(() => document.querySelector('.undo-toast')?.textContent ?? '')
   await page.click('.p-nav .add')
   await page.waitForSelector('.sheet .add-grid')
-  await page.evaluate(() => [...document.querySelectorAll('.sheet .add-grid .tb')].find((b) => b.textContent.includes('小見出し')).click())
+  await page.evaluate(() => [...document.querySelectorAll('.sheet .add-grid .tb')].find((b) => b.textContent.includes('中見出し')).click())
   await page.waitForFunction(() => window.__editor.getSnapshot().editingId, { timeout: 30000 })
   await ready()
-  check('書く欄で段落を削除すると「段落を削除しました［戻す］」が出て、次の操作（小見出しを足す）をすると消える', paraNotice === '段落を削除しました戻す' && !(await page.$('.undo-toast')), paraNotice)
+  check('書く欄で段落を削除すると「段落を削除しました［戻す］」が出て、次の操作（中見出しを足す）をすると消える', paraNotice === '段落を削除しました戻す' && !(await page.$('.undo-toast')), paraNotice)
   await page.click('.edit-sheet .done')
   await ready()
 
@@ -527,7 +527,7 @@ await withEdge(async (browser) => {
   await page.touchscreen.tap(photoAt.x, photoAt.y)
   await wait(400)
   const photoBar = await page.evaluate(() => ({ label: document.querySelector('.sel-bar .ctx-label')?.textContent, tools: [...document.querySelectorAll('.sel-bar .tb')].map((b) => b.textContent.trim()) }))
-  check('作品写真を押すと、下の道具に「この写真（1枚目）：差し替え／外す」が出る', photoBar.label === 'この写真（1枚目）' && photoBar.tools.join(',') === '差し替え,外す', JSON.stringify(photoBar))
+  check('作品写真を押すと、下の道具に「この写真（1枚目）：差し替え／外す／トリミング」が出る', photoBar.label === 'この写真（1枚目）' && photoBar.tools.join(',') === '差し替え,外す,トリミング', JSON.stringify(photoBar))
   await page.evaluate(() => [...document.querySelectorAll('.sel-bar .tb')].find((b) => b.textContent.includes('外す')).click())
   await ready()
   s = await snap()
@@ -1542,7 +1542,7 @@ async function firstTimeFixesPhone(browser) {
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'tM' ? { ...b, widths: 'equal' } : b)) })) })))
   await ready()
 
-  // 章の最後の小見出しの下にも「＋ 文章の続きを書く」（高さ 44px）。押すと、見出しのすぐ後ろに段落ができ、下の書く欄ですぐ書ける
+  // 章の最後の中見出しの下にも「＋ 文章の続きを書く」（高さ 44px）。押すと、見出しのすぐ後ろに段落ができ、下の書く欄ですぐ書ける
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: [...r.body, { id: 'cH', title: '補足', blocks: [{ type: 'subheading', id: 'sH', title: '追記' }] }] })))
   await ready()
   await showBlock('sH')
@@ -1558,7 +1558,7 @@ async function firstTimeFixesPhone(browser) {
   await wait(300)
   const fromHeadRow = await page.evaluate(() => { const s = window.__editor.getSnapshot(); const c = s.report.body.find((x) => x.id === 'cH'); return { editing: s.editingId, sheet: !!document.querySelector('.edit-sheet.open'), blocks: c.blocks.map((b) => b.id) } })
   check(
-    'スマホ：章の最後の小見出しの下にも「＋ 文章の続きを書く」（高さ 44px 以上）が出て、押すと見出しのすぐ後ろに段落ができ、下の書く欄で書ける',
+    'スマホ：章の最後の中見出しの下にも「＋ 文章の続きを書く」（高さ 44px 以上）が出て、押すと見出しのすぐ後ろに段落ができ、下の書く欄で書ける',
     phoneHeadRow.shown && phoneHeadRow.h >= 44 && phoneHeadRow.below && fromHeadRow.sheet && fromHeadRow.blocks.length === 2 && fromHeadRow.editing === fromHeadRow.blocks[1],
     JSON.stringify({ phoneHeadRow, fromHeadRow }),
   )

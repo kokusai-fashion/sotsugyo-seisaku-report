@@ -14,31 +14,41 @@ import { useReorder } from './useReorder'
 
 /**
  * コースの「下書きのひな形」を編集する画面（mockups/v8 案1：コースのカードから開く）。
- * 左で本文の組み立て（大見出し・小見出し・書くことの説明・本文に入る文・図の枠・素材表）を並べ、右で学生が最初に見る本文を確かめる。
+ * 左で本文の組み立て（大見出し・中見出し・書くことの説明・本文に入る文・図の枠・素材表）を並べ、右で学生が最初に見る本文を確かめる。
  * mockups/v44 からは、学生と同じ紙面で作る画面（TemplateOverlay.tsx）がふつうの作り方で、この窓は「前の作り方で直す」から開く予備。
  * 改ページ・ふつうの表（新しい画面で作ったもの）も消さずに残し、並べ替え・削除・表のタイトルの直しはできる（表の見出しの行は新しい画面で直す）
  */
 
 /** 行の種類の名前（text：本文に入る文の段落。mockups/v70） */
-const KIND_LABELS: Record<TemplateRowKind, string> = { chapter: '大見出し', subheading: '小見出し', paragraph: '説明', text: '本文に入る文', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
+const KIND_LABELS: Record<TemplateRowKind, string> = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', text: '本文に入る文', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
 /** 行の種類（段落は、本文に入る文の項目を持てば text） */
 const kindOf = (b: TemplateBlock): TemplateRowKind => (b.type === 'paragraph' && b.text !== undefined ? 'text' : b.type)
 const ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ', 'Ⅸ', 'Ⅹ']
 const SMALL = ['ⅰ', 'ⅱ', 'ⅲ', 'ⅳ', 'ⅴ', 'ⅵ', 'ⅶ', 'ⅷ', 'ⅸ', 'ⅹ']
 
-/** 行ごとの番号（Ⅰ．ⅰ．図1 など） */
+/** 小見出し（（1）。見出しを大・中・小の3つにした 2026-11-03）。この窓では足せないが、新しい画面で作ったものは名前と番号で示す */
+const isMinor = (b: TemplateBlock) => b.type === 'subheading' && b.level === 3
+const kindLabel = (b: TemplateBlock) => (isMinor(b) ? '小見出し' : KIND_LABELS[kindOf(b)])
+
+/** 行ごとの番号（Ⅰ．ⅰ．（1）図1 など） */
 function numbers(blocks: TemplateBlock[]): string[] {
   let ch = -1
   let sub = 0
+  let minor = 0
   let fig = 0
   let tab = 0
   return blocks.map((b) => {
     if (b.type === 'chapter') {
       ch += 1
       sub = 0
+      minor = 0
       return `${ROMAN[ch] ?? ch + 1}．`
     }
-    if (b.type === 'subheading') return `${SMALL[sub++] ?? sub}．`
+    if (isMinor(b)) return `（${++minor}）`
+    if (b.type === 'subheading') {
+      minor = 0
+      return `${SMALL[sub++] ?? sub}．`
+    }
     if (b.type === 'figure') return `図${++fig}`
     if (b.type === 'materialTable' || b.type === 'table') return `表${++tab}`
     return ''
@@ -68,7 +78,7 @@ function problemsOf(blocks: TemplateBlock[], abstractExample: string): Problem[]
   blocks.forEach((b, i) => {
     const kind = kindOf(b)
     const empty = b.type === 'chapter' || b.type === 'subheading' ? !b.title.trim() : b.type === 'figure' || b.type === 'materialTable' || b.type === 'table' ? !b.caption.trim() : false
-    if (empty) push(`${i + 1}行目の${KIND_LABELS[kind]}の名前が空です`)
+    if (empty) push(`${i + 1}行目の${kindLabel(b)}の名前が空です`)
     // 本文に入る文は、空にしない（空の段落なら「説明」の行を空のまま使う）
     if (kind === 'text' && !textOf(b).trim()) push(`${i + 1}行目の${KIND_LABELS[kind]}が空です`)
     const max = kind === 'paragraph' ? LIMITS.hint : kind === 'text' ? LIMITS.text : LIMITS.name
@@ -92,7 +102,7 @@ const withText = (b: TemplateBlock, text: string): TemplateBlock =>
         : { ...b, caption: text }
 const PLACEHOLDERS: Record<TemplateRowKind, string> = {
   chapter: '大見出しの名前（例：企画・立案）',
-  subheading: '小見出しの名前（例：デザイン説明）',
+  subheading: '中見出しの名前（例：デザイン説明）',
   paragraph: '学生に薄い字で見せる「ここに何を書くか」（例：デザインの意図を書く）',
   text: '学生の本文にそのまま入る文（例：本報告書は、…についてまとめたものである。）',
   figure: '図のタイトル（例：デザイン画）',
@@ -278,12 +288,12 @@ export function TemplateEditor({ course, config, footNote, onApply, onClose }: P
             </div>
             <div className="ol" ref={listRef}>
               {rows.map(({ key, block }, i) => (
-                <div key={key} className={`row ${block.type}${kindOf(block) === 'text' ? ' text' : ''}${i === selected ? ' on' : ''}${order.drag?.from === i ? ' dragging' : ''}`} onClick={() => setSelected(i)}>
+                <div key={key} className={`row ${block.type}${kindOf(block) === 'text' ? ' text' : ''}${isMinor(block) ? ' minor' : ''}${i === selected ? ' on' : ''}${order.drag?.from === i ? ' dragging' : ''}`} onClick={() => setSelected(i)}>
                   <button className="grip" {...order.gripProps(i, key)} onFocus={() => setSelected(i)}>
                     ⋮⋮
                   </button>
                   <span className="kind">
-                    {KIND_LABELS[kindOf(block)]}
+                    {kindLabel(block)}
                     {nums[i] && <b>{nums[i]}</b>}
                   </span>
                   {block.type === 'pageBreak' ? (

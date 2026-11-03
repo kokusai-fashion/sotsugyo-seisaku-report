@@ -4,7 +4,7 @@
 // - 図は横に2枚まで（「もう1枚」・段落からの「図」で、3枚目が同じ並びに入っていた）
 // - Word から写したあとの「エラーを直す あと○件」は、下の「直すところ」のエラーの数（前は「進み具合」の側のエラーも数えて食い違った）
 // - 下のタブの名前は折り返さない（360px で「ページ一／覧」）
-// - mockups/v53（依頼者の選択）：「3．スカート」は小見出しに・開いてすぐの「戻す」・大見出しの一言・図の「上へ」のわけ・作品写真（枚数に合わせる・詰める）・控えの札と目安・窓の下のボタン
+// - mockups/v53（依頼者の選択）：「3．スカート」は中見出しに・開いてすぐの「戻す」・大見出しの一言・図の「上へ」のわけ・作品写真（枚数に合わせる・詰める）・控えの札と目安・窓の下のボタン
 import { existsSync, mkdirSync } from 'node:fs'
 import { withEdge } from '../poc/edge.mjs'
 import { stubConfig } from './configStub.mjs'
@@ -200,7 +200,7 @@ await withEdge(async (browser) => {
     await page.evaluate(setupWriting)
     await wait(500)
     await ready()
-    // ② 段落に「3．スカート」と打って Enter → 小見出し（番号はツールの形）
+    // ② 段落に「3．スカート」と打って Enter → 中見出し（番号はツールの形）
     await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p12'), 'none'))
     await ready()
     await page.evaluate(() => window.__editor.openWhenReady('p12', 999))
@@ -215,12 +215,12 @@ await withEdge(async (browser) => {
       return { subs: blocks.filter((b) => b.type === 'subheading').map((b) => b.title), paras: blocks.filter((b) => b.type === 'paragraph').map((b) => b.content.map((n) => n.text ?? '').join('')).filter((t) => t.includes('スカート')), notice: document.querySelector('.undo-toast')?.textContent ?? '' }
     })
     await page.screenshot({ path: `${OUT}/6-arabic-heading.png` })
-    check('段落に「3．スカート」と打って Enter：小見出し「スカート」になり（「。」は付かない）、［戻す］の知らせが出る（mockups/v53 ② 案B）', typed.subs.includes('スカート') && typed.paras.length === 0 && /小見出し/.test(typed.notice) && /戻す/.test(typed.notice), JSON.stringify(typed))
-    // ⑤ 書いている間の「追加」：大見出しの入る場所の一言
-    await page.evaluate(() => [...document.querySelectorAll('.direct-bar .db-row button')].find((b) => b.textContent.includes('追加'))?.click())
+    check('段落に「3．スカート」と打って Enter：中見出し「スカート」になり（「。」は付かない）、［戻す］の知らせが出る（mockups/v53 ② 案B）', typed.subs.includes('スカート') && typed.paras.length === 0 && /中見出し/.test(typed.notice) && /戻す/.test(typed.notice), JSON.stringify(typed))
+    // ⑤ 書いている間の「見出し」：大見出しの入る場所の一言
+    await page.evaluate(() => document.querySelector('.direct-bar button[aria-expanded]')?.click())
     await wait(300)
     const addNote = await page.evaluate(() => document.querySelector('.direct-bar .db-add-note')?.textContent ?? '')
-    check('書いている間の「追加」に「大見出しは、この章のいちばん後ろに新しい章を足します」と出る（mockups/v53 ⑤ 案B）', addNote.includes('大見出しは、この章のいちばん後ろに新しい章を足します'), addNote)
+    check('書いている間の「見出し」に「大見出しは、この章のいちばん後ろに新しい章を足します」と出る（mockups/v53 ⑤ 案B）', addNote.includes('大見出しは、この章のいちばん後ろに新しい章を足します'), addNote)
     await page.evaluate(() => [...document.querySelectorAll('.direct-bar button')].find((b) => b.textContent.includes('完了'))?.click())
     await wait(500)
     await ready()

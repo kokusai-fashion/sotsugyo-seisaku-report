@@ -64,17 +64,17 @@ await withEdge(async (browser) => {
   // ---- パソコン ----
   {
     const { context, page, ready } = await open(browser)
-    // 図のタイトルで Enter → そのまま「小見出し」：図のすぐ下に入る（本文のいちばん後ろへ行かない）
+    // 図のタイトルで Enter → そのまま「中見出し」：図のすぐ下に入る（本文のいちばん後ろへ行かない）
     await editAt(page, ready, 'f1', 5)
     await page.keyboard.press('End')
     await page.keyboard.press('Enter')
     await settle(page, ready)
-    await clickTool(page, '小見出し')
+    await clickTool(page, '中見出し')
     await settle(page, ready)
     const list = await blocks(page)
     const r1 = list.findIndex((b) => b.id === 'r1')
     const editing = await page.evaluate(() => window.__editor.getSnapshot().editingId)
-    check('図のタイトルで Enter のまま「小見出し」を押すと、小見出しは図のすぐ下に入る（空の段落は残らない）', list[r1 + 1]?.type === 'subheading' && list[r1 + 1]?.id === editing && list[r1 + 2]?.id === 'p4', JSON.stringify(list.slice(r1, r1 + 3)))
+    check('図のタイトルで Enter のまま「中見出し」を押すと、中見出しは図のすぐ下に入る（空の段落は残らない）', list[r1 + 1]?.type === 'subheading' && list[r1 + 1]?.id === editing && list[r1 + 2]?.id === 'p4', JSON.stringify(list.slice(r1, r1 + 3)))
     await page.keyboard.type('配色')
     await page.keyboard.press('Escape')
     await settle(page, ready)
@@ -99,12 +99,12 @@ await withEdge(async (browser) => {
     await page.keyboard.press('Escape')
     await settle(page, ready)
 
-    // 小見出しの頭で書いている間に「改ページ」：入れた所だけを言う
+    // 中見出しの頭で書いている間に「改ページ」：入れた所だけを言う
     await editAt(page, ready, 's3', 0)
     await clickTool(page, '改ページ')
     await settle(page, ready)
     const toast = await page.evaluate(() => document.querySelector('.undo-toast')?.textContent ?? '')
-    check('小見出しの頭を書いている間に「改ページ」を押すと、「〜の前に、改ページを入れました」とだけ言う', /の前に、改ページを入れました/.test(toast) && !toast.includes('ほかの所に入れるときは'), toast)
+    check('中見出しの頭を書いている間に「改ページ」を押すと、「〜の前に、改ページを入れました」とだけ言う', /の前に、改ページを入れました/.test(toast) && !toast.includes('ほかの所に入れるときは'), toast)
     await page.keyboard.press('Escape')
     await settle(page, ready)
 

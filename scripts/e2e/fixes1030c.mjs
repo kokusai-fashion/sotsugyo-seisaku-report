@@ -160,7 +160,7 @@ await withEdge(async (browser) => {
     const listAfter = await report(page)
     const subsAfter = listAfter.body.flatMap((c) => c.blocks).filter((b) => b.type === 'subheading').length
     const listTexts = listAfter.body.flatMap((c) => c.blocks).filter((b) => b.type === 'paragraph').map((b) => b.content.map((n) => n.text ?? '').join('')).filter((t) => /^[123][.．]/.test(t))
-    check('番号つきの箇条書き（1.⇥ミシン…）を貼ると、小見出しにならず、段落のまま並ぶ', subsAfter === subsBefore && listTexts.length === 3, JSON.stringify({ subsBefore, subsAfter, listTexts }))
+    check('番号つきの箇条書き（1.⇥ミシン…）を貼ると、中見出しにならず、段落のまま並ぶ', subsAfter === subsBefore && listTexts.length === 3, JSON.stringify({ subsBefore, subsAfter, listTexts }))
 
     const pdfId = await addEmpty()
     await paste(page, '本制作では、旅立ちの場面の若々しさと帰還の場面の頼もしさの両方を、一着で見せることを目標と\nした。前半は袖を軽く、後半は肩に重ねる布で頼もしさを出すように工夫して制作を\n進めた。')

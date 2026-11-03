@@ -31,7 +31,7 @@ export function cleanTemplate(template: unknown, courseName: string): TemplateBl
     const key = type === 'chapter' || type === 'subheading' ? 'title' : type === 'paragraph' ? 'hint' : 'caption'
     const row = label + 'の' + templateRowName(i, type, block[key])
     const text = checkText(block[key], key === 'hint' ? LIMITS.hint : LIMITS.name, row)
-    // 段落の説明は空でもよい（大見出し・小見出し・図・表の名前は空にしない）
+    // 段落の説明は空でもよい（大見出し・中見出し・図・表の名前は空にしない）
     if (key !== 'hint' && !text.trim()) throw new Error(row + 'の名前が空です')
     const out: Record<string, unknown> = { type, [key]: text }
     // 段落の本文に入る文（学生の本文にそのまま入る。空なら持たない。mockups/v70）

@@ -33,7 +33,7 @@ const noHotReload = (page) =>
   })
 
 /**
- * 見本の原稿（指摘0件）に、同じ名前の見出し（大見出し「制作過程」が2つ・小見出し「パターンと仮縫い」が2つ）と、引用・参考文献を足して開く。vp：画面の大きさ
+ * 見本の原稿（指摘0件）に、同じ名前の見出し（大見出し「制作過程」が2つ・中見出し「パターンと仮縫い」が2つ）と、引用・参考文献を足して開く。vp：画面の大きさ
  */
 async function openSample(browser, vp) {
   const context = await browser.createBrowserContext()
@@ -231,7 +231,7 @@ export async function tocLinksPc(browser, check) {
     }
   }
   const okJump = (j, id) => j.editingId === id && j.page === j.headingPage && j.kind === 'body'
-  check('目次の行を押すと、その見出しのページへ移り、見出しを書き始める（同じ名前の大見出し「制作過程」が2つでも、押した行の方。小見出しも同じ）', okJump(jumps.c3, 'c3') && okJump(jumps.c2, 'c2') && okJump(jumps.s8, 's8') && okJump(jumps.s4, 's4') && jumps.c3.page !== jumps.c2.page, JSON.stringify(jumps))
+  check('目次の行を押すと、その見出しのページへ移り、見出しを書き始める（同じ名前の大見出し「制作過程」が2つでも、押した行の方。中見出しも同じ）', okJump(jumps.c3, 'c3') && okJump(jumps.c2, 'c2') && okJump(jumps.s8, 's8') && okJump(jumps.s4, 's4') && jumps.c3.page !== jumps.c2.page, JSON.stringify(jumps))
   check(`見出しへ移ると、画面の下に「${JUMPED}」`, jumps.toast.includes(JUMPED), jumps.toast)
   const caret = await page.evaluate(() => {
     const sel = getSelection()
@@ -342,12 +342,12 @@ export async function tocLinksPc(browser, check) {
     const toc = window.__editor.pageElements()[window.__editor.getSnapshot().layout.kinds.indexOf('toc')]
     for (const el of toc.querySelectorAll('[data-toc-target]')) {
       for (const a of ['data-toc-target', 'data-paper-key', 'role', 'tabindex', 'aria-label']) el.removeAttribute(a)
-      // 小見出しの行は、前は見出しの字を span に入れていなかった
+      // 中見出しの行は、前は見出しの字を span に入れていなかった
       if (el.classList.contains('toc-sub')) el.replaceChildren(...el.firstElementChild.childNodes)
     }
   })
   const stripped = await tocImage(page)
-  check('PDF の目次のページの絵は、今回足した行き先・Tab の印・小見出しの span を外したもの（前の紙面）と同じ', before === stripped && before.length > 1000)
+  check('PDF の目次のページの絵は、今回足した行き先・Tab の印・中見出しの span を外したもの（前の紙面）と同じ', before === stripped && before.length > 1000)
   await context.close()
 }
 

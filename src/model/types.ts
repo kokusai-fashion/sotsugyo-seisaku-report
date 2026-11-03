@@ -60,11 +60,15 @@ export interface PageBreakBlock {
   id: string
 }
 
-/** 小見出し（ⅰ．ⅱ．…は自動で付く） */
+/**
+ * 中見出し（ⅰ．ⅱ．…は自動で付く）。level: 3 は、中見出しの下の小見出し（（1）（2）…。中見出しごとに振り直す。
+ * 見出しを大・中・小の3つにした：依頼者の選択 2026-11-03。ほかのコースで「（1）」を使っていて、目次にも出していた）
+ */
 export interface SubheadingBlock {
   type: 'subheading'
   id: string
   title: string
+  level?: 3
 }
 
 /** 段落。書き出しの1字下げは組版で付けるので、本文に空白は含めない */

@@ -60,8 +60,8 @@ export interface WordParagraph {
   text: string
   images: ImageRef[]
   boxes: TextBox[]
-  /** 見出しのスタイル・自動の段落番号で決まる見出しの段（1＝大見出し、2＝小見出し） */
-  headingLevel: 1 | 2 | null
+  /** 見出しのスタイル・自動の段落番号で決まる見出しの段（1＝大見出し、2＝中見出し） */
+  headingLevel: 1 | 2 | 3 | null
   /** 自動の段落番号がローマ数字（大文字 1・小文字 2）のとき */
   romanLevel: 1 | 2 | null
   /** 自動の段落番号（箇条書き）の、画面に出る番号（例「1.」「・」）。見出しのときは空 */
@@ -245,7 +245,7 @@ export function documentContext(styles: Document | null, numbering: Document | n
   return { styles: styleMap, numbering: numMap, counters: new Map() }
 }
 
-/** スタイルの名前・見出しの段から、見出しの段（1・2。3以下も小見出し）を求める */
+/** スタイルの名前・見出しの段から、見出しの段（1・2。3以下も中見出し）を求める */
 function styleHeadingLevel(ctx: DocumentContext, styleId: string | null): number | null {
   let id = styleId
   for (let depth = 0; id && depth < 8; depth++) {
@@ -632,7 +632,8 @@ function readParagraph(p: Element, ctx: DocumentContext): WordParagraph {
     else if (label?.format === 'lowerRoman') romanLevel = 2
     else if (label && label.label && level === null) listPrefix = label.format === 'bullet' ? '・' : `${label.label}　`
   }
-  if (level !== null && level > 2) level = 2
+  // 見出し3から下は、小見出し（（1））にする（見出しを大・中・小の3つにした 2026-11-03）
+  if (level !== null && level > 3) level = 3
   // 改ページ：「段落の前で改ページ」か、段落の中の改ページ（前が空で後ろに文があれば前、ほかは後ろ）
   const breakBefore = child(pPr, 'w', 'pageBreakBefore')
   const val = attr(breakBefore, 'val')
@@ -643,7 +644,7 @@ function readParagraph(p: Element, ctx: DocumentContext): WordParagraph {
     text: out.text,
     images: out.images,
     boxes: out.boxes,
-    headingLevel: level === null ? null : (level as 1 | 2),
+    headingLevel: level === null ? null : (level as 1 | 2 | 3),
     romanLevel,
     listPrefix,
     notes: out.notes,

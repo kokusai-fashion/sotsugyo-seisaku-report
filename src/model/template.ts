@@ -64,7 +64,7 @@ export function bodyFromTemplate(template: TemplateBlock[]): Chapter[] {
     let body: BodyBlock
     switch (block.type) {
       case 'subheading':
-        body = { type: 'subheading', id: newId('s'), title: textOf(block.title) }
+        body = { type: 'subheading', id: newId('s'), title: textOf(block.title), ...(block.level === 3 ? { level: 3 as const } : {}) }
         break
       // 本文に入る文があれば、その字の段落（学生が直せる。mockups/v70）。なければ、説明を薄く出す空の段落
       case 'paragraph': {
@@ -106,7 +106,7 @@ function shape(body: Chapter[]): string {
       title: c.title,
       blocks: c.blocks.map((b) => {
         if (b.type === 'paragraph') return { type: b.type, content: b.content.map((n) => (n.type === 'text' ? n.text : 'ref')).join(''), hint: b.hint ?? '' }
-        if (b.type === 'subheading') return { type: b.type, title: b.title }
+        if (b.type === 'subheading') return { type: b.type, title: b.title, ...(b.level === 3 ? { level: 3 as const } : {}) }
         if (b.type === 'figureRow') return { type: b.type, figures: b.figures.map((f) => [f.imageId, f.caption]) }
         if (b.type === 'pageBreak') return { type: b.type }
         return { type: b.type, caption: b.caption, rows: b.rows.map((r) => r.cells.map((c) => [c.text, c.imageId])) }

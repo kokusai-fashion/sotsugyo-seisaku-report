@@ -1,6 +1,6 @@
 // 下書きのひな形を、学生と同じ紙面で作る画面（mockups/v44 案A・管理ページの上に重ねて開く）を確かめる（admin.mjs から呼ぶ。試験用サーバーで）。
 // - コースのカードの「ひな形を作る画面を開く」で、管理ページの上の窓の iframe に、学生のツールが ?template=1 で開く（開発中は同じ開発サーバー）
-// - 紙面で「ここに書くこと」を直し、小見出し・表（見出しの行）・改ページを足し、抄録の書き出し例も直して「管理ページに戻して反映」→ 下書きに入る（変更あり・帯・知らせ）
+// - 紙面で「ここに書くこと」を直し、中見出し・表（見出しの行）・改ページを足し、抄録の書き出し例も直して「管理ページに戻して反映」→ 下書きに入る（変更あり・帯・知らせ）
 // - 直していれば「閉じる」「×」で確かめる（窓のボタンは「書き続ける」「消して閉じる」：mockups/v71 ④）。間違った場所・合言葉の知らせは受け取らない。ツールは、決まった場所からの init だけを受け取る
 // - ひな形を作る画面は、この端末の保存（localStorage・sessionStorage・IndexedDB）に書かず、ドライブなどの外にもつながない
 // 画面の写真は poc-output/template-mode/ に置く
@@ -118,7 +118,7 @@ export async function templateModeAdmin(browser, check) {
   await page.waitForSelector('.course.open .tpl-line .tpl-open')
 
   const card = await page.evaluate(() => ({ open: document.querySelector('.course.open .tpl-open').textContent, old: document.querySelector('.course.open .tpl-old').textContent, summary: document.querySelector('.course.open .tpl-line b').textContent }))
-  check('コースのカードに「ひな形を作る画面を開く」と、予備の「前の作り方で直す」', card.open === 'ひな形を作る画面を開く' && card.old === '前の作り方で直す' && card.summary === '大見出し3・小見出し3・説明5・図の枠1・素材表1', JSON.stringify(card))
+  check('コースのカードに「ひな形を作る画面を開く」と、予備の「前の作り方で直す」', card.open === 'ひな形を作る画面を開く' && card.old === '前の作り方で直す' && card.summary === '大見出し3・中見出し3・説明5・図の枠1・素材表1', JSON.stringify(card))
   const csp = await page.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content ?? '')
   check('管理ページの CSP は、中に開く枠を、学生のツールの場所（開発中は同じ開発サーバー）だけにする', csp === "frame-src 'self'", csp)
 
@@ -227,10 +227,10 @@ export async function templateModeAdmin(browser, check) {
   check('直すと、管理ページは「直した」と知る（タブを閉じるときに確かめる）', await leaveGuarded())
   await shotIn(frame, '.tpl-side', '3-right-panel')
 
-  // ---- 小見出しを足す（書いている段落の下）。Enter で、その下の説明 ----
-  await tool(frame, '小見出し')
+  // ---- 中見出しを足す（書いている段落の下）。Enter で、その下の説明 ----
+  await tool(frame, '中見出し')
   await sleep(500)
-  await page.keyboard.type('試験の小見出し', { delay: 10 })
+  await page.keyboard.type('試験の中見出し', { delay: 10 })
   await page.keyboard.press('Enter')
   await sleep(300)
   await page.keyboard.type('試験の説明を書く', { delay: 10 })
@@ -263,7 +263,7 @@ export async function templateModeAdmin(browser, check) {
     afterHeader === null && bodyCell.editing === null && bodyCell.selection === 'table' && !bodyCell.tools.includes('画像') && bodyCell.tools.includes('行を足す'),
     JSON.stringify({ afterHeader, ...bodyCell }),
   )
-  // ---- 改ページ：表の後ろ（大見出しの終わり。あとで「要りません」と言われる）と、「制作過程」の説明の後ろ（小見出しから次のページ） ----
+  // ---- 改ページ：表の後ろ（大見出しの終わり。あとで「要りません」と言われる）と、「制作過程」の説明の後ろ（中見出しから次のページ） ----
   await frame.evaluate(() => window.__editor.select(null))
   await tool(frame, '改ページ')
   await ready(frame)
@@ -347,7 +347,7 @@ export async function templateModeAdmin(browser, check) {
   check('ひな形を作る画面とカードに、1字だけの行がない（1366×768）', lonely.length === 0, lonely.slice(0, 5).join(' / '))
 
   // ---- 直すところがあると、戻さずに右の欄に出す。押すとそこへ移る ----
-  const sub = (await bodyBlocks(frame)).flatMap((c) => c.blocks).find((b) => b.text === '試験の小見出し')
+  const sub = (await bodyBlocks(frame)).flatMap((c) => c.blocks).find((b) => b.text === '試験の中見出し')
   await frame.evaluate((id) => window.__editor.openWhenReady(id, 0), sub.id)
   await sleep(400)
   await page.keyboard.down('Control')
@@ -364,14 +364,14 @@ export async function templateModeAdmin(browser, check) {
   const issuesLonely = await lonelyLines(frame, '.tpl-issues')
   check('直すところの言葉にも、1字だけの行がない', issuesLonely.length === 0, issuesLonely.join(' / '))
   check(
-    '空の小見出し・大見出しの終わりの改ページがあると、右の欄に「直してから…」と、紙面の番号で示す（管理ページには戻さない）',
-    stillOpen && issues.head === '直してから、もう一度押してください' && issues.items === '小見出し「Ⅱ．ⅰ．」の名前が空です|「Ⅱ．」の終わりの改ページは要りません（大見出しは、いつも新しいページから始まります）',
+    '空の中見出し・大見出しの終わりの改ページがあると、右の欄に「直してから…」と、紙面の番号で示す（管理ページには戻さない）',
+    stillOpen && issues.head === '直してから、もう一度押してください' && issues.items === '中見出し「Ⅱ．ⅰ．」の名前が空です|「Ⅱ．」の終わりの改ページは要りません（大見出しは、いつも新しいページから始まります）',
     JSON.stringify(issues),
   )
   await frame.evaluate(() => document.querySelector('.tpl-issues li button').click())
   await sleep(600)
   const jumped = await frame.evaluate(() => window.__editor.getSnapshot().editingId)
-  await page.keyboard.type('試験の小見出し', { delay: 10 })
+  await page.keyboard.type('試験の中見出し', { delay: 10 })
   await page.keyboard.press('Escape')
   await ready(frame)
   const left = await frame.evaluate(() => [...document.querySelectorAll('.tpl-issues li')].map((li) => li.textContent).join('|'))
@@ -416,7 +416,7 @@ export async function templateModeAdmin(browser, check) {
   check(
     '「管理ページに戻して反映」：窓が閉じ、知らせ「ひな形を受け取りました（まだ学生に届いていません）」、カードに「変更あり」と新しい要約、画面の下に保存の帯（ひな形と抄録の書き出し例の2か所）',
     back.toast.startsWith('ひな形を受け取りました（まだ学生に届いていません）') &&
-      back.summary === '大見出し3・小見出し4・説明6・図の枠1・素材表1・改ページ1・表1' &&
+      back.summary === '大見出し3・中見出し4・説明6・図の枠1・素材表1・改ページ1・表1' &&
       back.chg &&
       back.bar.includes('まだ学生に届いていない変更が2か所あります') &&
       back.bar.includes('映画・舞台衣装デザイナー コースの下書きのひな形') &&
@@ -438,7 +438,7 @@ export async function templateModeAdmin(browser, check) {
   await page.waitForFunction(() => !document.querySelector('.dirty-bar'), { timeout: 10000 })
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sotsugyo-admin-mock')).years[0].config.courses[0])
   check(
-    '保存すると、受け取ったひな形（説明・小見出し・表の見出しの行と行の数・改ページ）と書き出し例が、そのまま入る',
+    '保存すると、受け取ったひな形（説明・中見出し・表の見出しの行と行の数・改ページ）と書き出し例が、そのまま入る',
     JSON.stringify(saved.template) === JSON.stringify(before.template) &&
       saved.abstractExample === '本制作報告書は、試験の書き出し例' &&
       saved.template.some((b) => b.type === 'table' && b.header.join() === '部位,寸法,メモ' && b.rows === 2) &&

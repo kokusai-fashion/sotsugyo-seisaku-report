@@ -55,7 +55,7 @@ function blockName(el: HTMLElement, id: string): string {
   if (el.closest('section.abstract')) return '抄録の段落'
   if (el.tagName === 'P') return '本文の段落'
   if (el.closest('h1')) return '大見出し'
-  if (el.closest('h2')) return '小見出し'
+  if (el.closest('h2')) return '中見出し'
   const caption = el.closest('figcaption, .table-caption')
   if (caption) return `${numberLabel(caption.querySelector('.num'), caption.matches('figcaption') ? '図' : '表')}のタイトル`
   return '書く欄'

@@ -1,7 +1,7 @@
 import { findCourse, type YearConfig } from '../config'
 import type { Reference, Report } from '../model/types'
 import { photoGrid, shownPhotos } from '../model/photos'
-import { bodyContentHtml, chapterHtmls, chapterLabel, chapterSentinelHtml, escapeHtml, subheadingLabel, type BodyRenderOptions } from './bodyHtml'
+import { bodyContentHtml, chapterHtmls, chapterLabel, chapterSentinelHtml, escapeHtml, headingLabels, type BodyRenderOptions } from './bodyHtml'
 import { documentCss } from './documentCss'
 import { marginsOf, textWidthMm } from './pageGeometry'
 
@@ -229,7 +229,7 @@ ${paragraphs}
 }
 
 /**
- * 目次の行の行き先（大見出し・小見出しのブロック ID。引用・参考文献の行は REFERENCES_ANCHOR）。
+ * 目次の行の行き先（大見出し・中見出しのブロック ID。引用・参考文献の行は REFERENCES_ANCHOR）。
  * 画面で目次の行を押すと、その見出しへ移って書き始める（mockups/v41 案C。reportEditor の onClick）。
  * 同じ名前の見出しがあっても取り違えないよう、文字ではなく ID で結ぶ。属性だけなので、紙面の見た目・PDF は変わらない
  */
@@ -254,11 +254,12 @@ function tocHtml(report: Report, pageNumbers: Record<string, number>): string {
   const target = (id: string) => `${TOC_TARGET_ATTR}="${escapeHtml(id)}"`
   const entries = report.body
     .map((chapter, i) => {
-      let sub = 0
+      const labels = headingLabels(chapter.blocks)
       const subs = chapter.blocks
-        .filter((b) => b.type === 'subheading')
-        // 小見出しの行も、見出しの字を span に入れる（大見出しの行と同じ形。画面でマウスを乗せたときの下線と「→ 見出しへ」の置き場所。紙面の見た目は変わらない）
-        .map((b) => `<div class="toc-sub" ${target(b.id)}><span>${subheadingLabel(sub++)}${escapeHtml(b.title)}</span></div>`)
+        .flatMap((b) => (b.type === 'subheading' ? [b] : []))
+        // 中見出しの行も、見出しの字を span に入れる（大見出しの行と同じ形。画面でマウスを乗せたときの下線と「→ 見出しへ」の置き場所。紙面の見た目は変わらない）。
+        // 小見出し（（1））の行は、もう一段下げる（minor）
+        .map((b) => `<div class="toc-sub${b.level === 3 ? ' minor' : ''}" ${target(b.id)}><span>${labels.get(b.id) ?? ''}${escapeHtml(b.title)}</span></div>`)
         .join('\n')
       return `<div class="toc-ch${i > 0 ? ' next' : ''}" ${target(chapter.id)}><span>${chapterLabel(i)}${escapeHtml(chapter.title)}</span><span class="leader"></span><span class="pno">${pno(chapter.id)}</span></div>\n${subs}`
     })

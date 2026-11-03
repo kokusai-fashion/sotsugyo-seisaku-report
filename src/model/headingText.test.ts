@@ -13,14 +13,14 @@ describe('段落に打った見出しの形（typedHeading）', () => {
     expect(typedHeading('Ⅱ　制作過程')).toEqual({ level: 1, title: '制作過程' })
   })
 
-  it('小見出し：「ⅱ．袖の刺繍」、英字の「i.」「ii.」', () => {
+  it('中見出し：「ⅱ．袖の刺繍」、英字の「i.」「ii.」', () => {
     expect(typedHeading('ⅱ．袖の刺繍')).toEqual({ level: 2, title: '袖の刺繍' })
     expect(typedHeading('i. 担当衣装のキャラクター')).toEqual({ level: 2, title: '担当衣装のキャラクター' })
     expect(typedHeading('ii.デザイン説明')).toEqual({ level: 2, title: 'デザイン説明' })
     expect(typedHeading('ｉｉｉ．使用素材')).toEqual({ level: 2, title: '使用素材' })
   })
 
-  it('算用数字の形も見出しにする（「第4章」は大見出し、ほかは小見出し。番号は除く。依頼者の選択 2026-10-24 mockups/v53 ② 案B）', () => {
+  it('算用数字の形も見出しにする（「第4章」は大見出し、ほかは中見出し。番号は除く。依頼者の選択 2026-10-24 mockups/v53 ② 案B）', () => {
     expect(typedHeading('3．スカート')).toEqual({ level: 2, title: 'スカート' })
     expect(typedHeading('3.スカート')).toEqual({ level: 2, title: 'スカート' })
     expect(typedHeading('1. はじめに')).toEqual({ level: 2, title: 'はじめに' })
@@ -34,7 +34,7 @@ describe('段落に打った見出しの形（typedHeading）', () => {
     for (const t of ['（1）素材について', '(2) 素材', '①素材', '⑳素材', '■まとめ', '●まとめ', '★ポイント']) expect(typedHeading(t), t).toBeNull()
   })
 
-  it('見出しの欄に貼ったとき・「小見出しにする」で外す番号（numberedLine）は、「（1）」「①」「■」も外す', () => {
+  it('見出しの欄に貼ったとき・「中見出しにする」で外す番号（numberedLine）は、「（1）」「①」「■」も外す', () => {
     expect(numberedLine('（1）素材について')?.title).toBe('素材について')
     expect(numberedLine('①素材')?.title).toBe('素材')
     expect(numberedLine('■まとめ')?.title).toBe('まとめ')
@@ -92,7 +92,7 @@ describe('箇条書きにも使う形の行（listItemLine。PC の試し 2026-1
 })
 
 describe('「2-1 仮縫い」の形（学生の試し 2回目 2026-10-29）', () => {
-  it('章-節の番号の行は、打って Enter で小見出しにする。「2.5cm」などの文はしない', () => {
+  it('章-節の番号の行は、打って Enter で中見出しにする。「2.5cm」などの文はしない', () => {
     expect(typedHeading('2-1 パターンと仮縫い')).toEqual({ level: 2, title: 'パターンと仮縫い' })
     expect(typedHeading('2.1　仮縫い')).toEqual({ level: 2, title: '仮縫い' })
     expect(typedHeading('2-1パターン')).toEqual({ level: 2, title: 'パターン' })

@@ -97,8 +97,8 @@ describe('ひな形の形を広げた（改ページ・ふつうの表。mockups
   })
 
   it('コースのカードの要約に、改ページと表の数も出る', () => {
-    expect(templateSummary({ ...FILM, template: [...FILM.template!, { type: 'pageBreak' }, { type: 'table', caption: '表', header: ['a'] }] })).toBe('大見出し3・小見出し3・説明5・図の枠1・素材表1・改ページ1・表1')
-    expect(templateSummary(FILM)).toBe('大見出し3・小見出し3・説明5・図の枠1・素材表1')
+    expect(templateSummary({ ...FILM, template: [...FILM.template!, { type: 'pageBreak' }, { type: 'table', caption: '表', header: ['a'] }] })).toBe('大見出し3・中見出し3・説明5・図の枠1・素材表1・改ページ1・表1')
+    expect(templateSummary(FILM)).toBe('大見出し3・中見出し3・説明5・図の枠1・素材表1')
   })
 })
 
@@ -124,7 +124,7 @@ describe('ひな形 ⇄ ひな形を作る画面の原稿', () => {
     expect(report.references).toEqual([])
   })
 
-  it('直したもの（説明・小見出し・表の見出し・行の数・改ページ）が、ひな形に戻る', () => {
+  it('直したもの（説明・中見出し・表の見出し・行の数・改ページ）が、ひな形に戻る', () => {
     const report = templateReport(config, FILM.id, DEFAULT_TEMPLATE, '')
     const [first] = report.body
     const p = first.blocks[0] as ParagraphBlock
@@ -196,7 +196,7 @@ describe('「管理ページに戻して反映」の前の確かめ', () => {
         { type: 'materialTable', caption: '' },
       ]),
     ).toEqual([
-      { id: 'id1', text: '小見出し「Ⅰ．ⅰ．」の名前が空です' },
+      { id: 'id1', text: '中見出し「Ⅰ．ⅰ．」の名前が空です' },
       { id: 'id2', text: '大見出し「Ⅱ．」の名前が空です' },
       { id: 'id3', text: '「Ⅱ．」の中の説明が長すぎます（300字まで。今は301字）' },
       { id: 'id4', text: '図1のタイトルが空です' },
@@ -342,7 +342,7 @@ describe('ひな形の本文に入る文', () => {
   })
 
   it('コースのカードの要約：説明と本文に入る文を分けて数える（本文に入る文がなければ、今までどおり）', () => {
-    expect(templateSummary({ ...FILM, template: WITH_TEXT })).toBe('大見出し1・小見出し1・説明1・本文に入る文1')
-    expect(templateSummary({ ...FILM, template: DEFAULT_TEMPLATE })).toBe('大見出し3・小見出し0・説明3')
+    expect(templateSummary({ ...FILM, template: WITH_TEXT })).toBe('大見出し1・中見出し1・説明1・本文に入る文1')
+    expect(templateSummary({ ...FILM, template: DEFAULT_TEMPLATE })).toBe('大見出し3・中見出し0・説明3')
   })
 })

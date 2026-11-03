@@ -10,7 +10,7 @@ import { figureDrops, type FigureDrop } from './reportOps'
  *   短い印を出し、いちばん近い所に金色の線（「ここに置く」）を出す。1枚だけの図の右では、縦の線（「横に並べる」）
  * - 矢印が、つかんだ図の上にある間は「元の所」（動かさない）。ゆっくり押したり、押した手が少し動いたりしただけで、
  *   図が1段落下へ動いていた（試し 2026-10-26）
- * - 置けない所（本文の（図n）がある段落より上・小見出しの外）ではわけを出し、紙面の外では「ここで離すと、やめます」。どちらも離しても動かさない
+ * - 置けない所（本文の（図n）がある段落より上・中見出しの外）ではわけを出し、紙面の外では「ここで離すと、やめます」。どちらも離しても動かさない
  * - 紙面の左右の「‹ ›」の上で少し待つと、つかんだままページをめくる（見開きなら2ページずつ）
  * - 拡大して紙面を上下に送れるとき：台の上・下の端に近づくと、自動で送る。送ったら（ホイールでも）描き直す
  * - 離すと図を動かし、図が出たページを見せて光らせる（host.drop）。Esc・Ctrl+Z でやめる（やめたあとのクリックも紙面に届けない）
@@ -422,7 +422,7 @@ export class FigureDrag {
     if (why) tip(page ? 'fd-tip' : 'fd-tip hint', why)
   }
 
-  /** 置けない所のわけ（本文の（図n）がある段落より上・小見出しの外）。置ける所なら null */
+  /** 置けない所のわけ（本文の（図n）がある段落より上・中見出しの外）。置ける所なら null */
   private whyNot(y: number, page: HTMLElement): string | null {
     const drag = this.drag!
     const n = this.host.numberOf(drag.figureId)
@@ -430,9 +430,9 @@ export class FigureDrag {
     const ref = onPage(this.boxesOf(drag.plan.ref)).at(-1)
     if (ref && y < ref.bottom) return `図は、本文の「（図${n ?? 'n'}）」がある段落より上には置けません`
     const from = onPage(this.boxesOf(drag.plan.section.from)).at(-1)
-    if (from && y < from.bottom) return '図は、小見出しの外には置けません'
+    if (from && y < from.bottom) return '図は、中見出しの外には置けません'
     const to = onPage(this.boxesOf(drag.plan.section.to))[0]
-    if (to && y > to.top) return '図は、小見出しの外には置けません'
+    if (to && y > to.top) return '図は、中見出しの外には置けません'
     return null
   }
 

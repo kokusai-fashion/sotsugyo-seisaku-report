@@ -66,7 +66,7 @@ export function UndoBar({
     if (areaRef.current && notice) place?.(areaRef.current)
   })
   // 知らせを出している間に、下の道具が増えた・減った（書いている間の「追加」を開いた、など）ときも、位置を決め直す
-  // （前は「。」を付けた知らせが、あとから開いた「追加」の大見出し・小見出しに重なり、押した指が知らせに当たった：学生の試し 2026-10-29）
+  // （前は「。」を付けた知らせが、あとから開いた「追加」の大見出し・中見出しに重なり、押した指が知らせに当たった：学生の試し 2026-10-29）
   useEffect(() => {
     const area = areaRef.current
     if (!area || !notice || !place) return

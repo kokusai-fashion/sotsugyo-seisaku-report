@@ -1,6 +1,6 @@
 // 段落に打った見出しを確かめる（Edge を自動で操作する。パソコン・スマホ）。
-// 依頼者の願い：段落に「Ⅲ．まとめ」のように見出しの形で打ったら、道具の「大見出し」「小見出し」を押さなくても見出しになる（2026-10-19）。
-// - Enter：打った行が見出しの形なら、大見出し（章を分ける）・小見出しになり、すぐ後ろの新しい段落で書き続ける。番号は自動。「。」は付かない
+// 依頼者の願い：段落に「Ⅲ．まとめ」のように見出しの形で打ったら、道具の「大見出し」「中見出し」を押さなくても見出しになる（2026-10-19）。
+// - Enter：打った行が見出しの形なら、大見出し（章を分ける）・中見出しになり、すぐ後ろの新しい段落で書き続ける。番号は自動。「。」は付かない
 // - 書く欄を閉じたとき（Esc・ほかを押した・スマホの「完了」）も、段落ごと見出しの形なら見出しになる
 // - 画面の下に「大見出し「Ⅲ．まとめ」にしました［戻す］」。「戻す」・Ctrl+Z・道具の「元に戻す」で、打ったままの段落に戻る（同じ文では、もう見出しにしない）
 // - 何行かの文を貼り付けたときも、見出しの形の行は見出しになる（「見出しに2つしました」）
@@ -159,7 +159,7 @@ export async function autoHeadingPc(browser, check) {
   const heads = await paperHeadings(page)
   await page.screenshot({ path: `${OUT}/pc-2-after-enter.png` })
   check(
-    '見出しの形で打って Enter：大見出し「Ⅲ．仕上げと確認」になり（打った「Ⅴ」ではなく自動の番号）、同じ章の後ろの段落・小見出しが新しい章に入る',
+    '見出しの形で打って Enter：大見出し「Ⅲ．仕上げと確認」になり（打った「Ⅴ」ではなく自動の番号）、同じ章の後ろの段落・中見出しが新しい章に入る',
     JSON.stringify(right.chapters) === JSON.stringify(['企画・立案', '制作過程', '仕上げと確認', 'まとめ']) &&
       right.blocks[1].at(-1) === 'r3' &&
       JSON.stringify(right.blocks[2].slice(1)) === JSON.stringify(['p9', 'p10', 's6', 'p11', 'p12', 's7', 'p13']) &&
@@ -227,7 +227,7 @@ export async function autoHeadingPc(browser, check) {
   )
   await resetSample(page, ready)
 
-  // ---- 小見出し：p7 の終わりで Enter → 「ⅳ．採寸」 Enter（制作過程の2つ目の小見出しになる） ----
+  // ---- 中見出し：p7 の終わりで Enter → 「ⅳ．採寸」 Enter（制作過程の2つ目の中見出しになる） ----
   await openAtEnd(page, ready, 'p7')
   await enterNew(page, 'p7')
   await page.keyboard.type('ⅳ．採寸')
@@ -239,8 +239,8 @@ export async function autoHeadingPc(browser, check) {
   const subHeads = await paperHeadings(page)
   const at = sub.texts[1].indexOf('【採寸】')
   check(
-    '「ⅳ．採寸」で Enter：その位置に小見出し「ⅱ．採寸」（章の中の自動の番号）。すぐ後ろの空の段落で書き続け、後ろの小見出しの番号は1つずつ下がる',
-    at === 3 && sub.texts[1][at + 1] === '' && sub.blocks[1][at + 1] === sub.editing && sub.blocks[1][at + 2] === 's5' && subHeads.includes('h2:ⅱ．採寸') && subHeads.includes('h2:ⅲ．袖の刺繍') && subToast.startsWith('小見出し「ⅱ．採寸」にしました'),
+    '「ⅳ．採寸」で Enter：その位置に中見出し「ⅱ．採寸」（章の中の自動の番号）。すぐ後ろの空の段落で書き続け、後ろの中見出しの番号は1つずつ下がる',
+    at === 3 && sub.texts[1][at + 1] === '' && sub.blocks[1][at + 1] === sub.editing && sub.blocks[1][at + 2] === 's5' && subHeads.includes('h2:ⅱ．採寸') && subHeads.includes('h2:ⅲ．袖の刺繍') && subToast.startsWith('中見出し「ⅱ．採寸」にしました'),
     JSON.stringify({ c2: sub.texts[1].slice(0, 6), subToast, subHeads: subHeads.filter((h) => h.startsWith('h2')).slice(3, 7) }),
   )
 
@@ -255,8 +255,8 @@ export async function autoHeadingPc(browser, check) {
   await page.screenshot({ path: `${OUT}/pc-4-after-esc.png` })
   const c = closed.texts[1].indexOf('【袖口の始末】')
   check(
-    '書く欄に「ⅰ．袖口の始末」と打って Esc：その段落が小見出し「ⅲ．袖口の始末」になる（後ろに段落は作らない）。書く欄は閉じ、知らせが出る',
-    c === at + 1 && closed.blocks[1][c + 1] === 's5' && closed.editing === null && closedToast.startsWith('小見出し「ⅲ．袖口の始末」にしました'),
+    '書く欄に「ⅰ．袖口の始末」と打って Esc：その段落が中見出し「ⅲ．袖口の始末」になる（後ろに段落は作らない）。書く欄は閉じ、知らせが出る',
+    c === at + 1 && closed.blocks[1][c + 1] === 's5' && closed.editing === null && closedToast.startsWith('中見出し「ⅲ．袖口の始末」にしました'),
     JSON.stringify({ c2: closed.texts[1].slice(2, 7), closedToast, editing: closed.editing }),
   )
 
@@ -294,14 +294,14 @@ export async function autoHeadingPc(browser, check) {
   check('見出しの形の段落でも、開いて書き換えずに閉じただけなら、見出しにしない', (await state(page)).chapters.length === 3)
   await resetSample(page, ready)
 
-  // ---- 算用数字の形（「1．」）も、段落に打つと小見出しにする（番号はツールの形に。依頼者の選択 2026-10-24 mockups/v53 ② 案B） ----
+  // ---- 算用数字の形（「1．」）も、段落に打つと中見出しにする（番号はツールの形に。依頼者の選択 2026-10-24 mockups/v53 ② 案B） ----
   await openAtEnd(page, ready, 'p14')
   await enterNew(page, 'p14')
   await page.keyboard.type('1．はじめに')
   await page.keyboard.press('Enter')
   await wait(300)
   const arabic = await state(page)
-  check('「1．はじめに」で Enter：小見出し「はじめに」にする（番号はツールの形。「。」は付けない）', arabic.chapters.length === 3 && arabic.texts[2].includes('【はじめに】') && !arabic.texts[2].some((t) => t.includes('1．はじめに')), JSON.stringify(arabic.texts[2]))
+  check('「1．はじめに」で Enter：中見出し「はじめに」にする（番号はツールの形。「。」は付けない）', arabic.chapters.length === 3 && arabic.texts[2].includes('【はじめに】') && !arabic.texts[2].some((t) => t.includes('1．はじめに')), JSON.stringify(arabic.texts[2]))
   // 番号だけ（名前がない）も見出しにしない
   await page.keyboard.type('Ⅲ．')
   await page.keyboard.press('Escape')
@@ -346,7 +346,7 @@ export async function autoHeadingPc(browser, check) {
   await wait(200)
   await page.screenshot({ path: `${OUT}/pc-5-after-paste.png` })
   check(
-    '何行かの文を貼り付けると、「Ⅲ．」の行は大見出し、「ⅰ．」の行は小見出しになり、ほかの行は段落。知らせは「見出しに2つしました［戻す］」',
+    '何行かの文を貼り付けると、「Ⅲ．」の行は大見出し、「ⅰ．」の行は中見出しになり、ほかの行は段落。知らせは「見出しに2つしました［戻す］」',
     JSON.stringify(pasted.chapters) === JSON.stringify(['企画・立案', '制作過程', '仕上げ', 'まとめ']) &&
       JSON.stringify(pasted.texts[2]) === JSON.stringify(['最後に全体を整えた。', '【アイロン】', '当て布をしてアイロンをかけた。']) &&
       pasted.blocks[1].at(-1) === 'p13' &&
@@ -412,8 +412,8 @@ export async function autoHeadingPhone(browser, check) {
   })
   await page.screenshot({ path: `${OUT}/phone-1-after-enter.png` })
   check(
-    'スマホ：書く欄で「ⅲ．試着」と打って Enter：小見出し「ⅴ．試着」になり、すぐ後ろの段落で書き続ける。知らせは書く欄の上に出る',
-    sub.texts[1].at(-2) === '【試着】' && sub.blocks[1].at(-1) === sub.editing && layout.toast.startsWith('小見出し「ⅴ．試着」にしました') && layout.above && layout.inside,
+    'スマホ：書く欄で「ⅲ．試着」と打って Enter：中見出し「ⅴ．試着」になり、すぐ後ろの段落で書き続ける。知らせは書く欄の上に出る',
+    sub.texts[1].at(-2) === '【試着】' && sub.blocks[1].at(-1) === sub.editing && layout.toast.startsWith('中見出し「ⅴ．試着」にしました') && layout.above && layout.inside,
     JSON.stringify({ tail: sub.texts[1].slice(-3), layout }),
   )
   // 知らせの「戻す」：打ったままの段落に戻る

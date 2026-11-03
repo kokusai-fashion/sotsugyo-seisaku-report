@@ -64,7 +64,7 @@ await withEdge(async (browser) => {
       tools: [...document.querySelectorAll('.sheet .add-grid button')].map((b) => b.querySelector('span')?.textContent.trim()),
       hint: [...document.querySelectorAll('.sheet .sheet-hint')].map((p) => p.textContent).join(' '),
     }))
-    check('スマホ：書く欄を閉じたあとの「追加」は「大見出し」「小見出し」「改ページ」だけで、図・表は入れたい位置をタップしてから入れると書いてある', sheet.tools.join() === '大見出し,小見出し,改ページ' && /入れたい位置をタップして、キーボードの上の「図」「表」で入れます/.test(sheet.hint) && !sheet.hint.includes('さっき'), JSON.stringify(sheet))
+    check('スマホ：書く欄を閉じたあとの「追加」は「大見出し」「中見出し」「改ページ」だけで、図・表は入れたい位置をタップしてから入れると書いてある', sheet.tools.join() === '大見出し,中見出し,改ページ' && /入れたい位置をタップして、キーボードの上の「図」「表」で入れます/.test(sheet.hint) && !sheet.hint.includes('さっき'), JSON.stringify(sheet))
     await context.close()
   }
 

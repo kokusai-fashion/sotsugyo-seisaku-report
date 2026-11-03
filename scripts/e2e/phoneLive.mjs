@@ -398,7 +398,7 @@ export async function phoneLivePhone(browser, check) {
   await finish(page, ready)
   const chapters = await page.evaluate(() => ({ titles: window.__editor.getSnapshot().report.body.map((c) => c.title), leftovers: window.__leftovers(), live: !!document.querySelector('.overlay-mirror.live') }))
   check(
-    'スマホ：段落に「ⅲ．試着」と打つと写しに出て、Enter で小見出しになり、すぐ後ろの段落で書き続ける。そこに「Ⅳ．謝辞」と打って「完了」で大見出しになる（制作過程のあと。写し・ずらしは残らない）',
+    'スマホ：段落に「ⅲ．試着」と打つと写しに出て、Enter で中見出しになり、すぐ後ろの段落で書き続ける。そこに「Ⅳ．謝辞」と打って「完了」で大見出しになる（制作過程のあと。写し・ずらしは残らない）',
     headLive.live && headLive.mirrorText === 'ⅲ．試着' && headed.paper.length === 1 && headed.editing === headed.lastId && !headed.live && JSON.stringify(chapters.titles) === JSON.stringify(['企画・立案', '制作過程', '謝辞', 'まとめ']) && chapters.leftovers === 0 && !chapters.live,
     JSON.stringify({ headLive: headLive.mirrorText, headed, chapters }),
   )

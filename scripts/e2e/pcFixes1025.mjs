@@ -321,7 +321,7 @@ await withEdge(async (browser) => {
     await ready()
     const list = await blocksOf()
     check(
-      '箇条書きのつもりで「1．ミシン」「2．アイロン」「3．ロックミシン」と打つと、小見出しにならず段落のまま（「。」も付かない）。「番号の行が続いたので、見出しにせず箇条書き（段落）にしました」と出る',
+      '箇条書きのつもりで「1．ミシン」「2．アイロン」「3．ロックミシン」と打つと、中見出しにならず段落のまま（「。」も付かない）。「番号の行が続いたので、見出しにせず箇条書き（段落）にしました」と出る',
       list.includes('p:1．ミシン') && list.includes('p:2．アイロン') && list.includes('p:3．ロックミシン') && !list.some((b) => b.startsWith('s:ミシン')) && listNotice.includes('箇条書き'),
       JSON.stringify({ list, listNotice }),
     )
@@ -534,7 +534,7 @@ await withEdge(async (browser) => {
       joined = { beside: beside.vline, rows: await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).filter((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === 'f-x')).map((b) => b.figures.map((f) => f.id))) }
     }
     check('1枚だけの図の右へ運ぶと「横に並べる」が出て、離すと横に並ぶ（並びは本文で出てくる順）', !!joined && joined.beside === '横に並べる' && JSON.stringify(joined.rows) === JSON.stringify([['f3', 'f-x']]), JSON.stringify({ joined, fx: !!fx, f3: !!f3 }))
-    // 7. 「›」の上で待つと、つかんだままめくれる（小見出しのまとまりが次のページまで続くよう、段落を足す）
+    // 7. 「›」の上で待つと、つかんだままめくれる（中見出しのまとまりが次のページまで続くよう、段落を足す）
     await page.evaluate(() =>
       window.__editor.update((r) => ({
         ...r,
@@ -1030,7 +1030,7 @@ await withEdge(async (browser) => {
     await page.evaluate(setupWriting)
     await wait(500)
     await ready()
-    // 依頼者の画面と同じ形：小見出し・段落・段落（図1を指す）・図・改ページ（mockups/v61 と同じ文）
+    // 依頼者の画面と同じ形：中見出し・段落・段落（図1を指す）・図・改ページ（mockups/v61 と同じ文）
     const body = (figures, extra = '') => {
       const t = (text) => ({ type: 'text', text })
       const ref = (targetId) => ({ type: 'ref', targetId, withParens: true })

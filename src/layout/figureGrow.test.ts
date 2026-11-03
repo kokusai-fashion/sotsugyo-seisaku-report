@@ -6,7 +6,7 @@ import { decideFigureGrowth, readFigureGrow, sameGrow, type FigureGrow, type Gro
 
 /**
  * 改ページ・章の終わりの直前の図を大きくするか（figureGrow.ts）を、組んだ紙面の代わりの位置（ページの番号と mm）で確かめる。
- * 本文：段落 p1（図1を指す）→ 図のまとまり g1 → 改ページ → 小見出し。本文の下端は 272mm、1行は約 6.5mm
+ * 本文：段落 p1（図1を指す）→ 図のまとまり g1 → 改ページ → 中見出し。本文の下端は 272mm、1行は約 6.5mm
  */
 const chapter = (after: 'pageBreak' | 'paragraph' | 'none'): Chapter => ({
   id: 'c1',

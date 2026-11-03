@@ -101,7 +101,7 @@ section.body { counter-reset: page 1; }
   text-indent: calc(1em + ${ABSTRACT_LETTER_SPACING_PT}pt);
 }
 
-/* ---- 目次（11pt。大見出しにリーダーとページ番号、小見出しは字下げのみ） ---- */
+/* ---- 目次（11pt。大見出しにリーダーとページ番号、中見出しは字下げのみ） ---- */
 .toc { font-family: ${MINCHO}; text-indent: 0; letter-spacing: ${letterSpacingPt(m)}pt; }
 .toc .toc-title { margin-bottom: ${LINE_PITCH_PT}pt; }
 .toc .toc-ch { display: flex; align-items: baseline; }
@@ -109,6 +109,8 @@ section.body { counter-reset: page 1; }
 .toc .toc-ch .leader::before { content: '${'・'.repeat(60)}'; }
 .toc .toc-ch .pno { flex: none; }
 .toc .toc-sub { padding-left: 5mm; }
+/* 小見出し（（1））の行は、中見出しよりもう一段下げる（見出しを大・中・小の3つにした：依頼者の選択 2026-11-03） */
+.toc .toc-sub.minor { padding-left: 10mm; }
 /* 2つ目からの大見出し（と引用・参考文献）の前に半行あけて、章のまとまりを見せる（mockups/v29 ② 案A） */
 .toc .toc-ch.next { margin-top: ${LINE_PITCH_PT / 2}pt; }
 

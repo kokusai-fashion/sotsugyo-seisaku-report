@@ -1,4 +1,4 @@
-import { chapterLabel, figureCaption, subheadingLabel } from '../layout/bodyHtml'
+import { chapterLabel, figureCaption, headingLabels } from '../layout/bodyHtml'
 import type { BodyBlock, Figure, FigureRowBlock, InlineNode, ParagraphBlock, Report, TableBlock } from '../model/types'
 import { stripFigureRefs } from './abstractRefs'
 import { LEADING_PUNCT, leadingPunctDroppable } from './pasteText'
@@ -62,7 +62,7 @@ export interface Piece {
 
 const ATOMIC: FlowItem['kind'][] = ['figure', 'table', 'pageBreak']
 
-/** 本文の流れ（大見出し・小見出し・段落・図・表・改ページを、紙面の上から順に） */
+/** 本文の流れ（大見出し・中見出し・段落・図・表・改ページを、紙面の上から順に） */
 export function bodyFlow(report: Pick<Report, 'body'>): FlowItem[] {
   const num = numbering(report)
   return report.body.flatMap((c, chapter): FlowItem[] => [
@@ -271,9 +271,10 @@ export function copyRange(report: Report, range: ModelRange): Clip {
         break
       case 'subheading': {
         const chapter = report.body[item.chapter]
-        const sub = chapter.blocks.filter((b) => b.type === 'subheading').findIndex((b) => b.id === item.id)
-        lines.push(piece.whole ? `${subheadingLabel(sub)}${item.text}` : partial)
-        blocks.push({ type: 'subheading', id: item.id, title: partial })
+        const heading = chapter.blocks.find((b) => b.id === item.id)
+        const level = heading?.type === 'subheading' && heading.level === 3 ? { level: 3 as const } : {}
+        lines.push(piece.whole ? `${headingLabels(chapter.blocks).get(item.id) ?? ''}${item.text}` : partial)
+        blocks.push({ type: 'subheading', id: item.id, title: partial, ...level })
         break
       }
       case 'paragraph':

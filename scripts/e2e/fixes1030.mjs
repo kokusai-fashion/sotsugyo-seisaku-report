@@ -84,10 +84,10 @@ await withEdge(async (browser) => {
     await wait(800)
     await ready()
 
-    // A2：「小見出しにする」のダブルクリック → 続けて打つ
+    // A2：「中見出しにする」のダブルクリック → 続けて打つ
     await addHeadingParagraph(page, ready, 'px', '2-1 パターンと仮縫い')
     await editAt(page, ready, 'px', 12)
-    const conv = await center(page, '小見出しにする')
+    const conv = await center(page, '中見出しにする')
     await page.mouse.click(conv.x, conv.y, { count: 2 })
     await page.keyboard.type('の記録', { delay: 60 })
     await wait(1200)
@@ -95,12 +95,12 @@ await withEdge(async (browser) => {
     const dbl = await page.evaluate(() => { const s = window.__editor.getSnapshot(); const c = s.report.body[1]; return { first: c.blocks[0]?.type, title: c.blocks[0]?.title, kind: s.editingKind } })
     await page.keyboard.press('Escape')
     await wait(600)
-    check('「小見出しにする」をダブルクリックしても、書く欄は閉じず、続けて打った字が小見出しに入る', dbl.first === 'subheading' && dbl.title === 'パターンと仮縫いの記録' && dbl.kind === 'subheading', JSON.stringify(dbl))
+    check('「中見出しにする」をダブルクリックしても、書く欄は閉じず、続けて打った字が中見出しに入る', dbl.first === 'subheading' && dbl.title === 'パターンと仮縫いの記録' && dbl.kind === 'subheading', JSON.stringify(dbl))
 
-    // A3：「小見出しにする」→ Ctrl+Z → 打つ
+    // A3：「中見出しにする」→ Ctrl+Z → 打つ
     await addHeadingParagraph(page, ready, 'py', '2-2 裁断の工夫')
     await editAt(page, ready, 'py', 9)
-    const conv2 = await center(page, '小見出しにする')
+    const conv2 = await center(page, '中見出しにする')
     await page.mouse.click(conv2.x, conv2.y)
     await wait(1200)
     await ready()
@@ -111,7 +111,7 @@ await withEdge(async (browser) => {
     const back = { text: await textOf(page, 'py'), ...(await editing(page)) }
     await page.keyboard.press('Escape')
     await wait(600)
-    check('「小見出しにする」のすぐあとに Ctrl+Z → 打つと、段落に戻り、打った字がその段落に入る', back.id === 'py' && back.text === '2-2 裁断の工夫X', JSON.stringify(back))
+    check('「中見出しにする」のすぐあとに Ctrl+Z → 打つと、段落に戻り、打った字がその段落に入る', back.id === 'py' && back.text === '2-2 裁断の工夫X', JSON.stringify(back))
 
     // A4：Ctrl+Enter → Ctrl+Z を2回 → 打つ
     const p1 = await textOf(page, 'p1')
@@ -256,7 +256,7 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
-  // ---- スマホ：「追加」→「小見出し」をすばやく2回 ----
+  // ---- スマホ：「追加」→「中見出し」をすばやく2回 ----
   {
     const { context, page, ready } = await open(browser, { device: 'phone' })
     await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p3'), 'none'))
@@ -265,9 +265,9 @@ await withEdge(async (browser) => {
     await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'p3', { timeout: 20000 })
     await wait(800)
     const subsBefore = (await blocks(page)).filter((b) => b.type === 'subheading').length
-    await page.evaluate(() => [...document.querySelectorAll('.direct-bar button')].find((b) => b.textContent.includes('追加'))?.click())
+    await page.evaluate(() => document.querySelector('.direct-bar button[aria-expanded]')?.click())
     await page.waitForSelector('.direct-bar .db-add button', { timeout: 10000 })
-    const sub = await page.evaluate(() => { const b = [...document.querySelectorAll('.direct-bar .db-add button')].find((x) => x.textContent.includes('小見出し')); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+    const sub = await page.evaluate(() => { const b = [...document.querySelectorAll('.direct-bar .db-add button')].find((x) => x.textContent.includes('中見出し')); const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
     await page.touchscreen.tap(sub.x, sub.y)
     await wait(120)
     await page.touchscreen.tap(sub.x, sub.y)
@@ -278,7 +278,7 @@ await withEdge(async (browser) => {
     const after = await blocks(page)
     const now = await editing(page)
     const added = after.filter((b) => b.type === 'subheading')
-    check('スマホ：「追加」→「小見出し」をすばやく2回押しても、小見出しは1つだけで、打った字は新しい小見出しに入る（ほかの見出しに入らない）', added.length === subsBefore + 1 && now.kind === 'subheading' && added.filter((b) => b.text.includes('帯の工夫')).length === 1 && added.find((b) => b.id === now.id)?.text === '帯の工夫', JSON.stringify({ now, added: added.map((b) => b.text) }))
+    check('スマホ：「見出し」→「中見出し」をすばやく2回押しても、中見出しは1つだけで、打った字は新しい中見出しに入る（ほかの見出しに入らない）', added.length === subsBefore + 1 && now.kind === 'subheading' && added.filter((b) => b.text.includes('帯の工夫')).length === 1 && added.find((b) => b.id === now.id)?.text === '帯の工夫', JSON.stringify({ now, added: added.map((b) => b.text) }))
     await context.close()
   }
 

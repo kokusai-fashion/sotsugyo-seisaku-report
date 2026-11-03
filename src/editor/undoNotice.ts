@@ -12,7 +12,7 @@ import type { BodyBlock, Report, WorkPhotoPage } from '../model/types'
  * 削除したもの（知らせの言葉に使う）。下書き：コースを変えて、本文の下書きをそのコースのひな形に入れ替えた。
  * 選んだ文：紙面をなぞって選んだ範囲を Delete・Backspace で消した／切り取り：選んだ範囲を Ctrl+X で切り取った（editor/rangeOps.ts）
  */
-export type RemovedWhat = '段落' | '小見出し' | '大見出し（章）' | '図' | '表' | '表の行' | '表の列' | '改ページ' | '作品写真' | '作品写真のページ' | '写真を詰めた' | '写真を移した' | '表の画像' | '下書き' | '選んだ文' | '切り取り' | '図を動かした'
+export type RemovedWhat = '段落' | '中見出し' | '小見出し' | '大見出し（章）' | '図' | '表' | '表の行' | '表の列' | '改ページ' | '作品写真' | '作品写真のページ' | '写真を詰めた' | '写真を移した' | '表の画像' | '下書き' | '選んだ文' | '切り取り' | '図を動かした'
 
 /**
  * 画面の下に出す知らせの中身。
@@ -83,7 +83,7 @@ export function noticeText(notice: NoticeBody): string {
     case 'info':
       return notice.text
     case 'heading':
-      return `${notice.level === 1 ? '大見出し' : '小見出し'}「${notice.label}」にしました`
+      return `${notice.level === 1 ? '大見出し' : '中見出し'}「${notice.label}」にしました`
     case 'headings':
       return `見出しに${notice.count}つしました${notice.note ?? ''}`
     case 'unheaded':

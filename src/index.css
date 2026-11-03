@@ -265,6 +265,10 @@ body.resizing .page-viewport { pointer-events: none; }
    （前は元に戻す・やり直すを横に2つ並べたが、「やり直す」が道具の端まで詰まってはみ出して見え、つり合いも悪かった：依頼者の指摘 2026-10-26） */
 .palette.fit-1 .group.undo-redo .tb { flex-direction: row; justify-content: center; gap: 4px; padding-block: 5px; font-size: 10.5px; letter-spacing: 0; white-space: nowrap; }
 .palette.fit-1 .group.undo-redo .tb svg { width: 15px; height: 15px; }
+/* fit-photo：作品写真の「この写真」の道具（差し替え・外す・トリミング）を、絵と名前を横に並べた1行ずつに（fit-1 と同じ形。「トリミング」が増えて、
+   低い画面で「やり直す」が隠れた：依頼者の選択 2026-11-03 mockups/v98 ③ 案A） */
+.palette.fit-photo .group.ctx:has(.photo-sw) .tb { flex-direction: row; justify-content: flex-start; gap: 3px; padding: 6px 3px; font-size: 10px; letter-spacing: 0; white-space: nowrap; }
+.palette.fit-photo .group.ctx:has(.photo-sw) .tb svg { width: 14px; height: 14px; flex: none; }
 .palette.fit-2 .photo-pages > .ctx-label { display: none; }
 .palette.fit-3 .tb span[data-short] { font-size: 0; white-space: nowrap; }
 .palette.fit-3 .tb span[data-short] > * { display: none; }
@@ -460,8 +464,10 @@ body.resizing .page-viewport { pointer-events: none; }
 .pager button svg { width: 20px; height: 20px; }
 .pager .lbl { padding: 0 6px; color: var(--muted); }
 .pager .lbl b { color: var(--ink); }
-.unzoom { position: fixed; z-index: 10; right: 12px; bottom: calc(62px + 12px); display: flex; align-items: center; gap: 5px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255, 255, 255, 0.95); box-shadow: var(--float-shadow); font-size: 12px; color: var(--ink); }
-.unzoom svg { width: 16px; height: 16px; }
+/* 拡大中のページ送りの右の「全体」（ページ全体に戻す。mockups/v98 ② 案A） */
+.pager .sep { width: 1px; height: 22px; margin: 0 4px; background: var(--line); }
+.pager button.unzoom { width: auto; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 8px; border-radius: 999px; font-size: 12px; color: var(--ink); }
+.pager .unzoom svg { width: 16px; height: 16px; }
 
 /* 選んでいる図・表・作品写真の道具（下のタブの上） */
 .sel-bar { position: fixed; z-index: 11; left: 8px; right: 8px; bottom: calc(62px + 60px); display: flex; justify-content: center; }
@@ -940,6 +946,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .word-outline .ttl { min-width: 0; font-family: 'BIZ UDMincho', serif; overflow-wrap: anywhere; }
 .word-outline li.ch .ttl { font-size: 14px; font-weight: 700; }
 .word-outline li.sh { padding-left: 16px; }
+.word-outline li.sh.minor { padding-left: 32px; }
 .word-outline .noname { font-family: 'BIZ UDPGothic', sans-serif; font-size: 12.5px; font-weight: 400; color: var(--warn); }
 /* 段落・図・表の数（行が長いときは、次の行の右に送る） */
 .word-outline .cnt { margin-left: auto; padding-left: 8px; font-size: 11.5px; text-align: right; color: var(--muted); }
@@ -1063,9 +1070,9 @@ body.resizing .page-viewport { pointer-events: none; }
 /* ---- v32 ④ スマホの見やすさ（mockups/v32 ④ 案A）。スマホの並べ方（.app.phone）だけで、PC は変えない ---- */
 /* 小さいボタン（書く欄の「完了」・案内の「あとで入力する」・「＋引用・参考文献を入れる」・ページ送り・「ページ全体に戻す」）を、見た目も高さ 44px 以上に */
 .app.phone .pager button { width: 44px; height: 44px; }
+.app.phone .pager button.unzoom { width: auto; }
 .app.phone .es-head .done { min-height: 44px; padding: 0 20px; }
 .app.phone .add-refs, .app.phone .g-later { display: inline-flex; align-items: center; min-height: 44px; }
-.app.phone .unzoom { min-height: 44px; }
 /* ページ送りが高くなった分（高さ 52px）、選んでいる物の道具を少し上に（重ならないように。削除の知らせは、さらにその上に出す） */
 .app.phone .sel-bar { bottom: calc(62px + 12px + 52px + 8px); }
 
@@ -1209,7 +1216,7 @@ body.resizing .page-viewport { pointer-events: none; }
 /* スマホ：指で押す物の大きさ（残り）。選んでいる図・表の道具（「削除」など）は、幅も高さも 44px 以上。
    表の形は「表の形」のボタン1つ（押すと下から欄が出る。app/tableShape.tsx）。下から出る欄（追加・ページ一覧など）の「×」も 44px 四方 */
 .app.phone .sel-bar .tb { min-width: 44px; min-height: 44px; justify-content: center; }
-/* 名前の改行（「小見出しの／終わりへ」など）：スマホの帯でも言葉の切れ目で2行にする（道具が多いと、言葉の途中で折り返していた） */
+/* 名前の改行（「中見出しの／終わりへ」など）：スマホの帯でも言葉の切れ目で2行にする（道具が多いと、言葉の途中で折り返していた） */
 .app.phone .sel-bar .tb-line { display: block; line-height: 1.25; white-space: nowrap; }
 /* 図の道具（5つ）：名前は1行（「差し替え」「もう1枚」が言葉の途中で折り返していた） */
 .app.phone .sel-bar .group.ctx:has(.tb-move) :is(.tb span, .ctx-label) { white-space: nowrap; }
@@ -1350,7 +1357,7 @@ p.check-pending { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: va
 .tally.split b { font-size: 15px; }
 .tally.split b.m { color: var(--ink); }
 .sheet-head .tally.split { font-size: 12px; }
-/* 「まだのところ」「直すところ」の小見出し（右に、ひとこと） */
+/* 「まだのところ」「直すところ」の中見出し（右に、ひとこと） */
 .check-sub { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 6px 0 4px; font-size: 11px; color: var(--muted); }
 .check-sub b { font-weight: 700; color: var(--ink); letter-spacing: 0.08em; }
 .check-sub.fix { margin-top: 14px; }
@@ -1542,7 +1549,7 @@ button.row { cursor: pointer; }
 .side .side-foot { padding: 14px 18px; border-top-color: #dcd7cf; }
 .side .sec-h { margin-bottom: 12px; font-size: 14.5px; }
 .side .sec-h > span:first-child { letter-spacing: 0.1em; }
-/* 小見出し「まだのところ」「直すところ」（13.5px）：数はすぐ横の小さな札（直すところは赤。0 のときは出さない）。
+/* 中見出し「まだのところ」「直すところ」（13.5px）：数はすぐ横の小さな札（直すところは赤。0 のときは出さない）。
    右のひとこと（「押すと、その場所へ」「書いた文の間違い」）は出さず、マウスを乗せると出す（title） */
 .side .check-sub { justify-content: flex-start; align-items: center; gap: 8px; min-height: 20px; margin: 0 0 6px; font-size: 13.5px; }
 .side .check-sub b { letter-spacing: 0.06em; }
@@ -1744,7 +1751,7 @@ button.row { cursor: pointer; }
 .direct-bar .db-row button svg { width: 20px; height: 20px; }
 .direct-bar .db-row button:disabled, .direct-bar .db-row button.off { color: #b5b7bc; }
 .direct-bar .db-row button.on { background: var(--accent-soft); color: var(--accent); }
-/* 「＋追加」で出す行（大見出し・小見出し・改ページ。依頼者の選択 2026-10-22 案X）：道具の上に、細い線で分けて */
+/* 「＋追加」で出す行（大見出し・中見出し・改ページ。依頼者の選択 2026-10-22 案X）：道具の上に、細い線で分けて */
 .direct-bar .db-add { padding-bottom: 2px; margin-bottom: 2px; border-bottom: 1px solid var(--line); }
 .direct-bar .db-add button { color: var(--accent); }
 .direct-bar .db-row button.danger { color: var(--error); }

@@ -65,7 +65,7 @@ describe('言葉で探す：項目を探す', () => {
     expect(hits.find((h) => h.topic.id === 'undo')?.hidden).toEqual(['消えた'])
   })
 
-  it('端末ごとの手順の行も探し、端末の名前を小見出しにする', () => {
+  it('端末ごとの手順の行も探し、端末の名前を中見出しにする', () => {
     // PDF の出し方は、iPhone の行で見つかる（スマホのホーム画面に追加する、も見つかる）
     const hits = searchTopics(STUDENT_TOPICS, '共有のボタン').hits
     expect(hits.find((h) => h.topic.id === 'pdf')?.line?.label).toBe('iPhone・iPad')

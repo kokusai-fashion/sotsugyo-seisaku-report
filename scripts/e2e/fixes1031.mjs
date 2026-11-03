@@ -81,7 +81,7 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
-  // 段落の終わりで Enter → 空の段落で「大見出し」：空の段落を前の章に残さない（小見出しと同じ）。画面は新しい章のページへ
+  // 段落の終わりで Enter → 空の段落で「大見出し」：空の段落を前の章に残さない（中見出しと同じ）。画面は新しい章のページへ
   {
     const { context, page, ready } = await open(browser)
     await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p5b'), 'none'))
@@ -246,7 +246,7 @@ await withEdge(async (browser) => {
     await context.close()
   }
 
-  // ひな形の仮の小見出し「〇〇〇〇」を押すと、全部を選んで開く（打つと置き換わる。学生の試し 2026-11-01 録画1）
+  // ひな形の仮の中見出し「〇〇〇〇」を押すと、全部を選んで開く（打つと置き換わる。学生の試し 2026-11-01 録画1）
   {
     const { context, page, ready } = await open(browser)
     const sid = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.type === 'subheading').id)
@@ -262,7 +262,7 @@ await withEdge(async (browser) => {
     await page.keyboard.press('Escape')
     await ready()
     const title = await page.evaluate((sid) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === sid).title, sid)
-    check('ひな形の仮の小見出し「〇〇〇〇」を押して打つと、置き換わる（「〇〇ジャケット〇〇」にならない）', title === 'ジャケット', JSON.stringify(title))
+    check('ひな形の仮の中見出し「〇〇〇〇」を押して打つと、置き換わる（「〇〇ジャケット〇〇」にならない）', title === 'ジャケット', JSON.stringify(title))
     await context.close()
   }
 

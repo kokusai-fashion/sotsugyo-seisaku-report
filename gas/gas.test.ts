@@ -605,7 +605,7 @@ describe('管理ページ（admin-project）', () => {
     expect(save(template([chapter, { type: 'paragraph' }]))).toThrow(/2行目の説明の形が正しくありません/)
     expect(save(template([chapter, { type: 'image', caption: '写真' }]))).toThrow(/2行目の形が正しくありません/)
     expect(save(template([chapter, null]))).toThrow(/2行目の形が正しくありません/)
-    expect(save(template([chapter, { type: 'subheading', title: 'あ'.repeat(101) }]))).toThrow('「映画・舞台衣装デザイナー」のひな形の2行目の小見出し「ああああああああああああ…」が長すぎます（100字まで。今は101字）')
+    expect(save(template([chapter, { type: 'subheading', title: 'あ'.repeat(101) }]))).toThrow('「映画・舞台衣装デザイナー」のひな形の2行目の中見出し「ああああああああああああ…」が長すぎます（100字まで。今は101字）')
     expect(save(template([chapter, { type: 'paragraph', hint: 'あ'.repeat(301) }]))).toThrow(/2行目の説明「あ+…」が長すぎます（300字まで。今は301字）/)
     expect(save(template(Array.from({ length: 101 }, () => chapter)))).toThrow(/多すぎます/)
     expect(save({ templates: { [id]: { template: [chapter], abstractExample: 1 } } })).toThrow(/抄録の書き出し例の形が正しくありません/)

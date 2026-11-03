@@ -13,9 +13,33 @@ export function chapterLabel(index: number): string {
   return `${CHAPTER_NUMERALS[index] ?? String(index + 1)}．`
 }
 
-/** 小見出しの番号（ⅰ．ⅱ．…）。章ごとに振り直す */
+/** 中見出しの番号（ⅰ．ⅱ．…）。章ごとに振り直す */
 export function subheadingLabel(index: number): string {
   return `${SUBHEADING_NUMERALS[index] ?? String(index + 1)}．`
+}
+
+/** 小見出しの番号（（1）（2）…）。中見出しごとに振り直す */
+export function minorHeadingLabel(index: number): string {
+  return `（${index + 1}）`
+}
+
+/**
+ * 章の中の見出しの番号を、順に付ける（中見出し ⅰ．ⅱ．…は章ごと、小見出し（1）（2）…は中見出しごとに振り直す）。
+ * 本文・目次・見出しの名前を出す所で、同じ数え方にする
+ */
+export function headingLabels(blocks: BodyBlock[]): Map<string, string> {
+  const labels = new Map<string, string>()
+  let sub = 0
+  let minor = 0
+  for (const b of blocks) {
+    if (b.type !== 'subheading') continue
+    if (b.level === 3) labels.set(b.id, minorHeadingLabel(minor++))
+    else {
+      labels.set(b.id, subheadingLabel(sub++))
+      minor = 0
+    }
+  }
+  return labels
 }
 
 /** 図表のタイトル。手順書の形式「図1.デザイン画」 */
@@ -265,14 +289,15 @@ function lastBlockHtml(html: string): string {
 }
 
 function renderChapter(chapter: Chapter, index: number, numbers: Map<string, number>, tableIds: Set<string>, options: BodyRenderOptions): string {
-  let subIndex = 0
+  const labels = headingLabels(chapter.blocks)
   // 章の中身の最後のブロック（後ろの改ページは数えない）
   let last = chapter.blocks.length - 1
   while (last >= 0 && chapter.blocks[last].type === 'pageBreak') last--
   const blocks = chapter.blocks
     .map((block, i) =>
       block.type === 'subheading'
-        ? `<h2 class="subheading">${labeledHtml(subheadingLabel(subIndex++), block.title, block.id)}</h2>`
+        ? // 小見出し（（1））は、中見出しと同じ h2 に印（minor）を付ける（見出しのあとの改ページの決まりなどは、中見出しと同じに効かせる）
+          `<h2 class="subheading${block.level === 3 ? ' minor' : ''}">${labeledHtml(labels.get(block.id) ?? '', block.title, block.id)}</h2>`
         : // 章のいちばん最後の改ページ：次の章（または本文の終わり）はもう次のページから始まるので、改ページはしない（印だけ出す）。
           // 前は改ページが2つ重なって、何も書けない空のページができていた（先生の試し 2026-10-21）
           block.type === 'pageBreak' && i === chapter.blocks.length - 1
