@@ -44,6 +44,20 @@ function spaced(text: string): string {
   return [...text].join(' ')
 }
 
+/** 表紙の見出しの、ふだんの字の大きさ（documentCss.ts の .cover .heading）と、字の間を空けた1行の幅の上限 */
+const COVER_HEADING_PT = 48
+const COVER_HEADING_MAX_MM = 145
+
+/**
+ * 表紙の見出しの字の大きさ（pt）。字の間を空けた1行（半角の空きは半分の字として数える）が上限の幅を超えないよう、48pt から小さくする。
+ * 「卒 業 制 作」は 48pt のまま、「卒 業 制 作 報 告 書」は 40pt（先生方の希望 2026-11-03。48pt では枠いっぱいで窮屈だった：mockups/v97 案B）
+ */
+export function coverHeadingPt(text: string): number {
+  const n = [...text].length
+  for (const pt of [COVER_HEADING_PT, 44, 40, 36, 32]) if ((n + 0.5 * (n - 1)) * pt * (25.4 / 72) <= COVER_HEADING_MAX_MM) return pt
+  return 28
+}
+
 /**
  * 学生が入力する項目。空のときの仮の文字（「（学籍番号）」など）は data-placeholder に入れ、
  * 画面の CSS で表示する（紙面の文字としては持たないため、PDF には出ない）。
@@ -73,10 +87,13 @@ export function coverHtml(report: Report, config: YearConfig, options: Pick<Docu
   // 長いときは、枠の1行に入るまで行全体の文字を小さくする（mockups/v23 ① 案A）
   const subtitlePt = options.coverSubtitlePt ?? fitLineFontPt(subtitleLine(report, config), COVER_SUBTITLE)
   const fullWidthYear = String(config.fiscalYear).replace(/[0-9]/g, (d) => String.fromCharCode(d.charCodeAt(0) + 0xfee0))
+  // 見出しが長いときは字を小さくし、行の真ん中の高さは同じにする
+  const headingPt = coverHeadingPt(config.cover.heading)
+  const headingStyle = headingPt < COVER_HEADING_PT ? ` style="font-size:${headingPt}pt;padding-top:${(COVER_HEADING_PT - headingPt) / 2}pt"` : ''
   return `<section class="cover">
 <div class="frame"></div>
 <div class="el center year">${escapeHtml(fullWidthYear)}年度</div>
-<div class="el center heading">${escapeHtml(spaced(config.cover.heading))}</div>
+<div class="el center heading"${headingStyle}>${escapeHtml(spaced(config.cover.heading))}</div>
 <div class="el label">${escapeHtml(config.cover.titleLabel)}</div>
 <div class="el title">${escapeHtml(config.commonTitle)}</div>
 <div class="rule title-rule"></div>

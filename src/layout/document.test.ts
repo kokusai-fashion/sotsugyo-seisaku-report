@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { currentConfig } from '../config'
 import { createReport } from '../model/newReport'
-import { ABSTRACT_SUBTITLE, abstractHtml, abstractRowFontPt, buildReportDocument, buildReportParts, COVER_SUBTITLE, coverHtml, fitLineFontPt, formatReference, partList, refitLineFontPt, subtitleLine, textUnits, TOC_TARGET_ATTR, TOC_TEXT, yearDigits } from './document'
+import { ABSTRACT_SUBTITLE, abstractHtml, abstractRowFontPt, buildReportDocument, buildReportParts, COVER_SUBTITLE, coverHeadingPt, coverHtml, fitLineFontPt, formatReference, partList, refitLineFontPt, subtitleLine, textUnits, TOC_TARGET_ATTR, TOC_TEXT, yearDigits } from './document'
 import { documentCss } from './documentCss'
 
 describe('抄録の見出し（学籍番号・氏名と指導教員を1行に）', () => {
@@ -234,5 +234,18 @@ describe('目次の行の行き先（mockups/v41 案C：目次の行を押すと
   it('画面だけの言葉は、紙面（目次の文書）には入らない', () => {
     for (const text of Object.values(TOC_TEXT)) expect(toc).not.toContain(text)
     expect(toc).not.toContain('見出しへ')
+  })
+})
+
+describe('表紙の見出しの字の大きさ（先生方の希望 2026-11-03：「卒業制作報告書」。mockups/v97 案B）', () => {
+  it('4字（卒 業 制 作）は 48pt のまま、7字（卒 業 制 作 報 告 書）は 40pt', () => {
+    expect(coverHeadingPt('卒業制作')).toBe(48)
+    expect(coverHeadingPt('卒業制作報告書')).toBe(40)
+  })
+  it('小さくしたときは、表紙の見出しに字の大きさを書く（行の真ん中の高さは同じ）', () => {
+    const config = { ...currentConfig, cover: { ...currentConfig.cover, heading: '卒業制作報告書' } }
+    expect(coverHtml(createReport(config), config)).toContain('<div class="el center heading" style="font-size:40pt;padding-top:4pt">卒 業 制 作 報 告 書</div>')
+    const four = { ...currentConfig, cover: { ...currentConfig.cover, heading: '卒業制作' } }
+    expect(coverHtml(createReport(four), four)).toContain('<div class="el center heading">卒 業 制 作</div>')
   })
 })

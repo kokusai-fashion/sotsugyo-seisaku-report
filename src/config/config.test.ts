@@ -12,7 +12,9 @@ describe('2026年度の設定', () => {
 
   it('名称が「卒業制作」系に統一されている', () => {
     expect(currentConfig.reportName).toBe('卒業制作報告書')
-    expect(currentConfig.cover.heading).toBe('卒業制作')
+    // 表紙・抄録の見出しは「卒業制作報告書」（先生方の希望 2026-11-03）
+    expect(currentConfig.cover.heading).toBe('卒業制作報告書')
+    expect(currentConfig.abstract.heading).toBe('卒業制作報告書　抄録')
     expect(currentConfig.cover.titleLabel).toBe('制作題目')
     expect(JSON.stringify(currentConfig)).not.toContain('研究')
   })
