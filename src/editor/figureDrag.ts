@@ -251,7 +251,7 @@ export class FigureDrag {
 
   /** 見えているページにある、図の写真（写真のない枠） */
   private figureImage(figureId: string): HTMLElement | null {
-    const sel = `figure[data-figure-id="${CSS.escape(figureId)}"] > :is(img, .figure-slot)`
+    const sel = `figure[data-figure-id="${CSS.escape(figureId)}"] > :is(img, .figure-slot, .fig-crop)`
     for (const page of this.host.visiblePages()) {
       const el = page.querySelector<HTMLElement>(sel)
       if (el) return el

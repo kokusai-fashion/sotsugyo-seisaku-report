@@ -108,6 +108,19 @@ export interface Figure {
   imageId: string
   /** 名称のみ（例: デザイン画）。「図1.」は自動で付く */
   caption: string
+  /**
+   * トリミング：写真のうち紙面に出す範囲（写真の幅・高さに対する割合 0〜1。左上の位置と幅・高さ）。
+   * 省略したら写真の全体。図の形は、この範囲の形になる（依頼者の選択 2026-11-03、mockups/v94 案2）
+   */
+  crop?: FigureCrop
+}
+
+/** 図のトリミングの範囲（写真の幅・高さに対する割合） */
+export interface FigureCrop {
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 /**
@@ -183,6 +196,11 @@ export type WorkPhotoLayout = 1 | 2 | 4
 export interface PhotoPosition {
   x: number
   y: number
+  /**
+   * 拡大の倍率（1 より大きいとき。トリミングの窓で決める：依頼者の選択 2026-11-03、mockups/v94 案2）。
+   * 枠いっぱいに切り抜いた写真を、(x%, y%) の点を中心にこの倍率で大きくする（並べ方を変えて枠の形が変わっても、ゆがまない）
+   */
+  zoom?: number
 }
 
 /** 作品写真の1ページ */

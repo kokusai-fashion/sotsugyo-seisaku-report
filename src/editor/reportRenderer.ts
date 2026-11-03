@@ -365,6 +365,8 @@ export class ReportRenderer {
           growFallback = true
           nextGrow = {}
         }
+        // 小さくして段落のページに収めるまとまりは、次のページの上へは送らない（layout/figureGrow.ts の decideShrink）
+        for (const [id, g] of Object.entries(nextGrow)) if (g.scale < 1 && next.has(id)) next = new Set([...next].filter((x) => x !== id))
         const ratio = layout.coverSubtitle?.ratio ?? 0
         if (ratio > OVERFLOW_RATIO) subtitleTooBig = Math.min(subtitleTooBig, subtitlePt)
         const nextPt = refitLineFontPt(subtitlePt, ratio, COVER_SUBTITLE, subtitleTooBig)

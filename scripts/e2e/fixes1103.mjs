@@ -204,6 +204,38 @@ await withEdge(async (browser) => {
   await page.keyboard.press('Escape')
   await settle(page, ready)
 
+  // ---- 会議のあと：ページの下に少しだけ入りきらない図のまとまり（4枚・2段）は、85% まで小さくしてそのページに収める ----
+  // まとめの章を「段落 pA → 縦長の図4枚 → 段落 pB」にし、pA を1行ずつ長くして組む。2段目が次のページへ分かれそうな所で、小さくして収まるか
+  const sentence = '制作の手順を確かめながら、布を裁断して縫い合わせた。'
+  const shrinkCases = []
+  for (const lines of [8, 9, 10, 11, 12, 13]) {
+    const filler = sentence.repeat(Math.ceil((lines * 38) / sentence.length)).slice(0, lines * 38 - 1) + '。'
+    await page.evaluate((filler) => window.__editor.update((r) => ({
+      ...r,
+      body: r.body.map((c) => (c.id === 'c3' ? { ...c, blocks: [
+        { type: 'paragraph', id: 'pA', content: [{ type: 'text', text: filler }] },
+        { type: 'figureRow', id: 'gX', figures: [1, 2, 3, 4].map((n) => ({ id: `fx${n}`, imageId: 'g-design', caption: `デザイン画${n}` })) },
+        { type: 'paragraph', id: 'pB', content: [{ type: 'text', text: '続きの段落である。' }] },
+      ] } : c)),
+    })), filler)
+    await settle(page, ready)
+    await wait(800)
+    await ready()
+    shrinkCases.push({ lines, ...(await page.evaluate(() => {
+      const pages = window.__editor.pageElements()
+      const imgs = [...document.querySelectorAll('.page-viewport.front .figure-group[data-group-id="gX"] img')]
+      const pageOf = (el) => pages.indexOf(el.closest('[data-vivliostyle-page-container]'))
+      const anchor = document.querySelector('.page-viewport.front [data-block-id="pA"]')
+      return { groupPages: [...new Set(imgs.map(pageOf))], anchorPage: anchor ? pageOf(anchor) : -1, h: imgs.map((i) => parseFloat(i.style.height))[0] }
+    })) })
+  }
+  const shrunk = shrinkCases.filter((c) => c.h < 71.9 && c.h >= 72 * 0.85 - 0.1)
+  check(
+    '会議のあと：4枚（2段）の図が少しだけ入りきらないときは、小さくして（85% まで）段落と同じページに収める。収まった所では分かれない',
+    shrunk.length > 0 && shrunk.every((c) => c.groupPages.length === 1 && c.groupPages[0] === c.anchorPage) && shrinkCases.every((c) => c.groupPages.length === 1),
+    JSON.stringify(shrinkCases),
+  )
+
   await context.close()
 })
 

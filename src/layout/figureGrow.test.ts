@@ -99,3 +99,45 @@ describe('覚えた組み方の倍率を読む', () => {
     expect(readFigureGrow(undefined)).toEqual({})
   })
 })
+
+describe('ページの下に少しだけ入りきらない図のまとまりは、85% まで小さくしてそのページに収める（依頼者の選択 2026-11-03）', () => {
+  // 縦長の図4枚（2段。1枚 54×72mm、タイトル 5mm）
+  const four = [[size(54, 72), size(54, 72)], [size(54, 72), size(54, 72)]]
+  /** 段落 p1 の位置も持つ作り物の紙面 */
+  const withAnchor = (places: Placed[], rows: { widthMm: number; heightMm: number }[][], anchor: Placed): GrowLayout => ({ ...layout(places, rows), block: (id) => (id === 'p1' ? [anchor] : []) })
+
+  it('2段目が次のページへ分かれた：最初のページに収まる倍率にする（後ろが段落でも）', () => {
+    // 1段目が 130〜207mm（3ページ）、2段目が 25〜102mm（4ページ）。収まる高さ 272 − 130 − 3.2 ≒ 138.8 → (138.8 − 10) / 144 ≒ 0.89
+    expect(decide(layout([at(3, 130, 207), at(4, 25, 102)], four), 'paragraph')).toEqual({ g1: { scale: 0.89, page: 3 } })
+  })
+
+  it('85% より小さくしないと収まらないときは、小さくしない（今までどおり）', () => {
+    expect(decide(layout([at(3, 170, 247), at(4, 25, 102)], four), 'paragraph')).toEqual({})
+  })
+
+  it('まとまりごと次のページへ回った：段落のページの下に収まる倍率にする', () => {
+    // 段落の下端 190mm（3ページ）。図1枚（72mm＋タイトル 5mm）は 4ページの上。収まる高さ 272 − 190 − 6.5 − 0.5 = 75 → (75 − 5) / 72 ≒ 0.97
+    expect(decide(withAnchor([at(4, 25, 102)], [[size(54, 72)]], at(3, 150, 190)), 'paragraph')).toEqual({ g1: { scale: 0.97, page: 3 } })
+    // 段落の下端 200mm：(65 − 5) / 72 ≒ 0.83 で 85% より小さい → 小さくしない
+    expect(decide(withAnchor([at(4, 25, 102)], [[size(54, 72)]], at(3, 160, 200)), 'paragraph')).toEqual({})
+  })
+
+  it('小さくしたまとまりが、決めたページに収まっていれば、そのまま', () => {
+    const shrunk = [[size(48.1, 64.1), size(48.1, 64.1)], [size(48.1, 64.1), size(48.1, 64.1)]]
+    expect(decide(layout([at(3, 130, 271)], shrunk), 'paragraph', { g1: { scale: 0.89, page: 3 } })).toEqual({ g1: { scale: 0.89, page: 3 } })
+  })
+
+  it('小さくしても、別のページへ移った・はみ出したら、いったん元の大きさに戻す（2回目は、もう小さくしない）', () => {
+    const reset = new Set<string>()
+    const blocked = new Set<string>()
+    const moved = layout([at(4, 25, 166)], four)
+    expect(decide(moved, 'paragraph', { g1: { scale: 0.89, page: 3 } }, new Set(), reset, blocked)).toEqual({})
+    expect(reset.has('g1') && !blocked.has('g1')).toBe(true)
+    decide(moved, 'paragraph', { g1: { scale: 0.89, page: 3 } }, new Set(), reset, blocked)
+    expect(blocked.has('g1')).toBe(true)
+  })
+
+  it('この端末に覚えた組み方の、小さくした倍率も読む（85% より小さいものは読まない）', () => {
+    expect(readFigureGrow({ g1: { scale: 0.9, page: 2 }, g2: { scale: 0.5, page: 1 } })).toEqual({ g1: { scale: 0.9, page: 2 } })
+  })
+})

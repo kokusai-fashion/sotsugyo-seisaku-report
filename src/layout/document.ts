@@ -337,8 +337,10 @@ function photosHtml(report: Report, options: DocumentRenderOptions): string {
       const grid = photoGrid(page)
       const slots = shownPhotos(page)
         .map(({ imageId, position, whole }, i) => {
-          // 全体を入れる写真は切り抜かないので、切り抜く位置は使わない（真ん中に置く）
-          const at = position && !whole ? ` style="object-position:${position.x}% ${position.y}%"` : ''
+          // 全体を入れる写真は切り抜かないので、切り抜く位置は使わない（真ん中に置く）。
+          // トリミングで大きくした写真は、切り抜く位置を中心に大きくする（枠の外は .slot が隠す。mockups/v94 案2）
+          const zoom = position?.zoom && position.zoom > 1 ? `;transform:scale(${position.zoom});transform-origin:${position.x}% ${position.y}%` : ''
+          const at = position && !whole ? ` style="object-position:${position.x}% ${position.y}%${zoom}"` : ''
           const img = imageId && options.photoSrc ? `<img src="${escapeHtml(options.photoSrc(imageId))}"${at} alt="">` : ''
           return `<div class="slot${img ? '' : ' empty-slot'}${img && whole ? ' whole' : ''}" data-photo-slot="${i}">${img}</div>`
         })

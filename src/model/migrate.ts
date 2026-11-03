@@ -1,4 +1,4 @@
-import { clampPercent, photoGrid } from './photos'
+import { clampPercent, clampZoom, photoGrid } from './photos'
 import { fromMaterialTable } from './table'
 import type { BodyBlock, InlineNode, ParagraphBlock, Reference, Report, WorkPhotoLayout, WorkPhotoPage } from './types'
 import { DATA_FORMAT_VERSION } from './types'
@@ -43,7 +43,7 @@ function migrateBlock(b: Raw): BodyBlock | null {
     case 'pageBreak':
       return { type: 'pageBreak', id: idOf(b, 'pb') }
     case 'figureRow':
-      return { type: 'figureRow', id: idOf(b, 'g'), figures: list(b.figures).map((f) => ({ id: idOf(f, 'f'), imageId: str(f.imageId), caption: str(f.caption) })) }
+      return { type: 'figureRow', id: idOf(b, 'g'), figures: list(b.figures).map((f) => ({ id: idOf(f, 'f'), imageId: str(f.imageId), caption: str(f.caption), ...figureCrop(f.crop) })) }
     case 'table':
       return {
         type: 'table',
@@ -101,13 +101,25 @@ function migrateAbstract(abstract: Raw): Report['abstract'] {
  * 3枚の並べ方はなくしたため4枚にする。6枚の並べ方もなくしたため（mockups/v38）、4枚にして、5・6枚目の写真は次のページに移す
  * （写真は消さない。次のページは、移した写真の数に合わせて1枚か2枚（上下）にする。空いている枠を作らないため）
  */
+/** 図のトリミングの範囲（mockups/v94 案2）。0〜1 の中で、幅・高さが小さすぎないものだけ（ほかは写真の全体） */
+function figureCrop(raw: unknown): { crop?: { x: number; y: number; w: number; h: number } } {
+  const q = raw as { x?: unknown; y?: unknown; w?: unknown; h?: unknown } | null
+  if (!q || ![q.x, q.y, q.w, q.h].every((v) => typeof v === 'number' && Number.isFinite(v))) return {}
+  const [x, y, w, h] = [q.x, q.y, q.w, q.h] as number[]
+  if (x < 0 || y < 0 || w < 0.05 || h < 0.05 || x + w > 1.0001 || y + h > 1.0001) return {}
+  return { crop: { x, y, w, h } }
+}
+
 function migratePhotoPage(photos: Raw): WorkPhotoPage[] {
   const raw = photos.layout === 3 ? 4 : photos.layout
   const imageIds = Array.isArray(photos.imageIds) ? (photos.imageIds as unknown[]).map((x) => (typeof x === 'string' ? x : '')) : []
   const positions = Array.isArray(photos.positions)
     ? (photos.positions as unknown[]).map((p) => {
-        const q = p as { x?: unknown; y?: unknown } | null
-        return q && typeof q.x === 'number' && typeof q.y === 'number' ? { x: clampPercent(q.x), y: clampPercent(q.y) } : null
+        const q = p as { x?: unknown; y?: unknown; zoom?: unknown } | null
+        if (!q || typeof q.x !== 'number' || typeof q.y !== 'number') return null
+        // トリミングの拡大の倍率（mockups/v94 案2）
+        const zoom = typeof q.zoom === 'number' && q.zoom > 1 ? { zoom: clampZoom(q.zoom) } : {}
+        return { x: clampPercent(q.x), y: clampPercent(q.y), ...zoom }
       })
     : undefined
   // 「全体を入れる（切らない）」（mockups/v32 ③）。前の版の原稿にはないので、今までどおり、どの写真も枠いっぱいに切り抜く

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Chapter } from '../model/types'
-import { buildBodyDocument, chapterLabel, figureCaption, numberFiguresAndTables, subheadingLabel } from './bodyHtml'
+import { buildBodyDocument, chapterLabel, figureCaption, numberFiguresAndTables, rowSizes, subheadingLabel } from './bodyHtml'
 
 const options = {
   imageSrc: (id: string) => `img/${id}`,
@@ -153,5 +153,20 @@ describe('改ページ', () => {
     expect(html).toContain('<div class="page-break" data-block-id="pb1"></div>')
     expect(html).toContain('<div class="page-break end" data-block-id="pb2"></div>')
     expect(html).toMatch(/\.page-break\.end\s*\{\s*break-after: auto;/)
+  })
+})
+
+describe('横に並べる図の大きさ（rowSizes）', () => {
+  it('同じ形どうし（縦長と縦長）は、高さをそろえる（今までどおり）', () => {
+    expect(rowSizes([{ widthMm: 60, heightMm: 80 }, { widthMm: 30, heightMm: 40 }])).toEqual([{ widthMm: 54, heightMm: 72 }, { widthMm: 54, heightMm: 72 }])
+  })
+  it('横長と縦長は、見た目の大きさ（面積）をそろえる（依頼者の選択 2026-11-03、mockups/v95 案1）', () => {
+    // 4:3 と 3:4 → 72×54 と 54×72（高さをそろえると、縦長は 40.5×54 だった）
+    expect(rowSizes([{ widthMm: 80, heightMm: 60 }, { widthMm: 60, heightMm: 80 }])).toEqual([{ widthMm: 72, heightMm: 54 }, { widthMm: 54, heightMm: 72 }])
+  })
+  it('横長と縦長でも、本文の幅（150mm）に収まる', () => {
+    const [a, b] = rowSizes([{ widthMm: 160, heightMm: 90 }, { widthMm: 60, heightMm: 80 }])
+    expect(a.widthMm + b.widthMm + 8).toBeLessThanOrEqual(150.1)
+    expect(Math.abs(a.widthMm * a.heightMm - b.widthMm * b.heightMm) / (a.widthMm * a.heightMm)).toBeLessThan(0.02)
   })
 })

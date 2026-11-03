@@ -10,9 +10,9 @@ import { tidyName } from '../model/personName'
 import { putImage, type StoredImage } from '../model/storage'
 import { skippedPages } from '../pdf/exportPages'
 import { abstractEmpty, abstractOpening, applyCourseTemplate, bodyWritten } from '../model/template'
-import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, spillPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
+import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, trimPhoto, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, spillPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
 import { addColumn, addRow, blankTable, cellPosition, colWidthsOf, columnCount, equalColumnWidths, materialTable, normalizeColumnWidths, removeColumn, removeRow, setCellCrop, setCellImage, swatchColumn, TABLE_SIZE } from '../model/table'
-import type { BodyBlock, Chapter, ParagraphBlock, PhotoPosition, Report, TableBlock, TableCell, WorkPhotoLayout } from '../model/types'
+import type { BodyBlock, Chapter, Figure, FigureCrop, ParagraphBlock, PhotoPosition, Report, TableBlock, TableCell, WorkPhotoLayout } from '../model/types'
 import { abstractPasteNotice, stripFigureRefs } from './abstractRefs'
 import { ColumnHandles, type ColumnTarget } from './columnHandles'
 import { ContinueRow, placeBelow, type ContinueTarget } from './continueRow'
@@ -257,6 +257,12 @@ function suffixAfter(el: HTMLElement): string | undefined {
 }
 
 /** 原稿の抄録・本文にある ID（段落・章・ブロック・図）。削除して消えたものを見つけるため */
+/** 図のトリミングの範囲を付け替える（null なら外す） */
+function withCrop(f: Figure, crop: FigureCrop | null): Figure {
+  const { crop: _old, ...rest } = f
+  return crop ? { ...rest, crop } : rest
+}
+
 function bodyIds(report: Report): Set<string> {
   const ids = new Set(report.abstract.paragraphs.map((p) => p.id))
   for (const c of report.body) {
@@ -1984,7 +1990,7 @@ export class ReportEditor {
     if (kind !== 'figureCaption' && kind !== 'tableCaption') return null
     const view = this.renderer.pageView
     const e = CSS.escape(id)
-    const selector = kind === 'figureCaption' ? `figure[data-figure-id="${e}"] > :is(img, .figure-slot)` : `.data-table[data-table-id="${e}"] table`
+    const selector = kind === 'figureCaption' ? `figure[data-figure-id="${e}"] > :is(img, .figure-slot, .fig-crop)` : `.data-table[data-table-id="${e}"] table`
     const rects = [...this.viewport.querySelectorAll<HTMLElement>(selector)]
       .filter((el) => view.pageIndexOf(el) === this.page)
       .map((el) => el.getBoundingClientRect())
@@ -4618,9 +4624,32 @@ export class ReportEditor {
       ...r,
       body: r.body.map((c) => ({
         ...c,
-        blocks: c.blocks.map((b) => (b.type === 'figureRow' ? { ...b, figures: b.figures.map((f) => (f.id === figureId ? { ...f, imageId } : f)) } : b)),
+        // 写真を差し替えたら、前の写真のトリミングは外す
+        blocks: c.blocks.map((b) => (b.type === 'figureRow' ? { ...b, figures: b.figures.map((f) => (f.id === figureId ? withCrop({ ...f, imageId }, null) : f)) } : b)),
       })),
     }))
+  }
+
+  /** 図のトリミングの範囲を決める（null で写真の全体に戻す。トリミングの窓：mockups/v94 案2）。図は選んだまま */
+  setFigureCrop(figureId: string, crop: FigureCrop | null): void {
+    this.update((r) => ({
+      ...r,
+      body: r.body.map((c) => ({
+        ...c,
+        blocks: c.blocks.map((b) => (b.type === 'figureRow' && b.figures.some((f) => f.id === figureId) ? { ...b, figures: b.figures.map((f) => (f.id === figureId ? withCrop(f, crop) : f)) } : b)),
+      })),
+    }))
+  }
+
+  /** 作品写真（page ページ目の index 枚目）をトリミングする（null で写真の全体に戻す。mockups/v94 案2） */
+  setPhotoTrim(page: number, index: number, trim: PhotoPosition | null): void {
+    this.update((r) => ({ ...r, workPhotos: updatePhotoPage(r.workPhotos, page, (p) => trimPhoto(p, index, trim)) }))
+  }
+
+  /** 写真の URL と大きさ（トリミングの窓に出す。読み込めていなければ null） */
+  imageInfo(id: string): { url: string; widthPx: number; heightPx: number } | null {
+    const img = this.images.get(id)
+    return img ? { url: img.url, widthPx: img.widthPx, heightPx: img.heightPx } : null
   }
 
   /**

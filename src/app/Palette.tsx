@@ -10,6 +10,7 @@ import { COPIED_MS, ON_MAC, SELECTION_TEXTS, shortcut } from '../editor/selectio
 import { Icon } from './icons'
 import { useAsk } from './ask'
 import { TableSizeMenu } from './TableSize'
+import { TrimDialog, type TrimTarget } from './TrimDialog'
 import { ShapeFace, TableShapeSheet, TableShapeTool } from './tableShape'
 import { keepFocus, PAGE_CONTEXT, swallowSecondClick, TOC_PALETTE_NOTE, touchPrimary } from './uiShared'
 import { BAND_SIDE_QUERY, forTouch, photoBand } from './bandText'
@@ -367,6 +368,17 @@ function WholeSwitch({ on, index, onToggle }: { on: boolean; index: number; onTo
   )
 }
 
+/** 「トリミング」：押すと、トリミングの窓を開く（写真のうち、紙面に出す範囲を決める。依頼者の選択 2026-11-03、mockups/v94 案2） */
+function TrimTool({ makeTarget, title }: { makeTarget: () => TrimTarget | null; title: string }) {
+  const [target, setTarget] = useState<TrimTarget | null>(null)
+  return (
+    <>
+      <Tool label="トリミング" icon={Icon.crop} title={title} onClick={() => setTarget(makeTarget())} />
+      {target && <TrimDialog target={target} onClose={() => setTarget(null)} />}
+    </>
+  )
+}
+
 /** スマホの、表を選んだときの下の道具の「表の形」：押すと、下から欄が出る（app/tableShape.tsx の TableShapeSheet） */
 function ShapeSheetButton({ editor, table, tableId }: { editor: ReportEditor; table: TableBlock; tableId: string }) {
   const [open, setOpen] = useState(false)
@@ -415,6 +427,24 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
           danger
           title={`${photo + 1}枚目の写真を外す（枠を空にする）`}
           onClick={() => editor.removePhoto(page, photo)}
+        />
+        <TrimTool
+          title={`${photo + 1}枚目の写真の、紙面に出す範囲を決める（大きくして、見せたい所を枠いっぱいに）`}
+          makeTarget={() => {
+            const info = editor.imageInfo(photos.imageIds[photo])
+            if (!info) return null
+            // 紙面の枠の形（並べ方で決まる）。窓の枠は、この形のまま大きさと位置を決める
+            const slot = document.querySelector<HTMLElement>(`.page-viewport.front [data-photo-page="${page}"] [data-photo-slot="${photo}"]`)?.getBoundingClientRect()
+            return {
+              kind: 'photo',
+              label: `${photo + 1}枚目の写真`,
+              src: info.url,
+              imageRatio: info.widthPx / info.heightPx,
+              slotRatio: slot && slot.height > 0 ? slot.width / slot.height : 3 / 4,
+              trim: photos.whole?.[photo] ? null : (photos.positions?.[photo] ?? null),
+              onApply: (trim) => editor.setPhotoTrim(page, photo, trim),
+            }
+          }}
         />
         <WholeSwitch on={photos.whole?.[photo] === true} index={photo} onToggle={(on) => editor.setPhotoWhole(page, photo, on)} />
       </div>
@@ -518,11 +548,22 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
     const place = figurePlacement(report, figureId)
     const pairing = figurePairing(report, figureId)
     const n = numbering(report).numbers.get(figureId)
+    const figure = report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures : [])).find((f) => f.id === figureId)
     return (
       <div className="group ctx">
         <div className="ctx-label">この図</div>
         {/* ひな形を作る画面では、写真は選ばない（図は空の枠。写真は学生が入れる） */}
         {!template && <Tool label="差し替え" icon={Icon.replace} title="写真を差し替える" onClick={() => void editor.replaceFigureImage(figureId)} />}
+        {!template && figure?.imageId && (
+          <TrimTool
+            title="この図の写真の、紙面に出す範囲を決める（形も選べます：元の形・縦長・正方形・横長・自由）"
+            makeTarget={() => {
+              const info = figure.imageId ? editor.imageInfo(figure.imageId) : null
+              if (!info) return null
+              return { kind: 'figure', label: `図${n ?? ''}`, src: info.url, imageRatio: info.widthPx / info.heightPx, crop: figure.crop ?? null, onApply: (crop) => editor.setFigureCrop(figureId, crop) }
+            }}
+          />
+        )}
         {!template && <Tool label="もう1枚" icon={Icon.beside} title="この図のすぐ後ろにもう1枚入れる（本文の参照の後ろにも「（図n）」が入ります）" onClick={() => void editor.addFigureBeside(figureId)} />}
         {/* 1つ上へ・1つ下へ（段落・表を1つずつ越える。小見出しの中だけ。上は本文の（図n）の段落まで。依頼者の選択 2026-10-23・24） */}
         <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up', n) : place.upJoin ? 'この図を、上の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />

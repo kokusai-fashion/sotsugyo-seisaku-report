@@ -94,7 +94,7 @@ export function markFocusable(viewport: HTMLElement): void {
     mark(el, `b:${id}`, { label: `${blockName(el, id)}：${contentOf(el)}` })
   }
   // 図：写真の部分に移る（下のタイトルは、別の欄として移る）。目印は図全体に付ける（index.css）
-  for (const el of viewport.querySelectorAll<HTMLElement>('figure[data-figure-id] > img, figure[data-figure-id] > .figure-slot')) {
+  for (const el of viewport.querySelectorAll<HTMLElement>('figure[data-figure-id] > img, figure[data-figure-id] > .figure-slot, figure[data-figure-id] > .fig-crop')) {
     const figure = el.parentElement!
     const name = numberLabel(figure.querySelector('figcaption .num'), '図')
     mark(el, `f:${figure.dataset.figureId}`, { label: figure.hasAttribute('data-empty-figure') ? `${name}（写真を入れる枠）` : name })

@@ -165,6 +165,18 @@ figure img {
   display: block;
 }
 
+/* トリミングした図：範囲の形の枠の中に写真の全体を置き、範囲の外を隠す（bodyHtml.ts の renderFigure。mockups/v94 案2） */
+figure .fig-crop {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+figure .fig-crop > img {
+  position: absolute;
+  max-width: none;
+}
+
 figcaption,
 .table-caption {
   text-align: center;

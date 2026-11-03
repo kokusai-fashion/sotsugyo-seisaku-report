@@ -96,11 +96,30 @@ export function putPhoto(photos: WorkPhotoPage, index: number, imageId: string):
   return withWhole({ ...photos, imageIds, positions }, whole)
 }
 
-/** index 枚目の写真の切り抜く位置を変える */
+/** index 枚目の写真の切り抜く位置を変える（トリミングの拡大の倍率は、そのまま） */
 export function movePhoto(photos: WorkPhotoPage, index: number, position: PhotoPosition): WorkPhotoPage {
   const positions = photos.imageIds.map((_, i) => photos.positions?.[i] ?? null)
-  positions[index] = { x: clampPercent(position.x), y: clampPercent(position.y) }
+  const zoom = position.zoom ?? positions[index]?.zoom
+  positions[index] = { x: clampPercent(position.x), y: clampPercent(position.y), ...(zoom && zoom > 1 ? { zoom: clampZoom(zoom) } : {}) }
   return { ...photos, positions }
+}
+
+/** トリミングで大きくできる倍率の上限 */
+export const MAX_PHOTO_ZOOM = 4
+
+/** 拡大の倍率を 1〜MAX_PHOTO_ZOOM に収める（小数2桁） */
+export function clampZoom(zoom: number): number {
+  return Math.round(Math.min(MAX_PHOTO_ZOOM, Math.max(1, zoom)) * 100) / 100
+}
+
+/**
+ * index 枚目の写真をトリミングする：(x%, y%) を中心に zoom 倍（トリミングの窓。mockups/v94 案2）。trim が null なら、写真の全体（中央・等倍）に戻す。
+ * 「全体を入れる（切らない）」は外す（トリミングした範囲を、枠いっぱいに出す）
+ */
+export function trimPhoto(photos: WorkPhotoPage, index: number, trim: PhotoPosition | null): WorkPhotoPage {
+  const positions = photos.imageIds.map((_, i) => photos.positions?.[i] ?? null)
+  positions[index] = trim ? { x: clampPercent(trim.x), y: clampPercent(trim.y), ...(trim.zoom && trim.zoom > 1.005 ? { zoom: clampZoom(trim.zoom) } : {}) } : null
+  return wholePhoto({ ...photos, positions }, index, false)
 }
 
 /**

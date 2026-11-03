@@ -64,12 +64,24 @@ export const FIGURES_PER_ROW = 2
 const FIGURE_GAP_MM = 8
 const PAIR_MAX_MM = 72
 
+/** 横長と縦長が混ざった並びか（正方形に近いものは、どちらにも数えない） */
+function mixedShapes(ratios: number[]): boolean {
+  return ratios.some((r) => r > 1.05) && ratios.some((r) => r < 1 / 1.05)
+}
+
 /**
- * 横に並べる図の大きさ。1枚ならその図の大きさのまま、2枚なら高さをそろえ、本文の幅に収まるよう縮める
+ * 横に並べる図の大きさ。1枚ならその図の大きさのまま、2枚なら高さをそろえ、本文の幅に収まるよう縮める。
+ * 横長と縦長を並べるときは、見た目の大きさ（面積）をそろえる（高さをそろえると縦長の図が小さくなっていた：
+ * 依頼者の選択 2026-11-03、mockups/v95 案1。下はそろえる：reportCss.ts の .figure-row）。1枚の幅・高さは 72mm まで
  */
 export function rowSizes(sizes: FigureSize[]): FigureSize[] {
   if (sizes.length < 2) return sizes
   const ratios = sizes.map((s) => s.widthMm / s.heightMm)
+  if (mixedShapes(ratios)) {
+    const roots = ratios.map(Math.sqrt)
+    const side = Math.min((textWidthMm() - FIGURE_GAP_MM * (sizes.length - 1)) / roots.reduce((a, b) => a + b, 0), ...roots.map((q) => PAIR_MAX_MM / Math.max(q, 1 / q)))
+    return roots.map((q) => ({ widthMm: Math.round(q * side * 10) / 10, heightMm: Math.round((side / q) * 10) / 10 }))
+  }
   const height = Math.min(PAIR_MAX_MM, (textWidthMm() - FIGURE_GAP_MM * (sizes.length - 1)) / ratios.reduce((a, b) => a + b, 0), PAIR_MAX_MM / Math.max(...ratios))
   return ratios.map((r) => ({ widthMm: Math.round(r * height * 10) / 10, heightMm: Math.round(height * 10) / 10 }))
 }
@@ -103,7 +115,7 @@ function renderBlock(block: BodyBlock, numbers: Map<string, number>, tableIds: S
       for (let i = 0; i < block.figures.length; i += FIGURES_PER_ROW) rows.push(block.figures.slice(i, i + FIGURES_PER_ROW))
       let previousHeight = Infinity
       const rowHtml = rows.map((row) => {
-        let sizes = rowSizes(row.map((f) => options.figureSize(f)))
+        let sizes = rowSizes(row.map((f) => figureBoxSize(f, options)))
         // 2＋1 のように最後の段が1枚のときは、上の段より大きくならないよう高さをそろえる
         if (sizes.length === 1 && sizes[0].heightMm > previousHeight) {
           const k = previousHeight / sizes[0].heightMm
@@ -126,10 +138,30 @@ function renderBlock(block: BodyBlock, numbers: Map<string, number>, tableIds: S
   }
 }
 
+/**
+ * 図の大きさ（トリミングした図は、その範囲の形にする。長い方の辺は、写真の全体のときと同じ：mockups/v94 案2）
+ */
+export function figureBoxSize(f: Figure, options: Pick<BodyRenderOptions, 'figureSize'>): FigureSize {
+  const size = options.figureSize(f)
+  const crop = f.imageId ? f.crop : undefined
+  if (!crop) return size
+  const ratio = (size.widthMm * crop.w) / (size.heightMm * crop.h)
+  const side = Math.max(size.widthMm, size.heightMm)
+  return ratio >= 1 ? { widthMm: side, heightMm: Math.round((side / ratio) * 10) / 10 } : { widthMm: Math.round(side * ratio * 10) / 10, heightMm: side }
+}
+
+const mm = (n: number) => Math.round(n * 100) / 100
+
 function renderFigure(f: Figure, size: FigureSize, number: number, options: BodyRenderOptions): string {
   const style = `width:${size.widthMm}mm;height:${size.heightMm}mm`
+  const src = f.imageId ? escapeHtml(options.imageSrc(f.imageId)) : ''
+  // トリミングした図：範囲の形の枠（.fig-crop）の中に、写真の全体を大きくして置き、範囲の外を隠す（reportCss.ts）
+  const crop = f.imageId ? f.crop : undefined
+  const cropped = crop
+    ? `<span class="fig-crop" style="${style}"><img src="${src}" style="width:${mm(size.widthMm / crop.w)}mm;height:${mm(size.heightMm / crop.h)}mm;left:${mm((-crop.x * size.widthMm) / crop.w)}mm;top:${mm((-crop.y * size.heightMm) / crop.h)}mm" alt=""></span>`
+    : null
   // ひな形で用意した、まだ写真を入れていない枠は、クリックして写真を選ぶ枠にする
-  const picture = f.imageId ? `<img src="${escapeHtml(options.imageSrc(f.imageId))}" style="${style}" alt="">` : `<div class="figure-slot" style="${style}"></div>`
+  const picture = cropped ?? (f.imageId ? `<img src="${src}" style="${style}" alt="">` : `<div class="figure-slot" style="${style}"></div>`)
   return `<figure data-figure-id="${escapeHtml(f.id)}"${f.imageId ? '' : ' data-empty-figure'}>${picture}<figcaption>${captionHtml('図', number, f.caption, f.id)}</figcaption></figure>`
 }
 
