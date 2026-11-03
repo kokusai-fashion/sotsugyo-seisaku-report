@@ -731,6 +731,39 @@ export function addFigureBelow(report: Report, paragraphId: string, figure: Figu
   }
 }
 
+/**
+ * 手で書いた「（図n）」の図を入れる：ふつうは段落の下（addFigureBelow）。それでは番号が n にならず、図(n-1) が段落より後ろにあるときは、
+ * 図(n-1) の行のすぐ後ろに入れて、書いた番号のままにする（ひな形の図の枠が段落の後ろにあると、段落の下に入れた図が先に数えられ、
+ * 「（図3）の図がない」に「図2を入れる」と出ていた。入れると、書いた（図2）（図3）が入れ替わる：録画 2026-11-03）
+ */
+export function addFigureForRef(report: Report, paragraphId: string, figure: Figure, typed: number | null): Report {
+  const below = addFigureBelow(report, paragraphId, figure)
+  if (!typed || typed < 2 || numbering(below).numbers.get(figure.id) === typed) return below
+  const blocks = report.body.flatMap((c) => c.blocks)
+  const at = blocks.findIndex((b) => b.id === paragraphId)
+  const previous = numbering(report).figureByNumber.get(typed - 1)
+  const rowAt = blocks.findIndex((b) => b.type === 'figureRow' && b.figures.some((f) => f.id === previous))
+  if (at < 0 || rowAt <= at) return below
+  const rowId = blocks[rowAt].id
+  const after: Report = {
+    ...report,
+    body: report.body.map((chapter) => {
+      const i = chapter.blocks.findIndex((b) => b.id === rowId)
+      if (i < 0) return chapter
+      const next = [...chapter.blocks]
+      next.splice(i + 1, 0, { type: 'figureRow', id: newId('r'), figures: [figure] })
+      return { ...chapter, blocks: next }
+    }),
+  }
+  return numbering(after).numbers.get(figure.id) === typed ? after : below
+}
+
+/** 手で書いた「（図n）」の n（「（図３）」も 3。なければ null） */
+export function typedFigureNumber(text: string): number | null {
+  const m = text.normalize('NFKC').match(/図\s*(\d+)/)
+  return m ? Number(m[1]) : null
+}
+
 /** 表を、段落のすぐ下に入れる（その段落の下にすでに図・表があれば、その後ろ） */
 export function addTableBelow(report: Report, paragraphId: string, table: BodyBlock): Report {
   return {
@@ -1276,6 +1309,28 @@ export function linkRefRange(report: Report, paragraphId: string, start: number,
   }
   if (!linked) return null
   return mapBody(report, (b) => (b.id === paragraphId ? { ...paragraph, content: mergeTexts(content) } : b))
+}
+
+/**
+ * 学生がまだ何も書いていない章：書いた文・入れた写真・埋めた表が一つもない（ひな形の見出し・説明・図の枠・表の見出しの行だけ）。
+ * 見出しは数えない（先生のひな形の見出しも、学生が足した見出しも）。図は写真を入れたものだけ数える（ひな形の枠のタイトルは数えない）
+ */
+export function chapterNotStarted(chapter: Chapter): boolean {
+  return !chapter.blocks.some((b) => {
+    if (b.type === 'paragraph') return b.content.some((n) => n.type !== 'text' || n.text.trim() !== '')
+    if (b.type === 'figureRow') return b.figures.some((f) => !!f.imageId)
+    if (b.type === 'table') return b.rows.slice(1).some((r) => r.cells.some((c) => c.text.trim() !== '' || !!c.imageId))
+    return false
+  })
+}
+
+/**
+ * PDF に入れる原稿：まだ何も書いていない章（chapterNotStarted）を除く。目次・章の番号・図表の番号・ページ番号は、除いたあとの原稿で付く
+ * （依頼者の判断 2026-11-03 の会議のあと：途中の点検で、ひな形の見出しだけのページまで印刷していた）。除く章がなければ、同じ原稿を返す
+ */
+export function withoutNotStartedChapters(report: Report): Report {
+  const body = report.body.filter((c) => !chapterNotStarted(c))
+  return body.length === report.body.length ? report : { ...report, body }
 }
 
 /** 書いた中身のない章（段落はどれも空。小見出しは「〇〇〇〇」などの仮の名前だけ。図・表はない） */

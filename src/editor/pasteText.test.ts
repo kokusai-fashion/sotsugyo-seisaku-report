@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { joinWrappedLines, listishLine, tidyPasted } from './pasteText'
+import { dropLeadingPunctText, joinWrappedLines, listishLine, tidyPasted } from './pasteText'
 
 describe('貼り付けた文をそろえる（学生の試し 5回目 2026-10-30）', () => {
   it('見えない字：Shift+Enter・行の区切りは改行、ノーブレークスペースは空白、ゼロ幅・BOM・ソフトハイフンは除く。分かれた濁点は1字に', () => {
@@ -23,5 +23,17 @@ describe('貼り付けた文をそろえる（学生の試し 5回目 2026-10-30
   it('箇条書きの番号の行', () => {
     expect(['1.　ミシン', '①シーチングで仮縫い', '（1）素材'].map(listishLine)).toEqual([true, true, true])
     expect(['Ⅱ．制作過程', 'ⅰ．素材', '最初に生地を選んだ。'].map(listishLine)).toEqual([false, false, false])
+  })
+})
+
+describe('貼り付ける文の頭の「。」「、」（録画 2026-11-03）', () => {
+  it('段落の頭・文の終わり・読点のあとなら外す', () => {
+    expect(dropLeadingPunctText('大切さを学んだ。', '。客席から見える美しさ。')).toBe('客席から見える美しさ。')
+    expect(dropLeadingPunctText('', '、そのうえで縫った。')).toBe('そのうえで縫った。')
+    expect(dropLeadingPunctText('生地を選び、', ' 。袖を縫った。')).toBe('袖を縫った。')
+  })
+  it('文の途中に貼った「。」（前の文を終える）と、「。」だけを貼ったときは、そのまま', () => {
+    expect(dropLeadingPunctText('声をかけ合う', '。客席から')).toBe('。客席から')
+    expect(dropLeadingPunctText('学んだ。', '。')).toBe('。')
   })
 })

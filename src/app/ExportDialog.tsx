@@ -5,6 +5,8 @@ import type { ReportFinding } from '../checker/reportChecks'
 import { deviceName } from '../drive/device'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { buildPdf, downloadPdf, saveMode, sharePdf, sizeText, thumbnail, type BuiltPdf } from '../pdf/exportPdf'
+import { chapterNotStarted } from '../editor/reportOps'
+import { chapterLabel } from '../layout/bodyHtml'
 import { skippedPages } from '../pdf/exportPages'
 import { Spinner } from './Busy'
 import { checkSummary, goToTarget } from './checkSummary'
@@ -244,6 +246,8 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
   const notYet = rows.filter((r) => r.state === 'todo')
   const left = fixes.length > 0 || notYet.length > 0
   const abstractWaiting = snap.report.abstract.started === false
+  // まだ何も書いていない章（PDF に入れない。editor.pdfPages）。窓に名前を出す（提出のときに、章を書き忘れたまま気づかないことがないように）
+  const notStarted = snap.report.body.flatMap((c, i) => (chapterNotStarted(c) ? [`${chapterLabel(i)}${c.title}`] : []))
   const [phase, setPhase] = useState<Phase>({ kind: 'start' })
   /** できたページの小さな絵（URL） */
   const [thumbs, setThumbs] = useState<string[]>([])
@@ -347,9 +351,15 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
     setWaiting(false)
     releaseUrls()
     setThumbs([])
-    const pages = pagesToExport()
-    setPhase({ kind: 'build', total: pages.filter((p) => !p.classList.contains('print-skip')).length })
+    // まだ何も書いていない章は入れない（画面に出さない所で組み直す。その間は「ページを組んでいます…」：total 0）
+    setPhase({ kind: 'build', total: 0 })
+    let release = () => {}
     try {
+      const exported = await editor.pdfPages()
+      release = exported.release
+      const pages = exported.pages
+      if (controller.signal.aborted) return
+      setPhase({ kind: 'build', total: pages.filter((p) => !p.classList.contains('print-skip')).length })
       const pdf = await buildPdf(pages, {
         title: editor.pdfTitle,
         signal: controller.signal,
@@ -374,6 +384,8 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
       // 「やめる」で止めたときは、最初の画面に戻っている
       if (controller.signal.aborted) return
       setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
+    } finally {
+      release()
     }
   }
 
@@ -408,9 +420,13 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
           <div className="bar">
             <i style={{ width: `${(thumbs.length / Math.max(1, phase.total)) * 100}%` }} />
           </div>
-          <span>
-            <b>{thumbs.length}</b> / {phase.total}ページ
-          </span>
+          {phase.total > 0 ? (
+            <span>
+              <b>{thumbs.length}</b> / {phase.total}ページ
+            </span>
+          ) : (
+            <span>ページを組んでいます…</span>
+          )}
         </div>
         <Thumbs urls={thumbs} total={phase.total} />
         <p className="pdf-small">写真が多いと、少し時間がかかります（20ページで10秒〜1分ほど）。</p>
@@ -578,6 +594,11 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
       )}
       {abstractWaiting && (
         <p className="note">抄録はまだ書いていないため、このPDFには抄録のページは入りません（先生の許可が出たら、抄録のページの「先生の許可が出た」を押して書き始めます）。</p>
+      )}
+      {notStarted.length > 0 && (
+        <p className="note pdf-not-started">
+          まだ何も書いていない章（<Keep text={notStarted.join('・')} />）は、このPDFには入りません（目次にも出ません）。
+        </p>
       )}
       <FileBox fileName={fileName} note={mode === 'share' ? 'できたら「保存する」を押し、「"ファイル"に保存」を選びます' : '「ダウンロード」のフォルダに保存します'} />
       {printOpen && (

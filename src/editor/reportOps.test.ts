@@ -247,6 +247,19 @@ describe('図を入れる（書いている位置に（図n）、段落の下に
   const fig = (id: string) => ({ id, imageId: `img-${id}`, caption: '' })
   const paraText = (r: Report, id: string) => ops.findEditable(r, id)?.text
 
+  it('手で書いた（図n）の図：段落の下では番号が n にならず、図(n-1) が段落より後ろにあれば、その行のすぐ後ろに入れる（録画 2026-11-03）', () => {
+    // 段落 pa に（図1）（図2）を書き、ひな形の図の枠（図1）は pb の後ろにある
+    let r: Report = { ...base(), body: [{ ...base().body[0], blocks: [...base().body[0].blocks, { type: 'figureRow', id: 'rf', figures: [fig('frame')] }] }] }
+    r = ops.insertRef(r, 'pa', 8, 'frame')
+    expect(ops.typedFigureNumber('（図２）')).toBe(2)
+    const placed = ops.addFigureForRef(r, 'pa', fig('f2'), 2)
+    expect(placed.body[0].blocks.map((b) => b.id).slice(0, 3)).toEqual(['pa', 'pb', 'rf'])
+    expect(ops.numbering(placed).numbers.get('f2')).toBe(2)
+    expect(ops.numbering(placed).numbers.get('frame')).toBe(1)
+    // 番号が合うなら、ふつうに段落の下（図1 を書いた段落）
+    expect(ops.addFigureForRef(base(), 'pa', fig('f1'), 1).body[0].blocks.map((b) => b.type)).toEqual(['paragraph', 'figureRow', 'paragraph'])
+  })
+
   it('文末の「。」の直後で入れると「〜（図1）。」になり、段落のすぐ下に図が入る', () => {
     let r = ops.insertRef(base(), 'pa', 8, 'f1')
     r = ops.addFigureBelow(r, 'pa', fig('f1'))
@@ -946,5 +959,30 @@ describe('同じ名前の空の大見出し（学生の試し 5回目 2026-10-30
     const report = { ...r, body: [...r.body, empty] }
     expect(ops.emptyTwinChapters(report)).toEqual(['c-empty'])
     expect(ops.emptyTwinChapters(r)).toEqual([])
+  })
+})
+
+describe('PDF に入れない、まだ何も書いていない章（2026-11-03 の会議のあと）', () => {
+  const chapter = (blocks: Report['body'][number]['blocks']) => ({ id: 'cx', title: 'まとめ', blocks })
+  it('見出し・ひな形の説明の段落・写真のない図の枠・見出しの行だけの表は、書いていない', () => {
+    expect(ops.chapterNotStarted(chapter([
+      { type: 'subheading', id: 's', title: '仕上げ' },
+      { type: 'paragraph', id: 'p', content: [{ type: 'text', text: '' }], hint: 'まとめを書く' },
+      { type: 'figureRow', id: 'r', figures: [{ id: 'f', imageId: '', caption: 'デザイン画' }] },
+      blankTable('t', (p) => `${p}-${Math.random()}`, '使用材料表', 3, 3),
+    ]))).toBe(true)
+  })
+  it('文・写真・表のマスのどれかがあれば、書いている', () => {
+    expect(ops.chapterNotStarted(chapter([{ type: 'paragraph', id: 'p', content: [{ type: 'text', text: '縫った。' }] }]))).toBe(false)
+    expect(ops.chapterNotStarted(chapter([{ type: 'figureRow', id: 'r', figures: [{ id: 'f', imageId: 'img', caption: '' }] }]))).toBe(false)
+    const t = blankTable('t', (p) => `${p}-${Math.random()}`, '表', 3, 3)
+    t.rows[1].cells[0].text = '綿'
+    expect(ops.chapterNotStarted(chapter([t]))).toBe(false)
+  })
+  it('書いていない章を除いた原稿（なければ同じ原稿）', () => {
+    const r = demoReport()
+    expect(ops.withoutNotStartedChapters(r)).toBe(r)
+    const withEmpty = { ...r, body: [...r.body, chapter([{ type: 'paragraph', id: 'pz', content: [{ type: 'text', text: '' }], hint: '書く' }])] }
+    expect(ops.withoutNotStartedChapters(withEmpty).body.map((c) => c.id)).toEqual(r.body.map((c) => c.id))
   })
 })

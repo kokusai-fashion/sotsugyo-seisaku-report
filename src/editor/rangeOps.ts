@@ -1,6 +1,7 @@
 import { chapterLabel, figureCaption, subheadingLabel } from '../layout/bodyHtml'
 import type { BodyBlock, Figure, FigureRowBlock, InlineNode, ParagraphBlock, Report, TableBlock } from '../model/types'
 import { stripFigureRefs } from './abstractRefs'
+import { LEADING_PUNCT, leadingPunctDroppable } from './pasteText'
 import { contentToText, mergeTexts, newId, numbering, withoutRefsTo, type Numbering } from './reportOps'
 
 /**
@@ -474,6 +475,19 @@ export interface PasteResult {
  * - 大見出しは入れない。抄録には文だけを入れる。図表は入れないので、括弧で添えた参照（「（図1）」）は除き、文の中の参照（「図1に示すように」）は、
  *   コピーしたときの番号の文字にして残す（呼び出し側が、書き直すよう知らせる。abstractRefs.ts）
  */
+/**
+ * 貼り付ける文の頭の「。」「、」を外す（カーソルの前が段落の頭か、文の終わり・読点のとき）。
+ * 文をなぞって選ぶと、前の文の「。」から選びやすく、「学んだ。。客席から」と続いていた（確定すると1つになるが、書いている間は2つ見えた：録画 2026-11-03）
+ */
+export function dropLeadingPunct(left: InlineNode[], content: InlineNode[], num: Numbering): InlineNode[] {
+  if (!leadingPunctDroppable(contentToText(left, num))) return content
+  const [head, ...rest] = content
+  if (head?.type !== 'text') return content
+  const text = head.text.replace(LEADING_PUNCT, '')
+  if (text === head.text || (!text.trim() && rest.length === 0)) return content
+  return text ? [{ ...head, text }, ...rest] : rest
+}
+
 export function pasteClip(report: Report, paragraphId: string, offset: number, clip: Clip): PasteResult {
   const num = numbering(report)
   const inAbstract = report.abstract.paragraphs.some((p) => p.id === paragraphId)
@@ -535,7 +549,7 @@ export function pasteClip(report: Report, paragraphId: string, offset: number, c
   }
 
   if (clip.kind === 'inline') {
-    const inline = forAbstract(relink(clip.inline))
+    const inline = dropLeadingPunct(left, forAbstract(relink(clip.inline)), num)
     // 段落を丸ごと切り取って、別の段落の頭か終わりに貼った：つなげず、段落のまま前・後ろに入れる（2つの段落が1つにつながっていた：学生の試し 5回目）
     const atStart = emptyContent(left) && !emptyContent(right)
     const atEnd = !emptyContent(left) && emptyContent(right)
@@ -581,7 +595,7 @@ export function pasteClip(report: Report, paragraphId: string, offset: number, c
   let keptTarget = false
   const first = copied[0]
   if (openStart && first.type === 'paragraph') {
-    out.push({ ...target, content: mergeTexts([...left, ...first.content]) })
+    out.push({ ...target, content: mergeTexts([...left, ...dropLeadingPunct(left, first.content, num)]) })
     keptTarget = true
   } else {
     if (!emptyContent(left)) {

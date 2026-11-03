@@ -545,3 +545,13 @@ describe('原稿の中身', () => {
     expect(s).toEqual({ chars: s.chars, figures: expect.any(Number), photos: expect.any(Number) })
   })
 })
+
+describe('フォルダに置く「このフォルダは消さないでください」（2026-11-03 の会議のあと）', () => {
+  it('ログインしてフォルダが決まったら、一度だけ置く（同じフォルダでは、もう見ない）', async () => {
+    const drive = await loggedIn()
+    await drive.resolve(null)
+    await drive.placeNote()
+    await drive.placeNote()
+    expect(saved.filter((x) => x.name === 'このフォルダは消さないでください.txt')).toHaveLength(1)
+  })
+})

@@ -486,6 +486,8 @@ export default function App() {
       setGate({ kind: 'loading' })
       try {
         await applyResolution(ed, await drive.resolve(localAtStart.current), true)
+        // フォルダに「このフォルダは消さないでください」を置く（後ろで。待たない）
+        void drive.placeNote()
       } catch (e) {
         entering.current = false
         setGate({ kind: 'error', message: errorText(e) })

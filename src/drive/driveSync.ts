@@ -53,7 +53,22 @@ interface Link {
   remoteModified?: string
   /** そのときの、この端末の原稿の updatedAt（この端末の原稿が、それから変わったかを見る） */
   syncedUpdatedAt?: string
+  /** 「このフォルダは消さないでください」を置いた（置いてあるのを見た）フォルダ（placeNote） */
+  noteFolderId?: string
 }
+
+/** フォルダに置く、消さないでほしいことを書いたファイル（placeNote） */
+const NOTE_NAME = 'このフォルダは消さないでください.txt'
+const NOTE_TEXT = [
+  'このフォルダは、卒業制作報告書 作成ツールが使っています。',
+  '',
+  '・「原稿.json」は、書いた原稿です。ほかのパソコンやスマホで続きを書くときに、ツールがここから読み込みます。',
+  '・「写真」フォルダには、原稿に入れた写真が入っています。',
+  '',
+  'フォルダも、中のファイルも、消したり名前を変えたりしないでください。',
+  '原稿.json は、開いて読むためのファイルではありません。原稿は、ツールを開いて見てください。',
+  '書き出した PDF も、このフォルダに入ります。',
+].join('\r\n')
 
 /** ドライブの原稿 */
 export interface RemoteCopy {
@@ -372,6 +387,26 @@ export class DriveSync {
     this.link = { ...keep, email, folderId, photosFolderId }
     writeLink(this.link)
     return this.compare(local)
+  }
+
+  /**
+   * 「卒業制作報告書」フォルダに、消さないでほしいことを書いたファイルを置く（なければ。この端末で、そのフォルダについて一度だけ見る）。
+   * 学生がフォルダや「原稿.json」を消すと、ほかの端末で続きを書けなくなるため（依頼者の判断 2026-11-03 の会議のあと）。置けなくても書くのは続ける
+   */
+  async placeNote(): Promise<void> {
+    const link = this.link
+    if (!link || !this.tokenValid || link.noteFolderId === link.folderId) return
+    try {
+      const token = this.need()
+      if (!(await findFile(token, link.folderId, NOTE_NAME))) {
+        await saveFile(token, { name: NOTE_NAME, content: new Blob([NOTE_TEXT], { type: 'text/plain' }), folderId: link.folderId, appProperties: { kind: 'note' } })
+      }
+      if (this.link?.folderId !== link.folderId) return
+      this.link = { ...this.link, noteFolderId: link.folderId }
+      writeLink(this.link)
+    } catch {
+      // 置けなかったら、次にログインしたときにまた置く
+    }
   }
 
   /** ドライブの最新の原稿と比べる（ログインしたとき・「読み込み直す」） */

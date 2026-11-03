@@ -28,7 +28,7 @@
  */
 
 import { planFromDom, reshapeSpacing, shiftPlan, typesetSpacing, typesetSteps, type SpacingPlan } from './textSpacing'
-import { joinWrappedLines, listishLine, tableRows, tidyPasted } from './pasteText'
+import { dropLeadingPunctText, joinWrappedLines, listishLine, tableRows, tidyPasted } from './pasteText'
 import { typedHeading } from '../model/headingText'
 
 /** 句読点・括弧（書き換えたあとに測り直す所に、これがいくつあるかで、すぐ測るか、打つ手が止まってから測るかを決める） */
@@ -402,6 +402,11 @@ export class OverlayEditor {
     this.element.addEventListener('cut', (e) => this.onCopyCut(e, true))
     this.element.addEventListener('keydown', (e) => this.onKeyDown(e))
     this.element.addEventListener('paste', (e) => this.onPaste(e))
+    this.element.addEventListener('click', (e) => this.caretBesideLock(e))
+    // 3回続けて押す：段落の字を全部選ぶ（Word と同じ。ブラウザに任せると、1文字のまとまりにした「、」の手前で選ぶのが止まっていた：録画 2026-11-03）
+    this.element.addEventListener('click', (e) => {
+      if (e.detail === 3 && e.button === 0 && !this.sheetHost && this.target) this.selectAllText()
+    })
     this.element.addEventListener('blur', (e) => {
       const next = e.relatedTarget instanceof Element ? e.relatedTarget : null
       // ほかのタブ・アプリへ切り替えた（ページからフォーカスが外れた）：閉じずに待つ。戻ると、ブラウザが同じ欄にフォーカスを戻す
@@ -1127,6 +1132,29 @@ export class OverlayEditor {
       const next = texts[j]
       if (!next || lockOf(next)) w.removeAttribute('contenteditable')
     }
+  }
+
+  /**
+   * 1文字のまとまりにした句読点・括弧（contenteditable="false"）の上を押すと、Chrome が選んでいた範囲を消し、カーソルがどこにもなくなる。
+   * そのまま Backspace を押すと、字が段落の頭に入っていた（直すところから「ました」を選んで開き、「た」と「（図5）」の境を押した：録画 2026-11-03）。
+   * 押した点に近い側（まとまりの前か後ろ）にカーソルを置き直す。ブラウザがカーソルを書く欄の中に置いたときは、そのまま
+   */
+  private caretBesideLock(e: MouseEvent): void {
+    if (this.sheetHost || !this.target || e.button !== 0 || e.shiftKey || e.detail > 1) return
+    const lock = e.target instanceof Element ? e.target.closest<HTMLElement>('[contenteditable="false"]') : null
+    if (!lock || !this.element.contains(lock)) return
+    const x = e.clientX
+    requestAnimationFrame(() => {
+      const sel = getSelection()
+      if (!this.target || !lock.isConnected || (sel?.anchorNode && this.element.contains(sel.anchorNode))) return
+      const rect = lock.getBoundingClientRect()
+      const range = document.createRange()
+      if (x < rect.left + rect.width / 2) range.setStartBefore(lock)
+      else range.setStartAfter(lock)
+      const at = this.offsetAt(range.startContainer, range.startOffset)
+      this.element.focus({ preventScroll: true })
+      this.setCaret(at)
+    })
   }
 
   private resetTypeset(): void {
@@ -2101,6 +2129,8 @@ export class OverlayEditor {
     // 段落：入れる文字を、呼び出し側が変える（抄録には、図表の参照の括弧を入れない）
     const raw = original
     if (this.target.kind === 'paragraph' && this.callbacks.pasteText) pasted = this.callbacks.pasteText(blockId, pasted)
+    // 段落の頭・文の終わりのあとに、頭に「。」「、」の付いた文を貼った：その「。」「、」は外す（pasteText.ts）
+    if (this.target.kind === 'paragraph') pasted = dropLeadingPunctText(text.slice(0, start), pasted)
     // 表のマスに、Excel などの2マスを貼った：マスの区切り（タブ）は全角の空白に（タブのまま残っていた：学生の試し 5回目 2026-10-30）
     if (this.target.kind === 'cell') pasted = pasted.replace(/[ \t]*\t[ \t]*/g, '　')
     if (this.target.kind !== 'paragraph' || !/\n/.test(pasted)) {

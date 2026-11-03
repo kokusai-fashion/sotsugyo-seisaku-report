@@ -18,6 +18,25 @@ export function tidyPasted(text: string, html = ''): string {
   return t
 }
 
+/** 貼り付ける文の頭の「。」「、」（前の文の句読点から選んでコピーしたもの） */
+export const LEADING_PUNCT = /^[\s　]*[。、．，]+/
+
+/** カーソルの前の文（before）のあとなら、貼り付ける文の頭の「。」「、」を外してよいか（段落の頭か、文の終わり・読点のあと） */
+export function leadingPunctDroppable(before: string): boolean {
+  const t = before.replace(/[\s　]+$/, '')
+  return t === '' || /[。、．，！？!?]$/.test(t)
+}
+
+/**
+ * 貼り付ける文の頭の「。」「、」を外す（カーソルの前が段落の頭か、文の終わり・読点のとき。外すと何も残らないときは、そのまま）。
+ * 文をなぞって選ぶと、前の文の「。」から選びやすく、「学んだ。。客席から」と続いていた（録画 2026-11-03）
+ */
+export function dropLeadingPunctText(before: string, pasted: string): string {
+  if (!leadingPunctDroppable(before)) return pasted
+  const t = pasted.replace(LEADING_PUNCT, '')
+  return t.trim() ? t : pasted
+}
+
 /** コピーの HTML の、ふりがなの組（本文の字・ふりがな） */
 function rubyPairs(html: string): { base: string; reading: string }[] {
   if (!/<rt[\s>]/i.test(html)) return []

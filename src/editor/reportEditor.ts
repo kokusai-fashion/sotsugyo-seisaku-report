@@ -12,7 +12,7 @@ import { skippedPages } from '../pdf/exportPages'
 import { abstractEmpty, abstractOpening, applyCourseTemplate, bodyWritten } from '../model/template'
 import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, spillPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
 import { addColumn, addRow, blankTable, cellPosition, colWidthsOf, columnCount, equalColumnWidths, materialTable, normalizeColumnWidths, removeColumn, removeRow, setCellCrop, setCellImage, swatchColumn, TABLE_SIZE } from '../model/table'
-import type { BodyBlock, Chapter, PhotoPosition, Report, TableBlock, TableCell, WorkPhotoLayout } from '../model/types'
+import type { BodyBlock, Chapter, ParagraphBlock, PhotoPosition, Report, TableBlock, TableCell, WorkPhotoLayout } from '../model/types'
 import { abstractPasteNotice, stripFigureRefs } from './abstractRefs'
 import { ColumnHandles, type ColumnTarget } from './columnHandles'
 import { ContinueRow, placeBelow, type ContinueTarget } from './continueRow'
@@ -24,7 +24,7 @@ import { PageStage, ZOOM_STEPS } from './pageStage'
 import { loadWritingZoom, PinchZoom, saveWritingZoom, type Point } from './pinchZoom'
 import { blockPaperKey, fixedTitleNote, markFocusable, PAPER_FOCUSABLE, paperElement, paperKeyOf, paperOrder, rememberTabStop, setTabStop } from './paperFocus'
 import * as ops from './reportOps'
-import { fontsFailed, ReportRenderer, type FirstShow, type PageEffect } from './reportRenderer'
+import { fontsFailed, ReportRenderer, type FirstShow, type ImageSources, type PageEffect } from './reportRenderer'
 import { PLACEHOLDER_ATTR } from './pageView'
 import { copyRange, deleteRange, pasteClip, rangePieces, resolveRange, sameClipText, type Clip, type ModelPoint, type ModelRange } from './rangeOps'
 import { caretAt, caretBefore, domPoint, includeClosing, markHangingSelection, paperPoint, type Caret } from './rangeSelection'
@@ -1097,6 +1097,52 @@ export class ReportEditor {
   /** 書体を読み込めなかったことを知らせた（render。一度だけ） */
   private fontNoticed = false
 
+  /** 紙面に入れる写真（読み込めていない写真は灰色の四角） */
+  private imageSources(): ImageSources {
+    const image = (id: string) => this.images.get(id)
+    return {
+      imageSrc: (id) => image(id)?.url ?? this.placeholderImage,
+      photoSrc: (id) => image(id)?.url ?? this.placeholderImage,
+      figureSize: (f) => {
+        const img = image(f.imageId)
+        return img ? fitFigureSize(img, FIGURE_MAX_MM) : { widthMm: 60, heightMm: 45 }
+      },
+    }
+  }
+
+  /**
+   * PDF に入れるページ。まだ何も書いていない章は、目次からも外し、章・図表の番号とページ番号を詰めて組み直す
+   * （依頼者の判断 2026-11-03 の会議のあと。ops.withoutNotStartedChapters）。画面の紙面はそのままにして、画面に出ない所（.export-paper）で組む。
+   * 写真のない作品写真のページと、書き始める前の抄録のページは入れない（pdf/exportPages.ts）。使い終わったら release を呼ぶ
+   */
+  async pdfPages(): Promise<{ pages: HTMLElement[]; release: () => void }> {
+    if (this.overlay.blockId) this.overlay.commit()
+    const report = ops.withoutNotStartedChapters(this.report)
+    if (report === this.report) {
+      const pages = this.pageElements()
+      const skipped = new Set(skippedPages(pages, this.report, this.layout))
+      return { pages: pages.filter((p) => !skipped.has(p)), release: () => {} }
+    }
+    const paper = document.createElement('div')
+    paper.className = 'export-paper'
+    paper.setAttribute('aria-hidden', 'true')
+    document.body.append(paper)
+    try {
+      const renderer = new ReportRenderer(paper, { remember: false })
+      const { layout, unchanged } = await renderer.renderBack(report, this.config, this.imageSources())
+      if (unchanged) renderer.show(0)
+      else renderer.swap(0)
+      const pages = renderer.pageView.pages()
+      const skipAbstract = report.abstract.started === false
+      pages.forEach((page, i) => page.classList.toggle('print-skip', skipAbstract && layout.kinds[i] === 'abstract'))
+      const skipped = new Set(skippedPages(pages, report, layout))
+      return { pages: pages.filter((p) => !skipped.has(p)), release: () => paper.remove() }
+    } catch (e) {
+      paper.remove()
+      throw e
+    }
+  }
+
   async render(urgent = true): Promise<void> {
     clearTimeout(this.renderTimer)
     if (this.rendering) {
@@ -1107,7 +1153,6 @@ export class ReportEditor {
     this.rendering = true
     this.renderUrgent = false
     this.notify()
-    const image = (id: string) => this.images.get(id)
     // 組む原稿（組んでいる間に原稿が変わっても、紙面に出るのはこの原稿）
     const rendered = this.report
     const seq = this.changeSeq
@@ -1121,20 +1166,7 @@ export class ReportEditor {
         ? { page: firstPage, onShow: (page, layout) => this.showFirst(rendered, page, layout), onProgress: (left, kinds) => this.onFirstProgress(left, kinds) }
         : undefined
     try {
-      const result = await this.renderer.renderBack(
-        rendered,
-        this.config,
-        {
-          imageSrc: (id) => image(id)?.url ?? this.placeholderImage,
-          photoSrc: (id) => image(id)?.url ?? this.placeholderImage,
-          figureSize: (f) => {
-            const img = image(f.imageId)
-            return img ? fitFigureSize(img, FIGURE_MAX_MM) : { widthMm: 60, heightMm: 45 }
-          },
-        },
-        () => this.renderUrgent,
-        first,
-      )
+      const result = await this.renderer.renderBack(rendered, this.config, this.imageSources(), () => this.renderUrgent, first)
       done = true
       // 先に見せた紙面を組み直すことになった（resettle）ときも、もう一方の表示枠で、はじめから組み直す（先に見せた紙面は、組み終えるまで出したまま）
       if (result.stale || result.resettle || (this.renderUrgent && !result.unchanged)) {
@@ -1441,7 +1473,8 @@ export class ReportEditor {
    * 指摘の箇所へ移動する（文字の指摘なら入力欄を開く）。
    * カーソルは指摘の文字の後ろに置く（Backspace でそのまま消して打ち直せるように。依頼者の要望）。位置だけの指摘（「。」がない など）は、その位置
    */
-  async goToFinding(finding: ReportFinding): Promise<void> {
+  async goToFinding(picked: ReportFinding): Promise<void> {
+    const finding = this.findingToFix(picked)
     const caret = finding.end ?? finding.start ?? 0
     const page = this.pageOfFinding(finding, caret)
     if (page < 0) return
@@ -1464,6 +1497,23 @@ export class ReportEditor {
       const caption = editable.kind === 'figureCaption' || editable.kind === 'tableCaption'
       if (this.direct) window.setTimeout(() => this.showTapHint(id, caption ? 'ここを押して、タイトルを書きます' : 'ここを押して、書きます'), TAP_HINT_DELAY_MS)
     })
+  }
+
+  /**
+   * 指摘を押したときに移る所。本文から参照していない図表は、直すのが前の段落（「図4に示す」と書く）なので、図表のすぐ前の段落の終わりへ
+   * （図そのもの・図のタイトルへ移っていて、学生が前のページの段落を探していた：録画 2026-11-03）。前に段落がなければ、図表へ
+   */
+  private findingToFix(finding: ReportFinding): ReportFinding {
+    if ((finding.ruleId !== 'figure-unreferenced' && finding.ruleId !== 'table-unreferenced') || !finding.blockId) return finding
+    for (const chapter of this.report.body) {
+      const at = chapter.blocks.findIndex((b) => b.id === finding.blockId || (b.type === 'figureRow' && b.figures.some((f) => f.id === finding.blockId)))
+      if (at < 0) continue
+      const paragraph = chapter.blocks.slice(0, at).reverse().find((b): b is ParagraphBlock => b.type === 'paragraph')
+      if (!paragraph) return finding
+      const end = ops.contentToText(paragraph.content, ops.numbering(this.report)).length
+      return { ...finding, blockId: paragraph.id, start: end, end }
+    }
+    return finding
   }
 
   // ---- ページ送り ----
@@ -5081,7 +5131,13 @@ export class ReportEditor {
     if (this.template) return null
     const probe = { id: '__probe', imageId: '', caption: '' }
     const linked = ops.linkRefRange(this.report, blockId, start, end, probe.id)
-    return linked ? (ops.numbering(ops.addFigureBelow(linked, blockId, probe)).numbers.get(probe.id) ?? null) : null
+    return linked ? (ops.numbering(ops.addFigureForRef(linked, blockId, probe, this.typedRefNumber(blockId, start, end))).numbers.get(probe.id) ?? null) : null
+  }
+
+  /** 段落 blockId の start〜end に手で書いた「（図n）」の n */
+  private typedRefNumber(blockId: string, start: number, end: number): number | null {
+    const paragraph = ops.findParagraph(this.report, blockId)
+    return paragraph ? ops.typedFigureNumber(ops.contentToText(paragraph.content, ops.numbering(this.report)).slice(start, end)) : null
   }
 
   private insertFigureFromChip(): void {
@@ -5102,6 +5158,7 @@ export class ReportEditor {
     else if (this.overlay.blockId) this.commitForChange()
     const paragraph = ops.findParagraph(this.report, blockId)
     if (!paragraph || !/^[（(]?\s*図/.test(ops.contentToText(paragraph.content, ops.numbering(this.report)).slice(start, end))) return
+    const typedNumber = this.typedRefNumber(blockId, start, end)
     this.marker.hidden = true
     this.selectionBar.hideFigureChip()
     this.insertingFigure = true
@@ -5125,7 +5182,7 @@ export class ReportEditor {
     this.pushHistory(this.report)
     let near: InsertNear = { id: blockId, place: 'after' }
     const linked = ops.linkRefRange(this.report, blockId, start, end, figure.id)
-    if (linked) this.report = ops.linkWrittenRefsElsewhere(ops.addFigureBelow(linked, blockId, figure), blockId, figure.id)
+    if (linked) this.report = ops.linkWrittenRefsElsewhere(ops.addFigureForRef(linked, blockId, figure, typedNumber), blockId, figure.id)
     // 写真を選ぶ間に段落が変わって、書いた番号が見つからない：「図を入れる」と同じく、その文の終わりに（図n）を入れる
     else near = this.placeObject(blockId, end, figure.id, { type: 'figureRow', id: ops.newId('r'), figures: [figure] }, (r) => ops.addFigureBelow(r, blockId, figure))
     this.reopenAfterRender(figure.id, 0, near)

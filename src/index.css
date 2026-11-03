@@ -71,6 +71,13 @@ body.resizing .page-viewport { pointer-events: none; }
 .page-viewport [data-vivliostyle-page-container]:is(.is-current, .is-under, .is-under-current, .turn-in) { display: block !important; }
 /* 章ごとに組んだときの、章の終わりの「次の章の始まり」の代わりのページは出さない（印刷・PDF にも。editor/reportRenderer.ts） */
 .page-viewport [data-vivliostyle-page-container][data-sentinel-page] { display: none !important; }
+/* PDF に入れる紙面を、画面に出さずに組む所（まだ何も書いていない章を除いて組み直すとき。editor/reportEditor.ts の pdfPages。
+   pdf/pdfTest.css の .pt-paper と同じ。画面と同じ大きさにして透明にする。組み終えて PDF にしたら消す） */
+.export-paper { all: initial; display: block; position: fixed; inset: 0; z-index: -1; opacity: 0; overflow: hidden; pointer-events: none; }
+.export-paper .page-viewport [data-vivliostyle-outer-zoom-box] { margin: 0 !important; width: 793.7px !important; height: 1122.52px !important; }
+.export-paper .page-viewport [data-vivliostyle-spread-container] { transform: none; }
+.export-paper .page-viewport [data-vivliostyle-page-container] { box-shadow: none; }
+@media print { .export-paper { display: none !important; } }
 .page-viewport [data-vivliostyle-page-container].is-current { z-index: 2; }
 .page-viewport [data-vivliostyle-page-container]:is(.is-under, .is-under-current) { z-index: 1; }
 .page-viewport [data-vivliostyle-page-container]:is(.turn-out, .turn-in, .fade-out) { z-index: 3; }
