@@ -1222,6 +1222,12 @@ body.resizing .page-viewport { pointer-events: none; }
 .app.phone .sel-bar .group.ctx:has(.tb-move) :is(.tb span, .ctx-label) { white-space: nowrap; }
 /* 「並びから外す」「横に並べる」があるとき（6つ）：ボタンの左右の余白を詰め、狭い画面では「この図」を省く（360px でも1列に入るように） */
 .app.phone .sel-bar .group.ctx:has(.tb-pair) .tb { padding-left: 5px; padding-right: 5px; }
+/* 図の「写真」：押すと、上に「差し替え」「トリミング」（依頼者の選択 2026-11-03 mockups/v99 案C） */
+.app.phone .sel-bar .fig-photo { position: relative; display: flex; }
+.app.phone .sel-bar .fig-photo > .tb.on { background: var(--accent-soft); color: var(--accent); }
+.app.phone .sel-bar .fig-photo-menu { position: absolute; z-index: 2; left: -10px; bottom: calc(100% + 12px); display: flex; gap: 6px; padding: 5px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--float-shadow); }
+.app.phone .sel-bar .fig-photo-menu .tb { flex-direction: row; gap: 4px; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.app.phone .sel-bar .fig-photo-menu .tb svg { width: 18px; height: 18px; }
 @media (max-width: 389px) { .app.phone .sel-bar .group.ctx:has(.tb-pair) .ctx-label { display: none; } }
 /* 表の道具の名前は、前と同じく2字ずつで折り返す（「行を／足す」。幅が広がって「行を足／す」にならないように） */
 .app.phone .sel-bar .group.ctx:has(.shape-btn) .tb:not(.shape-btn) { max-width: 50px; }

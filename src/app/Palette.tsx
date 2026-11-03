@@ -379,6 +379,52 @@ function TrimTool({ makeTarget, title }: { makeTarget: () => TrimTarget | null; 
   )
 }
 
+/**
+ * スマホの図の道具の「写真」：押すと、上に「差し替え」「トリミング」（キーボードの上の「見出し」と同じ動き）。
+ * トリミングが増えて、横に並んだ図の道具が7つになり、画面の幅に入らなかった（依頼者の選択 2026-11-03 mockups/v99 案C。図が1枚のときも同じ形）
+ */
+function FigurePhotoMenu({ onReplace, makeTarget }: { onReplace: () => void; makeTarget: (() => TrimTarget | null) | null }) {
+  const [open, setOpen] = useState(false)
+  const [target, setTarget] = useState<TrimTarget | null>(null)
+  return (
+    <span className="fig-photo">
+      <button className={`tb${open ? ' on' : ''}`} title="写真の差し替え・トリミング" aria-expanded={open} onMouseDown={keepFocus} onClick={() => setOpen(!open)}>
+        {Icon.replace}
+        <span>写真</span>
+      </button>
+      {open && (
+        <span className="fig-photo-menu" role="group" aria-label="写真">
+          <button
+            className="tb"
+            onMouseDown={keepFocus}
+            onClick={() => {
+              setOpen(false)
+              onReplace()
+            }}
+          >
+            {Icon.replace}
+            <span>差し替え</span>
+          </button>
+          {makeTarget && (
+            <button
+              className="tb"
+              onMouseDown={keepFocus}
+              onClick={() => {
+                setOpen(false)
+                setTarget(makeTarget())
+              }}
+            >
+              {Icon.crop}
+              <span>トリミング</span>
+            </button>
+          )}
+        </span>
+      )}
+      {target && <TrimDialog target={target} onClose={() => setTarget(null)} />}
+    </span>
+  )
+}
+
 /** スマホの、表を選んだときの下の道具の「表の形」：押すと、下から欄が出る（app/tableShape.tsx の TableShapeSheet） */
 function ShapeSheetButton({ editor, table, tableId }: { editor: ReportEditor; table: TableBlock; tableId: string }) {
   const [open, setOpen] = useState(false)
@@ -549,21 +595,18 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
     const pairing = figurePairing(report, figureId)
     const n = numbering(report).numbers.get(figureId)
     const figure = report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures : [])).find((f) => f.id === figureId)
+    const trimTarget = (): TrimTarget | null => {
+      const info = figure?.imageId ? editor.imageInfo(figure.imageId) : null
+      if (!info) return null
+      return { kind: 'figure', label: `図${n ?? ''}`, src: info.url, imageRatio: info.widthPx / info.heightPx, crop: figure?.crop ?? null, onApply: (crop) => editor.setFigureCrop(figureId, crop) }
+    }
     return (
       <div className="group ctx">
         <div className="ctx-label">この図</div>
-        {/* ひな形を作る画面では、写真は選ばない（図は空の枠。写真は学生が入れる） */}
-        {!template && <Tool label="差し替え" icon={Icon.replace} title="写真を差し替える" onClick={() => void editor.replaceFigureImage(figureId)} />}
-        {!template && figure?.imageId && (
-          <TrimTool
-            title="この図の写真の、紙面に出す範囲を決める（形も選べます：元の形・縦長・正方形・横長・自由）"
-            makeTarget={() => {
-              const info = figure.imageId ? editor.imageInfo(figure.imageId) : null
-              if (!info) return null
-              return { kind: 'figure', label: `図${n ?? ''}`, src: info.url, imageRatio: info.widthPx / info.heightPx, crop: figure.crop ?? null, onApply: (crop) => editor.setFigureCrop(figureId, crop) }
-            }}
-          />
-        )}
+        {/* ひな形を作る画面では、写真は選ばない（図は空の枠。写真は学生が入れる）。スマホは「写真」1つにまとめる（mockups/v99 案C） */}
+        {!template && phone && <FigurePhotoMenu key={figureId} onReplace={() => void editor.replaceFigureImage(figureId)} makeTarget={figure?.imageId ? trimTarget : null} />}
+        {!template && !phone && <Tool label="差し替え" icon={Icon.replace} title="写真を差し替える" onClick={() => void editor.replaceFigureImage(figureId)} />}
+        {!template && !phone && figure?.imageId && <TrimTool title="この図の写真の、紙面に出す範囲を決める（形も選べます：元の形・縦長・正方形・横長・自由）" makeTarget={trimTarget} />}
         {!template && <Tool label="もう1枚" icon={Icon.beside} title="この図のすぐ後ろにもう1枚入れる（本文の参照の後ろにも「（図n）」が入ります）" onClick={() => void editor.addFigureBeside(figureId)} />}
         {/* 1つ上へ・1つ下へ（段落・表を1つずつ越える。中見出しの中だけ。上は本文の（図n）の段落まで。依頼者の選択 2026-10-23・24） */}
         <Tool label="上へ" className="tb-move" icon={Icon.moveUp} title={place.upBlock ? FIGURE_MOVE_WHY[place.upBlock]('up', n) : place.upJoin ? 'この図を、上の図の横に並べる（図の番号は、本文で出てくる順にそろいます）' : 'この図を、1つ上（前の段落などの上）へ動かす（図の番号は、紙面の順にそろいます）'} disabled={!place.up} onWhy={phone ? (why) => editor.showNotice(why) : undefined} onClick={() => void editor.moveFigure(figureId, 'up')} />

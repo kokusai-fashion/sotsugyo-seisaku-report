@@ -189,6 +189,22 @@ await withEdge(async (browser) => {
     const paired = await tools()
     const fits = phone ? await page.evaluate(() => { const g = document.querySelector('.sel-bar .group.ctx').getBoundingClientRect(); return g.left >= 0 && g.right <= innerWidth }) : true
     check(`${who}：並んだ図を押すと、道具に「並びから外す」（削除の前）${phone ? '。360px の画面でも1列に入る' : ''}`, paired.includes('並びから外す') && paired.indexOf('並びから外す') === paired.indexOf('削除') - 1 && fits, JSON.stringify({ paired, fits }))
+    if (phone) {
+      // スマホの「写真」：押すと、上に「差し替え」「トリミング」（画面の中）。「トリミング」で窓が開く（依頼者の選択 2026-11-03 mockups/v99 案C）
+      await page.evaluate(() => [...document.querySelectorAll('.sel-bar .tb')].find((b) => b.textContent.trim() === '写真').click())
+      await wait(300)
+      const menu = await page.evaluate(() => {
+        const m = document.querySelector('.sel-bar .fig-photo-menu')
+        const r = m?.getBoundingClientRect()
+        return { names: m ? [...m.querySelectorAll('.tb')].map((b) => b.textContent.trim()) : [], inside: !!r && r.left >= 0 && r.right <= innerWidth && r.top >= 0 }
+      })
+      await page.evaluate(() => [...document.querySelectorAll('.sel-bar .fig-photo-menu .tb')].find((b) => b.textContent.includes('トリミング')).click())
+      await page.waitForSelector('.trim-modal', { timeout: 10000 }).catch(() => {})
+      const dialog = await page.evaluate(() => ({ open: !!document.querySelector('.trim-modal'), menu: !!document.querySelector('.sel-bar .fig-photo-menu') }))
+      check('スマホ：図の「写真」を押すと、上に「差し替え」「トリミング」が画面の中に出て、「トリミング」で窓が開く（帯の段は閉じる）', paired[0] === '写真' && !paired.includes('差し替え') && menu.names.join() === '差し替え,トリミング' && menu.inside && dialog.open && !dialog.menu, JSON.stringify({ first: paired[0], menu, dialog }))
+      await page.evaluate(() => [...document.querySelectorAll('.trim-modal button')].find((b) => b.textContent.includes('やめる'))?.click())
+      await wait(400)
+    }
     await page.evaluate((sel) => [...document.querySelectorAll(sel)].find((b) => b.textContent.includes('並びから')).click(), sel)
     await wait(600)
     await ready()

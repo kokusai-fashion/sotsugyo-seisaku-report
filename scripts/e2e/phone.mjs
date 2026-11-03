@@ -1817,7 +1817,7 @@ async function sideToolsCheck(browser) {
   const switched = { checked: await page.evaluate(() => document.querySelector('.page-side .photo-sw')?.getAttribute('aria-checked')), whole: (await photos()).whole?.[0] }
   check(
     '横向き：写真を押して選ぶと、「この写真（1枚目）」の道具（差し替え・外す・全体を入れる（切らない））が下の道具ではなく右の列に出て（高さ 44px 以上）、スイッチで切り替えられる。帯は「指でずらして、トリミングを調整」（選んだ写真だけ指でずらせる）',
-    placed(chosen) && chosen.label.join() === 'この写真（1枚目）' && chosen.tools.map((t) => t.split(':')[0]).join() === '差し替え,外す,全体を入れる（切らない）' && chosen.tools[2].includes('switch=false') && chosen.bandInColumn && chosen.bandAbove && chosen.band.includes('指でずらして、トリミングを調整') && switched.checked === 'true' && switched.whole === true,
+    placed(chosen) && chosen.label.join() === 'この写真（1枚目）' && chosen.tools.map((t) => t.split(':')[0]).join() === '差し替え,外す,トリミング,全体を入れる（切らない）' && chosen.tools[3].includes('switch=false') && chosen.bandInColumn && chosen.bandAbove && chosen.band.includes('指でずらして、トリミングを調整') && switched.checked === 'true' && switched.whole === true,
     JSON.stringify({ chosen, switched }),
   )
   await page.evaluate(() => window.__editor.select(null))
@@ -1836,7 +1836,7 @@ async function sideToolsCheck(browser) {
   await wait(300)
   check(
     '800×360 の横向きでも、帯と並べ方・「ページを足す」「ページを消す」（3列×2段）・選んだ写真の道具が右の列に全部見え（高さ 44px 以上）、紙面・帯・ページ送りに重ならず、紙面はページ送りに隠れない（横にはみ出さない）',
-    placed(small) && small.bandInColumn && small.bandAbove && small.rows === 2 && small.cols === 3 && small.tools.length === 2 && small.oneLine && placed(smallChosen) && smallChosen.tools.length === 3 && smallChosen.bandAbove,
+    placed(small) && small.bandInColumn && small.bandAbove && small.rows === 2 && small.cols === 3 && small.tools.length === 2 && small.oneLine && placed(smallChosen) && smallChosen.tools.length === 4 && smallChosen.bandAbove,
     JSON.stringify({ small, smallChosen }),
   )
 
@@ -1850,7 +1850,7 @@ async function sideToolsCheck(browser) {
   const portraitChosen = await page.evaluate(() => ({ side: !!document.querySelector('.page-side'), label: document.querySelector('.sel-bar .ctx-label')?.textContent, tools: [...document.querySelectorAll('.sel-bar .tb')].map((b) => b.textContent.trim()) }))
   check(
     '縦向きは今までどおり：並べ方は下の道具に出て、写真を選ぶと下の道具が「この写真（1枚目）」に替わる（右の列は出さない）',
-    !portrait.side && portrait.label === '並べ方' && portrait.lays === 4 && !portraitChosen.side && portraitChosen.label === 'この写真（1枚目）' && portraitChosen.tools.join() === '差し替え,外す',
+    !portrait.side && portrait.label === '並べ方' && portrait.lays === 4 && !portraitChosen.side && portraitChosen.label === 'この写真（1枚目）' && portraitChosen.tools.join() === '差し替え,外す,トリミング',
     JSON.stringify({ portrait, portraitChosen }),
   )
   await context.close()

@@ -342,6 +342,8 @@ export async function trialFixesPhone(browser, check) {
   }
 
   // ---- 1. 薄い「戻す」を押しても（書いている間の道具に「やり直す」はない：mockups/v96 案2）、書き終わりにならない ----
+  // （戻せることがない状態から書き始める：見本を入れた変更の履歴を消す）
+  await page.evaluate(() => window.__editor.forgetHistory())
   await goTo('p7')
   await tapPaper('[data-block-id="p7"]')
   // （mockups/v48 A）はじめて紙面で書くとき1回だけ「字を大きくするには／2本の指で広げます」。書いている行は、その知らせに隠れない。× で閉じる
