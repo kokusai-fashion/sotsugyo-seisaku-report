@@ -89,7 +89,10 @@
   /* 伝えたい所の印（mockups/v89）：流れの「4 エラーを0に」は赤、共用のパソコンの注意には赤い「!」 */
   .route .step.must i { background: #c62828; }
   .route .step.must b { color: #c62828; }
-  .must-line { position: relative; padding-left: 6.2mm; }
+  /* 行のまとまり（block）にして、2行目のボタンも「！」の右の文の頭にそろえる。左右の箱の上の端もそろえる（guide.css の p + p の上の間を消す）
+     （前は文の中の並び（inline）で、「！」が下にずれ、ボタンが「！」の下から始まっていた：依頼者 2026-11-03） */
+  .must-line { display: block; position: relative; padding-left: 6.2mm; }
+  .notes > .memo { margin: 0; }
   .must-line::before { content: '!'; position: absolute; left: 0; top: 0.4mm; width: 4.6mm; height: 4.6mm; border-radius: 50%; background: #c62828; color: #fff; font: 700 9pt/4.6mm 'Segoe UI', sans-serif; text-align: center; }
   /* 表から裏の「スマホで書く人へ」への案内 */
   .to-back { margin-top: 2.6mm; padding: 1.6mm 4mm; background: #fdf3d9; border-left: 1.4mm solid #e8b64a; font-size: 10.5pt; }

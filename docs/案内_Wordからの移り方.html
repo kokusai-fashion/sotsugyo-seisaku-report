@@ -10,6 +10,8 @@
   ・文や日付だけを直したときは node scripts/make-guide-word.mjs --pdf-only で PDF だけ作り直せる（1ページに収まっているかも確かめる）。
   ・いつまでに移すか（日付・時期）は書かない（依頼者 2026-10-23「案内の締切日はいりません」「それすらも不要です」）。
   ・公開のリポジトリに入るので、先生の名前・連絡先などは書かない。
+  ・メリハリ（依頼者 2026-11-03 に案A を選んだ）：見出しの下の「ここだけは守る」の帯（3つ）・手順の4と6を赤・「知っておくと安心」は控えめ（灰色）。
+    帯に入れた .doc・Google ドキュメント・直すところは「気をつけること」から外した。1枚に収めるため手順の画像は 28mm。
 -->
 <link rel="stylesheet" href="../node_modules/@fontsource/biz-udpgothic/400.css">
 <link rel="stylesheet" href="../node_modules/@fontsource/biz-udpgothic/700.css">
@@ -86,6 +88,28 @@
   /* ---- 困ったとき ---- */
   .help { display: flex; align-items: center; gap: 3.6mm; margin-top: auto; padding: 2.4mm 4mm; border-radius: 2.4mm; background: var(--chip); font-size: 9.5pt; line-height: 1.55; }
   .help b { flex: none; color: var(--accent); font-size: 10.5pt; }
+
+  :root { --must: #c0392b; --must-soft: #fbeeec; }
+  .steps li.must .no { background: var(--must); }
+  .steps li.must .shot { outline: 1.2pt solid var(--must); outline-offset: -1.2pt; }
+  .steps p em { font-style: normal; font-weight: 700; color: var(--must); }
+  .know { border-color: var(--line); }
+  .know .sec-h { color: var(--muted); font-size: 11pt; }
+  .know li { color: var(--muted); }
+  .know li b { color: var(--ink); font-size: 9pt; }
+  .know li::before { background: #a8a49c; }
+
+  .musts { padding: 2.6mm 3.6mm 3mm; border: 1.4pt solid var(--must); border-radius: 2.6mm; background: var(--must-soft); }
+  .musts h2 { display: flex; align-items: center; gap: 2mm; margin-bottom: 1.8mm; font-size: 12pt; color: var(--must); letter-spacing: 0.06em; }
+  .musts h2::before { content: '!'; width: 4.6mm; height: 4.6mm; display: grid; place-items: center; border-radius: 50%; background: var(--must); color: #fff; font-size: 9pt; }
+  .musts ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3.6mm; }
+  .musts li { display: grid; grid-template-columns: 5.6mm 1fr; gap: 0 1.8mm; align-items: start; }
+  .musts li > span { width: 5.6mm; height: 5.6mm; display: grid; place-items: center; border-radius: 50%; background: var(--must); color: #fff; font-size: 10pt; font-weight: 700; }
+  .musts b { display: block; font-size: 10.5pt; line-height: 1.35; }
+  .musts small { display: block; margin-top: 0.6mm; font-size: 9pt; line-height: 1.45; color: var(--muted); }
+  .shot { height: 28mm; }
+  .shot img { max-height: 24.5mm; }
+  .sheet { gap: 3mm; }
 </style>
 </head>
 <body>
@@ -102,6 +126,15 @@
       <b>スマホで開く</b>
     </div>
   </header>
+
+  <section class="musts">
+    <h2>ここだけは守る</h2>
+    <ol>
+      <li><span>1</span><div><b>本文の Word を選ぶ</b><small>.docx のまま。.doc と Google ドキュメントは読めません</small></div></li>
+      <li><span>2</span><div><b>図と改ページを必ず確かめる</b><small>図の大きさが Word と変わるため</small></div></li>
+      <li><span>3</span><div><b>赤い「直すところ」を直す</b><small>Word で気づかなかった誤り</small></div></li>
+    </ol>
+  </section>
 
   <section class="steps">
     <h2 class="sec-h">移り方<small>画像の<i></i>のところを押します</small></h2>
@@ -121,20 +154,20 @@
         <figure class="shot"><img src="guide-images/step3-word.png" alt="「Word で書き始めていますか？」の案内"></figure>
         <p>「Word で書き始めていますか？」と聞かれたら、「はい」を押します。</p>
       </li>
-      <li>
+      <li class="must">
         <div class="st-h"><span class="no">4</span><b>Word を選んで確かめる</b></div>
         <figure class="shot"><img src="guide-images/step4-files.png" alt="Word のファイルを選ぶ画面"></figure>
-        <p>本文（<span class="fn">04_本文.docx</span>）は必ず、表紙（<span class="fn">01_表紙.docx</span>）は書いていれば選びます。</p>
+        <p><em>本文（<span class="fn">04_本文.docx</span>）は必ず</em>、表紙（<span class="fn">01_表紙.docx</span>）は書いていれば選びます。</p>
       </li>
       <li>
         <div class="st-h"><span class="no">5</span><b>確かめて「読み込む」</b></div>
         <figure class="shot"><img src="guide-images/step5-confirm.png" alt="Word の中身を確かめる画面"></figure>
         <p>章立て・図・表の数と表紙の項目が出ます。読み取れなかった所は上に出ます。</p>
       </li>
-      <li>
+      <li class="must">
         <div class="st-h"><span class="no">6</span><b>「つぎにすること」を済ませる</b></div>
         <figure class="shot"><img src="guide-images/step6-todo.png" alt="読み込んだあとの「つぎにすること」"></figure>
-        <p>右の欄（スマホはチェックの欄の上）に出る項目を済ませます。図の大きさが変わるため、図と改ページの位置は必ず確かめます。</p>
+        <p>右の欄（スマホはチェックの欄の上）に出る項目を済ませます。図の大きさが変わるため、<em>図と改ページの位置は必ず確かめます。</em></p>
       </li>
     </ol>
   </section>
@@ -143,9 +176,9 @@
     <section class="box care">
       <h2 class="sec-h">気をつけること</h2>
       <ul>
-        <li><b>.doc（Word 97-2003）は読めません。</b>Word の「名前を付けて保存」で「Word 文書（*.docx）」にします。</li>
-        <li><b>Google ドキュメントに変えないで。</b>図のタイトルや位置が崩れることがあります。.docx のまま選びます。</li>
-        <li><b>スマホでも選べます。</b>OneDrive・Google ドライブ・iCloud Drive の中からも選べます（iPhone は「ファイル」アプリの「ブラウズ」）。読み込んだあとの見直し（図の位置など）は、パソコンで。</li>
+        <!-- 抄録・目次の Word をどうするかが書いていなかった（依頼者 2026-11-03） -->
+        <li><b>読み込むのは本文と表紙だけ。</b>目次は自動。抄録は先生の許可のあと、ツールで書きます。</li>
+        <li><b>スマホでも選べます。</b>OneDrive・Google ドライブ・iCloud Drive の中からも選べます。読み込んだあとの見直し（図の位置など）は、パソコンで。</li>
         <li><b>読み込んだあとは、ツールで書く。</b>ツールの原稿を Word に戻すことはできません。</li>
       </ul>
     </section>
@@ -155,7 +188,7 @@
         <li><b>写すのは中身だけ。</b>見出し・段落・図（写真とタイトル）・表・改ページと、表紙の項目。見た目はツールの形に組み直します。</li>
         <li><b>書いていない章は写しません。</b>〇〇〇〇・～～～のままの章は、ツールのひな形で続けます。</li>
         <li><b>元に戻せます。</b>読み込む前の原稿は控えに残り、「読み込む前の原稿に戻す」で戻せます。</li>
-        <li><b>自動で保存。</b>原稿はブラウザと自分の Google ドライブに保存。Word のファイルはどこにも送りません。</li>
+        <!-- 「自動で保存」の行は、2行足して紙面からはみ出したので外した（保存のことは学生用の手引きにある。依頼者 2026-11-03） -->
         <li><b>あとから読み込むとき</b>は、右上の「メニュー」の「Word で書いた分を読み込む（今年度だけ）」から。</li>
       </ul>
     </section>
