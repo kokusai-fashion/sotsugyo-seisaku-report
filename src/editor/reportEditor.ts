@@ -1115,8 +1115,10 @@ export class ReportEditor {
   }
 
   /**
-   * PDF に入れるページ。まだ何も書いていない章は、目次からも外し、章・図表の番号とページ番号を詰めて組み直す
+   * PDF に入れるページ。まだ何も書いていない章のページは入れず、図表の番号とページ番号を詰めて組み直す
    * （依頼者の判断 2026-11-03 の会議のあと。ops.withoutNotStartedChapters）。画面の紙面はそのままにして、画面に出ない所（.export-paper）で組む。
+   * 目次には、入れない章も灰色で（ページ番号なし）載せ、章の番号（Ⅰ．Ⅱ．…）は詰めない（目次と本文の番号をそろえる。
+   * 依頼者の選択 2026-11-04 案3。allChapters：layout/bodyHtml.ts・layout/document.ts の tocHtml）。
    * 写真のない作品写真のページと、書き始める前の抄録のページは入れない（pdf/exportPages.ts）。使い終わったら release を呼ぶ
    */
   async pdfPages(): Promise<{ pages: HTMLElement[]; release: () => void }> {
@@ -1133,7 +1135,7 @@ export class ReportEditor {
     document.body.append(paper)
     try {
       const renderer = new ReportRenderer(paper, { remember: false })
-      const { layout, unchanged } = await renderer.renderBack(report, this.config, this.imageSources())
+      const { layout, unchanged } = await renderer.renderBack(report, this.config, { ...this.imageSources(), allChapters: this.report.body })
       if (unchanged) renderer.show(0)
       else renderer.swap(0)
       const pages = renderer.pageView.pages()

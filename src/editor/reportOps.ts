@@ -1315,8 +1315,9 @@ export function chapterNotStarted(chapter: Chapter): boolean {
 }
 
 /**
- * PDF に入れる原稿：まだ何も書いていない章（chapterNotStarted）を除く。目次・章の番号・図表の番号・ページ番号は、除いたあとの原稿で付く
- * （依頼者の判断 2026-11-03 の会議のあと：途中の点検で、ひな形の見出しだけのページまで印刷していた）。除く章がなければ、同じ原稿を返す
+ * PDF に入れる原稿：まだ何も書いていない章（chapterNotStarted）を除く。図表の番号・ページ番号は、除いたあとの原稿で付く
+ * （依頼者の判断 2026-11-03 の会議のあと：途中の点検で、ひな形の見出しだけのページまで印刷していた）。除く章がなければ、同じ原稿を返す。
+ * 目次には除いた章も灰色で載せ、章の番号は除く前のまま（依頼者の選択 2026-11-04 案3。組むときに除く前の章を渡す：reportEditor の pdfPages）
  */
 export function withoutNotStartedChapters(report: Report): Report {
   const body = report.body.filter((c) => !chapterNotStarted(c))

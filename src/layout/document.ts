@@ -1,7 +1,7 @@
 import { findCourse, type YearConfig } from '../config'
-import type { Reference, Report } from '../model/types'
+import type { Chapter, Reference, Report } from '../model/types'
 import { photoGrid, shownPhotos } from '../model/photos'
-import { bodyContentHtml, chapterHtmls, chapterLabel, chapterSentinelHtml, escapeHtml, headingLabels, type BodyRenderOptions } from './bodyHtml'
+import { bodyContentHtml, chapterHtmls, chapterLabel, chapterNumberIndex, chapterSentinelHtml, escapeHtml, headingLabels, type BodyRenderOptions } from './bodyHtml'
 import { documentCss } from './documentCss'
 import { marginsOf, textWidthMm } from './pageGeometry'
 
@@ -249,28 +249,43 @@ export const TOC_TEXT = {
   noteButton: '本文の見出しへ',
 } as const
 
-function tocHtml(report: Report, pageNumbers: Record<string, number>): string {
+/** PDF の目次の下の1行（まだ何も書いていない章を、灰色で載せたときだけ。依頼者の選択 2026-11-04 案3） */
+export const TOC_NOT_STARTED_NOTE = '灰色の章は、まだ書いていないので、この PDF には入っていません'
+
+/**
+ * 目次。allChapters（PDF で、まだ何も書いていない章を除いて組むときだけ。BodyRenderOptions）があれば、除いた章も載せる：
+ * 灰色で、ページ番号（とリーダー）を付けない。中見出し・小見出しの行も灰色。目次の下に、そのわけを1行（TOC_NOT_STARTED_NOTE）。
+ * 書く予定の章の並びが、途中の PDF でも見えるように（依頼者の選択 2026-11-04 案3。前は目次からも外していた）。
+ * 章の番号は、除く前の並びのまま（本文の見出しも同じ：bodyHtml.ts の chapterNumberIndex）
+ */
+function tocHtml(report: Report, pageNumbers: Record<string, number>, allChapters?: Chapter[]): string {
   const pno = (key: string) => (pageNumbers[key] ? String(pageNumbers[key]) : '')
   const target = (id: string) => `${TOC_TARGET_ATTR}="${escapeHtml(id)}"`
-  const entries = report.body
+  const chapters = allChapters ?? report.body
+  const printed = new Set(report.body.map((c) => c.id))
+  const entries = chapters
     .map((chapter, i) => {
+      const left = !printed.has(chapter.id)
+      const gray = left ? ' not-started' : ''
       const labels = headingLabels(chapter.blocks)
       const subs = chapter.blocks
         .flatMap((b) => (b.type === 'subheading' ? [b] : []))
         // 中見出しの行も、見出しの字を span に入れる（大見出しの行と同じ形。画面でマウスを乗せたときの下線と「→ 見出しへ」の置き場所。紙面の見た目は変わらない）。
         // 小見出し（（1））の行は、もう一段下げる（minor）
-        .map((b) => `<div class="toc-sub${b.level === 3 ? ' minor' : ''}" ${target(b.id)}><span>${labels.get(b.id) ?? ''}${escapeHtml(b.title)}</span></div>`)
+        .map((b) => `<div class="toc-sub${b.level === 3 ? ' minor' : ''}${gray}" ${target(b.id)}><span>${labels.get(b.id) ?? ''}${escapeHtml(b.title)}</span></div>`)
         .join('\n')
-      return `<div class="toc-ch${i > 0 ? ' next' : ''}" ${target(chapter.id)}><span>${chapterLabel(i)}${escapeHtml(chapter.title)}</span><span class="leader"></span><span class="pno">${pno(chapter.id)}</span></div>\n${subs}`
+      const page = left ? '' : `<span class="leader"></span><span class="pno">${pno(chapter.id)}</span>`
+      return `<div class="toc-ch${i > 0 ? ' next' : ''}${gray}" ${target(chapter.id)}><span>${chapterLabel(i)}${escapeHtml(chapter.title)}</span>${page}</div>\n${subs}`
     })
     .join('\n')
   const references = report.references.length
-    ? `<div class="toc-ch${report.body.length ? ' next' : ''}" ${target(REFERENCES_ANCHOR)}><span>引用・参考文献</span><span class="leader"></span><span class="pno">${pno(REFERENCES_ANCHOR)}</span></div>`
+    ? `<div class="toc-ch${chapters.length ? ' next' : ''}" ${target(REFERENCES_ANCHOR)}><span>引用・参考文献</span><span class="leader"></span><span class="pno">${pno(REFERENCES_ANCHOR)}</span></div>`
     : ''
+  const note = chapters.some((c) => !printed.has(c.id)) ? `\n<div class="toc-not-started">${TOC_NOT_STARTED_NOTE}</div>` : ''
   return `<section class="toc">
 <div class="toc-title">目次</div>
 ${entries}
-${references}
+${references}${note}
 </section>`
 }
 
@@ -380,7 +395,7 @@ export function buildReportDocument(report: Report, config: YearConfig, options:
     config,
     `${coverHtml(report, config, options)}
 ${abstractHtml(report, config)}
-${tocHtml(report, options.tocPageNumbers ?? {})}
+${tocHtml(report, options.tocPageNumbers ?? {}, options.allChapters)}
 ${mainHtml(report, options)}`,
   )
 }
@@ -411,8 +426,10 @@ export function buildReportParts(report: Report, config: YearConfig, options: Do
   return {
     cover: documentHtml(config, coverHtml(report, config, options)),
     abstract: documentHtml(config, abstractHtml(report, config)),
-    toc: documentHtml(config, tocHtml(report, options.tocPageNumbers ?? {})),
-    chapters: split ? chapters.slice(0, -1).map((html, i) => documentHtml(config, section(`${html}\n${chapterSentinelHtml(report.body[i + 1], i + 1)}`))) : [],
+    toc: documentHtml(config, tocHtml(report, options.tocPageNumbers ?? {}, options.allChapters)),
+    chapters: split
+      ? chapters.slice(0, -1).map((html, i) => documentHtml(config, section(`${html}\n${chapterSentinelHtml(report.body[i + 1], chapterNumberIndex(report.body[i + 1], i + 1, options))}`)))
+      : [],
     tail: split ? documentHtml(config, `${section(chapters[chapters.length - 1])}\n${referencesHtml(report)}\n${photosHtml(report, options)}`) : documentHtml(config, mainHtml(report, options)),
   }
 }

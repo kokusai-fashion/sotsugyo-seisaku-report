@@ -597,7 +597,8 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
       )}
       {notStarted.length > 0 && (
         <p className="note pdf-not-started">
-          まだ何も書いていない章（<Keep text={notStarted.join('・')} />）は、このPDFには入りません（目次にも出ません）。
+          {/* 目次には灰色で載る（依頼者の選択 2026-11-04 案3。layout/document.ts の tocHtml） */}
+          まだ何も書いていない章（<Keep text={notStarted.join('・')} />）は、このPDFには入りません（目次には灰色で出ます）。
         </p>
       )}
       <FileBox fileName={fileName} note={mode === 'share' ? 'できたら「保存する」を押し、「"ファイル"に保存」を選びます' : '「ダウンロード」のフォルダに保存します'} />

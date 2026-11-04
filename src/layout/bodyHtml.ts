@@ -63,6 +63,21 @@ export interface BodyRenderOptions {
   tableFits?: TableFits
   /** 改ページ・章の終わりの直前で、下の空きに合わせて大きくする図のまとまりと倍率（組んだ紙面で決めたもの：figureGrow.ts） */
   figureGrow?: FigureGrow
+  /**
+   * 原稿のすべての章（PDF に入れる紙面を、まだ何も書いていない章を除いて組むときだけ：editor/reportEditor.ts の pdfPages）。
+   * 章の番号（Ⅰ．Ⅱ．…）は、除く前の並びで付ける（目次には除いた章も灰色で載せるので、目次と本文の見出しの番号をそろえる。
+   * 依頼者の選択 2026-11-04 案3）。目次の載せ方は layout/document.ts の tocHtml
+   */
+  allChapters?: Chapter[]
+}
+
+/**
+ * 章の番号に使う、並びの位置（Ⅰ．なら 0）。index は組む章の中の位置。
+ * allChapters があれば、除く前の並びの位置（PDF で、書いていない章を除いても、番号は詰めない：依頼者の選択 2026-11-04 案3）
+ */
+export function chapterNumberIndex(chapter: Chapter, index: number, options: Pick<BodyRenderOptions, 'allChapters'>): number {
+  const i = options.allChapters?.findIndex((c) => c.id === chapter.id) ?? -1
+  return i >= 0 ? i : index
 }
 
 /** 図・表の番号を本文の出現順に振る。参照（図n）の解決にも使う */
@@ -309,7 +324,7 @@ function renderChapter(chapter: Chapter, index: number, numbers: Map<string, num
     .join('\n')
   // 章の終わりの目印（高さなし）：組版エンジンは、次のページへ切り替わる直前（次の章の前・本文の終わり）の要素が入りきらないとき、
   // 次のページへ送らずにページからはみ出させることがある。目印を置き、図や表がその「直前の要素」にならないようにする
-  return `<h1 class="chapter" id="${chapterAnchor(chapter.id)}">${labeledHtml(chapterLabel(index), chapter.title, chapter.id)}</h1>\n${blocks}\n<div class="flow-end"></div>`
+  return `<h1 class="chapter" id="${chapterAnchor(chapter.id)}">${labeledHtml(chapterLabel(chapterNumberIndex(chapter, index, options)), chapter.title, chapter.id)}</h1>\n${blocks}\n<div class="flow-end"></div>`
 }
 
 /** 目次からページ番号を参照するための、大見出しの id */
