@@ -76,6 +76,11 @@ const toAbstract = async (page, ready) => {
   await ready()
 }
 const lock = (page) => page.evaluate(() => { const el = document.querySelector('.page-viewport.front .abstract-lock'); return el ? { cls: el.className, text: el.textContent, start: !!el.querySelector('[data-abstract-start]'), recheck: !!el.querySelector('[data-abstract-recheck]') } : null })
+/** 紙面の部品を、マウスで押す（紙面は、押した点から何を押したかを決める） */
+const pressOnPaper = async (page, selector) => {
+  const p = await page.evaluate((sel) => { const r = document.querySelector(`.page-viewport.front [data-vivliostyle-page-container].is-current ${sel}`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } }, selector)
+  await page.mouse.click(p.x, p.y)
+}
 const openPdf = async (page) => {
   await page.evaluate(() => document.querySelector('.side button.export')?.click())
   await page.waitForSelector('.modal .pdf-file', { timeout: 30000 })
@@ -106,7 +111,7 @@ await withEdge(async (browser) => {
     const l = await lock(page)
     await page.screenshot({ path: `${OUT}/1-abstract-waiting.png` })
     check('抄録の許可の前：「先生の許可を待っています」と「許可が出たか、確かめ直す」。学生が押して書き始めるボタンはない', !!l && l.cls.includes('waiting') && l.text.includes('先生の許可を待っています') && l.recheck && !l.start, JSON.stringify(l))
-    await page.evaluate(() => document.querySelector('.page-viewport.front [data-abstract-recheck]').click())
+    await pressOnPaper(page, '[data-abstract-recheck]')
     await wait(500)
     const notice = await page.evaluate(() => document.querySelector('.undo-area .undo-toast')?.textContent ?? '')
     const startedAfter = await page.evaluate(() => window.__editor.getSnapshot().report.abstract.started)
@@ -147,7 +152,7 @@ await withEdge(async (browser) => {
     const l = await lock(page)
     await page.screenshot({ path: `${OUT}/3-abstract-granted.png` })
     check('抄録の許可のあと：「先生の許可が出ました（12/15　小川先生）」と「抄録を書き始める」', !!l && l.cls.includes('granted') && l.text.includes('先生の許可が出ました（12/15　小川先生）') && l.start && l.text.includes('抄録を書き始める'), JSON.stringify(l))
-    await page.evaluate(() => document.querySelector('.page-viewport.front [data-abstract-start]').click())
+    await pressOnPaper(page, '[data-abstract-start]')
     await wait(800)
     await ready()
     check('「抄録を書き始める」で、抄録を書き始める', (await page.evaluate(() => window.__editor.getSnapshot().report.abstract.started)) !== false)

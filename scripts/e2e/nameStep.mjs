@@ -25,8 +25,9 @@ export async function finishGuideAfterImport(page) {
   const named = await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 8000 }).then(() => true, () => false)
   if (!named) return false
   await fillGuideName(page)
-  const done = await page.waitForSelector('.guide.step-done .g-actions .primary', { timeout: 8000 }).then(() => true, () => false)
-  if (done) await page.evaluate(() => document.querySelector('.guide.step-done .g-actions .primary').click())
+  // ふりがなだけを聞いたときは、そのまま閉じる。ほかの項目もまだなら、最後まで済ませる
+  await page.waitForFunction(() => !document.querySelector('.guide') || document.querySelector('.guide.step-done .g-actions .primary, .guide .g-later'), { timeout: 8000 }).catch(() => {})
+  if (await page.$('.guide.step-done .g-actions .primary')) await page.evaluate(() => document.querySelector('.guide.step-done .g-actions .primary').click())
   else if (await page.$('.guide .g-later')) await page.evaluate(() => document.querySelector('.guide .g-later').click())
   return true
 }

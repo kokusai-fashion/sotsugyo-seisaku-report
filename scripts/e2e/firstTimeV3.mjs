@@ -8,6 +8,7 @@
 // - PDF の窓に、要確認も一覧で出す。作品写真がまだないときの PDF に、空の作品写真のページを入れない
 // - 作品写真：まとめて選べる。入らない枚数と、隠れた写真を知らせる
 // - 「バックアップ・作り直す」（mockups/v34 案A）
+import { finishGuideAfterImport } from './nameStep.mjs'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -670,7 +671,8 @@ export async function firstTimeV3Word(browser, check) {
     JSON.stringify(after),
   )
   if (after.guide) {
-    await page.evaluate(() => document.querySelector('.g-later')?.click())
+    // ふりがながまだなら、案内の氏名の段（2026-11-04 から）。済ませると閉じて「つぎにすること」が出る
+    if (!(await finishGuideAfterImport(page))) await page.evaluate(() => document.querySelector('.g-later')?.click())
     await ready()
   }
 

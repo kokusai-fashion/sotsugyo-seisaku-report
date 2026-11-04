@@ -999,6 +999,9 @@ export default function App() {
         // スマホは、チェックの欄を開き、そのいちばん上に「つぎにすること」を出す
         if (narrow) setCheckRequest((n) => n + 1)
       }
+      // ふりがなだけを聞くとき（表紙のほかの項目は Word から入った）：済ませたら案内を閉じて本文へ（「表紙ができました」・指差し確認は出さない。
+      // 前と同じく、読み込んだらすぐ「つぎにすること」へ進む）
+      setNameOnly(next === 'name' && !!editor.getSnapshot().report.basicInfo.subtitleInput.trim())
       setGuide(next)
       if (next) {
         afterGuideRef.current = () => void toBody()
