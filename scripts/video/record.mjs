@@ -11,12 +11,16 @@ import * as session from './session.mjs'
 process.env.EDGE_PORT ??= '9411'
 const { withEdge } = await import('../poc/edge.mjs')
 
-const names = process.argv.slice(2).length ? process.argv.slice(2) : readdirSync('scripts/video/scenes').filter((f) => f.endsWith('.mjs')).map((f) => f.replace(/\.mjs$/, ''))
+// SCENES_DIR：場面のフォルダ（ふだんは scenes。学生向けの動画は scenes-student：ナレーションに合わせる場面）
+const SCENES = process.env.SCENES_DIR ?? 'scenes'
+const names = process.argv.slice(2).length ? process.argv.slice(2) : readdirSync(`scripts/video/${SCENES}`).filter((f) => f.endsWith('.mjs')).map((f) => f.replace(/\.mjs$/, ''))
 const h = { ...rec, ...session }
+// 学生向けの動画は、操作をゆっくりにする（依頼者 2026-11-04：速すぎて何をしているか分からない。録画は速めずに使う）
+if (SCENES === 'scenes-student') rec.setPace({ moveMs: 800, clickPause: 500, typeDelay: 150 })
 
 await withEdge(async (browser) => {
   for (const name of names) {
-    const scene = await import(`./scenes/${name}.mjs`)
+    const scene = await import(`./${SCENES}/${name}.mjs`)
     const { meta } = scene
     const { context, page } = await session.openTool(browser, { device: meta.device, ...meta.open })
     await scene.prepare?.({ page, h })
@@ -28,6 +32,8 @@ await withEdge(async (browser) => {
     const recording = await rec.startRecording(page, `poc-output/video/${name}`)
     await rec.sleep(1000)
     await scene.run({ page, rec: recording, h })
+    // 操作の終わり（compose.mjs は、ここから少しで動画を終える。その後の待ちは使わない）
+    recording.mark('_end')
     await rec.sleep(2600)
     const t = await recording.stop()
     console.log(`${name}：${t.duration.toFixed(1)}秒・写真 ${t.frames.length}枚・印 ${t.marks.map((m) => m.name).join(' → ')}`)

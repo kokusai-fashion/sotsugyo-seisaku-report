@@ -9,6 +9,7 @@ import { sleep } from './recorder.mjs'
 
 const { fakeDrive, routeGoogle } = await import('../e2e/fakeGoogle.mjs')
 const { sinbadSample, setupSinbad } = await import('../e2e/sampleSinbad.mjs')
+const { closeGuide } = await import('../e2e/nameStep.mjs')
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const config = JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8'))
@@ -206,8 +207,8 @@ export async function openTool(browser, { device = 'pc', login = true, guide = f
   await page.evaluate(() => [...document.querySelectorAll('.guide .g-opts button')].find((b) => b.textContent.includes('映画・舞台衣装')).click())
   await page.waitForSelector('.guide.step-word .g-word-opt.no')
   await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
-  await page.waitForSelector('.guide .g-later')
-  await page.evaluate(() => document.querySelector('.guide .g-later').click())
+  // ログインで学籍番号が入るので、案内は氏名から（姓・名・ふりがなを入れるまで閉じられない：2026-11-04）。入れてから閉じる
+  await closeGuide(page)
   await page.evaluate(() => window.__editor.finishEditing())
   await ready(page)
   if (sample) {

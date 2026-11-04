@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { createServer } from 'node:http'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { makeWarp } from './timeWarp.mjs'
+import { planTimeline } from './timeWarp.mjs'
 
 process.env.EDGE_PORT ??= '9412'
 const { withEdge } = await import('../poc/edge.mjs')
@@ -17,15 +17,18 @@ const FFMPEG =
   process.env.FFMPEG ??
   `${process.env.LOCALAPPDATA}/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe`
 const ROOT = 'poc-output/video'
-const OUT = join(ROOT, 'out')
+// COMPOSE_OUT：できた動画を置く所（使い方の動画を上書きせずに、別の版を作るとき）
+const OUT = process.env.COMPOSE_OUT ?? join(ROOT, 'out')
 /** 動画の速さ（コマ/秒）・はじめの題名の長さ・終わりに止めておく長さ（秒） */
 const FPS = 30
 const TITLE = 2.6
 const TAIL = 1.2
 
+// SCENES_DIR：場面のフォルダ（record.mjs と同じ）
+const SCENES = process.env.SCENES_DIR ?? 'scenes'
 const names = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : readdirSync('scripts/video/scenes')
+  : readdirSync(`scripts/video/${SCENES}`)
       .filter((f) => f.endsWith('.mjs'))
       .map((f) => f.replace(/\.mjs$/, ''))
       .filter((n) => process.env.CAPTIONS_ONLY || existsSync(join(ROOT, n, 'timeline.json')))
@@ -74,8 +77,7 @@ async function setup(p) {
   await document.fonts.load(`bold 40px ${FONT}`).catch(() => {})
 
   const marks = p.marks
-  // ナレーションに合わせる（sync.json があるとき）：印の名前 → 出来上がりの時刻（秒）。timeWarp.mjs の makeWarp をページの中で作る
-  const warp = p.sync ? new Function(`return (${p.warpSrc})`)()(p.sync.anchors, p.duration, p.sync.end) : null
+  // ナレーションに合わせるとき（p.times）：出来上がりのコマごとの、録画の時刻（timeWarp.mjs の planTimeline で決めたもの）
   const captionMarks = marks.filter((m) => p.meta.captions[m.name])
   const ease = (k) => (k <= 0 ? 0 : k >= 1 ? 1 : k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2)
 
@@ -412,18 +414,20 @@ async function setup(p) {
 
   window.__R = {
     report,
-    total: Math.round((p.title + (warp ? warp.end : p.duration) + p.tail) * p.fps),
+    total: p.times ? p.times.length : Math.round((p.title + p.duration + p.tail) * p.fps),
     async render(from, to) {
       for (let n = from; n < to; n++) {
         const T = n / p.fps
         // ナレーションに合わせるときは、録画の時刻を文の時刻にそろえる（timeWarp.mjs）
-        const t = warp ? warp.at(Math.max(T - p.title, 0)) : Math.min(Math.max(T - p.title, 0), p.duration)
+        const t = p.times ? p.times[n] : Math.min(Math.max(T - p.title, 0), p.duration)
         const bmp = await frameAt(t)
         g.clearRect(0, 0, W, H)
         if (phone) drawPhone(bmp, t)
         else {
-          drawPointer(drawShot(bmp, zoomAt(t), 0, 0, W, H), t)
-          if (T >= p.title) bandCaption(captionAt(t), t)
+          const shot = drawShot(bmp, zoomAt(t), 0, 0, W, H)
+          drawPointer(shot, t)
+          // NO_CAPTIONS：字幕を出さない（学生向けスライドの動画。スライドの声で伝える：依頼者の選択 2026-11-04）
+          if (T >= p.title && !p.noCaptions) bandCaption(captionAt(t), t)
         }
         titleOverlay(T < p.title - 0.5 ? 1 : 1 - (T - (p.title - 0.5)) / 0.5)
         const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.93))
@@ -441,20 +445,33 @@ await withEdge(async (browser) => {
   await page.goto(`http://127.0.0.1:${port}/`)
   for (const name of names) {
     current = name
-    const { meta } = await import(`./scenes/${name}.mjs`)
+    const { meta } = await import(`./${SCENES}/${name}.mjs`)
     const timeline = process.env.CAPTIONS_ONLY ? { marks: [], frames: [], mouse: [], duration: 0 } : JSON.parse(readFileSync(join(ROOT, name, 'timeline.json'), 'utf8'))
     // 録った画面の大きさ（前に録ったものには書いていないので、そのときの大きさ）
     const viewport = timeline.viewport ?? (meta.device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 720 })
     const dir = join(ROOT, name, 'out')
     const started = Date.now()
-    // ナレーションに合わせる：poc-output/video/<場面>/sync.json（{ marks: { 印の名前: 出来上がりの秒 }, end: 出来上がりの長さ, title?: 0 }）。
-    // 印の録画の時刻と組にして、timeWarp.mjs で時刻をそろえる（声の文が始まる時刻に、その操作が始まる）
-    const syncFile = join(ROOT, name, 'sync.json')
-    const syncSpec = !process.env.CAPTIONS_ONLY && existsSync(syncFile) ? JSON.parse(readFileSync(syncFile, 'utf8')) : null
-    const sync = syncSpec
-      ? { anchors: timeline.marks.filter((m) => syncSpec.marks[m.name] !== undefined).map((m) => ({ src: m.t, out: syncSpec.marks[m.name] })).sort((a, b) => a.src - b.src), end: syncSpec.end }
-      : null
-    const { total, report } = await page.evaluate(setup, { meta, viewport, marks: timeline.marks, frames: timeline.frames, mouse: timeline.mouse, duration: timeline.duration, fps: FPS, title: syncSpec?.title ?? TITLE, tail: syncSpec ? 0 : TAIL, sync, warpSrc: makeWarp.toString() })
+    // ナレーションに合わせる：poc-output/video-narration/<場面>/narration.json（narrate.mjs が書く。文ごとの声の始まりと終わり）。
+    // 文 i の声は、録画の印 s(i+1) の所で流す。録画は速めない（timeWarp.mjs）。声を置く時刻は placed.json に書き、mux.mjs が使う
+    const narrFile = join('poc-output/video-narration', name, 'narration.json')
+    const narr = !process.env.CAPTIONS_ONLY && existsSync(narrFile) ? JSON.parse(readFileSync(narrFile, 'utf8')) : null
+    let times = null
+    if (narr) {
+      const at = (n) => timeline.marks.find((m) => m.name === n)?.t
+      const anchors = narr.starts.map((_, i) => at(`s${i + 1}`))
+      if (anchors.some((t) => t === undefined)) throw new Error(`${name}：文の数（${narr.starts.length}）だけの印 s1… がありません`)
+      // 文の声：始まりから、声の終わりの 0.35 秒あとまで（文と文の間が長すぎないように）
+      const clips = narr.starts.map((s, i) => ({ from: s, to: Math.min(narr.ends[i] + 0.35, narr.starts[i + 1] ?? narr.seconds) }))
+      const cutMarks = timeline.marks.filter((m) => m.name === '_cut' || m.name === '_cutEnd')
+      const cuts = []
+      for (let i = 0; i < cutMarks.length; i++) if (cutMarks[i].name === '_cut') cuts.push({ from: cutMarks[i].t, to: cutMarks[i + 1]?.name === '_cutEnd' ? cutMarks[i + 1].t : timeline.duration })
+      // 終わりは、操作の終わり（_end）。その後の待ちは使わない（最後の絵のまま、声が終わるまで止める）
+      const srcEnd = Math.min(timeline.duration, (at('_end') ?? timeline.duration) + 0.05)
+      const plan = planTimeline({ anchors, durs: clips.map((c) => c.to - c.from), srcEnd, cuts })
+      times = Array.from({ length: Math.round(plan.end * FPS) }, (_, n) => plan.at(n / FPS))
+      writeFileSync(join('poc-output/video-narration', name, 'placed.json'), JSON.stringify({ end: plan.end, clips: clips.map((c, i) => ({ ...c, at: plan.outs[i] })) }, null, 2))
+    }
+    const { total, report } = await page.evaluate(setup, { meta, viewport, marks: timeline.marks, frames: timeline.frames, mouse: timeline.mouse, duration: timeline.duration, fps: FPS, title: narr ? 0 : TITLE, tail: narr ? 0 : TAIL, times, noCaptions: !!process.env.NO_CAPTIONS })
     console.log(name)
     for (const c of report) console.log(`  字幕 ${c.name}：${c.lines.join(' ／ ')}${c.lonely ? '　← 1字だけの行があります' : ''}`)
     if (process.env.CAPTIONS_ONLY) continue

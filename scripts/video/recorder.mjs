@@ -16,15 +16,36 @@ const logOf = (page) => {
   return mouseLog.get(page)
 }
 
+/**
+ * 操作の速さ。学生向けの動画（scenes-student）は、ゆっくりにする（依頼者 2026-11-04：速すぎて何をしているか分からない）。
+ * moveMs：マウスを動かす時間（短い距離でもこれだけかける。遠いと少し長く）・clickPause：押す前に止める時間・typeDelay：1字を打つ間
+ */
+export const pace = { moveMs: 0, clickPause: 0, typeDelay: 0 }
+export const setPace = (p) => Object.assign(pace, p)
+
 /** マウスを、人が動かすような速さで動かす（はじめと終わりをゆっくり） */
 export async function moveTo(page, x, y) {
   const log = logOf(page)
   const from = log.at ?? { x: x - 220, y: y + 140 }
   const dist = Math.hypot(x - from.x, y - from.y)
+  const ease = (k) => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2)
+  if (pace.moveMs) {
+    // 時間で動かす（遠いほど少し長く。最長でも moveMs の 1.6 倍）
+    const ms = Math.min(pace.moveMs * 1.6, pace.moveMs + dist * 0.5)
+    const start = Date.now()
+    for (let k = 0; k < 1; ) {
+      await sleep(16)
+      k = Math.min(1, (Date.now() - start) / ms)
+      const p = { x: from.x + (x - from.x) * ease(k), y: from.y + (y - from.y) * ease(k) }
+      await page.mouse.move(p.x, p.y)
+      log.events.push({ t: Date.now() / 1000, ...p })
+    }
+    log.at = { x, y }
+    return
+  }
   const steps = Math.max(8, Math.min(28, Math.round(dist / 22)))
   for (let i = 1; i <= steps; i++) {
-    const k = i / steps
-    const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2
+    const e = ease(i / steps)
     const p = { x: from.x + (x - from.x) * e, y: from.y + (y - from.y) * e }
     await page.mouse.move(p.x, p.y)
     log.events.push({ t: Date.now() / 1000, ...p })
@@ -36,7 +57,7 @@ export async function moveTo(page, x, y) {
 /** 動かしてから押す */
 export async function clickAt(page, x, y, { pause = 350 } = {}) {
   await moveTo(page, x, y)
-  await sleep(pause)
+  await sleep(Math.max(pause, pace.clickPause))
   logOf(page).events.push({ t: Date.now() / 1000, x, y, click: true })
   await page.mouse.click(x, y)
 }
@@ -164,9 +185,76 @@ export async function clickEl(page, selector, text, opts) {
 export async function typeSlow(page, text, delay = 110) {
   for (const ch of text) {
     await page.keyboard.type(ch)
-    await sleep(delay * (/[、。]/.test(ch) ? 2.5 : 1))
+    await sleep(Math.max(delay, pace.typeDelay) * (/[、。]/.test(ch) ? 2.5 : 1))
   }
 }
+
+/**
+ * 話している所を囲む枠（依頼者の希望 2026-11-04）。赤：ツールのキーボードの印（黄色い枠）と見分けるため（だいだい色だと似ていた）。録画の画面の中に出すので、写真にそのまま写る。
+ * 前は録画のあとから描き足していたが、押したあとに画面が動いたり窓が閉じたりしても、枠が元の位置に残った（依頼者 2026-11-04）。
+ * target：要素の selector（その要素にくっついて動き、要素が消えれば枠も消える。text：その文字を含むもの・ends：その文字で終わるもの・
+ * all：当てはまるものを全部）か、範囲 { x, y, w, h }（の配列。動かない枠）。unbox で全部消す
+ */
+export async function box(page, target, { text, ends, all = false } = {}) {
+  await page.evaluate(
+    (target, text, ends, all) => {
+      if (!window.__vbox) {
+        const layer = document.createElement('div')
+        layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647'
+        document.documentElement.appendChild(layer)
+        const style = document.createElement('style')
+        style.textContent =
+          '.__vbox{position:fixed;border:4px solid #e03131;border-radius:10px;box-shadow:0 0 0 3px rgba(255,255,255,.9),0 0 16px rgba(224,49,49,.45);animation:__vbox-in .25s ease-out}' +
+          '@keyframes __vbox-in{from{opacity:0;transform:scale(1.06)}to{opacity:1;transform:none}}'
+        document.head.appendChild(style)
+        const items = []
+        const frame = () => {
+          for (const it of items) {
+            const r = it.el ? (it.el.isConnected ? it.el.getBoundingClientRect() : null) : it.rect
+            const w = r ? (r.w ?? r.width) : 0
+            if (!r || !w) {
+              it.div.style.display = 'none'
+              continue
+            }
+            const x = r.x ?? r.left
+            const y = r.y ?? r.top
+            const h = r.h ?? r.height
+            Object.assign(it.div.style, { display: '', left: `${x - 7}px`, top: `${y - 6}px`, width: `${w + 14}px`, height: `${h + 12}px` })
+          }
+          requestAnimationFrame(frame)
+        }
+        requestAnimationFrame(frame)
+        const add = (it) => {
+          it.div = layer.appendChild(document.createElement('div'))
+          it.div.className = '__vbox'
+          items.push(it)
+        }
+        window.__vbox = {
+          el: (el) => add({ el }),
+          rect: (rect) => add({ rect }),
+          clear: () => {
+            for (const it of items) it.div.remove()
+            items.length = 0
+          },
+        }
+      }
+      if (typeof target === 'string') {
+        const els = [...document.querySelectorAll(target)].filter(
+          (e) => e.getBoundingClientRect().width > 0 && (!text || e.textContent.includes(text)) && (!ends || e.textContent.trim().endsWith(ends)),
+        )
+        if (!els.length) throw new Error(`枠を付ける所が見つかりません：${target}`)
+        for (const e of all ? els : els.slice(0, 1)) window.__vbox.el(e)
+      } else for (const r of [target].flat()) if (r) window.__vbox.rect(r)
+    },
+    target,
+    text,
+    ends,
+    all,
+  )
+}
+
+/** 枠を全部消す */
+export const unbox = (page) => page.evaluate(() => window.__vbox?.clear())
 
 /**
  * 録画を始める。dir に写真（frames/000001.jpg …）と、時刻の記録（timeline.json）を書く。
