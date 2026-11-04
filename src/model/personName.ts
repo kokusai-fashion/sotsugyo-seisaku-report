@@ -61,6 +61,8 @@ export function nameParts(info: { name: string; familyName?: string; givenName?:
 /** ふりがなをカタカナにそろえる（ひらがなで打っても、カタカナにする。前後の空白を除き、間の空白は1つ） */
 export function toKatakana(text: string): string {
   return text
+    // 濁点が別の字になっている形（Mac のファイル名・PDF から写した「カ゛」）は、1字にまとめる
+    .normalize('NFC')
     .replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60))
     .replace(/[\r\n]/g, '')
     .trim()

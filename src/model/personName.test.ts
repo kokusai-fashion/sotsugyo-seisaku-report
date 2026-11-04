@@ -62,6 +62,9 @@ describe('氏名の書き方をそろえる', () => {
     expect(toKatakana(' ぶんか ')).toBe('ブンカ')
     expect(toKatakana('はなこ')).toBe('ハナコ')
     expect(toKatakana('ブンカ')).toBe('ブンカ')
+    // 濁点が別の字になっている形（Mac のファイル名などから写した）も、1字にまとめる
+    expect(toKatakana('ガンダ')).toBe('ガンダ')
+    expect(kanaProblem(toKatakana('ガ'))).toBe(false)
     expect(kanaProblem('ブンカ')).toBe(false)
     expect(kanaProblem('ガルシア・マリア')).toBe(false)
     expect(kanaProblem('Smith')).toBe(false)

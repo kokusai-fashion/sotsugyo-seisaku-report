@@ -135,6 +135,10 @@ export function changedPlace(before: Report, after: Report): ChangedPlace | null
   for (const key of ['courseId', 'studentId', 'name', 'subtitleInput'] as const) {
     if (before.basicInfo[key] !== after.basicInfo[key]) return { kind: 'block', id: key === 'courseId' ? 'basic:course' : `basic:${key}` }
   }
+  // 姓・名・ふりがな（ふりがなだけを直したのを戻したときも、氏名の所を見せる。見直しで分かった：前は何も出ず、戻したか分からなかった）
+  for (const key of ['familyName', 'givenName', 'familyKana', 'givenKana'] as const) {
+    if ((before.basicInfo[key] ?? '') !== (after.basicInfo[key] ?? '')) return { kind: 'block', id: 'basic:name' }
+  }
   // 抄録
   if ((before.abstract.started ?? true) !== (after.abstract.started ?? true)) return { kind: 'area', area: 'abstract' }
   const abstract = changedInList(before.abstract.paragraphs, after.abstract.paragraphs, (p) => ({ kind: 'block', id: p.id }))

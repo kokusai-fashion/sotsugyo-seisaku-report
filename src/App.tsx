@@ -380,7 +380,11 @@ export default function App() {
       // コースを選ぶ段階で止まっていた（コースの一覧を読めなかったなど）ときは、続きを出さない（コースは、その案内の外で決まっている）
       const left = guideLeftAt()
       const empty = firstEmptyCoverStep(report)
-      if (left && left !== 'course' && empty) setGuide(left === 'word' && wordImportOffered(cfg) ? 'word' : empty)
+      if (left && left !== 'course' && empty) {
+        // ふりがなだけを聞いている途中で読み込み直した（前から書いている学生）：済ませたら閉じる（「表紙ができました」に進まない。見直しで分かった）
+        if (empty === 'name' && report.basicInfo.subtitleInput.trim()) setNameOnly(true)
+        setGuide(left === 'word' && wordImportOffered(cfg) ? 'word' : empty)
+      }
       // ふりがなをまだ入れていない（氏名の欄が1つだったころから書いている）：開いたときに、氏名の4つの欄を入れてもらう（入れるまで閉じられない。
       // 依頼者の選択 2026-11-04。先生の点検表を、ふりがなの順に並べるため）。先生のお試し（見本の原稿）では聞かない
       else if (!trialMode && !namePartsDone(nameParts(report.basicInfo))) {
