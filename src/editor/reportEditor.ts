@@ -2336,6 +2336,9 @@ export class ReportEditor {
   private onCommitEdit(id: string, text: string, byKey: boolean, frozen: HTMLElement | null = null): void {
     const tidy = this.tidyText(id, text)
     const kindNow = ops.findEditable(this.report, id)?.kind
+    // 開いて何も変えずに閉じた（書き終えるときの「。」を付けない：抄録の書き出しの例「本制作報告書は、筆者が制作した」を押して「完了」すると、
+    // 「。」が付いていた：学生役の録画 2026-11-04）
+    const untouched = !!this.reportBeforeEdit && ops.findEditable(this.reportBeforeEdit, id)?.text === tidy
     const committed = ops.setText(this.report, id, tidy)
     // 本文の段落に「Ⅲ．まとめ」のように打って閉じた（ほかを押した・Esc・スマホの「完了」）：段落ごと見出しにする（headingOnClose）
     const heading = this.headingOnClose(id, text, committed)
@@ -2386,7 +2389,7 @@ export class ReportEditor {
     if (heading) {
       this.pushHistory(committed)
       this.report = heading.report
-    } else if ((byKey || this.finishingByButton) && !this.template && (kindNow === 'paragraph' || kindNow === 'abstractParagraph') && !markedLine(tidy) && ops.withPeriod(tidy) !== tidy) {
+    } else if ((byKey || this.finishingByButton) && !this.template && (kindNow === 'paragraph' || kindNow === 'abstractParagraph') && !untouched && !markedLine(tidy) && ops.withPeriod(tidy) !== tidy) {
       // Esc（パソコン）・「完了」（スマホ）で書き終えた：Enter のときと同じく、段落の終わりに「。」を付ける（依頼者の選択 2026-10-29。
       // 前は Enter のときだけで、学生には付くときと付かないときの違いが分からなかった：学生の試し 2026-10-29）。
       // ほかの所を押して離れたときは付けない（文の途中で確かめに行くことがあるため）。元に戻すと、まず「。」だけが外れる

@@ -228,6 +228,20 @@ await withEdge(async (browser) => {
     await wait(600)
     await ready()
 
+    // 「。」のない段落を開いて、何も打たずに Esc：「。」を付けない（抄録の書き出しの例を押して「完了」すると「。」が付いていた：学生役の録画 2026-11-04）
+    await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p2' ? { ...b, content: [{ type: 'text', text: '本制作報告書は、筆者が制作した' }] } : b)) })) })))
+    await wait(600)
+    await ready()
+    await editAt(page, ready, 'p2', 3)
+    await wait(300)
+    await page.keyboard.press('Escape')
+    await wait(900)
+    const untouched = await textOf(page, 'p2')
+    check('「。」のない段落を開いて、何も打たずに Esc で閉じると、「。」を付けない', untouched === '本制作報告書は、筆者が制作した', JSON.stringify(untouched))
+    await page.evaluate(() => window.__editor.undo())
+    await wait(600)
+    await ready()
+
     // 書いている途中で窓を狭くする（スマホの並べ方になる）→ 広げる
     await editAt(page, ready, 'p1', len1)
     await page.keyboard.type('あ')
