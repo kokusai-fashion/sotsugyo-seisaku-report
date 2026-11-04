@@ -31,6 +31,10 @@
 .help-ai-icon svg { width: 18px; height: 18px; }
 .help-ai-text { flex: 1; min-width: 0; line-height: 1.5; }
 .help-ai-text b { display: block; font-size: 13.5px; }
+/* 「困ったこと・おかしいことを知らせる」（学生用ツール。AI に聞くの下。薄いだいだい色：依頼者の選択 2026-11-04 mockups/v109 案C） */
+.help-feedback { width: 100%; font: inherit; text-align: left; cursor: pointer; border-color: #efc98d; background: #fff8ec; }
+.help-feedback:hover { border-color: #dca659; }
+.help-feedback .help-ai-icon { color: #b0651a; }
 .help-ai-text small { display: block; font-size: 11.5px; color: var(--muted); }
 .help-ai-out { flex: none; color: var(--muted); }
 .help-ai-out svg { width: 15px; height: 15px; }

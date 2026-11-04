@@ -1130,6 +1130,14 @@ export default function App() {
         if (narrow) setHelp(false)
         setDialog({ kind: 'references' })
       }}
+      // 「困ったこと・おかしいことを知らせる」（言葉で探す欄の下：mockups/v109 案C）。スマホは使い方の欄を閉じてから窓を開く（引用・参考文献と同じ）
+      onFeedback={
+        openFeedback &&
+        (() => {
+          if (narrow) setHelp(false)
+          openFeedback()
+        })
+      }
     />
   )
 

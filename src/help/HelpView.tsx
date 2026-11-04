@@ -43,6 +43,11 @@ interface Props {
   aiUrl?: string
   /** 一覧のいちばん下の「説明の資料一式」（管理ページだけ。ログインした先生にだけ届くリンク：依頼者 2026-11-03） */
   materialsUrl?: string
+  /**
+   * 「困ったこと・おかしいことを知らせる」の窓を開く（学生用ツールだけ）。言葉で探す欄の下（「使い方を AI に聞く」の下）に入口を出す
+   * （探しても見つからないときに、そのまま知らせられるように。スマホはメニューの奥にしか入口がなかった：依頼者の選択 2026-11-04 mockups/v109 案C）
+   */
+  onFeedback?: () => void
 }
 
 /** 使っている端末の、PDF の保存のしかた（印刷の画面が端末によって違う） */
@@ -92,7 +97,7 @@ function Hl({ text: original, terms }: { text: string; terms: string[] }) {
   )
 }
 
-export function HelpView({ topics, who, imageBase, guides, variant, onClose, onTour, onReferences, aiUrl, materialsUrl }: Props) {
+export function HelpView({ topics, who, imageBase, guides, variant, onClose, onTour, onReferences, aiUrl, materialsUrl, onFeedback }: Props) {
   const [query, setQuery] = useState('')
   const [view, setView] = useState<View>({ kind: 'list' })
   const [device, setDevice] = useState<HelpDevice['id']>(currentDevice)
@@ -203,6 +208,15 @@ export function HelpView({ topics, who, imageBase, guides, variant, onClose, onT
           </span>
           <span className="help-ai-out">{Icon.open}</span>
         </a>
+      )}
+      {onFeedback && (
+        <button type="button" className="help-ai help-feedback" onClick={onFeedback}>
+          <span className="help-ai-icon">{Icon.feedback}</span>
+          <span className="help-ai-text">
+            <b>困ったこと・おかしいことを知らせる</b>
+            <small>見つからないとき・ツールがおかしいときは、学科に知らせます</small>
+          </span>
+        </button>
       )}
     </div>
   )

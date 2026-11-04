@@ -451,14 +451,18 @@ function SeverityLegend() {
   )
 }
 
-/** 右の欄のいちばん下（PC）・メニューの中（スマホ）の「困ったとき・おかしいときは、ここから知らせる」（mockups/v85 入口B） */
+/**
+ * 右の欄のいちばん下（PC）・メニューの中（スマホ）の「困ったこと・おかしいことを知らせる」（mockups/v85 入口B）。
+ * PC は、枠のある吹き出しの絵つきのボタン（前は小さな下線の字で、見つけにくかった：依頼者の選択 2026-11-04 mockups/v109 案A）。
+ * 言葉は、メニューや窓の題と同じにそろえた（前の「困ったとき・おかしいときは、ここから知らせる」は長く、ボタンでは1字だけ折り返した）
+ */
 export function FeedbackLink({ onClick, inMenu = false }: { onClick: () => void; inMenu?: boolean }) {
   // スマホのメニューの中では、上下の「Word で書いた分を読み込む」「ページを読み込み直す」と同じ形（絵つき・左寄せ）にする
   // （中央寄せだけが段がずれて、下の行に重なって見えた：試している学生のスクリーンショット 2026-11-02）
   return (
     <button type="button" className={inMenu ? 'word-link feedback-menu-link' : 'feedback-link'} onClick={onClick}>
-      {inMenu && Icon.feedback}
-      困ったとき・おかしいときは、ここから知らせる
+      {Icon.feedback}
+      困ったこと・おかしいことを知らせる
     </button>
   )
 }

@@ -47,8 +47,27 @@ await withEdge(async (browser) => {
     await page.waitForSelector('.head-menu')
     const menu = await page.evaluate(() => [...document.querySelectorAll('.head-menu [role=menuitem]')].map((b) => b.textContent.trim()))
     await page.keyboard.press('Escape')
-    const link = await page.evaluate(() => document.querySelector('.side .side-foot .feedback-link')?.textContent ?? '')
-    check('入口：右の「メニュー」に「困ったこと・おかしいことを知らせる」、右の欄のいちばん下に「困ったとき・おかしいときは、ここから知らせる」', menu.includes('困ったこと・おかしいことを知らせる') && link === '困ったとき・おかしいときは、ここから知らせる', JSON.stringify({ menu, link }))
+    // 右の欄のいちばん下は、枠のある吹き出しの絵つきのボタン（mockups/v109 案A。字はメニューと同じ）
+    const link = await page.evaluate(() => {
+      const b = document.querySelector('.side .side-foot .feedback-link')
+      const st = b && getComputedStyle(b)
+      return { text: b?.textContent.trim() ?? '', icon: !!b?.querySelector('svg'), border: st?.borderTopWidth ?? '', oneLine: b ? b.getBoundingClientRect().height < 40 : false }
+    })
+    check('入口：右の「メニュー」と、右の欄のいちばん下の枠のあるボタン（絵つき・1行）に「困ったこと・おかしいことを知らせる」', menu.includes('困ったこと・おかしいことを知らせる') && link.text === '困ったこと・おかしいことを知らせる' && link.icon && link.border !== '0px' && link.oneLine, JSON.stringify({ menu, link }))
+
+    // 使い方の欄の、言葉で探す欄の下にも入口（mockups/v109 案C）。押すと送る窓が開く（使い方は開いたまま）
+    await page.click('.side .menu-btn')
+    await page.waitForSelector('.head-menu')
+    await page.evaluate(() => [...document.querySelectorAll('.head-menu [role=menuitem]')].find((b) => b.textContent.trim() === '使い方').click())
+    await page.waitForSelector('.help .help-feedback')
+    const inHelp = await page.evaluate(() => document.querySelector('.help .help-feedback').textContent)
+    await page.click('.help .help-feedback')
+    await page.waitForSelector('.modal.feedback')
+    check('入口：使い方の欄の上にも「困ったこと・おかしいことを知らせる」があり、押すと送る窓が開く', inHelp.includes('困ったこと・おかしいことを知らせる') && inHelp.includes('学科に知らせます'))
+    await page.evaluate(() => document.querySelector('.modal.feedback .close')?.click())
+    await page.waitForFunction(() => !document.querySelector('.modal.feedback'))
+    await page.evaluate(() => document.querySelector('.help .help-close')?.click())
+    await page.waitForFunction(() => !document.querySelector('.help'))
 
     // 右の欄のいちばん下から開く：種類・欄・ページの写真・いっしょに送るもの・返事の目安
     await page.click('.side .side-foot .feedback-link')
@@ -122,11 +141,20 @@ await withEdge(async (browser) => {
     await page.evaluate(() => [...document.querySelectorAll('button.icon-btn')].find((b) => (b.getAttribute('aria-label') ?? '').startsWith('メニュー'))?.click())
     await page.waitForSelector('.sheet .feedback-menu-link', { timeout: 20000 })
     const phone = await page.evaluate(() => ({ done: document.querySelector('.sheet .fb-done')?.textContent ?? '', link: document.querySelector('.sheet .feedback-menu-link').textContent }))
-    check('スマホ：メニューの中に入口と「使い方で解決できます」の知らせ（ひとこと付き）', phone.link === '困ったとき・おかしいときは、ここから知らせる' && phone.done.includes('使い方で解決できます') && phone.done.includes('「抄録」の動画'), JSON.stringify(phone))
+    check('スマホ：メニューの中に入口と「使い方で解決できます」の知らせ（ひとこと付き）', phone.link.trim() === '困ったこと・おかしいことを知らせる' && phone.done.includes('使い方で解決できます') && phone.done.includes('「抄録」の動画'), JSON.stringify(phone))
     await page.evaluate(() => document.querySelector('.sheet .feedback-menu-link').click())
     await page.waitForSelector('.modal.feedback')
     const fits = await page.evaluate(() => { const r = document.querySelector('.modal.feedback').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth })
     check('スマホ：送る窓が画面の幅に収まる', fits)
+    // スマホ：下の「使い方」の欄からも開ける（使い方の欄を閉じてから窓を開く。mockups/v109 案C）
+    await page.evaluate(() => document.querySelector('.modal.feedback .close')?.click())
+    await page.waitForFunction(() => !document.querySelector('.modal.feedback'))
+    await page.evaluate(() => document.querySelector('.nav-help').click())
+    await page.waitForSelector('.help .help-feedback')
+    await page.evaluate(() => document.querySelector('.help .help-feedback').click())
+    await page.waitForSelector('.modal.feedback')
+    const helpClosed = await page.evaluate(() => !document.querySelector('.help'))
+    check('スマホ：使い方の欄の入口から送る窓が開き、使い方の欄は閉じる', helpClosed)
     await context.close()
   }
 

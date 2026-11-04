@@ -2375,10 +2375,13 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
 }
 
 /* ---- 困ったこと・おかしいことを知らせる（mockups/v85 入口A・B／窓A／知らせA） ---- */
-.feedback-link { display: block; width: 100%; margin: 8px 0 0; padding: 0; border: 0; background: none; color: var(--accent); font-size: 11.5px; text-align: center; text-decoration: underline; text-underline-offset: 3px; }
+/* 右の欄のいちばん下（PC）：枠のある吹き出しの絵つきのボタン（前は小さな下線の字で、見つけにくかった：依頼者の選択 2026-11-04 mockups/v109 案A） */
+.feedback-link { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 10px 0 0; padding: 7px 10px; border: 1.5px solid var(--accent); border-radius: 10px; background: #fff; color: var(--accent); font-size: 13px; font-weight: 700; line-height: 1.4; }
+.feedback-link svg { flex: none; width: 17px; height: 17px; }
+.feedback-link:hover { background: var(--accent-soft); }
 .feedback-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sheet .feedback-link { margin: 14px 0 0; font-size: 13px; }
-/* スマホのメニューの中の「困ったとき・おかしいときは、ここから知らせる」：上下の文字のリンクと同じ形で、1つずつの行に（段をそろえる。2026-11-02） */
+/* スマホのメニューの中の「困ったこと・おかしいことを知らせる」：上下の文字のリンクと同じ形で、1つずつの行に（段をそろえる。2026-11-02） */
 .sheet-body .feedback-menu-link, .sheet-body .reload-link { display: flex; width: fit-content; }
 .modal.feedback .fb-kinds { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 12px; }
 .modal.feedback .fb-kinds button { border-radius: 999px; padding: 5px 12px; }

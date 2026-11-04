@@ -143,7 +143,7 @@ await withEdge(async (browser) => {
   })
   check('横向きでは、帯は紙面の左に浮かせて出し（紙面に重ねない・下のタブの上）、紙面は細くならない', land.fixed && land.stripRight <= land.pageLeft && land.stripBottom <= land.navTop && land.pageW >= 140 && !land.scrollX, JSON.stringify(land))
   // ついでに（同じ日のスマホの直し）：メニューの下の文字のリンクは、どれも絵つき・左寄せで、1つずつの行にそろう
-  // （「困ったとき・おかしいときは、ここから知らせる」だけが中央寄せで、下の行に重なって見えた：試している学生のスクリーンショット 2026-11-02）
+  // （「困ったとき・おかしいときは、ここから知らせる」〔今は「困ったこと・おかしいことを知らせる」〕だけが中央寄せで、下の行に重なって見えた：試している学生のスクリーンショット 2026-11-02）
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
   await wait(600)
   await page.evaluate(() => document.querySelector('.p-top .icon-btn[aria-label^="メニュー"]').click())
