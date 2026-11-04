@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '../app/icons'
-import { useDialogFocus } from '../app/useDialogFocus'
 import { DEFAULT_WORD_CHECKS } from '../checker/textRules'
 import type { Course, WordCheck, YearConfig } from '../config'
 import { LIMITS, tooLong, validateConfig, type ConfigProblem } from '../config/validate'
@@ -11,15 +10,16 @@ import { halfDigits } from '../layout/document'
 import { DEFAULT_TEMPLATE } from '../model/template'
 import { AdminIcon } from './adminIcons'
 import { AdminNewVersion } from './AdminNewVersion'
-import { courseName, fieldChanged, listChanges, mergeEdits, sameConfig, shortChanges, describeChanges, type Change, type ChangeSection } from './changes'
-import { IGNORE_OUTSIDE_MS, useConfirm } from './confirm'
+import { courseChanged, courseName, fieldChanged, listChanges, mergeEdits, sameConfig, shortChanges, describeChanges, type Change, type ChangeSection } from './changes'
+import { useConfirm } from './confirm'
+import { Modal } from './Modal'
 import { CourseSection } from './CourseSection'
 import { DetailsSection } from './DetailsSection'
 import { HistorySection } from './HistorySection'
 import { MembersSection } from './Members'
 import { newYearSteps, type NewYearStep } from './newYearSteps'
 import { Preview } from './Preview'
-import { isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type TemplateSet, type YearRow } from './server'
+import { isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type PermissionSet, type TemplateSet, type YearRow } from './server'
 import { TemplateEditor } from './TemplateEditor'
 import { TemplateOverlay } from './TemplateOverlay'
 import { TrialSection } from './TrialSection'
@@ -248,26 +248,6 @@ function AdminHelp({ onClose, admin = false, links }: { onClose: () => void; adm
 function newYearOk(text: string): boolean {
   const n = halfDigits(text)
   return /^\d{4}$/.test(n) && Number(n) >= 2000 && Number(n) <= 2100
-}
-
-function Modal({ title, children, onClose, className = '' }: { title: string; children: ReactNode; onClose: () => void; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useDialogFocus(ref, onClose)
-  // 開いてすぐの、外の暗い所の押し下げでは閉じない（ボタンのダブルクリックの2回目で、開いてすぐ閉じないように：confirm.tsx と同じ）
-  const [openedAt] = useState(() => performance.now())
-  return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && performance.now() - openedAt > IGNORE_OUTSIDE_MS && onClose()}>
-      <div className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
-        <header>
-          <h2>{title}</h2>
-          <button className="close" onClick={onClose} aria-label="閉じる">
-            ×
-          </button>
-        </header>
-        {children}
-      </div>
-    </div>
-  )
 }
 
 /**
@@ -836,10 +816,10 @@ export function AdminApp() {
           confirmLeave={confirmLeave}
           onPending={setPending}
           confirmUnappliedWords={confirmUnappliedWords}
-          onSave={(templates, words, notices) =>
-            // ひな形・お知らせ・書き間違えやすい語を、まとめて1回で保存する（途中で失敗して一部だけ保存されないように）
+          onSave={(templates, words, notices, permissions) =>
+            // ひな形・お知らせ・書き間違えやすい語・先生の許可を、まとめて1回で保存する（途中で失敗して一部だけ保存されないように）
             // 画面を開いたときの更新日時も送る（そのあとにほかの先生などが保存していたら、その変更を消さないよう保存しない）
-            void run('save', savedMessage(row.status, 'teacher'), () => server.saveTeacherEdits(row.year, { templates, notices, ...(words ? { words } : {}) }, row.updatedAt), {
+            void run('save', savedMessage(row.status, 'teacher'), () => server.saveTeacherEdits(row.year, { templates, notices, ...(words ? { words } : {}), ...(Object.keys(permissions).length ? { permissions } : {}) }, row.updatedAt), {
               recover: { verb: '保存', button: saveButtonLabel(row.status) },
             })
           }
@@ -1240,8 +1220,8 @@ function TeacherView({
   /** words は、書き間違えやすい語を変えたときだけ（変えていなければ null） */
   /** 書き方のチェックで直している語を反映しないまま、保存してよいか */
   confirmUnappliedWords: (verb: '保存') => Promise<boolean>
-  /** notices は、書き換えたコースのお知らせだけ（コースの ID → お知らせ） */
-  onSave: (templates: TemplateSet, words: WordCheck[] | null, notices: Record<string, string>) => void
+  /** notices は、書き換えたコースのお知らせだけ（コースの ID → お知らせ）。permissions は、切り替えたコースの先生の許可だけ */
+  onSave: (templates: TemplateSet, words: WordCheck[] | null, notices: Record<string, string>, permissions: PermissionSet) => void
 }) {
   const [section, setSectionState] = useState<Section>(() => loadSection(TEACHER_SECTIONS))
   const [editing, setEditing] = useState<number | null>(null)
@@ -1292,13 +1272,18 @@ function TeacherView({
       const before = row.config.courses.find((x) => x.id === c.id)
       if ((c.notice ?? '') !== (before?.notice ?? '')) notices[c.id] = c.notice ?? ''
     })
+    // 先生の許可（先生も切り替えられる：依頼者の選択 2026-11-04）。切り替えたコースだけ送る
+    const permissions: PermissionSet = {}
+    draft.courses.forEach((c) => {
+      if (courseChanged(row.config, draft, c.id, 'permission')) permissions[c.id] = { abstract: c.permission?.abstract === true, final: c.permission?.final === true }
+    })
     // 長すぎるお知らせは、送る前に知らせる（サーバーでも同じ言葉で断られる）
     const long = draft.courses.find((c) => c.id in notices && notices[c.id].length > LIMITS.notice)
     if (long) return onMessage({ kind: 'ng', text: `「${long.name}」のお知らせ${tooLong(LIMITS.notice, notices[long.id].length)}` })
     // 学生に届く年度（公開中・終了）は、何が変わるかを示して確かめる
     const text = saveConfirmText(row.status, row.year, changes.map(changeLine))
     if (text && !(await ask(text, { title: `${saveButtonLabel(row.status)}しますか？`, ok: saveButtonLabel(row.status) }))) return
-    onSave(templates, words, notices)
+    onSave(templates, words, notices, permissions)
   }
   const navItems: NavItem[] = [
     { key: 'course', icon: AdminIcon.course, title: SECTION_TITLES.course, sub: 'お知らせ・ひな形', count: counts.course },

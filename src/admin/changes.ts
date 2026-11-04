@@ -53,6 +53,7 @@ const COURSE_LABELS: Record<string, string> = {
   template: '下書きのひな形',
   abstractExample: '抄録の書き出し例',
   blankRowsOk: '表の空の行',
+  permission: '先生の許可',
   notice: 'お知らせ',
 }
 const OTHER = 'そのほかの設定'
@@ -61,6 +62,12 @@ const OTHER = 'そのほかの設定'
 export function courseName(course: { name?: unknown } | undefined): string {
   const name = typeof course?.name === 'string' ? course.name.trim() : ''
   return name || '（名前のないコース）'
+}
+
+/** 先生の許可を使う所（例：「抄録・提出用の PDF」。使わなければ「使わない」） */
+export function permissionText(course: Pick<Course, 'permission'>): string {
+  const on = [course.permission?.abstract === true && '抄録', course.permission?.final === true && '提出用の PDF'].filter(Boolean)
+  return on.length ? on.join('・') : '使わない'
 }
 
 /** 書き間違えやすい語の一覧（省略はツールに入っている一覧。説明なしは空の説明） */
@@ -87,6 +94,12 @@ function normCourse(key: string, value: unknown): unknown {
   if (key === 'notice' || key === 'abstractExample') return value === '' ? undefined : value
   if (key === 'hidden' || key === 'blankRowsOk') return value ? true : undefined
   if (key === 'template') return Array.isArray(value) && value.length === 0 ? undefined : value
+  // 先生の許可：切ってある項目・項目のない入れ物は「使わない」と同じ
+  if (key === 'permission') {
+    const p = isObj(value) ? value : {}
+    const on = { ...(p.abstract === true ? { abstract: true } : {}), ...(p.final === true ? { final: true } : {}) }
+    return Object.keys(on).length ? on : undefined
+  }
   return value
 }
 
@@ -184,7 +197,7 @@ const TOP_TARGETS: Record<string, string> = {
   studentIdPattern: 'd-studentId',
 }
 /** 「この欄へ」で入る欄の id（コースの項目） */
-const COURSE_TARGETS: Record<string, string> = { name: 'name', advisors: 'advisor', subtitleTemplate: 'before', notice: 'notice', blankRowsOk: 'blankrows' }
+const COURSE_TARGETS: Record<string, string> = { name: 'name', advisors: 'advisor', subtitleTemplate: 'before', notice: 'notice', blankRowsOk: 'blankrows', permission: 'perm-abstract' }
 
 /** 変更前・変更後に出す、短い文字（長い文は縮める。空は「（なし）」） */
 function brief(v: unknown): string | undefined {
@@ -218,6 +231,7 @@ function topValue(config: unknown, path: string): string | undefined {
 function courseValue(course: Course, key: string): string | undefined {
   if (key === 'hidden') return course.hidden ? '表示しない' : '表示する'
   if (key === 'blankRowsOk') return course.blankRowsOk ? '空のままでよい' : '空いている所に数える'
+  if (key === 'permission') return permissionText(course)
   if (key === 'name' || key === 'advisors' || key === 'subtitleTemplate' || key === 'notice') return brief(course[key as keyof Course])
   return undefined
 }

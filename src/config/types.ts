@@ -104,6 +104,12 @@ export interface Course {
    * （依頼者の選択 2026-10-22 案1）。ない・false は、空の行も「空いている所」に数える
    */
   blankRowsOk?: boolean
+  /**
+   * 先生の許可（コースごと。依頼者の選択 2026-11-04：docs/設計_許可の仕組み.md・mockups/v103）。ない・false は今のまま。
+   * abstract：抄録は、先生の許可（点検表の「抄録許可」の ✓）が出てから書ける。final：提出用の PDF は、先生の許可（「最終提出可」の ✓）が出てから作れる。
+   * 管理者も、そのコースの先生も切り替えられる（管理ページの「先生の許可」）
+   */
+  permission?: { abstract?: boolean; final?: boolean }
 }
 
 /**

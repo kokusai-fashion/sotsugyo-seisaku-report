@@ -15,6 +15,18 @@
  *   先生   … どのコースの「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できる（ほかの設定は変えられない）
  * 学生のツールへの配信は、別のプロジェクト（gas/api-project）が担う。
  *
+ * 先生の許可の仕組み（点検表。docs/設計_許可の仕組み.md。依頼者の選択 2026-11-04）：
+ *   学生の名簿 … 配信の窓口が書く（年度・コース・学籍番号・姓・名・セイ・メイ・並び・PDF の ID・PDF の日時・書き換え日時・更新日時）。並びだけは管理ページが書く
+ *   点検表     … 年度 | コース | スプレッドシートの ID（コースごとの点検表。ensureCheckSheet が作って書く）
+ *   コースの点検表は、PDF の控えのコースのフォルダに置く（見られる人は、PDF の控えと同じ。共有はフォルダのまま）。
+ *   10分ごとの仕掛け（syncCheckSheets）が、名簿から点検表に写す。先生が ✓ を入れると、編集の仕掛け（onCheckSheetEdit）が日時と名字を残す。
+ *   点検表の並びはツールが決める（名簿の並び、なければふりがなの順）。写すたびに、その順に書き直す（シートで行を動かしても戻る）。
+ *   ツールが書く列（番号・氏名・最新 PDF・知らせ・見えない学籍番号と許可の記録・段のあいだのすき間）と見出しの行は、デプロイした人だけが書けるように守る
+ *   （先生が書けるのは、白い回の列と ✓ の列だけ）。守った列にかかる行の移動・並べ替えは、Google スプレッドシートが断る。
+ *   それでも見える氏名と見えない学籍番号がずれた行は、許可を学生に渡さず、「知らせ」に「並びが崩れています」と出す（依頼者の選択 2026-11-04）
+ *   配り直したあと、エディタで1回だけ setupCheckSheets を実行する（ドライブ・仕掛けの権限を承認し、仕掛けを作り直す。届いた声のメールの仕掛けも作り直す）。
+ *   配信の窓口（gas/api-project）も、点検表の「知らせ」「氏名」を書くので、管理ページと同じ人がデプロイする
+ *
  * このファイルは app/gas/admin-project/Code.js が元。scripts/build-gas.mjs で初期値を埋め込んで gas-dist に出力する。
  */
 
@@ -49,6 +61,9 @@ const ADMIN_URL = /*ADMIN_URL*/ ''
 // MATERIALS_URL：説明の資料一式（スライド・動画・手引き・録画）のページ。TEACHER_AI_URL：管理ページの使い方を答える AI（Gemini の Gem）
 const MATERIALS_URL = /*MATERIALS_URL*/ ''
 const TEACHER_AI_URL = /*TEACHER_AI_URL*/ ''
+// 書き出した PDF の控えを置く、先生のドライブのフォルダ（配信の窓口 gas/api-project と同じ。scripts/build-gas.mjs が、git に入れないファイル
+// gas/pdf-folder.local.json の folderId を入れる。なければ ''：スクリプト プロパティ PDF_FOLDER_ID を使う）。コースの点検表は、この中のコースのフォルダに置く
+const PDF_FOLDER_ID = /*PDF_FOLDER_ID*/ ''
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('admin')
@@ -155,8 +170,9 @@ function saveWordChecks(year, words) {
 }
 
 /**
- * 先生の画面の「保存」：ひな形・お知らせ・書き間違えやすい語を、まとめて1回で保存する（先生も使える）。
- * 別々に送ると、途中で失敗したときに一部だけが保存されるため。edits は { templates?, notices?, words? }
+ * 先生の画面の「保存」：ひな形・お知らせ・書き間違えやすい語・先生の許可を、まとめて1回で保存する（先生も使える）。
+ * 別々に送ると、途中で失敗したときに一部だけが保存されるため。edits は { templates?, notices?, words?, permissions? }
+ * （permissions：{ コースID: { abstract?, final? } }。先生も切り替えられる：依頼者の選択 2026-11-04）
  * expectedUpdatedAt は、画面を開いたときの更新日時（そのあとにほかの人が保存していたら、保存せずに知らせる）
  */
 function saveTeacherEdits(year, edits, expectedUpdatedAt) {
@@ -168,6 +184,9 @@ function saveTeacherEdits(year, edits, expectedUpdatedAt) {
     }
     if (edits.notices && typeof edits.notices === 'object' && Object.keys(edits.notices).length) {
       done.push('お知らせを保存（' + applyNotices_(config, edits.notices).join('・') + '）')
+    }
+    if (edits.permissions && typeof edits.permissions === 'object' && Object.keys(edits.permissions).length) {
+      done.push('先生の許可を保存（' + applyPermissions_(config, edits.permissions).join('・') + '）')
     }
     if (edits.words !== undefined && edits.words !== null) {
       config.wordChecks = cleanWords_(edits.words)
@@ -218,6 +237,36 @@ function applyNotices_(config, notices) {
     if (!Object.prototype.hasOwnProperty.call(notices, course.id)) return
     const notice = notices[course.id]
     course.notice = notice === null ? '' : checkText_(notice, LIMITS.notice, '「' + course.name + '」のお知らせ')
+    names.push(course.name)
+  })
+  return names
+}
+
+/**
+ * 先生の許可（コースの permission：{ abstract?: true, final?: true }）の形を確かめる（崩れていたらエラー）。
+ * abstract：抄録は、先生の許可が出てから書ける。final：提出用の PDF は、先生の許可が出てから作れる（mockups/v103）
+ */
+function checkPermission_(permission, courseName) {
+  const p = permission
+  if (!p || typeof p !== 'object' || Array.isArray(p) || (p.abstract !== undefined && typeof p.abstract !== 'boolean') || (p.final !== undefined && typeof p.final !== 'boolean')) {
+    throw new Error('「' + courseName + '」の先生の許可の設定が正しくありません')
+  }
+}
+
+/**
+ * 指定したコースの先生の許可を書き換える（形を確かめる）。両方とも切ったら、項目ごと消す（今までと同じ「使わない」）。書き換えたコースの名前を返す
+ */
+function applyPermissions_(config, permissions) {
+  const names = []
+  config.courses.forEach((course) => {
+    if (!Object.prototype.hasOwnProperty.call(permissions, course.id)) return
+    const p = permissions[course.id]
+    if (p !== null) checkPermission_(p, course.name)
+    const next = {}
+    if (p && p.abstract === true) next.abstract = true
+    if (p && p.final === true) next.final = true
+    if (Object.keys(next).length) course.permission = next
+    else delete course.permission
     names.push(course.name)
   })
   return names
@@ -764,6 +813,7 @@ function checkConfig_(config) {
     if (course.abstractExample !== undefined && course.abstractExample !== null) checkText_(course.abstractExample, LIMITS.abstractExample, '「' + name + '」の抄録の書き出し例')
     if (course.notice !== undefined && course.notice !== null) checkText_(course.notice, LIMITS.notice, '「' + name + '」のお知らせ')
     if (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') throw new Error('「' + name + '」の表の空の行の設定が正しくありません')
+    if (course.permission !== undefined && course.permission !== null) checkPermission_(course.permission, name)
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords_(config.wordChecks)
   if (JSON.stringify(config).length > 45000) throw new Error('設定が大きすぎます')
@@ -935,4 +985,946 @@ function sendFeedbackMail_(item, status, reply) {
   if (status === '直しました') lines.push('', 'ツールを開き直すと、新しい版になります。')
   lines.push('', '知らせていただき、ありがとうございました。', '', '卒業制作報告書の作成ツール（国際ファッション文化学科）', '※このメールには返事を送れません。急ぐときは、担当の先生に直接お知らせください。')
   MailApp.sendEmail({ to: item.email, subject: '【卒業制作報告書】送っていただいた件（受付番号 ' + item.id + '）', body: lines.join('\n'), noReply: true })
+}
+
+// ---- 先生の許可の仕組み：点検表（docs/設計_許可の仕組み.md。依頼者の選択 2026-11-04。見本は mockups/v103・v106・v107 案A） ----
+
+const SHEET_ROSTER = '学生の名簿'
+/** 学生の名簿の列（配信の窓口 gas/api-project/Code.js の ROSTER_HEADER と同じ）。年度と学籍番号で1行 */
+const ROSTER_HEADER = ['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時']
+/** 名簿の列の番号（0 から） */
+const ROSTER = { year: 0, course: 1, id: 2, familyName: 3, givenName: 4, familyKana: 5, givenKana: 6, order: 7, pdfId: 8, pdfAt: 9, touchedAt: 10, updatedAt: 11 }
+/** コースごとの点検表の一覧（年度・コース・スプレッドシートの ID。配信の窓口が読む） */
+const SHEET_CHECK_SHEETS = '点検表'
+const CHECK_SHEETS_HEADER = ['年度', 'コース', 'スプレッドシートの ID']
+/** 点検表の中のシートの名前 */
+const CHECK_TAB = '点検表'
+/**
+ * 点検表の見出し（空白・改行を除いたもの。配信の窓口の CHECK_COLUMNS と同じ）。ツールが決めておくのは、灰色の列と、許可の2列と、見えない列だけ。
+ * これ以外の見出しのある列は、回の列（白い列。コースで自由に足す・消す・名前を変える）
+ */
+const CHECK_COLUMNS = { no: '番号', name: '氏名', pdf: '最新PDF', abstractOk: '抄録許可', finalOk: '最終提出可', kyomu: '教務提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
+/** 新しく作る点検表の見出しの字（mockups/v106・v107。狭い列は2行に） */
+const CHECK_HEAD_TEXT = { no: '番号', name: '氏名', pdf: '最新\nPDF', abstractOk: '抄録\n許可', finalOk: '最終\n提出可', kyomu: '教務\n提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
+/** 回の列のはじめの名前 */
+const DEFAULT_ROUNDS = ['1回目', '2回目', '3回目', '抄録', '4回目']
+/** 先生が書く列（行が動いても、学生と一緒に動かす）。回の列も先生が書く */
+const TEACHER_COLUMNS = ['abstractOk', 'finalOk', 'kyomu', 'abstractRec', 'finalRec']
+/** 見えない列（行を見つける印と、許可の記録） */
+const HIDDEN_COLUMNS = ['key', 'abstractRec', 'finalRec']
+/** 1段に載せる人数（これをこえたら、半分ずつ2段。前半が左） */
+const ONE_BLOCK_MAX = 25
+/** 名簿 → 点検表の仕掛けの間隔（分） */
+const CHECK_SYNC_MINUTES = 10
+/** 先生ごとの「済み」の色（くすんだ淡い地と字。v107 案A。4人目からは繰り返し）と、「予定」の灰色の字 */
+const TEACHER_TONES = [
+  { bg: '#e6edf5', ink: '#30527a' },
+  { bg: '#e7efe6', ink: '#3d6342' },
+  { bg: '#f2ece0', ink: '#7a5a2c' },
+]
+const PLAN_INK = '#a0a5ad'
+/** 見出しと列の色（v107 案A：ツールが入れる列は灰色、許可の列はうすい黄色） */
+const CHECK_COLORS = { head: '#f1f3f4', toolHead: '#e8eaed', toolCell: '#f3f4f6', permHead: '#f6efd2', permCell: '#fcf9ee', warnInk: '#c5221f', warnBg: '#fce8e6', dimInk: '#80868b' }
+/** 列の幅（px。見本の狭い列に合わせる） */
+const CHECK_WIDTHS = { no: 36, name: 96, pdf: 48, round: 76, abstractOk: 44, finalOk: 48, kyomu: 44, note: 80, key: 90, abstractRec: 160, finalRec: 160, gap: 12 }
+/** ツールが書く列（守る列。先生が書けるのは、回の列と ✓ の列だけ） */
+const TOOL_COLUMNS = ['no', 'name', 'pdf', 'note', 'key', 'abstractRec', 'finalRec']
+/** ツールが書く列と見出しの行を守るときの説明（先生が書こうとすると、この説明が出る） */
+const PROTECT_NOTE = 'ツールが書く列です（並べ替えは管理ページの「学生の並びを直す」から）'
+/**
+ * 点検表の行の氏名と見えない学籍番号がずれたときの「知らせ」（配信の窓口の BROKEN_NOTE と同じ）。この知らせの行の許可・回の記録は、学生に渡さない。
+ * 先生が行の中身を確かめて、その行の許可の ✓（抄録許可・最終提出可）を入れ直すと消える（onCheckSheetEdit。知らせの列は守ってあり、先生は直接は消せないため）
+ */
+const BROKEN_NOTE = '並びが崩れています'
+/** 点検表のいちばん上の案内の1行（小さな灰色の字。見出しの行と一緒に固定して守る。依頼者 2026-11-04） */
+const CHECK_TOP_NOTE = '並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
+const TOP_NOTE_INK = '#7a8088'
+
+/** 見出しの名前（空白・改行を除く。「最新\nPDF」→「最新PDF」） */
+function headName_(value) {
+  return String(value === undefined || value === null ? '' : value).replace(/\s/g, '')
+}
+
+/** 見出しの名前の種類（決まった列は CHECK_COLUMNS の名前、それ以外は round。空は ''） */
+function columnKind_(name) {
+  if (!name) return ''
+  const keys = Object.keys(CHECK_COLUMNS)
+  return keys.find((k) => CHECK_COLUMNS[k] === name) || 'round'
+}
+
+/** 新しい点検表の1段の見出し */
+function checkTemplate_() {
+  const t = CHECK_HEAD_TEXT
+  return [t.no, t.name, t.pdf].concat(DEFAULT_ROUNDS, [t.abstractOk, t.finalOk, t.kyomu, t.note, t.key, t.abstractRec, t.finalRec])
+}
+
+/**
+ * 点検表の見出しの行から、段（2段組なら2つ）を読む。段は「番号」の列から、次の「番号」の列の前まで（end は、段の中の見出しのある最後の列）。
+ * cols：決まった列の場所（0 から。なければ -1）、rounds：回の列（{ col, label }。並んだ順）。配信の窓口の checkBlocks_ と同じ読み方
+ */
+function checkBlocks_(header) {
+  const names = header.map(headName_)
+  const keys = Object.keys(CHECK_COLUMNS)
+  const starts = []
+  names.forEach((n, i) => n === CHECK_COLUMNS.no && starts.push(i))
+  return starts.map((start, b) => {
+    const next = b + 1 < starts.length ? starts[b + 1] : names.length
+    const cols = {}
+    keys.forEach((k) => (cols[k] = -1))
+    const rounds = []
+    let end = start
+    for (let c = start; c < next; c++) {
+      if (!names[c]) continue
+      end = c
+      const k = columnKind_(names[c])
+      if (k !== 'round') {
+        if (cols[k] < 0) cols[k] = c
+      } else rounds.push({ col: c, label: String(header[c]).replace(/\s+/g, ' ').trim() })
+    }
+    return { start: start, end: end, cols: cols, rounds: rounds }
+  })
+}
+
+/** 人数から、段の数と1段の人数（25人まで1段、26人からは半分ずつ2段。前半が左） */
+function blockLayout_(count) {
+  if (count <= ONE_BLOCK_MAX) return { count: count, blocks: 1, perBlock: count }
+  return { count: count, blocks: 2, perBlock: Math.ceil(count / 2) }
+}
+
+/** 氏名の名字（最初の空白（半角・全角）の前。空白がなければ全部） */
+function surnameOf_(name) {
+  const text = String(name || '').trim()
+  const m = /^(\S+)\s/.exec(text)
+  return m ? m[1] : text
+}
+
+/** コースの指導教員の名字の一覧（欄の中が「、」「,」で区切ってあっても分ける。重なりは1つに） */
+function advisorSurnames_(advisors) {
+  const out = []
+  ;(Array.isArray(advisors) ? advisors : []).forEach((a) =>
+    String(a || '')
+      .split(/[、,，]/)
+      .forEach((part) => {
+        const s = surnameOf_(part)
+        if (s && out.indexOf(s) < 0) out.push(s)
+      }),
+  )
+  return out
+}
+
+/**
+ * ✓ を入れた先生の名字：先生の登録（シート「管理者」）のメモに、コースの指導教員の名字があれば、その名字（長いものを先に）。
+ * なければ、アドレスの @ より前（学生のツールに「許可が出ました（12/15 〇〇先生）」と出る）
+ */
+function editorSurname_(email, memo, surnames) {
+  const text = String(memo || '')
+  const hit = (surnames || []).filter((s) => s && text.indexOf(s) >= 0).sort((a, b) => b.length - a.length)[0]
+  return hit || String(email || '').split('@')[0]
+}
+
+/** ふりがなを比べる形（ひらがなはカタカナに、半角カナは全角に。続く空白は1つに） */
+function kanaKey_(text) {
+  return String(text || '')
+    .normalize('NFKC')
+    .replace(/[ぁ-ゖ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** 学生の氏名（姓 名。全角の空白でつなぐ） */
+function fullName_(s) {
+  return [s.familyName, s.givenName].filter(Boolean).join('　')
+}
+
+/** ふりがなの順に比べる（セイ → メイ → 氏名 → 学籍番号。ふりがなのない学生は後ろ） */
+function compareStudents_(a, b) {
+  const ka = kanaKey_(a.familyKana)
+  const kb = kanaKey_(b.familyKana)
+  if (!ka !== !kb) return ka ? -1 : 1
+  return ka.localeCompare(kb, 'ja') || kanaKey_(a.givenKana).localeCompare(kanaKey_(b.givenKana), 'ja') || fullName_(a).localeCompare(fullName_(b), 'ja') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+}
+
+/**
+ * 並びの中で「手で動かした」学生（ふりがなの順に並んでいる、いちばん長いつながりに入らない学生）。
+ * 1人を動かすと、その1人だけに印が付く（ほかの学生は、ずれてもふりがなの順のまま）。管理ページの画面（src/admin/studentOrder.ts）と同じ決め方
+ */
+function movedFlags_(list) {
+  const n = list.length
+  const len = list.map(() => 1)
+  const prev = list.map(() => -1)
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < i; j++) {
+      if (compareStudents_(list[j], list[i]) <= 0 && len[j] + 1 > len[i]) {
+        len[i] = len[j] + 1
+        prev[i] = j
+      }
+    }
+  }
+  let best = -1
+  for (let i = 0; i < n; i++) if (best < 0 || len[i] > len[best]) best = i
+  const keep = list.map(() => false)
+  for (let i = best; i >= 0; i = prev[i]) keep[i] = true
+  return keep.map((k) => !k)
+}
+
+/**
+ * 点検表の並び：先生が並べ替えていなければ、ふりがなの順。並べ替えてあれば（名簿の「並び」）その順で、
+ * あとから来た学生（並びが空）は、ふりがなの順の所（手で動かした学生は目印にしない）に入れる
+ */
+function orderStudents_(students) {
+  const byKana = students.slice().sort(compareStudents_)
+  const placed = students.filter((s) => s.order > 0).sort((a, b) => a.order - b.order || compareStudents_(a, b))
+  if (!placed.length) return byKana
+  const moved = movedFlags_(placed)
+  const out = placed.map((s, i) => ({ s: s, anchor: !moved[i] }))
+  byKana
+    .filter((s) => !(s.order > 0))
+    .forEach((s) => {
+      let at = out.findIndex((x) => x.anchor && compareStudents_(s, x.s) < 0)
+      if (at < 0) at = out.length
+      out.splice(at, 0, { s: s, anchor: true })
+    })
+  return out.map((x) => x.s)
+}
+
+/** 日時の値（シートの日付・ISO の文字）を Date に（読めなければ null） */
+function dateOf_(value) {
+  if (value === '' || value === null || value === undefined) return null
+  const d = value instanceof Date ? value : new Date(value)
+  return isNaN(d.getTime()) ? null : d
+}
+
+/** 日時を、日本の時刻の「月/日」にする（例：1/14） */
+function monthDay_(date) {
+  const d = new Date(date.getTime() + 9 * 60 * 60 * 1000)
+  return d.getUTCMonth() + 1 + '/' + d.getUTCDate()
+}
+
+/** 許可の記録（「ISO の日時 / 名字」）を読む。読めない日時は '' */
+function recordOf_(value) {
+  const text = String(value === undefined || value === null ? '' : value)
+  const i = text.indexOf(' / ')
+  const at = dateOf_((i >= 0 ? text.slice(0, i) : text).trim())
+  return { at: at ? at.toISOString() : '', by: i >= 0 ? text.slice(i + 3).trim() : '' }
+}
+
+/**
+ * 点検表の「知らせ」：最終提出可の ✓ のあとに書き換えた → 「書き換え 1/14」（赤）。PDF をまだ送っていない → 「PDF まだ」（灰色）
+ */
+function noteOf_(student, finalOk, finalRecord) {
+  const touched = dateOf_(student.touchedAt)
+  if (touched && finalOk === true) {
+    const record = recordOf_(finalRecord)
+    if (!record.at || new Date(record.at).getTime() < touched.getTime()) return '書き換え ' + monthDay_(touched)
+  }
+  return student.pdfId ? '' : 'PDF まだ'
+}
+
+/** 「最新 PDF」のセル（押すとドライブの PDF。字は送った日の「月/日」） */
+function pdfFormula_(student) {
+  if (!student.pdfId || !/^[\w-]+$/.test(student.pdfId)) return ''
+  const at = dateOf_(student.pdfAt)
+  return '=HYPERLINK("https://drive.google.com/file/d/' + student.pdfId + '/view","' + (at ? monthDay_(at) : 'PDF') + '")'
+}
+
+/** 点検表の「氏名」（教職員の試しの行は「（試し）」を付ける） */
+function sheetName_(student) {
+  return (student.id.indexOf('staff:') === 0 ? '（試し）' : '') + fullName_(student)
+}
+
+/** 点検表のスプレッドシートの名前 */
+function checkSheetTitle_(year, course) {
+  return Number(year) + '年度 点検表（' + String(course.name || '').trim() + ' コース）'
+}
+
+/** 名前のシート（なければ、見出しの行を付けて作る） */
+function sheetWithHeader_(name, header) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = ss.getSheetByName(name)
+  if (!sheet) {
+    sheet = ss.insertSheet(name)
+    sheet.appendRow(header)
+    sheet.setFrozenRows(1)
+    sheet.getRange(1, 1, 1, header.length).setFontWeight('bold')
+  }
+  return sheet
+}
+
+/** 管理用のスプレッドシート（点検表の編集の仕掛けの中では「今のスプレッドシート」が点検表なので、覚えておいた ID で開く） */
+function adminBook_() {
+  const id = PropertiesService.getScriptProperties().getProperty('ADMIN_SHEET_ID')
+  return id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet()
+}
+
+/** 管理用のスプレッドシートの ID を覚えておく（点検表の編集の仕掛けが使う） */
+function rememberAdminBook_() {
+  const props = PropertiesService.getScriptProperties()
+  const id = SpreadsheetApp.getActiveSpreadsheet().getId()
+  if (props.getProperty('ADMIN_SHEET_ID') !== id) props.setProperty('ADMIN_SHEET_ID', id)
+}
+
+/** 学生の名簿（同じ年度・学籍番号の行がいくつかあれば、下の行）。名簿のシートがなければ null */
+function readRoster_(book) {
+  const sheet = (book || SpreadsheetApp.getActiveSpreadsheet()).getSheetByName(SHEET_ROSTER)
+  if (!sheet) return null
+  const s = (v) => String(v === undefined || v === null ? '' : v).trim()
+  const byKey = {}
+  sheet
+    .getDataRange()
+    .getValues()
+    .slice(1)
+    .forEach((r, i) => {
+      const id = s(r[ROSTER.id])
+      if (!id || s(r[ROSTER.year]) === '') return
+      byKey[s(r[ROSTER.year]) + ':' + id] = {
+        row: i + 2,
+        year: s(r[ROSTER.year]),
+        course: s(r[ROSTER.course]),
+        id: id,
+        familyName: s(r[ROSTER.familyName]),
+        givenName: s(r[ROSTER.givenName]),
+        familyKana: s(r[ROSTER.familyKana]),
+        givenKana: s(r[ROSTER.givenKana]),
+        order: Number(r[ROSTER.order]) > 0 ? Number(r[ROSTER.order]) : 0,
+        pdfId: s(r[ROSTER.pdfId]),
+        pdfAt: r[ROSTER.pdfAt],
+        touchedAt: r[ROSTER.touchedAt],
+      }
+    })
+  return Object.keys(byKey).map((k) => byKey[k])
+}
+
+/** その年度・コースの学生（名簿から） */
+function courseStudents_(roster, year, courseId) {
+  return (roster || []).filter((r) => r.year === String(Number(year)) && r.course === courseId)
+}
+
+/** コースごとの点検表の一覧（{ index：シートの行番号, year, courseId, id }） */
+function checkSheetEntries_(book) {
+  const sheet = (book || SpreadsheetApp.getActiveSpreadsheet()).getSheetByName(SHEET_CHECK_SHEETS)
+  if (!sheet) return []
+  return sheet
+    .getDataRange()
+    .getValues()
+    .slice(1)
+    .map((r, i) => ({ index: i + 2, year: Number(r[0]), courseId: String(r[1] || ''), id: String(r[2] || '').trim() }))
+    .filter((e) => e.id && Number.isInteger(e.year))
+}
+
+/** 年度の設定（読めなければ null）。book を渡すと、そのスプレッドシートから読む */
+function yearConfig_(year, book) {
+  const sheet = (book || SpreadsheetApp.getActiveSpreadsheet()).getSheetByName(SHEET_YEARS)
+  if (!sheet) return null
+  const row = sheet
+    .getDataRange()
+    .getValues()
+    .slice(1)
+    .find((r) => r[0] !== '' && Number(r[0]) === Number(year))
+  return row ? { status: row[1], config: parseJson_(row[2]) } : null
+}
+
+function courseOf_(config, courseId) {
+  const courses = config && Array.isArray(config.courses) ? config.courses : []
+  return courses.find((c) => c && c.id === courseId) || null
+}
+
+/** 年度とコース（なければエラー：まだ保存していないコースなど） */
+function requireCourse_(year, courseId) {
+  const found = yearConfig_(year)
+  if (!found || !found.config) throw new Error(Number(year) + '年度の設定がありません')
+  const course = courseOf_(found.config, String(courseId))
+  if (!course) throw new Error('このコースは、まだ保存されていません。保存してから使ってください')
+  return course
+}
+
+/** ファイル名・フォルダ名に使えない文字を除く（配信の窓口の cleanName_ と同じ。PDF の控えのコースのフォルダと同じ名前にする） */
+function cleanName_(value, max) {
+  // 制御文字も除く（わざと入れている）
+  // oxlint-disable-next-line no-control-regex
+  const unusable = /[\u0000-\u001f\u007f\\/:*?"<>|]/g
+  return String(value || '')
+    .replace(unusable, '')
+    .trim()
+    .slice(0, max)
+}
+
+/** PDF の控えのフォルダの中の、コースのフォルダ（配信の窓口の pdfCopy と同じ名前。なければ作る） */
+function courseFolder_(courseName) {
+  const rootId = String(PDF_FOLDER_ID || PropertiesService.getScriptProperties().getProperty('PDF_FOLDER_ID') || '').trim()
+  if (!rootId) throw new Error('PDF の控えを置くフォルダが決まっていないため、点検表を作れません。管理者に知らせてください')
+  const root = DriveApp.getFolderById(rootId)
+  const name = cleanName_(courseName, 80) || 'コース未設定'
+  const found = root.getFoldersByName(name)
+  while (found.hasNext()) {
+    const folder = found.next()
+    if (!folder.isTrashed()) return folder
+  }
+  return root.createFolder(name)
+}
+
+/** 点検表のスプレッドシートを使えるか（ごみ箱に入れた・消した・見られないときは false） */
+function usableSheet_(id) {
+  try {
+    return !DriveApp.getFileById(id).isTrashed()
+  } catch (err) {
+    return false
+  }
+}
+
+/**
+ * コースの点検表を開く（管理ページの「点検表を開く」。先生も使える）。なければ作る：PDF の控えのコースのフォルダに、
+ * 「2026年度 点検表（〇〇 コース）」を作り、シート「点検表」に ID を書き、編集の仕掛けを付ける。名簿から写してから、場所を返す
+ */
+function ensureCheckSheet(year, courseId) {
+  requireTeacher_()
+  const course = requireCourse_(year, courseId)
+  rememberAdminBook_()
+  const id = withLock_(() => {
+    const found = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
+    if (found && usableSheet_(found.id)) return found.id
+    const folder = courseFolder_(course.name)
+    const book = SpreadsheetApp.create(checkSheetTitle_(year, course))
+    const sheet = book.getSheets()[0]
+    sheet.setName(CHECK_TAB)
+    writeSheetHead_(sheet)
+    DriveApp.getFileById(book.getId()).moveTo(folder)
+    const list = sheetWithHeader_(SHEET_CHECK_SHEETS, CHECK_SHEETS_HEADER)
+    // 前の点検表をごみ箱に入れていたら、その行を新しい ID にする（同じ年度・コースで2行にしない）
+    if (found) setRow_(list, found.index, 3, [book.getId()])
+    else appendRow_(list, [Number(year), course.id, book.getId()])
+    appendMemberHistory_(Session.getActiveUser().getEmail(), '点検表を作成：' + checkSheetTitle_(year, course))
+    return book.getId()
+  })
+  try {
+    refreshEditTriggers_()
+  } catch (err) {
+    console.error('点検表の編集の仕掛けを付けられませんでした（setupCheckSheets を実行してください）：' + String(err && err.message ? err.message : err))
+  }
+  syncNow_(year, course.id)
+  return { url: 'https://docs.google.com/spreadsheets/d/' + id + '/edit' }
+}
+
+/** 並べ替えの窓の一覧：[{ studentId, name, kana, moved }]（点検表の並び。moved：手で動かした） */
+function studentList_(year, courseId) {
+  const ordered = orderStudents_(courseStudents_(readRoster_(), year, courseId))
+  const moved = movedFlags_(ordered)
+  return ordered.map((s, i) => ({ studentId: s.id, name: fullName_(s), kana: [s.familyKana, s.givenKana].filter(Boolean).join(' '), moved: moved[i] }))
+}
+
+/** 「学生の並びを直す」の窓の一覧（先生も使える） */
+function listStudents(year, courseId) {
+  requireTeacher_()
+  requireCourse_(year, courseId)
+  return studentList_(year, String(courseId))
+}
+
+/**
+ * 「この並びにする」（先生も使える）：名簿の「並び」に書き、点検表をこの並びにする。
+ * studentIds が null なら、ふりがなの順に戻す（並びを空にする）。一覧にない学生（窓を開いたあとに来た学生）は、並びを空のまま（ふりがなの所に入る）
+ */
+function saveStudentOrder(year, courseId, studentIds) {
+  const course = withLock_(() => {
+    const user = requireTeacher_()
+    const found = requireCourse_(year, courseId)
+    if (studentIds !== null && (!Array.isArray(studentIds) || studentIds.length > 2000 || studentIds.some((x) => typeof x !== 'string'))) throw new Error('並びの形が正しくありません')
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ROSTER)
+    if (!sheet) return found
+    const rank = new Map()
+    ;(studentIds || []).forEach((id, i) => rank.has(id) || rank.set(id, i + 1))
+    const values = sheet.getDataRange().getValues()
+    const column = values.map((r) => r[ROSTER.order])
+    let lo = -1
+    let hi = -1
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][ROSTER.year]).trim() !== String(Number(year)) || String(values[i][ROSTER.course]).trim() !== found.id) continue
+      column[i] = rank.get(String(values[i][ROSTER.id]).trim()) || ''
+      if (lo < 0) lo = i
+      hi = i
+    }
+    if (lo > 0) sheet.getRange(lo + 1, ROSTER.order + 1, hi - lo + 1, 1).setValues(column.slice(lo, hi + 1).map((v) => [v]))
+    appendMemberHistory_(user, '点検表の学生の並びを' + (studentIds ? '直す' : 'ふりがなの順に戻す') + '（' + Number(year) + '年度・' + found.name + ' コース）')
+    return found
+  })
+  syncNow_(year, course.id)
+  return studentList_(year, course.id)
+}
+
+/**
+ * 名簿 → 点検表（10分ごとの仕掛け。setupCheckSheets が作る）。終わった年度の点検表は、もう直さない。
+ * ほかの写しが動いているあいだは、何もしない（次の10分で写す）
+ */
+function syncCheckSheets() {
+  const lock = LockService.getDocumentLock()
+  if (!lock.tryLock(1000)) return
+  try {
+    // 名簿のシートがまだない（だれも登録していない）ときも、点検表の見た目と守りは整える（学生のいる点検表は、syncCheckSheet_ が消さずに止まる）
+    const roster = readRoster_() || []
+    checkSheetEntries_().forEach((entry) => {
+      const found = yearConfig_(entry.year)
+      if (!found || !found.config || found.status === STATUS_ENDED) return
+      const course = courseOf_(found.config, entry.courseId)
+      if (!course) return
+      try {
+        syncCheckSheet_(entry, course, roster)
+      } catch (err) {
+        console.error('点検表（' + entry.year + '年度・' + course.name + '）を直せませんでした：' + String(err && err.message ? err.message : err))
+      }
+    })
+  } finally {
+    lock.releaseLock()
+  }
+}
+
+/** 1つのコースの点検表を、今すぐ名簿から写す（点検表を開く・並びを直したとき。写せなくても、10分ごとの仕掛けがまた写す） */
+function syncNow_(year, courseId) {
+  try {
+    const lock = LockService.getDocumentLock()
+    lock.waitLock(30000)
+    try {
+      const entry = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === courseId)
+      const found = yearConfig_(year)
+      const course = found && courseOf_(found.config, courseId)
+      if (entry && course) syncCheckSheet_(entry, course, readRoster_() || [])
+    } finally {
+      lock.releaseLock()
+    }
+  } catch (err) {
+    console.error('点検表を直せませんでした：' + String(err && err.message ? err.message : err))
+  }
+}
+
+/** 段の中の列（見出しのある列）。id は「見出しの名前#同じ名前の何番目か」（行が動くときに、先生の書いた中身を同じ列に戻すため） */
+function blockColumns_(header, block) {
+  const seen = {}
+  const out = []
+  for (let c = block.start; c <= block.end; c++) {
+    const name = headName_(header[c])
+    if (!name) continue
+    seen[name] = (seen[name] || 0) + 1
+    out.push({ col: c, name: name, kind: columnKind_(name), id: name + '#' + seen[name] })
+  }
+  return out
+}
+
+/** 2つのセルの値が同じか（日付は時刻で、ほかは字で比べる） */
+function sameCell_(a, b) {
+  const norm = (v) => (v === undefined || v === null ? '' : v instanceof Date ? 'D' + v.getTime() : String(v))
+  return norm(a) === norm(b)
+}
+
+/**
+ * 1つのコースの点検表を、名簿から写す：学生の並び（ふりがな・先生の並び）・1段／2段（25人まで1段）・氏名・最新 PDF・知らせ。
+ * 先生が書いた列（回の列・許可・教務提出・許可の記録）は、学籍番号（見えない列）で学生と一緒に動かす。
+ * 変わったセルだけを書く（先生が同じ時に書いているセルを、なるべく上書きしない）。見た目は、並べ方が変わったときだけ整える
+ */
+function syncCheckSheet_(entry, course, roster) {
+  const book = SpreadsheetApp.openById(entry.id)
+  const sheet = book.getSheetByName(CHECK_TAB) || book.getSheets()[0]
+  const title = checkSheetTitle_(entry.year, course)
+  if (book.getName() !== title) book.rename(title)
+  const students = orderStudents_(courseStudents_(roster, entry.year, course.id))
+  const layout = blockLayout_(students.length)
+  const surnames = advisorSurnames_(course.advisors)
+
+  let values = sheet.getDataRange().getValues()
+  // 見出しの行（「番号」のある行。上に案内の1行がある。行の番号は決め打ちしない）
+  let h = headerRowOf_(values)
+  if (h < 0) {
+    // 見出しがない：空の点検表なら案内と見出しを書く（中身があるのに「番号」の見出しがないときは、壊さないよう何もしない）
+    if (values.some((r) => r.some((v) => v !== '' && v !== null))) throw new Error('見出し「番号」が見つかりません')
+    writeSheetHead_(sheet)
+    values = sheet.getDataRange().getValues()
+    h = headerRowOf_(values)
+  }
+  let blocks = checkBlocks_(values[h])
+  if (blocks.some((b) => b.cols.key < 0)) throw new Error('見えない列「学籍番号」が見つかりません')
+
+  // 先生が書いた中身（学籍番号ごと）と、学生の行のある最後の行。
+  // 見える氏名が名簿の氏名と違う行（先生が表の一部だけを並べ替えたなど）は、中身がだれのものか分からない：ほかの学生には移さず、
+  // その学籍番号の学生（untrusted）は、先生の列を書かずに今の中身のまま残し、「並びが崩れています」を出す（依頼者の選択 2026-11-04）
+  const expected = {}
+  students.forEach((s) => (expected[s.id] = sheetName_(s)))
+  const kept = {}
+  const untrusted = {}
+  let lastRow = 0
+  blocks.forEach((b) => {
+    const columns = blockColumns_(values[h], b).filter((x) => x.kind === 'round' || TEACHER_COLUMNS.indexOf(x.kind) >= 0)
+    for (let r = h + 1; r < values.length; r++) {
+      const key = String(values[r][b.cols.key] === undefined ? '' : values[r][b.cols.key]).trim()
+      if (!key) continue
+      lastRow = Math.max(lastRow, r - h)
+      const name = b.cols.name >= 0 ? String(values[r][b.cols.name]).trim() : ''
+      if (expected[key] !== undefined && name !== expected[key]) {
+        untrusted[key] = true
+        continue
+      }
+      const cells = {}
+      columns.forEach((x) => (cells[x.id] = values[r][x.col]))
+      // 前に「並びが崩れています」を出した行は、先生が確かめるまで、そのまま（学生と一緒に動かす）
+      cells.broken = b.cols.note >= 0 && String(values[r][b.cols.note]).trim() === BROKEN_NOTE
+      kept[key] = cells
+    }
+  })
+  Object.keys(untrusted).forEach((key) => delete kept[key])
+  // 名簿が空なのに点検表に学生がいる：名簿のシートが読めなかったなど。消さない
+  if (!students.length && lastRow > 0) throw new Error('名簿にこのコースの学生がいません（点検表は、そのままにしました）')
+
+  // 1段 ↔ 2段 の組み直し（2段目は、1段目の見出しを写して、1段目の右に、すき間の列を1つあけて作る）
+  const fresh = []
+  const first = blocks[0]
+  if (layout.blocks === 2 && blocks.length < 2) {
+    const head = values[h].slice(first.start, first.end + 1)
+    sheet.insertColumnsAfter(first.end + 1, head.length + 1)
+    sheet.getRange(h + 1, first.end + 3, 1, head.length).setValues([head.map(cell_)])
+    fresh.push(1)
+  } else if (layout.blocks === 1 && blocks.length >= 2) {
+    sheet.deleteColumns(first.end + 2, blocks[blocks.length - 1].end - first.end)
+  }
+  if (fresh.length || (layout.blocks === 1 && blocks.length >= 2)) {
+    values = sheet.getDataRange().getValues()
+    blocks = checkBlocks_(values[h])
+  }
+  const formulas = sheet.getDataRange().getFormulas()
+  const header = values[h]
+  const rows = Math.max(layout.perBlock, lastRow)
+
+  blocks.slice(0, layout.blocks).forEach((b, bi) => {
+    blockColumns_(header, b).forEach((x) => {
+      const column = []
+      for (let r = 0; r < rows; r++) {
+        const index = bi * layout.perBlock + r
+        const s = r < layout.perBlock ? students[index] : null
+        const row = values[h + 1 + r] || []
+        const v = s ? cellValue_(x, s, index, kept[s.id] || null, !!untrusted[s.id]) : ''
+        // 並びが崩れた学生の、先生の列：その場所の今の中身のまま（だれのものか分からない中身を、ほかの学生に移さない）
+        column.push(v === LEAVE ? (row[x.col] === undefined ? '' : row[x.col]) : v)
+      }
+      let lo = -1
+      let hi = -1
+      column.forEach((v, r) => {
+        const row = values[h + 1 + r] || []
+        const formula = formulas[h + 1 + r] && formulas[h + 1 + r][x.col]
+        const old = x.kind === 'pdf' ? formula || row[x.col] : row[x.col]
+        if (sameCell_(old, v)) return
+        if (lo < 0) lo = r
+        hi = r
+      })
+      if (lo >= 0) sheet.getRange(h + 2 + lo, x.col + 1, hi - lo + 1, 1).setValues(column.slice(lo, hi + 1).map((v) => [writeValue_(x.kind, v)]))
+    })
+  })
+
+  // 見た目と守り（並べ方・人数・見出し・先生が変わったときだけ）
+  const props = PropertiesService.getScriptProperties()
+  const signature = JSON.stringify({ v: 2, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
+  if (props.getProperty('checkLayout:' + entry.id) !== signature) {
+    formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh)
+    props.setProperty('checkLayout:' + entry.id, signature)
+  }
+}
+
+/** 見出しの行（「番号」のある最初の行。0 から。上から10行の中になければ -1） */
+function headerRowOf_(values) {
+  for (let r = 0; r < Math.min(values.length, 10); r++) if ((values[r] || []).some((v) => headName_(v) === CHECK_COLUMNS.no)) return r
+  return -1
+}
+
+/** 新しい点検表の上の2行：案内の1行（小さな灰色の字）と、1段目の見出し */
+function writeSheetHead_(sheet) {
+  const head = checkTemplate_()
+  sheet.getRange(1, 1).setValue(CHECK_TOP_NOTE)
+  sheet.getRange(2, 1, 1, head.length).setValues([head])
+}
+
+/**
+ * ツールが書く列・見出しを守る（書けるのは、プログラムを動かしている人＝デプロイした人だけ。先生がシートで行を動かしたり、
+ * 一部の列だけを並べ替えたりして、見えない学籍番号と氏名・✓ がずれないように：依頼者の選択 2026-11-04）
+ */
+function protectRange_(range) {
+  const me = Session.getEffectiveUser()
+  const p = range.protect().setDescription(PROTECT_NOTE)
+  p.addEditor(me)
+  p.removeEditors(p.getEditors().filter((u) => u.getEmail() !== me.getEmail()))
+  if (p.canDomainEdit()) p.setDomainEdit(false)
+  return p
+}
+
+/** 「今の中身のまま」の印（cellValue_ が返す） */
+const LEAVE = {}
+
+/**
+ * 点検表の1つのセルの中身（s：その行の学生、index：通し番号（0 から）、kept：先生が書いた中身、
+ * untrusted：並びが崩れた学生（先生の列は LEAVE：その場所の今の中身のまま。知らせは「並びが崩れています」））
+ */
+function cellValue_(column, s, index, kept, untrusted) {
+  const old = (id) => (kept && kept[id] !== undefined ? kept[id] : undefined)
+  switch (column.kind) {
+    case 'no':
+      return index + 1
+    case 'name':
+      return sheetName_(s)
+    case 'pdf':
+      return pdfFormula_(s)
+    case 'note':
+      return untrusted || (kept && kept.broken) ? BROKEN_NOTE : noteOf_(s, old(CHECK_COLUMNS.finalOk + '#1'), old(CHECK_COLUMNS.finalRec + '#1'))
+    case 'key':
+      return s.id
+    case '':
+      return LEAVE
+  }
+  if (untrusted) return LEAVE
+  switch (column.kind) {
+    case 'abstractOk':
+    case 'finalOk':
+    case 'kyomu': {
+      const v = old(column.id)
+      return v === undefined || v === '' ? false : v
+    }
+    default: {
+      const v = old(column.id)
+      return v === undefined ? '' : v
+    }
+  }
+}
+
+/** シートに書く形（学生の氏名・学籍番号は ' を付けて文字に。最新 PDF は式。ほかの字は、先頭が = + - @ なら文字に） */
+function writeValue_(kind, value) {
+  if (kind === 'pdf') return value
+  if (kind === 'name' || kind === 'key') return value === '' ? '' : "'" + value
+  return cell_(value)
+}
+
+/**
+ * 点検表の見た目（v106・v107 案A）：見出しの行は固定・太字。番号・最新 PDF・知らせは灰色、許可の2列はうすい黄色で ✓ の箱、教務提出も ✓ の箱、
+ * 回の列は先生の名字のプルダウン（「山本 予定」「山本 済み」）。済みは先生ごとの淡い色、予定は灰色の字（条件付き書式）。
+ * 学籍番号と許可の記録の列は隠す。学生のいない行の箱・色は外す。
+ * いちばん上の案内の行と見出しの行は固定する。ツールが書く列（すき間の列も）と、上の行（案内・見出し）は、デプロイした人だけが書けるように守る（作り直す）
+ */
+function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh) {
+  sheet.setFrozenRows(h + 1)
+  sheet.setRowHeight(h + 1, 36)
+  // 案内の行（見出しの上。小さな灰色の字で、1段目の左から）
+  if (h > 0) sheet.getRange(1, 1).setFontSize(9).setFontColor(TOP_NOTE_INK).setFontWeight(null).setHorizontalAlignment('left').setWrap(false)
+  const checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build()
+  const choices = []
+  surnames.forEach((t) => choices.push(t + ' 予定', t + ' 済み'))
+  const dropdown = choices.length ? SpreadsheetApp.newDataValidation().requireValueInList(choices, true).setAllowInvalid(true).build() : null
+  const roundRanges = []
+  const noteRanges = []
+  const lockedColumns = []
+  const used = blocks.slice(0, layout.blocks)
+  used.forEach((b, bi) => {
+    const filled = Math.max(0, Math.min(layout.perBlock, layout.count - bi * layout.perBlock))
+    blockColumns_(header, b).forEach((x) => {
+      const kind = x.kind
+      const tool = kind === 'no' || kind === 'pdf' || kind === 'note'
+      const perm = kind === 'abstractOk' || kind === 'finalOk'
+      sheet
+        .getRange(h + 1, x.col + 1)
+        .setFontWeight('bold')
+        .setWrap(true)
+        .setHorizontalAlignment('center')
+        .setVerticalAlignment('middle')
+        .setBackground(tool ? CHECK_COLORS.toolHead : perm ? CHECK_COLORS.permHead : CHECK_COLORS.head)
+      sheet.setColumnWidth(x.col + 1, CHECK_WIDTHS[kind] || CHECK_WIDTHS.round)
+      if (HIDDEN_COLUMNS.indexOf(kind) >= 0) sheet.hideColumns(x.col + 1)
+      else if (fresh.indexOf(bi) >= 0) sheet.showColumns(x.col + 1)
+      if (TOOL_COLUMNS.indexOf(kind) >= 0) lockedColumns.push(x.col)
+      if (filled > 0) {
+        const cells = sheet.getRange(h + 2, x.col + 1, filled, 1)
+        cells.setBackground(tool ? CHECK_COLORS.toolCell : perm ? CHECK_COLORS.permCell : null)
+        cells.setDataValidation(perm || kind === 'kyomu' ? checkbox : kind === 'round' ? dropdown : null)
+        cells.setHorizontalAlignment(kind === 'name' || kind === 'note' ? 'left' : kind === 'no' ? 'right' : 'center')
+        cells.setFontWeight(kind === 'name' ? 'bold' : null)
+        if (kind === 'key') cells.setNumberFormat('@')
+        if (kind === 'round') roundRanges.push(cells)
+        if (kind === 'note') noteRanges.push(cells)
+      }
+      if (rows > filled) sheet.getRange(h + 2 + filled, x.col + 1, rows - filled, 1).setBackground(null).setDataValidation(null).setFontWeight(null)
+    })
+    // 2段のときの、段のあいだのすき間の列（ここも守る）
+    if (bi === 0 && layout.blocks === 2) {
+      sheet.setColumnWidth(b.end + 2, CHECK_WIDTHS.gap)
+      // 隠した列（許可の記録）のすぐ右に足した列なので、見えるようにしておく
+      if (fresh.length) sheet.showColumns(b.end + 2)
+      lockedColumns.push(b.end + 1)
+    }
+  })
+  // 守り：前にツールが付けた守りを外して、付け直す（列・段が変わったときに、今の列に合わせる）
+  sheet
+    .getProtections(SpreadsheetApp.ProtectionType.RANGE)
+    .filter((p) => p.getDescription() === PROTECT_NOTE)
+    .forEach((p) => p.remove())
+  const lastCol = used[used.length - 1].end + 1
+  const below = Math.max(1, sheet.getMaxRows() - h - 1)
+  protectRange_(sheet.getRange(1, 1, h + 1, lastCol))
+  lockedColumns.forEach((c) => protectRange_(sheet.getRange(h + 2, c + 1, below, 1)))
+  // 条件付き書式（作り直す。先生ごとの「済み」の色・「予定」の灰色の字・知らせの赤と灰色）
+  const rules = []
+  const rule = () => SpreadsheetApp.newConditionalFormatRule()
+  if (roundRanges.length) {
+    surnames.forEach((t, i) => {
+      const tone = TEACHER_TONES[i % TEACHER_TONES.length]
+      rules.push(rule().whenTextEqualTo(t + ' 済み').setBackground(tone.bg).setFontColor(tone.ink).setBold(true).setRanges(roundRanges).build())
+    })
+    rules.push(rule().whenTextContains('予定').setFontColor(PLAN_INK).setRanges(roundRanges).build())
+  }
+  if (noteRanges.length) {
+    rules.push(rule().whenTextStartsWith('書き換え').setFontColor(CHECK_COLORS.warnInk).setBackground(CHECK_COLORS.warnBg).setBold(true).setRanges(noteRanges).build())
+    rules.push(rule().whenTextEqualTo(BROKEN_NOTE).setFontColor(CHECK_COLORS.warnInk).setBackground(CHECK_COLORS.warnBg).setBold(true).setRanges(noteRanges).build())
+    rules.push(rule().whenTextEqualTo('PDF まだ').setFontColor(CHECK_COLORS.dimInk).setRanges(noteRanges).build())
+  }
+  sheet.setConditionalFormatRules(rules)
+}
+
+/**
+ * 点検表の編集の仕掛け（点検表を作ったときに付ける。installable onEdit）：「抄録許可」「最終提出可」の ✓ を入れたら、
+ * 見えない記録の列に「日時 / 先生の名字」を残す（学生のツールに「許可が出ました（12/15 〇〇先生）」と出る）。✓ を外したら消す。
+ * 見える氏名が名簿の氏名と違う行（並びが崩れた行）には残さず、「知らせ」に「並びが崩れています」と出す。
+ * 「並びが崩れています」の行でも、氏名が名簿と同じに戻っていれば、✓ を入れ直したときに知らせを消して残す（先生が行を確かめた印）
+ */
+function onCheckSheetEdit(e) {
+  if (!e || !e.range) return
+  const range = e.range
+  const sheet = range.getSheet()
+  const lastCol = sheet.getLastColumn()
+  if (lastCol < 1) return
+  const head = sheet.getRange(1, 1, Math.min(Math.max(sheet.getLastRow(), 1), 10), lastCol).getValues()
+  const h = headerRowOf_(head)
+  if (h < 0) return
+  const c0 = range.getColumn() - 1
+  const c1 = c0 + range.getNumColumns() - 1
+  const pairs = []
+  checkBlocks_(head[h]).forEach((b) =>
+    [
+      ['abstractOk', 'abstractRec'],
+      ['finalOk', 'finalRec'],
+    ].forEach((p) => {
+      const c = b.cols[p[0]]
+      const rc = b.cols[p[1]]
+      if (c >= c0 && c <= c1 && rc >= 0) pairs.push({ block: b, c: c, rc: rc })
+    }),
+  )
+  const top = Math.max(range.getRow(), h + 2)
+  const bottom = range.getRow() + range.getNumRows() - 1
+  if (!pairs.length || bottom < top) return
+  const single = range.getNumRows() === 1 && range.getNumColumns() === 1
+  const rows = sheet.getRange(top, 1, bottom - top + 1, lastCol).getValues()
+  let context = null
+  const ctx = () => context || (context = editContext_(e, sheet))
+  const text = (v) => String(v === undefined || v === null ? '' : v).trim()
+  pairs.forEach((p) => {
+    const cols = p.block.cols
+    const cells = sheet.getRange(top, p.rc + 1, rows.length, 1)
+    let changed = false
+    const next = rows.map((row, i) => {
+      const old = text(row[p.rc])
+      if (row[p.c] !== true) {
+        if (old) changed = true
+        return ['']
+      }
+      const key = cols.key >= 0 ? text(row[cols.key]) : ''
+      const names = ctx().names
+      const broken = cols.note >= 0 && text(row[cols.note]) === BROKEN_NOTE
+      // 名簿が読めないときは確かめない（学生のツールへの答えは、配信の窓口がもう一度確かめる）
+      if (names && key && names[key] !== text(row[cols.name])) {
+        if (cols.note >= 0 && !broken) sheet.getRange(top + i, cols.note + 1).setValue(BROKEN_NOTE)
+        return [old]
+      }
+      if (broken) sheet.getRange(top + i, cols.note + 1).setValue('')
+      // まとめて貼ったときは、前からの記録を残す（1つの ✓ を入れたときと、並びが崩れた行を確かめたときは、今の日時）
+      if (old && !single && !broken) return [old]
+      changed = true
+      return [new Date().toISOString() + ' / ' + ctx().who]
+    })
+    if (changed) cells.setValues(next)
+  })
+}
+
+/**
+ * 編集した先生と、この点検表の学生：who は ✓ を入れた先生の名字（アドレス → 先生の登録のメモ → この点検表のコースの指導教員の名字。
+ * わからなければアドレスの @ より前）。names は学籍番号 → 点検表の氏名（名簿から。読めなければ null）
+ */
+function editContext_(e, sheet) {
+  let email = ''
+  try {
+    email = e.user && typeof e.user.getEmail === 'function' ? e.user.getEmail() : String(e.user || '')
+    if (!email) email = Session.getActiveUser().getEmail()
+  } catch (err) {
+    email = ''
+  }
+  let memo = ''
+  let surnames = []
+  let names = null
+  try {
+    const book = adminBook_()
+    const admins = book.getSheetByName(SHEET_ADMINS)
+    const member = admins ? parseMembers_(admins.getDataRange().getValues().slice(1)).find((m) => m.email.toLowerCase() === String(email).toLowerCase()) : null
+    memo = member ? member.memo : ''
+    const id = (e.source && typeof e.source.getId === 'function' ? e.source : sheet.getParent()).getId()
+    const entry = checkSheetEntries_(book).find((x) => x.id === id)
+    const found = entry ? yearConfig_(entry.year, book) : null
+    const course = found ? courseOf_(found.config, entry.courseId) : null
+    surnames = course ? advisorSurnames_(course.advisors) : []
+    const roster = entry ? readRoster_(book) : null
+    if (roster) {
+      names = {}
+      courseStudents_(roster, entry.year, entry.courseId).forEach((s) => (names[s.id] = sheetName_(s)))
+    }
+  } catch (err) {
+    console.error('✓ を入れた先生・点検表の学生を調べられませんでした：' + String(err && err.message ? err.message : err))
+  }
+  return { who: editorSurname_(email, memo, surnames), names: names }
+}
+
+/**
+ * 点検表の編集の仕掛けを、今の点検表に合わせる（終わった年度の点検表の仕掛けは外す。1つの点検表に1つ。仕掛けの数には上限があるため）
+ */
+function refreshEditTriggers_() {
+  const ended = {}
+  readYears_().forEach((y) => {
+    if (y.status === STATUS_ENDED) ended[y.year] = true
+  })
+  const wanted = checkSheetEntries_()
+    .filter((e) => !ended[e.year])
+    .map((e) => e.id)
+  const have = {}
+  ScriptApp.getProjectTriggers().forEach((t) => {
+    if (t.getHandlerFunction() !== 'onCheckSheetEdit') return
+    const id = t.getTriggerSourceId()
+    if (wanted.indexOf(id) < 0 || have[id]) ScriptApp.deleteTrigger(t)
+    else have[id] = true
+  })
+  wanted.forEach((id) => {
+    if (have[id]) return
+    try {
+      ScriptApp.newTrigger('onCheckSheetEdit').forSpreadsheet(id).onEdit().create()
+      have[id] = true
+    } catch (err) {
+      console.error('点検表（' + id + '）に編集の仕掛けを付けられませんでした：' + String(err && err.message ? err.message : err))
+    }
+  })
+}
+
+/**
+ * 点検表の準備（管理ページを配り直したあと、エディタで1回だけ実行する。依頼者の選択 2026-11-04）：
+ * ドライブ・仕掛けなどの権限を承認し、10分ごとに名簿を点検表に写す仕掛け（syncCheckSheets）と、点検表ごとの編集の仕掛け（onCheckSheetEdit）を作り直す。
+ * 届いた声のメールの仕掛け（setupFeedbackMail）も、いっしょに作り直す。「点検表の準備ができました」と出れば、準備できている
+ */
+function setupCheckSheets() {
+  const me = Session.getActiveUser().getEmail()
+  const owner = Session.getEffectiveUser().getEmail()
+  if (!me || me.toLowerCase() !== String(owner || '').toLowerCase()) {
+    throw new Error('setupCheckSheets は、管理ページをデプロイした人が、Apps Script のエディタから実行してください（ログイン中：' + (me || '不明') + '）')
+  }
+  rememberAdminBook_()
+  const rootId = String(PDF_FOLDER_ID || PropertiesService.getScriptProperties().getProperty('PDF_FOLDER_ID') || '').trim()
+  Logger.log(rootId ? '点検表を置くフォルダ（PDF の控え）：' + DriveApp.getFolderById(rootId).getName() : 'PDF の控えのフォルダが未設定のため、点検表は作れません（gas/pdf-folder.local.json に書いて配り直すか、スクリプト プロパティ PDF_FOLDER_ID に入れる）')
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'syncCheckSheets')
+    .forEach((t) => ScriptApp.deleteTrigger(t))
+  ScriptApp.newTrigger('syncCheckSheets').timeBased().everyMinutes(CHECK_SYNC_MINUTES).create()
+  refreshEditTriggers_()
+  setupFeedbackMail()
+  syncCheckSheets()
+  Logger.log('点検表の準備ができました（' + CHECK_SYNC_MINUTES + ' 分ごとに、学生の名簿を点検表に写します）')
 }

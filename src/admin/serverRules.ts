@@ -123,6 +123,31 @@ export function applyNotices(config: YearConfig, notices: Record<string, unknown
   return names
 }
 
+/** 先生の許可（コースの permission）の形を確かめる（Code.js の checkPermission_。依頼者の選択 2026-11-04） */
+export function checkPermission(permission: unknown, courseName: string): void {
+  const p = permission as Record<string, unknown> | null
+  if (!isObj(p) || Array.isArray(p) || (p.abstract !== undefined && typeof p.abstract !== 'boolean') || (p.final !== undefined && typeof p.final !== 'boolean')) {
+    throw new Error('「' + courseName + '」の先生の許可の設定が正しくありません')
+  }
+}
+
+/** 指定したコースの先生の許可を書き換える（Code.js の applyPermissions_。両方とも切ったら項目ごと消す）。書き換えたコースの名前を返す */
+export function applyPermissions(config: YearConfig, permissions: Record<string, unknown>): string[] {
+  const names: string[] = []
+  config.courses.forEach((course) => {
+    if (!Object.prototype.hasOwnProperty.call(permissions, course.id)) return
+    const p = permissions[course.id] as { abstract?: unknown; final?: unknown } | null
+    if (p !== null) checkPermission(p, course.name)
+    const next: NonNullable<Course['permission']> = {}
+    if (p && p.abstract === true) next.abstract = true
+    if (p && p.final === true) next.final = true
+    if (Object.keys(next).length) course.permission = next
+    else delete course.permission
+    names.push(course.name)
+  })
+  return names
+}
+
 /** 保存する設定の形を確かめる（Code.js の checkConfig_。題目が空などの細かい確認は画面で行う） */
 export function checkConfig(config: unknown): void {
   if (!isObj(config) || Array.isArray(config)) throw new Error('設定の形が正しくありません')
@@ -148,6 +173,7 @@ export function checkConfig(config: unknown): void {
     if (course.abstractExample !== undefined && course.abstractExample !== null) checkText(course.abstractExample, LIMITS.abstractExample, '「' + name + '」の抄録の書き出し例')
     if (course.notice !== undefined && course.notice !== null) checkText(course.notice, LIMITS.notice, '「' + name + '」のお知らせ')
     if (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') throw new Error('「' + name + '」の表の空の行の設定が正しくありません')
+    if (course.permission !== undefined && course.permission !== null) checkPermission(course.permission, name)
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords(config.wordChecks)
   if (JSON.stringify(config).length > 45000) throw new Error('設定が大きすぎます')

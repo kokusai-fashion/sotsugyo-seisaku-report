@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_WORD_CHECKS } from '../checker/textRules'
 import { currentConfig, type Course, type YearConfig } from '../config'
-import { describeChanges, mergeEdits, sameConfig, shortChanges } from './changes'
+import { describeChanges, listChanges, mergeEdits, sameConfig, shortChanges } from './changes'
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v))
 const [film] = currentConfig.courses
@@ -55,6 +55,15 @@ describe('describeChanges（保存の確認・変更履歴に出す変更の一�
   it('コースの「表の空の行」：印を付けると変更。印なしと「ない」は同じ', () => {
     expect(describeChanges(base, withCourse(base, film.id, { blankRowsOk: true }))).toEqual(['映画・舞台衣装デザイナー コースの表の空の行'])
     expect(sameConfig(base, withCourse(base, film.id, { blankRowsOk: false }))).toBe(true)
+  })
+
+  it('コースの「先生の許可」：入れると変更（変更前・変更後も）。切った項目・空の入れ物と「ない」は同じ（依頼者の選択 2026-11-04）', () => {
+    const on = withCourse(base, film.id, { permission: { abstract: true, final: true } })
+    expect(describeChanges(base, on)).toEqual(['映画・舞台衣装デザイナー コースの先生の許可'])
+    expect(listChanges(base, on)[0]).toMatchObject({ before: '使わない', after: '抄録・提出用の PDF', courseId: film.id, target: `c-${film.id}-perm-abstract` })
+    expect(sameConfig(base, withCourse(base, film.id, { permission: { abstract: false, final: false } }))).toBe(true)
+    expect(sameConfig(base, withCourse(base, film.id, { permission: {} }))).toBe(true)
+    expect(sameConfig(on, withCourse(base, film.id, { permission: { final: true, abstract: true } }))).toBe(true)
   })
 
   it('知らない項目の変更は「そのほかの設定」', () => {

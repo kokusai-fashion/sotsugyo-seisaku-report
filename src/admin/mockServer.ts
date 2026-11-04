@@ -1,8 +1,9 @@
 import { BUILD_ID } from '../app/newVersion'
 import { currentConfig, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
-import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type YearRow } from './server'
-import { applyNotices, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, removedMemberMessage } from './serverRules'
+import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type StudentEntry, type YearRow } from './server'
+import { applyNotices, applyPermissions, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, removedMemberMessage } from './serverRules'
+import { byKana, movedFlags } from './studentOrder'
 
 /**
  * 開発用の試験サーバー（ブラウザ内だけで動く）。本番の gas/admin-project/Code.js と同じ振る舞いをまねる
@@ -70,6 +71,41 @@ function save(store: Store): void {
   localStorage.setItem(KEY, JSON.stringify(store))
 }
 
+/** 試験用の学生の名簿（どのコースも同じ12人。名前・学籍番号はすべて作り物：mockups/v103 と同じ）。ふりがな・氏名・学籍番号 */
+const MOCK_STUDENTS: [string, string, string][] = [
+  ['アオキ ミサキ', '青木　美咲', '00ZZ0107'],
+  ['イシダ ハルカ', '石田　遥', '00ZZ0131'],
+  ['ウエノ ソラ', '上野　空', '00ZZ0112'],
+  ['エンドウ リコ', '遠藤　莉子', '00ZZ0145'],
+  ['オオタ ユイ', '太田　結衣', '00ZZ0103'],
+  ['カネコ ナナ', '金子　奈々', '00ZZ0126'],
+  ['キムラ アオイ', '木村　葵', '00ZZ0119'],
+  ['クボ メイ', '久保　芽依', '00ZZ0140'],
+  ['コバヤシ ヒナ', '小林　陽菜', '00ZZ0108'],
+  ['サイトウ ミオ', '斎藤　美緒', '00ZZ0134'],
+  ['シミズ カエデ', '清水　楓', '00ZZ0122'],
+  ['ブンカ ハナコ', '文化　花子', '00ZZ0123'],
+]
+/** 先生が直した点検表の並び（年度:コース → 学籍番号の並び）。本番は名簿の「並び」の列 */
+const ORDER_KEY = 'sotsugyo-admin-mock-order'
+function loadOrders(): Record<string, string[]> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? 'null') as Record<string, string[]> | null
+    if (saved && typeof saved === 'object') return saved
+  } catch {
+    // 壊れていたら、ふりがなの順から
+  }
+  return {}
+}
+/** 点検表の並び（本番の studentList_ と同じ形。並べ替えてあればその順、あとから来た学生はふりがなの順で後ろに） */
+function mockStudentList(year: number, courseId: string): StudentEntry[] {
+  const all = byKana(MOCK_STUDENTS.map(([kana, name, studentId]) => ({ studentId, name, kana, moved: false })))
+  const saved = loadOrders()[`${year}:${courseId}`]
+  const list = saved ? [...saved.flatMap((id) => all.filter((s) => s.studentId === id)), ...all.filter((s) => !saved.includes(s.studentId))] : all
+  const moved = movedFlags(list)
+  return list.map((s, i) => ({ ...s, moved: moved[i] }))
+}
+
 /**
  * 1回のやり取りにかかる時間。admin.html?delay=3000 で開くと 3 秒待つ（本番の Apps Script は、しばらく使っていないと
  * 10秒ほどかかることがあるので、待つ間の表示「保存しています…」「数秒〜十数秒かかることがあります」を確かめるため）
@@ -99,6 +135,11 @@ export function createMockServer(): AdminServer {
     const row = store.years.find((y) => y.year === year)
     if (!row) throw new Error(`${year}年度の設定がありません`)
     return row
+  }
+  /** 保存してあるコース（本番の requireCourse_ と同じ言葉。まだ保存していないコースの点検表は開けない） */
+  const requireSavedCourse = (store: Store, year: number, courseId: string) => {
+    const row = findYear(store, year)
+    if (!row.config.courses.some((c) => c.id === courseId)) throw new Error('このコースは、まだ保存されていません。保存してから使ってください')
   }
   /** 画面を開いたあとに、ほかの人（別のタブの自分）が保存していたら止める（本番の checkNotChanged_ と同じ） */
   const checkNotChanged = (row: YearRow, expectedUpdatedAt?: string) => {
@@ -213,8 +254,36 @@ export function createMockServer(): AdminServer {
           config.wordChecks = cleanWords(edits.words)
           done.push(`書き間違えやすい語を保存（${config.wordChecks.length}語）`)
         }
+        if (edits.permissions && typeof edits.permissions === 'object' && Object.keys(edits.permissions).length) done.push(`先生の許可を保存（${applyPermissions(config, edits.permissions).join('・')}）`)
         return done.join('・') || '保存（変更なし）'
       })
+    },
+    async ensureCheckSheet(year, courseId) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      requireSavedCourse(store, year, courseId)
+      // 本番は Google スプレッドシートの場所。試験用は、新しいタブで開ける空のページ（自動テストが、開いたことを確かめる）
+      return { url: `about:blank#check-sheet-${year}-${courseId}` }
+    },
+    async listStudents(year, courseId) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      requireSavedCourse(store, year, courseId)
+      return mockStudentList(year, courseId)
+    },
+    async saveStudentOrder(year, courseId, studentIds) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      requireSavedCourse(store, year, courseId)
+      if (studentIds !== null && (!Array.isArray(studentIds) || studentIds.some((x) => typeof x !== 'string'))) throw new Error('並びの形が正しくありません')
+      const orders = loadOrders()
+      if (studentIds) orders[`${year}:${courseId}`] = studentIds
+      else delete orders[`${year}:${courseId}`]
+      localStorage.setItem(ORDER_KEY, JSON.stringify(orders))
+      return mockStudentList(year, courseId)
     },
     async saveNotices(year, notices) {
       await wait()

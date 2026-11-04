@@ -1779,8 +1779,8 @@ await withEdge(async (browser) => {
   }
   await tv.setViewport({ width: 1366, height: 768 })
   check(
-    '先生の画面：左の見出しは「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つ。コースを開くと、指導教員・お知らせ・ひな形・表の空の行（並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
-    teacherView.nav === 'コースごとの設定|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|表の空の行' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
+    '先生の画面：左の見出しは「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つ。コースを開くと、指導教員・お知らせ・ひな形・表の空の行・先生の許可・点検表（並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
+    teacherView.nav === 'コースごとの設定|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|表の空の行|先生の許可|点検表' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
     JSON.stringify(teacherView),
   )
   // 見本は見開きで送る（mockups 案A：依頼者の選択 2026-10-22）。「‹」で表紙・抄録へ、「›」で本文へ。最初・最後の見開きでは押せない
@@ -1797,8 +1797,8 @@ await withEdge(async (browser) => {
     JSON.stringify({ toCover, toBody }),
   )
   check(
-    '先生の画面のはじめに見えるのは、入力欄2・ボタン7前後・12px以下の字0（mockups/v43 案B：入力欄2・ボタン7。左の見出しの「届いた声」で1つ増えた）',
-    teacherCount.fields === 2 && teacherCount.buttons >= 6 && teacherCount.buttons <= 9 && teacherCount.small === 0,
+    '先生の画面のはじめに見えるのは、入力欄4・ボタン9前後・12px以下の字0（mockups/v43 案B：入力欄2・ボタン7。左の見出しの「届いた声」で1つ、先生の許可の2つの切り替えと点検表の2つのボタンで、入力欄2・ボタン2増えた：依頼者の選択 2026-11-04）',
+    teacherCount.fields === 4 && teacherCount.buttons >= 8 && teacherCount.buttons <= 11 && teacherCount.small === 0,
     JSON.stringify(teacherCount),
   )
   await nav(tv, '書き方のチェック')
