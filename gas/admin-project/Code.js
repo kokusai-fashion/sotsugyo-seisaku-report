@@ -21,8 +21,9 @@
  *   コースの点検表は、PDF の控えのコースのフォルダに置く（見られる人は、PDF の控えと同じ。共有はフォルダのまま）。
  *   10分ごとの仕掛け（syncCheckSheets）が、名簿から点検表に写す。先生が ✓ を入れると、編集の仕掛け（onCheckSheetEdit）が日時と名字を残す。
  *   点検表の並びはツールが決める（名簿の並び、なければふりがなの順）。写すたびに、その順に書き直す（シートで行を動かしても戻る）。
- *   ツールが書く列（番号・氏名・最新 PDF・知らせ・見えない学籍番号と許可の記録・段のあいだのすき間）と見出しの行は、デプロイした人だけが書けるように守る
- *   （先生が書けるのは、白い回の列と ✓ の列だけ）。守った列にかかる行の移動・並べ替えは、Google スプレッドシートが断る。
+ *   ツールが書く列（番号・氏名・最新 PDF・知らせ・見えない学籍番号と許可の記録・段のあいだのすき間）・✓ の列の見出し・案内の行は、デプロイした人だけが書けるように守る
+ *   （先生が書けるのは、白い回の列（見出しも。足す・名前を変えるのも自由）と ✓ の列の中身だけ）。守った列にかかる行の移動・並べ替えは、Google スプレッドシートが断る。
+ *   段ごとに列は見出しの名前で探す（先生が片方の段にだけ回の列を足した・名前を変えたときも、そのまま読む）。
  *   それでも見える氏名と見えない学籍番号がずれた行は、許可を学生に渡さず、「知らせ」に「並びが崩れています」と出す（依頼者の選択 2026-11-04）
  *   配り直したあと、エディタで1回だけ setupCheckSheets を実行する（ドライブ・仕掛けの権限を承認し、仕掛けを作り直す。届いた声のメールの仕掛けも作り直す）。
  *   配信の窓口（gas/api-project）も、点検表の「知らせ」「氏名」を書くので、管理ページと同じ人がデプロイする
@@ -1558,8 +1559,12 @@ function syncCheckSheet_(entry, course, roster) {
         untrusted[key] = true
         continue
       }
-      const cells = {}
-      columns.forEach((x) => (cells[x.id] = values[r][x.col]))
+      // rounds：その段の回の列の並び（ほかの段に移ったときに、回の列を合わせるため：alignRounds_）
+      const cells = { rounds: [] }
+      columns.forEach((x) => {
+        cells[x.id] = values[r][x.col]
+        if (x.kind === 'round') cells.rounds.push(x.id)
+      })
       // 前に「並びが崩れています」を出した行は、先生が確かめるまで、そのまま（学生と一緒に動かす）
       cells.broken = b.cols.note >= 0 && String(values[r][b.cols.note]).trim() === BROKEN_NOTE
       kept[key] = cells
@@ -1588,14 +1593,23 @@ function syncCheckSheet_(entry, course, roster) {
   const header = values[h]
   const rows = Math.max(layout.perBlock, lastRow)
 
+  // 回の列の対応（学生の前の段 → 今の段。段ごとに列が違ってもよい。同じ並びの組は1回だけ数える）
+  const aligned = {}
+  const alignOf = (from, to) => {
+    const key = from.join('\n') + '\n>\n' + to.join('\n')
+    return aligned[key] || (aligned[key] = alignRounds_(from, to))
+  }
   blocks.slice(0, layout.blocks).forEach((b, bi) => {
-    blockColumns_(header, b).forEach((x) => {
+    const columns = blockColumns_(header, b)
+    const roundIds = columns.filter((x) => x.kind === 'round').map((x) => x.id)
+    columns.forEach((x) => {
       const column = []
       for (let r = 0; r < rows; r++) {
         const index = bi * layout.perBlock + r
         const s = r < layout.perBlock ? students[index] : null
         const row = values[h + 1 + r] || []
-        const v = s ? cellValue_(x, s, index, kept[s.id] || null, !!untrusted[s.id]) : ''
+        const mine = s ? kept[s.id] || null : null
+        const v = s ? cellValue_(x, s, index, mine, !!untrusted[s.id], mine ? alignOf(mine.rounds, roundIds) : null) : ''
         // 並びが崩れた学生の、先生の列：その場所の今の中身のまま（だれのものか分からない中身を、ほかの学生に移さない）
         column.push(v === LEAVE ? (row[x.col] === undefined ? '' : row[x.col]) : v)
       }
@@ -1652,10 +1666,45 @@ function protectRange_(range) {
 const LEAVE = {}
 
 /**
- * 点検表の1つのセルの中身（s：その行の学生、index：通し番号（0 から）、kept：先生が書いた中身、
- * untrusted：並びが崩れた学生（先生の列は LEAVE：その場所の今の中身のまま。知らせは「並びが崩れています」））
+ * 2つの段の回の列の対応（今の段の列 → 前の段の列）。同じ名前の列はそのまま組にし、名前が違う列は、
+ * 同じ名前の列のあいだで、並んだ順に組にする（先生が片方の段だけ「4回目」を「最終確認」に変えた → 組にする。足しただけの列は組にしない）
  */
-function cellValue_(column, s, index, kept, untrusted) {
+function alignRounds_(from, to) {
+  const n = from.length
+  const m = to.length
+  const same = Array.from({ length: n + 1 }, () => Array.from({ length: m + 1 }, () => 0))
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) same[i][j] = from[i] === to[j] ? same[i + 1][j + 1] + 1 : Math.max(same[i + 1][j], same[i][j + 1])
+  const map = {}
+  let gapFrom = []
+  let gapTo = []
+  const pair = () => {
+    gapTo.forEach((t, k) => {
+      if (k < gapFrom.length) map[t] = gapFrom[k]
+    })
+    gapFrom = []
+    gapTo = []
+  }
+  let i = 0
+  let j = 0
+  while (i < n || j < m) {
+    if (i < n && j < m && from[i] === to[j]) {
+      pair()
+      map[to[j]] = from[i]
+      i++
+      j++
+    } else if (j >= m || (i < n && same[i + 1][j] >= same[i][j + 1])) gapFrom.push(from[i++])
+    else gapTo.push(to[j++])
+  }
+  pair()
+  return map
+}
+
+/**
+ * 点検表の1つのセルの中身（s：その行の学生、index：通し番号（0 から）、kept：先生が書いた中身、
+ * untrusted：並びが崩れた学生（先生の列は LEAVE：その場所の今の中身のまま。知らせは「並びが崩れています」）、
+ * align：回の列の対応（alignRounds_。今の段の列 → 先生が書いた段の列）
+ */
+function cellValue_(column, s, index, kept, untrusted, align) {
   const old = (id) => (kept && kept[id] !== undefined ? kept[id] : undefined)
   switch (column.kind) {
     case 'no':
@@ -1679,6 +1728,12 @@ function cellValue_(column, s, index, kept, untrusted) {
       const v = old(column.id)
       return v === undefined || v === '' ? false : v
     }
+    case 'round': {
+      // 段ごとに回の列が違ってもよい（先生が片方の段にだけ足した・名前を変えた）。対応する列の中身。なければ空
+      const from = align ? align[column.id] : undefined
+      const v = from ? old(from) : undefined
+      return v === undefined ? '' : v
+    }
     default: {
       const v = old(column.id)
       return v === undefined ? '' : v
@@ -1697,7 +1752,8 @@ function writeValue_(kind, value) {
  * 点検表の見た目（v106・v107 案A）：見出しの行は固定・太字。番号・最新 PDF・知らせは灰色、許可の2列はうすい黄色で ✓ の箱、教務提出も ✓ の箱、
  * 回の列は先生の名字のプルダウン（「山本 予定」「山本 済み」）。済みは先生ごとの淡い色、予定は灰色の字（条件付き書式）。
  * 学籍番号と許可の記録の列は隠す。学生のいない行の箱・色は外す。
- * いちばん上の案内の行と見出しの行は固定する。ツールが書く列（すき間の列も）と、上の行（案内・見出し）は、デプロイした人だけが書けるように守る（作り直す）
+ * いちばん上の案内の行と見出しの行は固定する。ツールが書く列（見出しから下まで。すき間の列も）・✓ の列の見出し・案内の行のはじめの3列は、
+ * デプロイした人だけが書けるように守る（作り直す）。白い回の列は、見出しも中身も守らない（先生がコースで自由に足す・消す・名前を変える）
  */
 function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh) {
   sheet.setFrozenRows(h + 1)
@@ -1710,7 +1766,9 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
   const dropdown = choices.length ? SpreadsheetApp.newDataValidation().requireValueInList(choices, true).setAllowInvalid(true).build() : null
   const roundRanges = []
   const noteRanges = []
+  // 守る列（見出しから下まで）と、見出しだけ守る列（✓ の列。先生が ✓ を入れる。回の列の見出しは守らない：先生が足す・名前を変える）
   const lockedColumns = []
+  const lockedHeads = []
   const used = blocks.slice(0, layout.blocks)
   used.forEach((b, bi) => {
     const filled = Math.max(0, Math.min(layout.perBlock, layout.count - bi * layout.perBlock))
@@ -1729,6 +1787,7 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
       if (HIDDEN_COLUMNS.indexOf(kind) >= 0) sheet.hideColumns(x.col + 1)
       else if (fresh.indexOf(bi) >= 0) sheet.showColumns(x.col + 1)
       if (TOOL_COLUMNS.indexOf(kind) >= 0) lockedColumns.push(x.col)
+      else if (kind !== 'round') lockedHeads.push(x.col)
       if (filled > 0) {
         const cells = sheet.getRange(h + 2, x.col + 1, filled, 1)
         cells.setBackground(tool ? CHECK_COLORS.toolCell : perm ? CHECK_COLORS.permCell : null)
@@ -1741,23 +1800,27 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
       }
       if (rows > filled) sheet.getRange(h + 2 + filled, x.col + 1, rows - filled, 1).setBackground(null).setDataValidation(null).setFontWeight(null)
     })
-    // 2段のときの、段のあいだのすき間の列（ここも守る）
+    // 2段のときの、段のあいだのすき間の列（見出しのない列。ここも守る。先生が見出しを書いた列は、1段目の回の列になる）
     if (bi === 0 && layout.blocks === 2) {
-      sheet.setColumnWidth(b.end + 2, CHECK_WIDTHS.gap)
-      // 隠した列（許可の記録）のすぐ右に足した列なので、見えるようにしておく
-      if (fresh.length) sheet.showColumns(b.end + 2)
-      lockedColumns.push(b.end + 1)
+      for (let c = b.end + 1; c < used[1].start; c++) {
+        sheet.setColumnWidth(c + 1, CHECK_WIDTHS.gap)
+        // 隠した列（許可の記録）のすぐ右に足した列なので、見えるようにしておく
+        if (fresh.length) sheet.showColumns(c + 1)
+        lockedColumns.push(c)
+      }
     }
   })
-  // 守り：前にツールが付けた守りを外して、付け直す（列・段が変わったときに、今の列に合わせる）
+  // 守り：前にツールが付けた守りを外して、付け直す（列・段が変わったときに、今の列に合わせる）。
+  // 行ごとは守らない（白い回の列のところに、先生が列を足せるように：依頼者の選択 2026-11-04）
   sheet
     .getProtections(SpreadsheetApp.ProtectionType.RANGE)
     .filter((p) => p.getDescription() === PROTECT_NOTE)
     .forEach((p) => p.remove())
-  const lastCol = used[used.length - 1].end + 1
-  const below = Math.max(1, sheet.getMaxRows() - h - 1)
-  protectRange_(sheet.getRange(1, 1, h + 1, lastCol))
-  lockedColumns.forEach((c) => protectRange_(sheet.getRange(h + 2, c + 1, below, 1)))
+  const below = Math.max(1, sheet.getMaxRows() - h)
+  // 案内の行は、1段目のはじめの3列（番号・氏名・最新 PDF の上）だけ
+  if (h > 0) protectRange_(sheet.getRange(1, used[0].start + 1, h, Math.min(3, used[0].end - used[0].start + 1)))
+  lockedColumns.forEach((c) => protectRange_(sheet.getRange(h + 1, c + 1, below, 1)))
+  lockedHeads.forEach((c) => protectRange_(sheet.getRange(h + 1, c + 1)))
   // 条件付き書式（作り直す。先生ごとの「済み」の色・「予定」の灰色の字・知らせの赤と灰色）
   const rules = []
   const rule = () => SpreadsheetApp.newConditionalFormatRule()
