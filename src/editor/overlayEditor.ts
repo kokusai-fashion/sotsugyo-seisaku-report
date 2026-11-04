@@ -83,6 +83,8 @@ export interface OverlayCallbacks {
   onPasteClip?: { matches(pasted: string): boolean; paste(blockId: string, text: string, start: number, end: number): void }
   /** 段落に貼り付ける、ふつうの文字を変える（抄録：図表の参照の括弧を除く。変えたら、呼び出し側が知らせる）。返した文字を入れる */
   pasteText?(blockId: string, pasted: string): string
+  /** 書く欄の中でコピー・切り取りした字（道具の「貼り付け」で使う。学生の試し 8回目 2026-11-04） */
+  onFieldCopy?(text: string): void
   /** 1行の欄（見出し・表紙の項目・タイトル）に貼る文字を変える（見出しの欄に貼った「Ⅱ．」「2-1」などの番号を外す：学生の試し 5回目 2026-10-30） */
   pasteLine?(blockId: string, pasted: string): string
   /**
@@ -1782,9 +1784,12 @@ export class OverlayEditor {
 
   /** 書く欄の中のコピー・切り取り：選んでいる文字だけを、ふつうの文字としてクリップボードに入れる（紙面と同じ組み方で書いているとき） */
   private onCopyCut(e: ClipboardEvent, cut: boolean): void {
-    if (!this.typeset || !this.target) return
+    if (!this.target) return
     const { start, end } = this.selectionOffsets()
     if (start === end) return
+    // 写した字を覚えてもらう（Ctrl+C で写すと、道具の「貼り付け」が出ず、同じ所の「削除」を押して段落が消えた：学生の試し 8回目 2026-11-04）
+    this.callbacks.onFieldCopy?.(this.text.slice(start, end))
+    if (!this.typeset) return
     e.preventDefault()
     e.clipboardData?.setData('text/plain', this.model.slice(start, end))
     if (cut) {
@@ -1864,6 +1869,17 @@ export class OverlayEditor {
   /**
    * 道具の「貼り付け」・書く欄の近くの「貼り付け」：紙面でコピーしたまとまりを、カーソルの所に入れる（Ctrl+V と同じ。選んでいる文字は置き換える）
    */
+  /** 道具の「貼り付け」で、書く欄の中で写した字を貼る（Ctrl+V と同じ決まりで入れる：抄録の（図n）を外すなど） */
+  pastePlain(text: string): void {
+    if (!this.target) return
+    const data = new DataTransfer()
+    data.setData('text/plain', text)
+    this.element.focus()
+    // 作った貼り付けの出来事では、ブラウザは字を入れない：受け取った側が入れなかったときは、ここで入れる
+    const handled = !this.element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    if (!handled) document.execCommand('insertText', false, text.replace(/[\r\n]/g, ''))
+  }
+
   pasteClip(): void {
     const clip = this.callbacks.onPasteClip
     if (!this.target || this.target.kind !== 'paragraph' || !clip) return

@@ -351,7 +351,21 @@ await withEdge(async (browser) => {
     await page.keyboard.up('Control')
     await wait(300)
     const after = await page.evaluate(() => window.__editor.getSnapshot().pasteReady)
-    check('書く欄の中で Ctrl+C でコピーすると、前に紙面でコピーした文の「貼り付け」は出なくなる（Ctrl+V で、いまコピーした文）', before === true && after === false, JSON.stringify({ before, after }))
+    // 道具の「貼り付け」は、いま書く欄で写した字を貼る（前は出なくなり、同じ所の「削除」を押して段落が消えた：学生の試し 8回目 2026-11-04）
+    const textOf = (id) => page.evaluate((id) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === id).content.map((n) => n.text ?? '').join(''), id)
+    const p1 = await textOf('p1')
+    const p2 = await textOf('p2')
+    await page.keyboard.press('ArrowRight')
+    await page.evaluate(() => window.__editor.pasteFromTool())
+    await wait(300)
+    await page.keyboard.press('Escape')
+    await ready()
+    const pasted = await textOf('p2')
+    check(
+      '書く欄の中で Ctrl+C でコピーすると、道具の「貼り付け」は出たまま、前に紙面でコピーした文ではなく、いま写した字を貼る',
+      before === true && after === true && pasted === p2.slice(0, 5) + p2 && !pasted.includes(p1.slice(2, 10)),
+      JSON.stringify({ before, after, pasted: pasted.slice(0, 20) }),
+    )
     await page.keyboard.press('Escape')
     await context.close()
   }

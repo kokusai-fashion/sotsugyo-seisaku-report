@@ -88,6 +88,18 @@ await withEdge(async (browser) => {
   const vertical = await state()
   check('拡大中に上へはらっても、ページは送らない（紙面が動く）', vertical.page === start + 2 && vertical.zoomed, JSON.stringify(vertical))
 
+  // 下に赤い帯（直すところ）が出ているときも、「全体」はページ送りの中（前は帯の分だけボタンだけが上にずれ、表の上に浮いた：学生の試し 8回目 2026-11-04）
+  await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p3' ? { ...b, content: [...b.content, { type: 'text', text: '制作はとても楽しかったです。' }] } : b)) })) })))
+  await page.waitForSelector('.err-strip', { timeout: 30000 })
+  await wait(600)
+  await ready()
+  const inPill = await page.evaluate(() => {
+    const p = document.querySelector('.pager')?.getBoundingClientRect()
+    const u = document.querySelector('.pager button.unzoom')?.getBoundingClientRect()
+    return p && u ? { inside: u.top >= p.top - 1 && u.bottom <= p.bottom + 1 && u.right <= p.right + 1, pager: Math.round(p.top), unzoom: Math.round(u.top) } : { inside: false }
+  })
+  check('下に赤い帯が出ているときも、「全体」はページ送りの中にある', inPill.inside, JSON.stringify(inPill))
+
   // 「全体」
   await page.tap('.pager button.unzoom')
   await wait(500)

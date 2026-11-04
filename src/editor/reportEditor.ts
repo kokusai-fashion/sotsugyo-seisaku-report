@@ -656,6 +656,13 @@ export class ReportEditor {
         paste: (id, text, start, end) => this.pasteClipAt(id, text, start, end),
       },
       // ふつうの文字の貼り付け（ほかのアプリ・書く欄からコピーした文字。スマホも）：抄録には、図表の参照の括弧を除いて入れる（abstractRefs.ts）
+      // 書く欄の中で写した字：道具の「貼り付け」で貼れるよう覚える（紙面で写したまとまりは忘れる）
+      onFieldCopy: (text) => {
+        if (this.phone) return
+        this.fieldCopied = text
+        this.clip = null
+        this.notify()
+      },
       pasteText: (id, raw) => {
         // Word から貼った文のタブ（「1.⇥素材選び」）は、全角の空白1つにする（タブのまま残っていた：学生の試し 3回目 2026-10-29）
         const kind = ops.findEditable(this.report, id)?.kind
@@ -854,7 +861,7 @@ export class ReportEditor {
       caret: this.overlay.blockId ? this.caretPos : null,
       notice: this.currentNotice,
       textRange: this.textRange,
-      pasteReady: !!this.clip && !this.phone && (editable?.kind === 'paragraph' || editable?.kind === 'abstractParagraph'),
+      pasteReady: (!!this.clip || this.fieldCopied !== null) && !this.phone && (editable?.kind === 'paragraph' || editable?.kind === 'abstractParagraph'),
       pageChecksPending: !this.layout || this.provisional,
       pagesLeft: this.provisional || !this.layout ? this.pagesLeft : null,
       replacing: this.replacing !== null,
@@ -5186,6 +5193,7 @@ export class ReportEditor {
     const clip = copyRange(found.report, found.range)
     this.clip = clip
     this.clipPasted = null
+    this.fieldCopied = null
     navigator.clipboard?.writeText(clip.text).catch(() => {})
     this.notify()
     return true
@@ -5200,9 +5208,13 @@ export class ReportEditor {
 
   /** 道具・書く欄の近くの「貼り付け」：紙面でコピーしたまとまりを、書いている段落のカーソルの所に入れる（Ctrl+V と同じ） */
   pasteFromTool(): void {
-    if (!this.clip || !this.overlay.blockId) return
-    this.overlay.pasteClip()
+    if (!this.overlay.blockId) return
+    if (this.clip) this.overlay.pasteClip()
+    else if (this.fieldCopied !== null) this.overlay.pastePlain(this.fieldCopied)
   }
+
+  /** 書く欄の中で最後にコピー・切り取りした字（紙面でコピーしたまとまり this.clip があるときは null） */
+  private fieldCopied: string | null = null
 
   /** 紙面で選んでいる文字を、選ばないようにする（ページを替えたとき） */
   private clearPaperSelection(): void {
@@ -5249,11 +5261,7 @@ export class ReportEditor {
     // 書く欄は、自分でコピーを受け取る（overlayEditor の onCopyCut。preventDefault する）ので、先に見る
     if (e.target instanceof Node && this.overlay.element.contains(e.target)) {
       // 書く欄の中でコピーした（Ctrl+C）：前に紙面でコピーしたまとまりは忘れる。道具・書く欄の近くの「貼り付け」が、
-      // いまコピーした文ではなく、前に紙面でコピーした文を貼っていた（学生の試し 2026-11-01 録画3）。貼り付けは Ctrl+V で
-      if (this.clip) {
-        this.clip = null
-        this.notify()
-      }
+      // いまコピーした文ではなく、前に紙面でコピーした文を貼っていた（学生の試し 2026-11-01 録画3）。いまコピーした文は onFieldCopy で覚える
       return
     }
     if (e.defaultPrevented) return
@@ -5268,6 +5276,7 @@ export class ReportEditor {
     e.preventDefault()
     this.clip = clip
     this.clipPasted = null
+    this.fieldCopied = null
     // Ctrl+C でも、帯の「コピー」を「✓ コピーしました」にする（帯が出ているとき。切り取りは、選んだ文が消えるので出さない）
     if (e.type === 'copy' && this.selectionBar.barShown) this.selectionBar.flashCopied()
     this.notify()

@@ -10,7 +10,8 @@ export function fakeDrive(email = '00zz901@bunka-wu.ac.jp') {
   // uploadDelay：ファイルを送るのに、わざと時間をかける（ミリ秒。「置いています…」の表示を見るため）。
   // delay：どの呼び出しにも、わざと時間をかける（ミリ秒。ログイン・読み込み直すときの「待つ間の表示」を見るため。waiting.mjs）
   const drive = { files, email, failNext: null, logins: 0, pdfCopies: [], uploadDelay: 0, delay: 0 }
-  const now = () => new Date((clock += 1000)).toISOString()
+  // 1回ごとに1秒進めるが、本当の時刻より遅れない（遅れると、開き直したときの「保存 10:39」が前に出ていた時刻より古く見えた：学生の試し 8回目）
+  const now = () => new Date((clock = Math.max(Date.now(), clock + 1000))).toISOString()
   const meta = (f) => ({ id: f.id, name: f.name, size: String(f.content?.length ?? 0), modifiedTime: f.modifiedTime, appProperties: f.appProperties })
   const unquote = (s) => s.replace(/\\'/g, "'").replace(/\\\\/g, '\\')
   const matches = (f, q) => {

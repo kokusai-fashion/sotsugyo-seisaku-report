@@ -2361,7 +2361,8 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
 .app.phone:has(> .err-strip) { grid-template-rows: 48px minmax(0, 1fr) 44px 62px; }
 .app.phone.writing-land:has(> .err-strip) { grid-template-rows: 0 minmax(0, 1fr) 44px 62px; }
 .app.phone:has(> .err-strip) .p-nav { grid-row: 4; }
-.app.phone:has(> .err-strip) :is(.pager, .unzoom, .undo-area) { bottom: calc(62px + 44px + 12px); }
+/* 「全体」はページ送りの中にあるので、ここには入れない（入れると、ボタンだけが上にずれて表の上に浮いた：学生の試し 8回目 2026-11-04） */
+.app.phone:has(> .err-strip) :is(.pager, .undo-area) { bottom: calc(62px + 44px + 12px); }
 .app.phone:has(> .err-strip) .sel-bar { bottom: calc(62px + 44px + 12px + 52px + 8px); }
 .err-strip { grid-row: 3; box-sizing: border-box; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 14px; border: 0; border-top: 1px solid #f1c0bb; background: #fdecea; color: #7f1d1d; font: inherit; font-size: 14px; text-align: left; }
 .err-strip b { font-weight: 700; white-space: nowrap; }
@@ -2374,7 +2375,7 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
   .app.phone:has(> .err-strip) { grid-template-rows: 48px minmax(0, 1fr) 62px; }
   .app.phone.writing-land:has(> .err-strip) { grid-template-rows: 0 minmax(0, 1fr) 62px; }
   .app.phone:has(> .err-strip) .p-nav { grid-row: 3; }
-  .app.phone:has(> .err-strip) :is(.pager, .unzoom, .undo-area) { bottom: calc(62px + 12px); }
+  .app.phone:has(> .err-strip) :is(.pager, .undo-area) { bottom: calc(62px + 12px); }
   .app.phone:has(> .err-strip) .sel-bar { bottom: calc(62px + 12px + 52px + 8px); }
   .err-strip { position: fixed; z-index: 10; left: 12px; bottom: calc(62px + 12px); height: 40px; border: 1px solid #f1c0bb; border-radius: 999px; box-shadow: var(--float-shadow); font-size: 13px; }
   .err-strip .go { margin-left: 4px; }
