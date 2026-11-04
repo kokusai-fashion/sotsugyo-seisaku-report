@@ -21,6 +21,7 @@ process.env.EDGE_PORT ??= '9403'
 const { withEdge } = await import('./poc/edge.mjs')
 const { fakeDrive, routeGoogle } = await import('./e2e/fakeGoogle.mjs')
 const { sinbadSample, setupSinbad, sampleText } = await import('./e2e/sampleSinbad.mjs')
+const { closeGuide } = await import('./e2e/nameStep.mjs')
 /** 見本の原稿「シンドバッド」（{ report, images }） */
 const SAMPLE = sinbadSample()
 
@@ -287,8 +288,8 @@ async function studentShots(browser) {
   await sleep(900)
   await capture(page, 'word', pad(await R(page, '.g-tip'), 14))
   await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
-  await page.waitForSelector('.guide .g-later')
-  await page.evaluate(() => document.querySelector('.guide .g-later').click())
+  // 「氏名」の段（姓・名・セイ・メイ。入れるまで閉じられない：2026-11-04 から）を入れてから閉じる
+  await closeGuide(page)
   await page.evaluate(() => window.__editor.finishEditing())
   await ready(page)
   await page.evaluate(() => document.documentElement.classList.add('no-guide'))
