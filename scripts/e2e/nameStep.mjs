@@ -30,3 +30,16 @@ export async function finishGuideAfterImport(page) {
   else if (await page.$('.guide .g-later')) await page.evaluate(() => document.querySelector('.guide .g-later').click())
   return true
 }
+
+/**
+ * 案内を「あとで入力する」で閉じる。氏名の段（ログインで学籍番号が入ると、案内は氏名から）は閉じられないので、入れてから次の段で閉じる
+ */
+export async function closeGuide(page) {
+  await page.waitForSelector('.guide .g-later, .guide.step-name .name-fields input', { timeout: 30000 })
+  if (await page.$('.guide.step-name')) {
+    await fillGuideName(page)
+    await page.waitForSelector('.guide .g-later, .guide.step-done .g-actions button', { timeout: 20000 })
+  }
+  if (await page.$('.guide .g-later')) await page.evaluate(() => document.querySelector('.guide .g-later').click())
+  else await page.evaluate(() => [...document.querySelectorAll('.guide .g-actions button')].find((b) => b.textContent.includes('閉じる'))?.click())
+}

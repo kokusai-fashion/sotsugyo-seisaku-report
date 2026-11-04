@@ -1467,7 +1467,11 @@ export function applyWordImport(report: Report, result: WordImportResult, course
   if (cover.name) cover.name = tidyName(cover.name)
   // 氏名は、姓と名にも分けて入れる（最初の空白で分ける。空白がなければ全部を姓に）。ふりがなは原稿のまま（なければ、はじめての案内で入れてもらう：依頼者の選択 2026-11-04）
   const parts = cover.name ? nameParts({ name: cover.name }) : null
-  const imported: Report = { ...report, body: result.body, basicInfo: { ...report.basicInfo, ...cover, ...(parts ? { familyName: parts.familyName, givenName: parts.givenName } : {}) } }
+  // 前の姓・名と違う氏名を読み込んだら、ふりがなは消して入れ直してもらう（違う人の読みのまま、先生の点検表に並ばないように。見直しで分かった：2026-11-04）
+  const before = nameParts(report.basicInfo)
+  const nameChanged = !!parts && (parts.familyName !== before.familyName || parts.givenName !== before.givenName)
+  const nameFields = parts ? { familyName: parts.familyName, givenName: parts.givenName, ...(nameChanged ? { familyKana: '', givenKana: '' } : {}) } : {}
+  const imported: Report = { ...report, body: result.body, basicInfo: { ...report.basicInfo, ...cover, ...nameFields } }
   if (!course || course.courseId === report.basicInfo.courseId) return imported
   const renamed = setCourse(imported, course.courseId)
   return abstractEmpty(renamed) ? { ...renamed, abstract: { ...renamed.abstract, paragraphs: [emptyParagraph(abstractHint(course.config, course.courseId))] } } : renamed

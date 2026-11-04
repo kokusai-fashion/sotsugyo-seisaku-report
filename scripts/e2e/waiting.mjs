@@ -15,6 +15,7 @@ import { stubConfig } from './configStub.mjs'
 import { fakeDrive, routeGoogle } from './fakeGoogle.mjs'
 import { setupWriting } from './sampleReport.mjs'
 import { answerConfirms } from './confirmUi.mjs'
+import { closeGuide } from './nameStep.mjs'
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const OUT = 'poc-output/waiting'
@@ -78,8 +79,7 @@ async function openSample(browser, vp) {
   await page.evaluate(() => [...document.querySelectorAll('.guide .g-opts button')].find((b) => b.textContent.includes('映画・舞台衣装')).click())
   await page.waitForSelector('.guide.step-word .g-word-opt.no')
   await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
-  await page.waitForSelector('.g-later')
-  await page.evaluate(() => document.querySelector('.g-later').click())
+  await closeGuide(page)
   await page.evaluate(() => window.__editor.finishEditing())
   await ready()
   await page.evaluate(setupWriting)
@@ -289,7 +289,7 @@ async function wordImport(page, ready, check, who, phone, shot) {
     detail(imported, after),
   )
   if (after.guide) {
-    await page.evaluate(() => document.querySelector('.g-later')?.click())
+    if (await page.$('.guide')) await closeGuide(page)
     await page.evaluate(() => window.__editor.finishEditing())
     await ready()
   }
@@ -432,8 +432,7 @@ export async function waitingDrive(browser, check) {
   await page.evaluate(() => [...document.querySelectorAll('.guide .g-opts button')].find((b) => b.textContent.includes('映画・舞台衣装')).click())
   await page.waitForSelector('.guide.step-word .g-word-opt.no')
   await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
-  await page.waitForSelector('.g-later')
-  await page.evaluate(() => document.querySelector('.g-later').click())
+  await closeGuide(page)
   await setInfo(page, { name: '文化　花子' })
   await savedChip(page)
 

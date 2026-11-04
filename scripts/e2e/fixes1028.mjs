@@ -96,11 +96,11 @@ await withEdge(async (browser) => {
     const latin = { name: await nameNow(page), findings: await nameFindings(page) }
     check('英字の名前は、半角の空白でつなぐ（指摘も出さない）', latin.name === 'Smith Emma' && latin.findings.length === 0, JSON.stringify(latin))
 
-    // 名前が1つだけの人：名は空でよい（姓・名の欄で入れた氏名には「空白を入れる」の指摘を出さない）
+    // 名を空にした氏名：そのまま入る。空白のない氏名は「姓と名の間に全角の空白を入れる」（要確認）を出す（名前が1つだけの人は「このままにする」）
     await typeName(page, ready, ['文化花子', '', 'ブンカハナコ', ''])
     await finish(page, ready)
     const one = { name: await nameNow(page), findings: await nameFindings(page) }
-    check('名を空にした氏名（名前が1つだけの人）は、そのまま入り、「姓と名の間に全角の空白を入れる」は出さない', one.name === '文化花子' && !one.findings.includes('name-no-space'), JSON.stringify(one))
+    check('名を空にした氏名は、そのまま入り、空白がなければ「姓と名の間に全角の空白を入れる」（要確認）を出す', one.name === '文化花子' && one.findings.includes('name-no-space'), JSON.stringify(one))
 
     // 前の原稿（氏名の欄が1つだったころ）で空白のない氏名は、今までどおり要確認を出す
     await page.evaluate(() => window.__editor.update((r) => ({ ...r, basicInfo: { studentId: r.basicInfo.studentId, courseId: r.basicInfo.courseId, subtitleInput: r.basicInfo.subtitleInput, name: '文化花子' } })))

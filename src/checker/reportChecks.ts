@@ -351,8 +351,9 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
     )
   }
   // 姓と名の間に空白がない（どこで分けるかはツールに分からないので、学生に入れてもらう。依頼者の選択 2026-10-28 案1）。
-  // 姓・名の欄で入れた氏名（2026-11-04 から）は、名を空にした人（名前が1つだけ）なので見ない
-  if (basicInfo.familyName === undefined && nameWithoutSpace(basicInfo.name)) {
+  // 姓・名の欄で名を空にしたときも出す（Word の「文化花子」をそのまま姓に入れた・前の原稿の氏名を分けられなかった、が多いため。
+  // 名前が1つだけの人は「このままにする」。見直しで分かった：2026-11-04）
+  if (nameWithoutSpace(basicInfo.name)) {
     findings.push(guide('name-no-space', 'warning', '姓と名の間に全角の空白を入れる', 'cover', { blockId: 'basic:name', detail: '表紙と抄録の氏名は、姓と名の間を全角の空白1つにそろえます（例：文化　花子）' }))
   }
   // 氏名に数字や「学籍番号」：学籍番号の欄の文までいっしょに入っている（2行ぶんを氏名の欄に貼り付けたなど）。表紙とファイル名がおかしくなる

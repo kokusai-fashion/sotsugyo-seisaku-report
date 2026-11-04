@@ -16,6 +16,7 @@
 // - mockups/v73 の見た目の直し（依頼者の選択「おすすめで」。① 参考文献は保留）：② 知らせは紙面の台の上の真ん中 ③ スマホの「削除」は帯の左の端
 //   ④ はじめの1回だけ「字が小さいときは…」 ⑤ 押せない「図を入れる」を押すと吹き出しでわけ ⑥「6ページ（5ページ以上）」 ⑦ 作品写真の空の枠に大きな「＋ 写真を選ぶ」
 //   ⑧ Word：替わる表紙の項目を赤で・メニューに残す ⑨ スマホの並べ方をマウスで使うとき、Ctrl＋ホイールで紙面を広げる
+import { finishGuideAfterImport } from './nameStep.mjs'
 import { fileURLToPath } from 'node:url'
 import { withEdge } from '../poc/edge.mjs'
 import { stubConfig } from './configStub.mjs'
@@ -305,7 +306,10 @@ await withEdge(async (browser) => {
     const sticky = await page.evaluate(() => getComputedStyle(document.querySelector('.modal.word-modal > .row-buttons:last-child')).position)
     const was = await page.evaluate(() => document.querySelector('.word-cover small.was')?.textContent ?? '')
     await page.evaluate(() => [...document.querySelectorAll('.modal .row-buttons button')].find((b) => b.textContent.includes('読み込む')).click())
-    await page.waitForFunction(() => !document.querySelector('.modal') && !!document.querySelector('.side .word-todo'), { timeout: 60000 })
+    await page.waitForFunction(() => !document.querySelector('.modal'), { timeout: 60000 })
+    // ふりがなをまだ入れていなければ、案内の氏名の段を済ませる（2026-11-04 から。そのあと「つぎにすること」が出る）
+    await finishGuideAfterImport(page)
+    await page.waitForFunction(() => !!document.querySelector('.side .word-todo'), { timeout: 60000 })
     await ready()
     await page.evaluate(() => document.querySelector('.side .word-todo .x.close').click())
     await wait(800)

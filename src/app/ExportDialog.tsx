@@ -360,7 +360,8 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
   /** 印刷の画面から保存する（作れなかったとき・うまくいかないとき） */
   const print = () => {
     const title = document.title
-    document.title = editor.pdfTitle
+    // 許可の前は「_点検用」の名前（印は、印刷の前に紙面の部品が入れる：reportEditor の beforePrint）
+    document.title = pdfTitle
     // 写真のない作品写真のページは印刷しない（印刷が終わったら戻す）
     const kept = new Set(pagesToExport())
     const skipped = editor.pageElements().filter((p) => !kept.has(p) && !p.classList.contains('print-skip'))

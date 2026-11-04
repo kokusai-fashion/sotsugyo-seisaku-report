@@ -231,6 +231,11 @@ export default function App() {
   const [guide, setGuide] = useState<GuideStep | null>(null)
   /** 案内で、氏名のふりがなだけを頼んでいる（前から書いている原稿を開いた。「氏名」の段を済ませたら閉じる） */
   const [nameOnly, setNameOnly] = useState(false)
+  /** 案内を出しているか（紙面の部品は1回だけ作るので、いつも今の段階を見られるように） */
+  const guideRef = useRef<GuideStep | null>(null)
+  useEffect(() => {
+    guideRef.current = guide
+  }, [guide])
   /** 抄録の「許可が出たか、確かめ直す」（紙面の部品は1回だけ作るので、いつも新しい処理を呼ぶように） */
   const recheckRef = useRef<() => Promise<void>>(async () => {})
   /**
@@ -611,7 +616,9 @@ export default function App() {
             drive?.schedule(r)
           },
           onCourseClick: (rect) => setDialog({ kind: 'course', rect }),
-          onNameClick: (rect) => setDialog({ kind: 'name', rect }),
+          // はじめての案内の途中（学籍番号の段など）で表紙の氏名を押した：案内の「氏名」の段に進む（小窓は出さない。
+          // 見直しで分かった：前は案内の幕の下に小窓が開き、押せなくなっていた）
+          onNameClick: (rect) => (guideRef.current ? setGuide('name') : setDialog({ kind: 'name', rect })),
           // 抄録の「許可が出たか、確かめ直す」：点検表を読み直し、まだなら画面の下で知らせる
           onAbstractRecheck: () => void recheckRef.current(),
           onReferencesClick: () => setDialog({ kind: 'references' }),
@@ -1072,6 +1079,10 @@ export default function App() {
   useEffect(() => {
     editor?.setAbstractGate(JSON.parse(abstractGateKey))
   }, [editor, abstractGateKey])
+  // 最終提出の許可の前は、印刷の画面から保存しても「点検用」の印と名前にする
+  useEffect(() => {
+    editor?.setCheckMarkPrint(finalGate.kind === 'before')
+  }, [editor, finalGate.kind])
   const checkCard = <CheckCard status={checkStatus.status} course={myCourse} />
   recheckRef.current = async () => {
     if (!checkStatus.ready) return void editor?.showNotice('許可を確かめるには、大学のアカウントでログインしてください')
@@ -1271,7 +1282,7 @@ export default function App() {
       {dialog?.kind === 'course' && snap && editor && (
         <CourseMenu config={config} rect={dialog.rect} current={snap.report.basicInfo.courseId} onSelect={chooseCourse} onClose={() => setDialog(null)} />
       )}
-      {dialog?.kind === 'name' && snap && editor && (
+      {dialog?.kind === 'name' && snap && editor && !guide && (
         <NameDialog rect={dialog.rect} initial={nameParts(snap.report.basicInfo)} onSave={(p) => editor.setNameParts(p)} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === 'courseChange' && snap && editor && (

@@ -8,6 +8,7 @@ import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../mode
 import { joinName, tidyName, toKatakana, type NameParts } from '../model/personName'
 import { putImage, type StoredImage } from '../model/storage'
 import { skippedPages } from '../pdf/exportPages'
+import { addCheckMarks } from '../pdf/checkMark'
 import { abstractEmpty, abstractOpening, applyCourseTemplate, bodyWritten } from '../model/template'
 import { addPhotoPage, canAddPhotoPage, changeArrangement, clampPercent, movePhoto, pageOfPhotoPage, pagePhotoCount, photoPageAt, photoSlots, placePhotos, putPhoto, removePhotoPage, trimPhoto, updatePhotoPage, wholePhoto, type PhotoSlot, packPhotos, spillPhotos, fittingArrangement, PHOTOS_PER_PAGE_MAX, photoGrid } from '../model/photos'
 import { addColumn, addRow, blankTable, cellPosition, colWidthsOf, columnCount, equalColumnWidths, materialTable, normalizeColumnWidths, removeColumn, removeRow, setCellCrop, setCellImage, swatchColumn, TABLE_SIZE } from '../model/table'
@@ -3739,7 +3740,10 @@ export class ReportEditor {
    */
   private placeAfterHistory(from: Report, was: { id: string; caret: number }): { id: string; caret: number } | null {
     const place = this.undone
-    const changed = place?.kind === 'block' ? ops.findEditable(this.report, place.id) : undefined
+    // 氏名は紙面では書かない（姓・名・ふりがなの小窓：onNameClick）。戻した所が氏名でも、紙面の欄は開かず、書いていた欄で書き続ける
+    // （見直しで分かった：前は元に戻すと氏名の欄が紙面で開き、打った字が氏名だけに入って、姓・名とずれた）
+    const nameOnPaper = place?.kind === 'block' && place.id === FIELD_IDS.name && !!this.callbacks.onNameClick
+    const changed = place?.kind === 'block' && !nameOnPaper ? ops.findEditable(this.report, place.id) : undefined
     if (place?.kind === 'block' && changed) return { id: place.id, caret: changedEnd(ops.findEditable(from, place.id)?.text ?? '', changed.text) }
     const still = ops.findEditable(this.report, was.id)
     return still ? { id: was.id, caret: Math.min(was.caret, still.text.length) } : null
@@ -4183,6 +4187,8 @@ export class ReportEditor {
    * 組み終わるのを待って開くと、その間（約0.5秒）に打った字がどこにも入らず消えていた（学生の試し 3回目 2026-10-29）。すぐ開けなければ、組み終わってから
    */
   private openSoon(id: string, caret: number): void {
+    // 氏名は紙面では開かない（姓・名・ふりがなの小窓で直す）
+    if (id === FIELD_IDS.name && this.callbacks.onNameClick) return
     this.hideStyle.textContent = this.editingStyle(id)
     this.pendingOpen = { id, caret }
     if (!this.openBeforeRender(id, caret, null) && !this.rendering) void this.render()
@@ -5850,11 +5856,25 @@ export class ReportEditor {
     if (this.overlay.blockId) this.overlay.commit()
     for (const h of Object.values(this.highlights)) h.clear()
     for (const el of this.viewport.querySelectorAll('.is-selected')) el.classList.remove('is-selected')
+    // 最終提出の許可の前（先生の許可を使うコース）：印刷の画面から PDF にしても、「点検用」の印を入れる（印刷が終わったら外す。
+    // 見直しで分かった：前は「PDFを書き出す」で作るときだけ印を入れていて、印刷から保存すると印のない PDF ができた）
+    if (this.checkMarkPrint && !this.printMarked) {
+      const unmark = addCheckMarks(this.pageElements())
+      this.printMarked = true
+      window.addEventListener(
+        'afterprint',
+        () => {
+          unmark()
+          this.printMarked = false
+        },
+        { once: true },
+      )
+    }
     // 「PDFを書き出す」の窓を通らずに、ブラウザの印刷（Ctrl+P など）で出したとき：窓から出すときと同じにする
     // （ファイル名のもとになるページの題を合わせ、作品写真がまだなければ空の作品写真のページを入れない。pdf/exportPages.ts）
-    if (document.title === this.pdfTitle) return
+    if (document.title === this.printTitle) return
     const title = document.title
-    document.title = this.pdfTitle
+    document.title = this.printTitle
     const skipped = skippedPages(this.pageElements(), this.report, this.layout).filter((p) => !p.classList.contains('print-skip'))
     for (const p of skipped) p.classList.add('print-skip')
     window.addEventListener(
@@ -5865,6 +5885,17 @@ export class ReportEditor {
       },
       { once: true },
     )
+  }
+
+  /** 最終提出の許可の前（先生の許可を使うコース）：印刷しても「点検用」の印と「_点検用」の名前にする（App が決める） */
+  private checkMarkPrint = false
+  private printMarked = false
+  setCheckMarkPrint(on: boolean): void {
+    this.checkMarkPrint = on
+  }
+  /** 印刷・PDF のファイル名のもと（許可の前は「_点検用」を付ける） */
+  get printTitle(): string {
+    return this.checkMarkPrint ? `${this.pdfTitle}_点検用` : this.pdfTitle
   }
 
   /** PDF のファイル名のもと（提出ガイドの決まり。例：00ZZ0123_文化花子）。学籍番号・氏名がまだ空なら、その部分は付けない（model/fileName.ts） */

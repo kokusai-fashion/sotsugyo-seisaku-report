@@ -12,7 +12,12 @@ const STALE_MS = 10 * 60 * 1000
 
 const statusKey = (report: Report) => scoped(`sotsugyo-seisaku-report-check-status:${report.fiscalYear}:${report.basicInfo.studentId.trim()}`)
 const registeredKey = () => scoped('sotsugyo-seisaku-report-check-registered')
-const touchedKey = () => scoped('sotsugyo-seisaku-report-check-touched')
+/** 学生ごと（共用のパソコンで、ほかの学生の分と混ざらないように） */
+const touchedKey = (report: Report) => scoped(`sotsugyo-seisaku-report-check-touched:${report.fiscalYear}:${report.basicInfo.studentId.trim()}`)
+/** だれの答えか（年度・学籍番号・コース） */
+const whoOf = (report: Report | null) => (report ? `${report.fiscalYear}:${report.basicInfo.studentId.trim()}:${report.basicInfo.courseId}` : '')
+/** 学籍番号を打っている途中は聞かない（打ち終えて少し待ってから。見直しで分かった：前は1字ごとに窓口に聞いていた） */
+const SETTLE_MS = 1200
 
 function readCache(report: Report): CheckStatus | null {
   try {
@@ -39,8 +44,18 @@ export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabl
   useEffect(() => {
     reportRef.current = report
   })
+  /** 名簿へ送っている途中・書き換えの知らせを送っている途中（重ねて送らない） */
+  const registering = useRef(false)
+  const touching = useRef(false)
   const ready = !!drive && signedIn && enabled && !!API_URL
-  const who = report ? `${report.fiscalYear}:${report.basicInfo.studentId.trim()}:${report.basicInfo.courseId}` : ''
+  // 学籍番号・コースが変わってから少し待った値（打っている途中で聞かない・答えを替えない）
+  const liveWho = whoOf(report)
+  const [who, setWho] = useState(liveWho)
+  useEffect(() => {
+    if (liveWho === who) return
+    const timer = window.setTimeout(() => setWho(liveWho), SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [liveWho, who])
 
   // 学籍番号が変わったら、その学生の前の答えに替える
   useEffect(() => {
@@ -53,8 +68,11 @@ export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabl
     if (!ready || !drive || !API_URL || !r || !r.basicInfo.studentId.trim()) return null
     const token = await drive.copyToken()
     if (!token) return null
+    const asked = whoOf(r)
     try {
-      const answer = await postStudentApi<{ row?: unknown }>(API_URL, { action: 'checkStatus', token: token.accessToken, year: r.fiscalYear, studentId: r.basicInfo.studentId.trim() })
+      const answer = await postStudentApi<{ row?: unknown }>(API_URL, { action: 'checkStatus', token: token.accessToken, year: r.fiscalYear, studentId: r.basicInfo.studentId.trim(), courseId: r.basicInfo.courseId })
+      // 聞いている間に、学生・コースが変わった（アカウントを替えたなど）：前の学生の答えを使わない
+      if (whoOf(reportRef.current) !== asked) return null
       const next = { row: readCheckRow(answer.row), at: new Date().toISOString() }
       setStatus(next)
       try {
@@ -104,13 +122,18 @@ export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabl
       const token = await drive.copyToken()
       const payload = token && reportRef.current ? registerPayload(token.accessToken, reportRef.current) : null
       if (!payload || cancelled) return
+      if (registering.current) return
+      registering.current = true
       try {
         await postStudentApi(API_URL, payload)
-        localStorage.setItem(registeredKey(), nameKey)
+        // 送っている間に氏名が変わっていたら、送り終えたことにしない（変わった分を、このあとまた送る）
+        if (reportRef.current && registerKey(reportRef.current) === nameKey) localStorage.setItem(registeredKey(), nameKey)
         // 名簿に入ったら、点検表の行も読み直す（点検表に載るのは、管理側の仕掛けが写したあと）
         void refresh()
       } catch (e) {
         console.warn('学生の名簿に入れられませんでした：', e instanceof Error ? e.message : e)
+      } finally {
+        registering.current = false
       }
     }, 1500)
     return () => {
@@ -119,27 +142,30 @@ export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabl
     }
   }, [ready, drive, nameKey, refresh])
 
-  // 最終提出の許可のあとに書き換えた：1日1回まで知らせる
+  // 最終提出の許可のあとに書き換えた：1日1回まで知らせる（送れなくても、その日はもう送らない。送っている間は重ねない）
   const finalAt = status?.row?.finalOk?.at ?? ''
   const updatedAt = report?.updatedAt ?? ''
   useEffect(() => {
     const r = reportRef.current
-    if (!ready || !drive || !API_URL || !r || !finalAt || !updatedAt) return
+    if (!ready || !drive || !API_URL || !r || !finalAt || !updatedAt || touching.current) return
     if (new Date(updatedAt).getTime() <= new Date(finalAt).getTime()) return
     const today = new Date().toDateString()
     try {
-      if (localStorage.getItem(touchedKey()) === today) return
+      if (localStorage.getItem(touchedKey(r)) === today) return
+      localStorage.setItem(touchedKey(r), today)
     } catch {
       return
     }
+    touching.current = true
     void (async () => {
-      const token = await drive.copyToken()
-      if (!token) return
       try {
+        const token = await drive.copyToken()
+        if (!token) return
         await postStudentApi(API_URL, { action: 'touchAfterFinal', token: token.accessToken, year: r.fiscalYear, studentId: r.basicInfo.studentId.trim(), at: updatedAt })
-        localStorage.setItem(touchedKey(), today)
       } catch (e) {
         console.warn('書き換えたことを知らせられませんでした：', e instanceof Error ? e.message : e)
+      } finally {
+        touching.current = false
       }
     })()
   }, [ready, drive, finalAt, updatedAt])
