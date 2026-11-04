@@ -2,7 +2,7 @@ import { findCourse, subtitleInputOnly, type YearConfig } from '../config'
 import { contentToText, editables, figureMentionOrder, numbering, parenthetical, subheadingName, type EditableKind } from '../editor/reportOps'
 import { COVER_SUBTITLE, OVERFLOW_RATIO, yearDigits } from '../layout/document'
 import type { LayoutInfo } from '../layout/measure'
-import type { HeadingText } from '../model/headingText'
+import type { TypedHeading } from '../model/headingText'
 import type { Report, TableBlock, TableRow } from '../model/types'
 import { nameWithoutSpace, untidyNameGap } from '../model/personName'
 import { DEFAULT_STUDENT_ID } from '../model/account'
@@ -108,7 +108,7 @@ export function checkReportDetailed(
   report: Report,
   config: YearConfig,
   layout?: LayoutInfo | null,
-  typing?: { id: string; text: string; heading: HeadingText | null } | null,
+  typing?: { id: string; text: string; heading: TypedHeading | null } | null,
   imageSize?: (id: string) => { width: number; height: number } | undefined,
 ): { findings: ReportFinding[]; acknowledged: ReportFinding[] } {
   let all = [...checkReport(report, config, layout, true), ...toolFindings(report, config), ...(imageSize ? croppedPhotos(report, imageSize) : [])]
@@ -169,7 +169,7 @@ const HEADING_NUMBER_ONLY = /^[\s　]*(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]{
  * heading：見出しになるときの名前（ならないなら null）。名前を打ち始める前（「Ⅲ」「Ⅲ．」だけ）も、打っている途中なので、行の全部。
  * 書き終えても段落のままなら（「戻す」を押した・名前がないなど）、今までどおり指摘する（checkReportDetailed の typing は、書いている段落だけ）
  */
-export function typedHeadingNumber(text: string, heading: HeadingText | null): number | null {
+export function typedHeadingNumber(text: string, heading: TypedHeading | null): number | null {
   if (!heading) return HEADING_NUMBER_ONLY.test(text) ? text.length : null
   // 名前は、行の終わりの空白を除いた最後の部分（model/headingText.ts の headingFromText）
   const end = text.trimEnd().length - heading.title.length

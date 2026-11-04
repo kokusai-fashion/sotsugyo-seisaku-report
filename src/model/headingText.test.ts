@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headingFromText, listItemLine, numberedLine, subheadingTitle, typedHeading } from './headingText'
+import { headingFromText, markedLine, numberedLine, subheadingTitle, typedHeading } from './headingText'
 
 describe('段落に打った見出しの形（typedHeading）', () => {
   it('大見出し：「Ⅲ．まとめ」、英字の「I.」「II.」、全角の英字の「Ｉ．」。番号は除き、名前だけにする', () => {
@@ -30,8 +30,15 @@ describe('段落に打った見出しの形（typedHeading）', () => {
     expect(typedHeading('第十章 考察')).toEqual({ level: 1, title: '考察' })
   })
 
-  it('「（1）」「①」「■」などの形は見出しにしない（箇条書きの印。依頼者の選択 2026-10-31）', () => {
-    for (const t of ['（1）素材について', '(2) 素材', '①素材', '⑳素材', '■まとめ', '●まとめ', '★ポイント']) expect(typedHeading(t), t).toBeNull()
+  it('「（1）」「①」の形は小見出し。「■」などの印は見出しにしない（依頼者の選択 2026-11-04。前は箇条書きの印として見出しにしなかった）', () => {
+    expect(typedHeading('（1）素材について')).toEqual({ level: 3, title: '素材について' })
+    expect(typedHeading('(2) 素材')).toEqual({ level: 3, title: '素材' })
+    expect(typedHeading('（１）　素材')).toEqual({ level: 3, title: '素材' })
+    expect(typedHeading('①素材')).toEqual({ level: 3, title: '素材' })
+    expect(typedHeading('⑳素材')).toEqual({ level: 3, title: '素材' })
+    for (const t of ['■まとめ', '●まとめ', '★ポイント']) expect(typedHeading(t), t).toBeNull()
+    // 文は見出しにしない（中見出しの「3．」と同じ決まり）
+    for (const t of ['（1）生地を裁断した', '①まず、生地を選ぶ', '（1）素材について書いた。']) expect(typedHeading(t), t).toBeNull()
   })
 
   it('見出しの欄に貼ったとき・「中見出しにする」で外す番号（numberedLine）は、「（1）」「①」「■」も外す', () => {
@@ -84,10 +91,10 @@ describe('段落に打った見出しの形（typedHeading）', () => {
   })
 })
 
-describe('箇条書きにも使う形の行（listItemLine。PC の試し 2026-10-25）', () => {
-  it('「1．ミシン」「（1）素材」「①素材」「■まとめ」は箇条書きにも使う形。ローマ数字・「第4章」は見出しの形', () => {
-    for (const line of ['1．ミシン', '2.アイロン', '（1）素材', '①素材', '■まとめ']) expect(listItemLine(line), line).toBe(true)
-    for (const line of ['Ⅲ．まとめ', 'ⅱ．袖の刺繍', 'iiiスカート', '第4章 考察', '本文の段落である。']) expect(listItemLine(line), line).toBe(false)
+describe('番号・印で始まる行（markedLine：文末の「。」を自動で付けない・貼った行をつながない）', () => {
+  it('「1．ミシン」「（1）素材」「①素材」「■まとめ」。ローマ数字・「第4章」は含めない', () => {
+    for (const line of ['1．ミシン', '2.アイロン', '（1）素材', '①素材', '■まとめ']) expect(markedLine(line), line).toBe(true)
+    for (const line of ['Ⅲ．まとめ', 'ⅱ．袖の刺繍', 'iiiスカート', '第4章 考察', '本文の段落である。']) expect(markedLine(line), line).toBe(false)
   })
 })
 

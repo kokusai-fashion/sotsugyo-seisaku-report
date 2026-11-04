@@ -1,6 +1,6 @@
 // 見出しを 大見出し（Ⅰ．）・中見出し（ⅰ．）・小見出し（（1））の3つにした（依頼者の選択 2026-11-03）：
 // パソコンの左の道具の「小見出し」で、書いている段落の後ろに小見出しが入り、紙面と目次に「（1）」で出る（目次では中見出しより下げる）。
-// 小見出しは中見出しごとに（1）から振り直す。削除の知らせは「小見出し」
+// 小見出しは中見出しごとに（1）から振り直す。削除の知らせは「小見出し」。「（1）パターン」「①仮縫い」と打っても、「小見出しにする」でも小見出しになる
 // これだけを流すときは node scripts/e2e/run.mjs headings3
 import { withEdge } from '../poc/edge.mjs'
 import { stubConfig } from './configStub.mjs'
@@ -101,6 +101,43 @@ await withEdge(async (browser) => {
   await wait(600)
   const notice = await page.evaluate(() => document.querySelector('.undo-toast')?.textContent ?? '')
   check('小見出しを削除すると、知らせは「小見出しを削除しました」', notice.includes('小見出しを削除しました'), notice)
+
+  // ---- 打って小見出しにする・「小見出しにする」（大・中・小で作り方をそろえる：依頼者の選択 2026-11-04、mockups/v100 案A） ----
+  const toast = () => page.evaluate(() => document.querySelector('.undo-toast')?.textContent ?? '')
+  const newParagraph = async () => {
+    const id = `pn${Date.now() % 100000}`
+    await page.evaluate((id) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => (c.blocks.some((b) => b.id === 'p4b') ? { ...c, blocks: c.blocks.flatMap((b) => (b.id === 'p4b' ? [b, { type: 'paragraph', id, content: [{ type: 'text', text: '' }] }] : [b])) } : c)) })), id)
+    await settle()
+    await editAt(id)
+    return id
+  }
+  const minor = async (title) => (await blocks()).find((b) => b.type === 'subheading' && b.level === 3 && b.title === title)
+  await newParagraph()
+  await page.keyboard.type('（1）パターン', { delay: 20 })
+  await page.keyboard.press('Enter')
+  await wait(500)
+  const typedToast = await toast()
+  await page.keyboard.type('型紙を作り直した。', { delay: 20 })
+  await page.keyboard.press('Escape')
+  await settle()
+  check('段落に「（1）パターン」と打って Enter：小見出し「パターン」になり、「小見出し「（n）パターン」にしました」と出る', !!(await minor('パターン')) && /小見出し「（\d）パターン」にしました/.test(typedToast), typedToast)
+  await newParagraph()
+  await page.keyboard.type('①仮縫い', { delay: 20 })
+  await page.keyboard.press('Escape')
+  await settle()
+  check('「①仮縫い」と打って書き終える（Esc）：小見出し「仮縫い」になる', !!(await minor('仮縫い')))
+  await newParagraph()
+  await page.keyboard.type('仕上げ', { delay: 20 })
+  await wait(400)
+  const convertTools = await page.evaluate(() => [...document.querySelectorAll('.palette .group.ctx .tb')].map((b) => b.textContent.replace(/\s/g, '')).filter((t) => t.endsWith('にする')).map((t) => t.replace(/^.*?(中|小)/, '$1')))
+  await clickTool('小見出しにする')
+  await settle()
+  const convertToast = await toast()
+  check('短い段落を書いているとき「この段落」に「中見出しにする」「小見出しにする」が並び、「小見出しにする」で小見出しになる', convertTools.join() === '中見出しにする,小見出しにする' && !!(await minor('仕上げ')) && convertToast.includes('小見出し「'), JSON.stringify({ convertTools, convertToast }))
+  await page.evaluate(() => [...document.querySelectorAll('.undo-toast button')].find((b) => b.textContent.includes('戻す'))?.click())
+  await settle()
+  const back = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).some((b) => b.type === 'paragraph' && b.content.map((n) => n.text ?? '').join('') === '仕上げ'))
+  check('知らせの「戻す」で、小見出しにした段落が段落に戻る', back && !(await minor('仕上げ')))
 
   await context.close()
 })

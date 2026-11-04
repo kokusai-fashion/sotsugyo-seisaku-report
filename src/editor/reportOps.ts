@@ -467,7 +467,7 @@ export function replaceWithParagraphs(report: Report, id: string, texts: string[
  * ひな形の説明（hint）は、続ける段落に移す（見出しには残せないため。続ける段落がなければ、なくなる）。
  * 返す値：headingId（大見出しは章の ID）、nextId（続ける段落の ID。なければ null）。本文の段落でなければ null
  */
-export function paragraphToHeading(report: Report, id: string, heading: { level: 1 | 2; title: string }, rest?: string): { report: Report; headingId: string; nextId: string | null } | null {
+export function paragraphToHeading(report: Report, id: string, heading: { level: 1 | 2 | 3; title: string }, rest?: string): { report: Report; headingId: string; nextId: string | null } | null {
   const ci = report.body.findIndex((c) => c.blocks.some((b) => b.id === id && b.type === 'paragraph'))
   if (ci < 0) return null
   const chapter = report.body[ci]
@@ -482,30 +482,15 @@ export function paragraphToHeading(report: Report, id: string, heading: { level:
   if (chapter.blocks[i - 1]?.type === 'paragraph') while (end < chapter.blocks.length && isAttachment(chapter.blocks[end])) end++
   const before = [...chapter.blocks.slice(0, i), ...chapter.blocks.slice(i + 1, end)]
   const after = chapter.blocks.slice(end)
-  if (heading.level === 2) {
+  if (heading.level !== 1) {
     const headingId = newId('s')
-    const blocks: BodyBlock[] = [...before, { type: 'subheading', id: headingId, title }, ...next, ...after]
+    const blocks: BodyBlock[] = [...before, { type: 'subheading', id: headingId, title, ...(heading.level === 3 ? { level: 3 as const } : {}) }, ...next, ...after]
     return { report: { ...report, body: report.body.map((c) => (c === chapter ? { ...c, blocks } : c)) }, headingId, nextId }
   }
   const added: Chapter = { id: newId('c'), title, blocks: [...next, ...after] }
   const body = [...report.body]
   body.splice(ci, 1, { ...chapter, blocks: before }, added)
   return { report: { ...report, body }, headingId: added.id, nextId }
-}
-
-/**
- * 中見出しを、text の段落に戻す（打って中見出しにした「1．ミシン」のあとに、続けて「2．アイロン」と打った：箇条書きとみなす。PC の試し 2026-10-25）。
- * 中見出しでなければ同じ原稿
- */
-export function subheadingToParagraph(report: Report, headingId: string, text: string): Report {
-  let changed = false
-  const body = report.body.map((c) => {
-    const i = c.blocks.findIndex((b) => b.id === headingId && b.type === 'subheading')
-    if (i < 0) return c
-    changed = true
-    return { ...c, blocks: c.blocks.map((b, k) => (k === i ? paragraph(newId('p'), text, numbering(report)) : b)) }
-  })
-  return changed ? { ...report, body } : report
 }
 
 /** 本文で、id のブロックのすぐ前のブロック（同じ章の中。章の初めなら undefined） */

@@ -301,29 +301,31 @@ await withEdge(async (browser) => {
     await page.evaluate(setupWriting)
     await wait(500)
     await ready()
-    const blocksOf = () => page.evaluate(() => window.__editor.getSnapshot().report.body[0].blocks.map((b) => `${b.type[0]}:${b.title ?? (b.content ?? []).map((n) => n.text ?? '').join('')}`.slice(0, 16)))
+    const blocksOf = () => page.evaluate(() => window.__editor.getSnapshot().report.body[0].blocks.map((b) => `${b.type[0]}${b.level ?? ''}:${b.title ?? (b.content ?? []).map((n) => n.text ?? '').join('')}`.slice(0, 16)))
 
-    // 箇条書き：「1．ミシン」「2．アイロン」「3．ロックミシン」と1行ずつ打つと、見出しにならず段落のまま（前の行も段落に戻す。「。」は付けない）
+    // 番号の行を1行ずつ打つ：箇条書きとして見分けるのはやめた（依頼者の選択 2026-11-04）。「1．」の形は1行ずつ中見出し、「（1）」「①」の形は小見出し
     await goTo(page, ready, 'p2')
     await clickAt(page, '.page-viewport.front [data-block-id="p2"]', 40)
     await editingWait(page, 'p2')
     await page.keyboard.press('End')
     await page.keyboard.press('Enter')
     await wait(300)
-    for (const line of ['1．ミシン', '2．アイロン', '3．ロックミシン']) {
+    const notices = []
+    for (const line of ['1．ミシン', '2．アイロン', '（1）素材', '①縫製']) {
       await page.keyboard.type(line)
       await page.keyboard.press('Enter')
       await wait(600)
+      notices.push(await notice(page))
     }
-    const listNotice = await notice(page)
     await page.keyboard.press('Escape')
     await wait(800)
     await ready()
     const list = await blocksOf()
     check(
-      '箇条書きのつもりで「1．ミシン」「2．アイロン」「3．ロックミシン」と打つと、中見出しにならず段落のまま（「。」も付かない）。「番号の行が続いたので、見出しにせず箇条書き（段落）にしました」と出る',
-      list.includes('p:1．ミシン') && list.includes('p:2．アイロン') && list.includes('p:3．ロックミシン') && !list.some((b) => b.startsWith('s:ミシン')) && listNotice.includes('箇条書き'),
-      JSON.stringify({ list, listNotice }),
+      '「1．ミシン」「2．アイロン」と続けて打つと、それぞれ中見出し。「（1）素材」「①縫製」は小見出し（「小見出し「（1）素材」にしました」と出る。①も（2）の番号になる）',
+      list.includes('s:ミシン') && list.includes('s:アイロン') && list.includes('s3:素材') && list.includes('s3:縫製') && !list.some((b) => b.startsWith('p:1．') || b.startsWith('p:（1）') || b.startsWith('p:①')) &&
+        notices[1].includes('中見出し') && notices[2].includes('小見出し「（1）素材」にしました') && notices[3].includes('小見出し「（2）縫製」にしました'),
+      JSON.stringify({ list, notices }),
     )
 
     // 図のタイトルを空にして開くと、書く欄の中身は幅のない空白だけ（カーソルが番号のすぐ後ろ・薄い字の前に出る）。打った字に空白は入らない

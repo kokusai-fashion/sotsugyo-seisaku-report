@@ -750,9 +750,12 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
           </>
         )}
         {paste}
-        {/* 短く「。」のない段落：中見出しにする（Word から読み込んだ「2-1 〇〇」など。mockups/v74 ⑦ 案A） */}
+        {/* 短く「。」のない段落：中見出し・小見出しにする（Word から読み込んだ「2-1 〇〇」など。mockups/v74 ⑦ 案A。小見出しは mockups/v100 案A） */}
         {!template && subheadingTitle(findEditable(snap.report, editingId)?.text ?? '') && (
-          <Tool label={'中見出し\nにする'} icon={Icon.heading2} once title="この段落を中見出しにする（番号は自動で付きます）" onClick={() => editor.convertToSubheading()} />
+          <>
+            <Tool label={'中見出し\nにする'} icon={Icon.heading2} once title="この段落を中見出しにする（番号は自動で付きます）" onClick={() => editor.convertToSubheading()} />
+            <Tool label={'小見出し\nにする'} icon={Icon.heading3} once title="この段落を小見出しにする（（1）の番号は自動で付きます）" onClick={() => editor.convertToSubheading(3)} />
+          </>
         )}
         <Tool label="削除" icon={Icon.remove} danger once title="この段落を削除" onClick={remove} />
       </div>

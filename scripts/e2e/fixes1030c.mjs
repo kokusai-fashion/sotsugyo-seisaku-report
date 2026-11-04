@@ -143,7 +143,7 @@ await withEdge(async (browser) => {
     await page.evaluate((p1) => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.filter((b) => !(b.type === 'paragraph' && b.id !== 'p1' && b.content.map((n) => n.text ?? '').join('') === '二行目の文。')).map((b) => (b.id === 'p1' ? { ...b, content: [{ type: 'text', text: p1 }] } : b)) })) })), p1)
     await settle(page, ready)
 
-    // 空の段落に、番号つきの箇条書き・PDF の折り返し・Word の行の区切りを貼る
+    // 空の段落に、番号つきの行・PDF の折り返し・Word の行の区切りを貼る
     const addEmpty = async () => {
       const id = `pe${Date.now() % 100000}`
       await page.evaluate((id) => window.__editor.update((r) => ({ ...r, body: r.body.map((c, i) => (i === 1 ? { ...c, blocks: [...c.blocks, { type: 'paragraph', id, content: [{ type: 'text', text: '' }] }] } : c)) })), id)
@@ -151,16 +151,16 @@ await withEdge(async (browser) => {
       await editAt(page, ready, id, 0)
       return id
     }
-    const subsBefore = (await report(page)).body.flatMap((c) => c.blocks).filter((b) => b.type === 'subheading').length
+    const subIds = new Set((await report(page)).body.flatMap((c) => c.blocks).filter((b) => b.type === 'subheading').map((b) => b.id))
     await addEmpty()
-    await paste(page, '1.\tミシン\n2.\tアイロン\n3.\tロックミシン')
+    await paste(page, '1.\tミシン\n2.\tアイロン\n（1）素材\n本文の文。')
     await settle(page, ready)
     await page.keyboard.press('Escape')
     await settle(page, ready)
     const listAfter = await report(page)
-    const subsAfter = listAfter.body.flatMap((c) => c.blocks).filter((b) => b.type === 'subheading').length
-    const listTexts = listAfter.body.flatMap((c) => c.blocks).filter((b) => b.type === 'paragraph').map((b) => b.content.map((n) => n.text ?? '').join('')).filter((t) => /^[123][.．]/.test(t))
-    check('番号つきの箇条書き（1.⇥ミシン…）を貼ると、中見出しにならず、段落のまま並ぶ', subsAfter === subsBefore && listTexts.length === 3, JSON.stringify({ subsBefore, subsAfter, listTexts }))
+    const added = listAfter.body.flatMap((c) => c.blocks).filter((b) => b.type === 'subheading' && !subIds.has(b.id)).map((b) => `${b.level ?? 2}:${b.title}`)
+    // 箇条書きとして見分けるのはやめた（依頼者の選択 2026-11-04）：続いて並んだ番号の行も、1行ずつ見出しにする
+    check('番号つきの行（1.⇥ミシン・2.⇥アイロン・（1）素材）を貼ると、1行ずつ見出しになる（「1.」は中見出し、「（1）」は小見出し）', added.length === 3 && ['2:ミシン', '2:アイロン', '3:素材'].every((t) => added.includes(t)), JSON.stringify({ added }))
 
     const pdfId = await addEmpty()
     await paste(page, '本制作では、旅立ちの場面の若々しさと帰還の場面の頼もしさの両方を、一着で見せることを目標と\nした。前半は袖を軽く、後半は肩に重ねる布で頼もしさを出すように工夫して制作を\n進めた。')

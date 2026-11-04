@@ -27,7 +27,7 @@ export type NoticeBody =
   | { kind: 'removed' | 'restored'; what: RemovedWhat; note?: string }
   | { kind: 'started' | 'unstarted' }
   | { kind: 'info'; text: string }
-  | { kind: 'heading'; level: 1 | 2; label: string }
+  | { kind: 'heading'; level: 1 | 2 | 3; label: string }
   | { kind: 'headings'; count: number; note?: string }
   | { kind: 'unheaded' }
   /** Word などの表を貼り付けて、行ごとの段落になった（知らせの「表にする」で表にする：mockups/v78 ③ 案A） */
@@ -83,7 +83,7 @@ export function noticeText(notice: NoticeBody): string {
     case 'info':
       return notice.text
     case 'heading':
-      return `${notice.level === 1 ? '大見出し' : '中見出し'}「${notice.label}」にしました`
+      return `${notice.level === 1 ? '大見出し' : notice.level === 2 ? '中見出し' : '小見出し'}「${notice.label}」にしました`
     case 'headings':
       return `見出しに${notice.count}つしました${notice.note ?? ''}`
     case 'unheaded':

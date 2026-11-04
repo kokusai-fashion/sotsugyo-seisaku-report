@@ -3,8 +3,7 @@ import { abstractCapacity, checkReportDetailed, type ReportFinding } from '../ch
 import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
-import { listItemLine, numberedLine, subheadingTitle, typedHeading, type HeadingText } from '../model/headingText'
-import { listishLine } from './pasteText'
+import { markedLine, numberedLine, subheadingTitle, typedHeading, type TypedHeading } from '../model/headingText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
 import { tidyName } from '../model/personName'
 import { putImage, type StoredImage } from '../model/storage'
@@ -441,14 +440,6 @@ export class ReportEditor {
           this.emptyEnterNoticed = true
           this.showNotice(`次のページから書くときは、${this.phone ? '「追加」の' : '道具の'}「改ページ」を使います（空の段落は「直すところ」に出ます）`)
         }
-        // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って中見出しにしたもの）を段落に戻す
-        const reverted = editing === 'paragraph' ? this.revertListHeading(this.report, id, before) : null
-        if (reverted) {
-          this.pushHistory(this.reportBeforeEdit ?? this.report)
-          this.reportBeforeEdit = reverted
-          this.report = reverted
-          this.showNotice('番号の行が続いたので、見出しにせず箇条書き（段落）にしました')
-        }
         // 本文の段落に「Ⅲ．まとめ」のように打って Enter：カーソルより前を見出しにして、後ろを次の段落にする（「。」は付けない）
         const heading = editing === 'paragraph' ? this.headingOf(id, before) : null
         if (heading) return this.enterAsHeading(id, before, after, heading)
@@ -463,8 +454,8 @@ export class ReportEditor {
         this.pushHistory(typed)
         this.writingBefore.set(typed, { id, caret: before.length })
         // ひな形を作る画面では「。」を付けない（ひな形の説明は、先生が書いたまま）
-        // 箇条書きの形の行（「2．アイロン」）には「。」を付けない
-        const result = ops.split(typed, id, before, after, { period: !this.template && !listItemLine(before) })
+        // 番号・印で始まる行（見出しにしなかった「■まとめ」など）には「。」を付けない
+        const result = ops.split(typed, id, before, after, { period: !this.template && !markedLine(before) })
         this.report = result.report
         // 前の段落に「。」を自動で付けたときは覚えておく（すぐ Backspace でつなぎ直したら、元に戻す）
         const kind = ops.findEditable(this.report, id)?.kind
@@ -2080,11 +2071,12 @@ export class ReportEditor {
   }
 
   /**
-   * 書いている短い段落を、中見出しにする（左の道具の「この段落」の「中見出しにする」）。Word から読み込んだ「2-1 パターンと仮縫い」が段落になり、
-   * 「中見出し」を押しても下に空の中見出しが増えるだけで、直し方が分からなかった（学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑦ 案A）。
+   * 書いている短い段落を、中見出し（level 3 なら小見出し）にする（左の道具の「この段落」の「中見出しにする」「小見出しにする」）。
+   * Word から読み込んだ「2-1 パターンと仮縫い」が段落になり、「中見出し」を押しても下に空の中見出しが増えるだけで、直し方が分からなかった
+   * （学生の試し 2026-10-29。依頼者の選択 mockups/v74 ⑦ 案A）。小見出しも同じように作れるように（依頼者の選択 2026-11-04 mockups/v100 案A）。
    * 打って Enter で見出しにしたときと同じく、画面に「中見出し「…」にしました［戻す］」を出し、戻すと段落に戻る
    */
-  convertToSubheading(): void {
+  convertToSubheading(level: 2 | 3 = 2): void {
     const id = this.overlay.blockId
     if (!id || this.settlingRemoval || ops.findEditable(this.report, id)?.kind !== 'paragraph') return
     const title = subheadingTitle(this.overlay.text)
@@ -2097,7 +2089,7 @@ export class ReportEditor {
     }
     const typed = this.report
     const text = ops.findEditable(typed, id)?.text.trim() ?? title
-    const heading: HeadingText = { level: 2, title }
+    const heading: TypedHeading = { level, title }
     const result = ops.paragraphToHeading(typed, id, heading)
     if (!result) return
     this.pushHistory(typed)
@@ -2336,11 +2328,8 @@ export class ReportEditor {
   /** 入力欄を閉じて、書いた文字を確定する。frozen：閉じる前の入力欄の見た目を写した要素（紙面に重ねる。PC だけ） */
   private onCommitEdit(id: string, text: string, byKey: boolean, frozen: HTMLElement | null = null): void {
     const tidy = this.tidyText(id, text)
-    // 本文をはさまずに箇条書きの形の行が続いた：前の行（打って中見出しにしたもの）を段落に戻す（Enter のときと同じ）
     const kindNow = ops.findEditable(this.report, id)?.kind
-    const reverted = kindNow === 'paragraph' && tidy !== ops.findEditable(this.reportBeforeEdit ?? this.report, id)?.text ? this.revertListHeading(this.report, id, tidy) : null
-    if (reverted) this.showNotice('番号の行が続いたので、見出しにせず箇条書き（段落）にしました')
-    const committed = ops.setText(reverted ?? this.report, id, tidy)
+    const committed = ops.setText(this.report, id, tidy)
     // 本文の段落に「Ⅲ．まとめ」のように打って閉じた（ほかを押した・Esc・スマホの「完了」）：段落ごと見出しにする（headingOnClose）
     const heading = this.headingOnClose(id, text, committed)
     // 仮に表示する欄（見出しにしたときは、見出し。組み直して見出しが出るまで、打ったままの文を見せる）
@@ -2390,7 +2379,7 @@ export class ReportEditor {
     if (heading) {
       this.pushHistory(committed)
       this.report = heading.report
-    } else if ((byKey || this.finishingByButton) && !this.template && (kindNow === 'paragraph' || kindNow === 'abstractParagraph') && !listItemLine(tidy) && ops.withPeriod(tidy) !== tidy) {
+    } else if ((byKey || this.finishingByButton) && !this.template && (kindNow === 'paragraph' || kindNow === 'abstractParagraph') && !markedLine(tidy) && ops.withPeriod(tidy) !== tidy) {
       // Esc（パソコン）・「完了」（スマホ）で書き終えた：Enter のときと同じく、段落の終わりに「。」を付ける（依頼者の選択 2026-10-29。
       // 前は Enter のときだけで、学生には付くときと付かないときの違いが分からなかった：学生の試し 2026-10-29）。
       // ほかの所を押して離れたときは付けない（文の途中で確かめに行くことがあるため）。元に戻すと、まず「。」だけが外れる
@@ -3000,43 +2989,17 @@ export class ReportEditor {
   // ---- 段落に打った見出し（「Ⅲ．まとめ」のように、手順書の番号の形で打った段落を、見出しにする。形を見分けるのは model/headingText.ts） ----
 
   /**
-   * 段落 id に打った1行 line が、見出しにする形か（見出しにするなら、大見出しか中見出しかと、番号を除いた名前）。
+   * 段落 id に打った1行 line が、見出しにする形か（見出しにするなら、大見出し・中見出し・小見出しのどれかと、番号を除いた名前）。
    * 本文の段落だけ（抄録・図表のタイトル・表のセル・表紙・見出しはしない）。図表の参照（「（図1）」）のある行はしない。
    * 見出しにしたのを「戻す」で戻した段落は、同じ文のままなら、もうしない
    */
-  private headingOf(id: string, line: string, report: Report = this.report): HeadingText | null {
+  private headingOf(id: string, line: string, report: Report = this.report): TypedHeading | null {
     const heading = typedHeading(line)
     // 戻した文に書き足しただけ（戻した文で始まる）なら、やはり見出しにしない（書き足して閉じると、また中見出しになっていた：学生の試し 5回目 2026-10-30）
     const declined = this.declined.get(id)
     if (!heading || (declined !== undefined && line.trim().startsWith(declined))) return null
     if (ops.findEditable(report, id)?.kind !== 'paragraph' || ops.refRanges(line, ops.numbering(report)).length > 0) return null
-    // 本文をはさまずに箇条書きの形の行が続いた（すぐ前が、打って中見出しにした「1．ミシン」か、段落の「1．ミシン」）：見出しにしない
-    if (this.listContinues(id, line, report)) return null
     return heading
-  }
-
-  /** 打って中見出しにした、箇条書きの形の行（中見出しの ID → 打った文）。すぐ後ろに同じ形の行が続いたら、段落に戻す */
-  private listHeadings = new Map<string, string>()
-
-  /** line（id の段落）が箇条書きの形で、すぐ前のブロックも箇条書きの形の行（打って中見出しにしたもの・段落）か */
-  private listContinues(id: string, line: string, report: Report): boolean {
-    if (!listItemLine(line)) return false
-    const prev = ops.blockBefore(report, id)
-    if (prev?.type === 'subheading') return this.listHeadings.has(prev.id)
-    return prev?.type === 'paragraph' && listItemLine(ops.findEditable(report, prev.id)?.text ?? '')
-  }
-
-  /**
-   * id の段落に箇条書きの形の行を打ったとき、すぐ前が打って中見出しにした箇条書きの形の行なら、その中見出しを段落に戻す（箇条書きとみなす）。
-   * 戻したら、戻した原稿（戻さなければ null）
-   */
-  private revertListHeading(report: Report, id: string, line: string): Report | null {
-    if (!listItemLine(line)) return null
-    const prev = ops.blockBefore(report, id)
-    const typed = prev?.type === 'subheading' ? this.listHeadings.get(prev.id) : undefined
-    if (!prev || typed === undefined) return null
-    this.listHeadings.delete(prev.id)
-    return ops.subheadingToParagraph(report, prev.id, typed)
   }
 
   /**
@@ -3062,7 +3025,7 @@ export class ReportEditor {
   }
 
   /** 見出しにした知らせの中身（自動で付いた番号と名前） */
-  private headingNoticeBody(report: Report, headingId: string, heading: HeadingText): NoticeBody {
+  private headingNoticeBody(report: Report, headingId: string, heading: TypedHeading): NoticeBody {
     return { kind: 'heading', level: heading.level, label: ops.headingLabel(report, headingId) ?? heading.title }
   }
 
@@ -3071,7 +3034,7 @@ export class ReportEditor {
    * 大見出しなら、同じ章のその後ろのブロックも新しい章に入る。「。」は付けない（autoPeriod にしない）。
    * 元に戻す（知らせの「戻す」・Ctrl+Z・道具の「元に戻す」）と、まず打ったままの段落（Enter を押す前）に戻る（もう一度戻すと、書く前に戻る）
    */
-  private enterAsHeading(id: string, before: string, after: string, heading: HeadingText): void {
+  private enterAsHeading(id: string, before: string, after: string, heading: TypedHeading): void {
     const typed = ops.setText(this.report, id, before + after)
     const result = ops.paragraphToHeading(typed, id, heading, after)
     if (!result?.nextId) return
@@ -3081,7 +3044,6 @@ export class ReportEditor {
     this.report = result.report
     this.autoPeriod = null
     const step = this.headingStep(typed, [[id, before.trim()]], this.headingNoticeBody(result.report, result.headingId, heading))
-    if (listItemLine(before)) this.listHeadings.set(result.headingId, before.trim())
     // 何も書かずに離れたら、後ろに作った段落は消す（図のタイトルの Enter と同じ。空の段落が残っていた：学生の試し 3回目 2026-10-29）
     if (!after.trim()) this.captionParagraph = { id: result.nextId, titled: null }
     // 組み直すまでは、打ったままの文を仮に表示しておく（組み直すと、見出しになる）
@@ -3102,7 +3064,6 @@ export class ReportEditor {
     const result = heading ? ops.paragraphToHeading(committed, id, heading) : null
     if (!heading || !result) return null
     const step = this.headingStep(committed, [[id, text.trim()]], this.headingNoticeBody(result.report, result.headingId, heading))
-    if (listItemLine(text)) this.listHeadings.set(result.headingId, text.trim())
     return { report: result.report, headingId: result.headingId, step }
   }
 
@@ -3118,15 +3079,9 @@ export class ReportEditor {
     let report = plain
     const headingIds = new Map<string, string>()
     const declined: [string, string][] = []
-    // 番号の行（「1.⇥ミシン」「①シーチング」）が続いて並ぶ所は、箇条書きなので見出しにしない（打ったときと同じ。前は全部が中見出しになった：学生の試し 5回目 2026-10-30）
-    const listish = ids.map((id) => {
+    // 番号の行が続いて並んでいても、1行ずつ見出しにする（箇条書きとして見分けるのはやめた：依頼者の選択 2026-11-04）
+    for (const id of ids) {
       const line = texts.get(id)
-      return line?.kind === 'paragraph' && listishLine(line.text)
-    })
-    const inList = (i: number) => listish[i] && (!!listish[i - 1] || !!listish[i + 1])
-    for (const [i, id] of ids.entries()) {
-      const line = texts.get(id)
-      if (inList(i)) continue
       if (line?.kind !== 'paragraph' || this.declined.get(id) === line.text.trim() || ops.refRanges(line.text, num).length > 0) continue
       const heading = typedHeading(line.text)
       const result = heading ? ops.paragraphToHeading(report, id, heading) : null

@@ -1,4 +1,4 @@
-import { listItemLine, typedHeading } from '../model/headingText'
+import { markedLine, typedHeading } from '../model/headingText'
 
 /**
  * ほかのアプリ（Word・Google ドキュメント・ウェブ・PDF・メモ）からコピーした文を、書く欄に入れる前にそろえる（学生の試し 5回目 2026-10-30）。
@@ -64,7 +64,7 @@ const WRAP_MIN = 15
 export function joinWrappedLines(lines: string[]): { lines: string[]; joined: boolean } {
   if (lines.length < 3) return { lines, joined: false }
   const wrapped = (line: string) => line.length >= WRAP_MIN && !SENTENCE_END.test(line.trim())
-  const starts = (line: string) => /^[　・●○■◆\-－]/.test(line) || !!typedHeading(line.trim()) || listItemLine(line.trim())
+  const starts = (line: string) => /^[　・●○■◆\-－]/.test(line) || !!typedHeading(line.trim()) || markedLine(line.trim())
   if (lines.filter(wrapped).length * 2 < lines.length) return { lines, joined: false }
   const out: string[] = []
   let joined = false
@@ -78,10 +78,10 @@ export function joinWrappedLines(lines: string[]): { lines: string[]; joined: bo
   return { lines: out, joined }
 }
 
-/** 箇条書きの番号の行（「1.⇥ミシン」「①シーチング」「（1）素材」など。見出しの形でも、続けて並べば箇条書き） */
+/** 番号・印で始まる行（「1.⇥ミシン」「①シーチング」「（1）素材」「■まとめ」など。貼ったとき、前の段落にくっつけない） */
 export function listishLine(line: string): boolean {
   const t = line.trim()
-  return listItemLine(t) || /^[①-⑳]/.test(t)
+  return markedLine(t) || /^[①-⑳]/.test(t)
 }
 
 /** コピーの HTML の、最初の表のマスの字（行ごと）。表がなければ空（貼った表を表にする：mockups/v78 ③ 案A） */
