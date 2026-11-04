@@ -54,9 +54,11 @@ interface Props {
   onEditTemplate: (i: number) => void
   /** 区切りの見出しのすぐ下に出す知らせ（保存した・断られた、入力の誤りなど） */
   notices?: ReactNode
+  /** 作ってある点検表の場所（コースの ID → 場所。管理ページを開いたときにサーバーから届く） */
+  checkSheets?: Record<string, string>
 }
 
-export function CourseSection({ draft, base, teacher = false, openId, onOpen, onFocusCourse, setCourse, onMove, onAdd, onRemove, publishedIds, onOpenTemplate, onEditTemplate, notices }: Props) {
+export function CourseSection({ draft, base, teacher = false, openId, onOpen, onFocusCourse, setCourse, onMove, onAdd, onRemove, publishedIds, onOpenTemplate, onEditTemplate, notices, checkSheets }: Props) {
   const listRef = useRef<HTMLDivElement>(null)
   const order = useReorder(listRef, teacher ? 0 : draft.courses.length, (from, to) => onMove?.(from, to), '.course')
   const shown = draft.courses.map((c, i) => ({ c, i })).filter(({ c }) => !teacher || !c.hidden)
@@ -83,6 +85,7 @@ export function CourseSection({ draft, base, teacher = false, openId, onOpen, on
             onOpenTemplate={() => onOpenTemplate(i)}
             onEditTemplate={() => onEditTemplate(i)}
             field={`courses.${i}`}
+            checkSheetUrl={checkSheets?.[c.id]}
           />
         ))}
         {order.drag?.line != null && <div className="drop-line" style={{ top: order.drag.line }} />}
@@ -115,6 +118,7 @@ function CourseItem({
   onRemove,
   onOpenTemplate,
   onEditTemplate,
+  checkSheetUrl,
 }: {
   course: Course
   base: YearConfig
@@ -132,6 +136,8 @@ function CourseItem({
   onRemove: () => void
   onOpenTemplate: () => void
   onEditTemplate: () => void
+  /** 作ってある点検表の場所（なければ、「点検表を開く」で作る） */
+  checkSheetUrl?: string
 }) {
   const bodyId = useId()
   const changed = (key?: string) => courseChanged(base, draft, course.id, key)
@@ -232,7 +238,7 @@ function CourseItem({
             {/* 先生の許可（コースごと。管理者もそのコースの先生も切り替えられる：依頼者の選択 2026-11-04。mockups/v103 ①） */}
             <PermissionRow course={course} changed={changed('permission')} onChange={onChange} />
             {/* 点検表（コースごとの Google スプレッドシート）と、学生の並びを直す窓（mockups/v103 案1） */}
-            <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} />
+            <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} url={checkSheetUrl} />
             {!teacher && <SubtitleRow course={course} changed={changed('subtitleTemplate')} onChange={onChange} />}
           </div>
           {/* このコースの誤り・確認（指導教員がいない・4名以上など）は、コースの欄の下に（上の枠に出すと、打っている間に欄がずれた：mockups/v49 G） */}
@@ -281,18 +287,21 @@ function PermissionRow({ course, changed, onChange }: { course: Course; changed:
 }
 
 /**
- * 点検表（mockups/v103）：「点検表を開く」はサーバーが点検表を用意して（なければ作って）から、新しいタブで開く。
- * 押したらすぐ空のタブを開いておき、場所が届いたらそこへ移す（あとから開くと、ブラウザが新しいタブを止めるため）。
+ * 点検表（mockups/v103）：作ってある点検表は、「点検表を開く」がそのままリンク（サーバーに聞かずに、押すとすぐ新しいタブ。依頼者の試し 2026-11-04）。
+ * まだないときだけ、サーバーが点検表を作ってから開く：押したらすぐ空のタブを開いておき、場所が届いたらそこへ移す（あとから開くと、ブラウザが新しいタブを止めるため）。
  * 「学生の並びを直す」は窓（StudentOrderDialog）。まだ保存していないコースは、保存してから使う
  */
-function CheckSheetRow({ year, course, saved }: { year: number; course: Course; saved: boolean }) {
+function CheckSheetRow({ year, course, saved, url }: { year: number; course: Course; saved: boolean; url?: string }) {
   const [opening, setOpening] = useState(false)
   const [ordering, setOrdering] = useState(false)
   const [note, setNote] = useState<{ kind: 'ok' | 'ng'; text: string } | null>(null)
+  /** この画面で作った点検表の場所（次からは、リンクで開く） */
+  const [created, setCreated] = useState<string | null>(null)
   /** 新しいタブを開けなかったとき（ブラウザが止めた）の、押して開くリンク */
   const [link, setLink] = useState<string | null>(null)
   const slow = useSlow(opening)
-  const open = async () => {
+  const known = url ?? created
+  const create = async () => {
     setNote(null)
     setLink(null)
     const win = window.open('', '_blank')
@@ -304,6 +313,7 @@ function CheckSheetRow({ year, course, saved }: { year: number; course: Course; 
     setOpening(true)
     try {
       const { url } = await server.ensureCheckSheet(year, course.id)
+      setCreated(url)
       if (win && !win.closed) {
         win.opener = null
         win.location.href = url
@@ -318,9 +328,15 @@ function CheckSheetRow({ year, course, saved }: { year: number; course: Course; 
   return (
     <Row label="点検表" hint={CHECK_SHEET_HINT} warn={saved ? undefined : 'このコースは、保存してから使えます'}>
       <div className="row-btns">
-        <button type="button" className={`btn sub sm cs-open${opening ? ' busy' : ''}`} disabled={!saved || opening} onClick={() => void open()}>
-          {opening ? <Waiting text="用意しています…" /> : '点検表を開く'}
-        </button>
+        {known && saved ? (
+          <a className="btn sub sm cs-open" href={known} target="_blank" rel="noreferrer">
+            点検表を開く
+          </a>
+        ) : (
+          <button type="button" className={`btn sub sm cs-open${opening ? ' busy' : ''}`} disabled={!saved || opening} onClick={() => void create()}>
+            {opening ? <Waiting text="用意しています…" /> : '点検表を開く'}
+          </button>
+        )}
         <button type="button" className="btn sub sm cs-order" disabled={!saved} onClick={() => setOrdering(true)}>
           学生の並びを直す
         </button>

@@ -1555,6 +1555,57 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     return `${j.getUTCMonth() + 1}/${j.getUTCDate()}`
   }
 
+  it('並びの崩れていない行を「並びが崩れています」にしない（依頼者の試し 2026-11-04）：教職員の試しの「（試し）」・氏名の書き方の違い・名簿の氏名を直した直後。ほかの学生の氏名が見えている行だけが崩れた行', () => {
+    // 依頼者の試しと同じ値：教職員のアカウント（管理者）で学生のツールから登録 → 点検表を開く → 学生の並びの窓 → 回を選ぶ → また開く
+    user = 'jun-kato@example.ac.jp'
+    owner = user
+    const a = setup()
+    const key = 'staff:jun-kato@example.ac.jp'
+    const staff = { ...registerBody(0, { familyName: '文化', givenName: '花子', familyKana: 'ブンカ', givenKana: 'ハナコ', studentId: '00ZZ0123' }), token: tokenOf('jun-kato@example.ac.jp') }
+    const staffStatus = () => post(api(), { action: 'checkStatus', token: tokenOf('jun-kato@example.ac.jp'), year: 2026, studentId: '00ZZ0123' })
+    expect(post(a, staff)).toEqual({ ok: true })
+    expect(roster()[1].slice(0, 11)).toEqual([2026, FILM.id, key, '文化', '花子', 'ブンカ', 'ハナコ', '', '', '', ''])
+    admin().ensureCheckSheet(2026, FILM.id)
+    const { h } = layoutOf()
+    expect(tab().rows[h + 1].slice(0, 13)).toEqual([1, '（試し）文化　花子', '', '', '', '', '', '', false, false, false, 'PDF まだ', key])
+    admin().listStudents(2026, FILM.id)
+    for (const [round, value] of [['1回目', '梶田 予定'], ['2回目', '佐藤 予定'], ['3回目', '加藤 予定']]) edit(key, round, value, 'jun-kato@example.ac.jp')
+    expect(post(a, staff)).toEqual({ ok: true })
+    admin().ensureCheckSheet(2026, FILM.id)
+    admin().syncCheckSheets()
+    expect(sheetStudents()[key].cells).toMatchObject({ 氏名: '（試し）文化　花子', '1回目': '梶田 予定', 知らせ: 'PDF まだ' })
+    expect(staffStatus().row.rounds[0]).toEqual({ label: '1回目', teacher: '梶田', state: 'plan' })
+    // 見える氏名が、書き方だけ違う・（試し）がない・名簿を直す前の古い氏名・だれの氏名でもない：崩れたとはみなさず、氏名を書き直す
+    for (const shown of ["'（試し）文化　花子", '(試し) 文化 花子', '文化　花子', '（試し）文化　花', '見本　太郎']) {
+      setCell(key, '氏名', shown)
+      admin().syncCheckSheets()
+      expect(sheetStudents()[key].cells, shown).toMatchObject({ 氏名: '（試し）文化　花子', 知らせ: 'PDF まだ', '1回目': '梶田 予定' })
+    }
+    // 書き方の違いだけなら、学生のツールへの答えも出す（字の幅・空白・（試し））
+    setCell(key, '氏名', '(試し) 文化 花子')
+    expect(staffStatus().row).not.toBeNull()
+    // ✓ を入れるときも同じ（古い氏名のままでも、並びが崩れたとはみなさず、記録を残す）
+    setCell(key, '氏名', '（試し）文化　花')
+    edit(key, '抄録許可', true, 'jun-kato@example.ac.jp')
+    expect(sheetStudents()[key].cells.知らせ).toBe('PDF まだ')
+    expect(String(sheetStudents()[key].cells.抄録許可の記録)).toMatch(/ \/ jun-kato$/)
+    // 学生のツールへは、写して氏名がそろってから（古い氏名の間は、許可を渡さない）
+    expect(staffStatus().row).toBeNull()
+    admin().syncCheckSheets()
+    expect(staffStatus().row.abstractOk.by).toBe('jun-kato')
+    // ほかの学生（石田 遥）の氏名が見えている行だけは、並びが崩れた行（今までどおり）
+    register(a, 1)
+    admin().syncCheckSheets()
+    setCell(key, '氏名', '石田　遥')
+    expect(staffStatus().row).toBeNull()
+    admin().syncCheckSheets()
+    expect(sheetStudents()[key].cells).toMatchObject({ 氏名: '（試し）文化　花子', 知らせ: '並びが崩れています' })
+    expect(logs.some((l) => l.includes('並びが崩れています') && l.includes(key))).toBe(true)
+    // 名字・名前を比べる形
+    const g = admin()
+    expect(["'（試し）文化　花子", '(試し) 文化 花子', '文化花子', 'ﾌﾞﾝｶ'].map((n) => g.nameKey_(n))).toEqual(['文化花子', '文化花子', '文化花子', 'ブンカ'])
+  })
+
   it('register：学生の名簿に入れる・直す（年度と学籍番号で1行）。形の正しくないもの・ほかの学生の学籍番号は断る。教職員の試しは別の行', () => {
     const a = setup()
     expect(register(a, 0)).toEqual({ ok: true })
@@ -1614,10 +1665,20 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
       [3, '遠藤　莉子', 'PDF まだ', '00ZZ0103'],
     ])
     expect(rows.slice(2).map((r) => r.slice(3, 11))).toEqual(Array(3).fill(['', '', '', '', '', false, false, false]))
-    // 2回目：同じ点検表（作り直さない）
+    // 管理ページを開いたときの状態に、作ってある点検表の場所（「点検表を開く」はサーバーに聞かずに開く）。登録されていない人には渡さない
+    expect(admin().getState().checkSheets).toEqual([{ year: 2026, courseId: FILM.id, url: result.url }])
+    // 2回目：同じ点検表（作り直さない）。写さずに、すぐ場所を返す（写すのは10分ごとの仕掛けと「この並びにする」）
+    const rosterRow = roster().findIndex((r) => r[2] === idOf(0))
+    roster()[rosterRow][4] = '美咲子'
     expect(admin().ensureCheckSheet(2026, FILM.id)).toEqual(result)
     expect(books.size).toBe(1)
     expect(triggers).toHaveLength(1)
+    expect(sheetStudents()[idOf(0)].cells.氏名).toBe('青木　美咲')
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(0)].cells.氏名).toBe('青木　美咲子')
+    user = 'stranger@example.ac.jp'
+    expect(admin().getState().checkSheets).toEqual([])
+    user = 'sensei@example.ac.jp'
     // まだ保存していないコース・登録されていない人
     expect(() => admin().ensureCheckSheet(2026, 'new-course')).toThrow(/まだ保存されていません/)
     user = 'stranger@example.ac.jp'

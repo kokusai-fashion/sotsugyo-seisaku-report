@@ -635,6 +635,8 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .perm-checks .toggle-label { align-items: flex-start; white-space: normal; line-height: 1.5; }
 .perm-checks .toggle-label input { flex: none; margin-top: 2px; }
 .row-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* 作ってある点検表の「点検表を開く」はリンク（ボタンと同じ見た目） */
+.row-btns a.btn { text-decoration: none; }
 .cs-link { display: inline-block; margin-top: 6px; font-size: 14px; color: var(--accent); }
 .cs-note { margin-top: 6px; font-size: 13.5px; line-height: 1.6; }
 .cs-note.ok { color: var(--ok); }

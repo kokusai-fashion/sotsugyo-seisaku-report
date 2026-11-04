@@ -37,6 +37,22 @@ export interface AdminState {
   years: YearRow[]
   /** 先生向けのリンク（ログインした先生と管理者にだけ届く。materials：説明の資料一式、ai：管理ページの使い方を答える AI。gas/admin-links.local.json） */
   links?: { materials?: string; ai?: string }
+  /** 作ってある点検表の場所（「点検表を開く」を、サーバーに聞かずにすぐ開く。依頼者の試し 2026-11-04。前の版のサーバーは返さない） */
+  checkSheets?: CheckSheetLink[]
+}
+
+/** コースの点検表の場所 */
+export interface CheckSheetLink {
+  year: number
+  courseId: string
+  url: string
+}
+
+/** その年度の、コースごとの点検表の場所（コースの ID → 場所） */
+export function checkSheetUrls(state: AdminState, year: number): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const s of state.checkSheets ?? []) if (s.year === year && /^https?:|^about:/.test(s.url)) out[s.courseId] = s.url
+  return out
 }
 
 export interface Member {
@@ -87,8 +103,8 @@ export interface AdminServer {
    */
   saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[]; permissions?: PermissionSet }, expectedUpdatedAt?: string): Promise<AdminState>
   /**
-   * コースの点検表を開く（管理者・先生）。なければ、PDF の控えのコースのフォルダに作る。名簿から写してから、場所を返す
-   * （gas/admin-project の ensureCheckSheet。依頼者の選択 2026-11-04）
+   * コースの点検表を作る（管理者・先生。まだ点検表がないときに「点検表を開く」から）。PDF の控えのコースのフォルダに作り、名簿から写してから、場所を返す。
+   * もうあれば、すぐ場所を返す（gas/admin-project の ensureCheckSheet。依頼者の選択 2026-11-04）
    */
   ensureCheckSheet(year: number, courseId: string): Promise<{ url: string }>
   /** 「学生の並びを直す」の窓の一覧（点検表の並び） */

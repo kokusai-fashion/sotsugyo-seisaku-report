@@ -19,7 +19,7 @@ import { HistorySection } from './HistorySection'
 import { MembersSection } from './Members'
 import { newYearSteps, type NewYearStep } from './newYearSteps'
 import { Preview } from './Preview'
-import { isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type PermissionSet, type TemplateSet, type YearRow } from './server'
+import { checkSheetUrls, isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type PermissionSet, type TemplateSet, type YearRow } from './server'
 import { TemplateEditor } from './TemplateEditor'
 import { TemplateOverlay } from './TemplateOverlay'
 import { TrialSection } from './TrialSection'
@@ -1029,6 +1029,7 @@ export function AdminApp() {
         onOpenTemplate={setTemplateScreen}
         onEditTemplate={setEditingTemplate}
         notices={notices}
+        checkSheets={checkSheetUrls(state, row.year)}
       />
     )
   else if (section === 'words') content = <WordsSection key={row.year} words={draft.wordChecks ?? DEFAULT_WORD_CHECKS} onChange={(wordChecks) => set({ wordChecks })} onPending={setPending} notices={notices} />
@@ -1329,6 +1330,7 @@ function TeacherView({
                   onOpenTemplate={setTemplateScreen}
                   onEditTemplate={setEditing}
                   notices={message && <MessageBox message={message} />}
+                  checkSheets={checkSheetUrls(state, row.year)}
                 />
               ) : section === 'words' ? (
                 <WordsSection key={row.year} words={draft.wordChecks ?? DEFAULT_WORD_CHECKS} onChange={(wordChecks) => setDraft({ ...draft, wordChecks })} onPending={onPending} notices={message && <MessageBox message={message} />} />

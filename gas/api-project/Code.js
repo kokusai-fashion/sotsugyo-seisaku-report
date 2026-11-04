@@ -634,9 +634,21 @@ function rosterSheetName_(values, key) {
 function validPlace_(place, rosterValues, key) {
   if (!place || !rosterValues) return false
   const cols = place.block.cols
-  const name = cols.name >= 0 ? String(place.row[cols.name] === undefined ? '' : place.row[cols.name]).trim() : ''
+  const name = cols.name >= 0 ? place.row[cols.name] : ''
   const note = cols.note >= 0 ? String(place.row[cols.note] === undefined ? '' : place.row[cols.note]).trim() : ''
-  return name === rosterSheetName_(rosterValues, key) && note !== BROKEN_NOTE
+  return nameKey_(name) === nameKey_(rosterSheetName_(rosterValues, key)) && note !== BROKEN_NOTE
+}
+
+/**
+ * 氏名を比べる形（字の幅・空白・教職員の試しの「（試し）」・先頭の ' の違いは見ない。管理ページの nameKey_ と同じ）。
+ * 書き方の違いだけで、学生の行を「ほかの学生の行」とみなさないように（依頼者の試し 2026-11-04）
+ */
+function nameKey_(value) {
+  return String(value === undefined || value === null ? '' : value)
+    .normalize('NFKC')
+    .replace(/\s/g, '')
+    .replace(/^'/, '')
+    .replace(/^\(試し\)/, '')
 }
 
 /** 学生が氏名を直したとき、点検表のその学生の行の氏名も直す（今の氏名が前の氏名のときだけ。点検表がない・行がなければ何もしない） */
@@ -645,7 +657,7 @@ function renameInCheckSheet_(year, courseId, key, before, after) {
     const sheetId = checkSheetIdOf_(SpreadsheetApp.openById(sheetId_()), year, courseId)
     const place = sheetId ? findCheckRow_(sheetId, key) : null
     const col = place ? place.block.cols.name : -1
-    if (col >= 0 && String(place.row[col]).trim() === before) place.sheet.getRange(place.index, col + 1).setValue(text_(after))
+    if (col >= 0 && nameKey_(place.row[col]) === nameKey_(before)) place.sheet.getRange(place.index, col + 1).setValue(text_(after))
   } catch (err) {
     console.warn('点検表の氏名を直せませんでした：' + String(err && err.message ? err.message : err))
   }
@@ -686,7 +698,7 @@ function register_(request) {
       // 氏名を直したら、点検表の氏名もすぐ直す（点検表の氏名と名簿の氏名が違う行は「並びが崩れた」とみなすため。点検表の氏名が前の氏名のときだけ）
       const before = rosterSheetName_(found.values, who.key)
       const after = rosterSheetName_([found.values[ROSTER.year], courseId, who.key].concat(names), who.key)
-      if (sameCourse && before !== after) renameInCheckSheet_(year, courseId, who.key, before, after)
+      if (sameCourse && nameKey_(before) !== nameKey_(after)) renameInCheckSheet_(year, courseId, who.key, before, after)
     } else {
       const row = blankRosterRow_(year, who.key)
       row[ROSTER.course] = text_(courseId)

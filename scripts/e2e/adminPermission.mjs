@@ -28,7 +28,7 @@ async function open(context, { teacher = false, phone = false, fresh = true } = 
   await page.goto(`${APP}/admin.html${teacher ? '?as=teacher' : ''}`, { waitUntil: 'networkidle0' })
   if (fresh) {
     await page.evaluate(() => {
-      for (const key of ['sotsugyo-admin-mock', 'sotsugyo-admin-mock-order']) localStorage.removeItem(key)
+      for (const key of ['sotsugyo-admin-mock', 'sotsugyo-admin-mock-order', 'sotsugyo-admin-mock-checksheets']) localStorage.removeItem(key)
       sessionStorage.removeItem('sotsugyo-admin-section')
     })
     await page.reload({ waitUntil: 'networkidle0' })
@@ -160,11 +160,35 @@ await withEdge(async (browser) => {
     await save(page)
     check(`${who}：両方とも切って保存すると、先生の許可の項目はなくなる`, (await savedPermission(page)) === null)
 
-    // ---- 点検表を開く：新しいタブ ----
-    const before = new Set(browser.targets())
+    // ---- 点検表を開く：まだないときは作って、新しいタブ ----
+    let before = new Set(browser.targets())
     await clickSheetButton(page, '点検表を開く')
-    const target = await browser.waitForTarget((t) => !before.has(t) && t.url().includes(`check-sheet-2026-${FILM}`), { timeout: 10000 }).catch(() => null)
-    check(`${who}：「点検表を開く」で、新しいタブに点検表が開く`, !!target, target?.url() ?? 'なし')
+    let target = await browser.waitForTarget((t) => !before.has(t) && t.url().includes(`check-sheet-2026-${FILM}`), { timeout: 10000 }).catch(() => null)
+    check(`${who}：まだ点検表がないとき、「点検表を開く」で作って、新しいタブに開く`, !!target, target?.url() ?? 'なし')
+    if (target) await (await target.page())?.close()
+    // 作ってある点検表は、「点検表を開く」がそのままリンク（サーバーに聞かずに、押すとすぐ開く。読み込み直しても）
+    const linkOf = () => page.evaluate(() => { const a = document.querySelector('.course.open a.cs-open'); return a ? { href: a.getAttribute('href'), target: a.target, text: a.textContent.trim() } : null })
+    const afterCreate = await linkOf()
+    await page.reload({ waitUntil: 'networkidle0' })
+    await page.waitForSelector('.admin .side-nav button')
+    await openCourse(page)
+    const afterReload = await linkOf()
+    let calls = 0
+    await page.evaluate(() => {
+      const s = window.__adminServer
+      const ensure = s.ensureCheckSheet
+      window.__ensureCalls = 0
+      s.ensureCheckSheet = (...a) => ((window.__ensureCalls += 1), ensure(...a))
+    })
+    before = new Set(browser.targets())
+    await page.evaluate(() => document.querySelector('.course.open a.cs-open').click())
+    target = await browser.waitForTarget((t) => !before.has(t) && t.url().includes(`check-sheet-2026-${FILM}`), { timeout: 10000 }).catch(() => null)
+    calls = await page.evaluate(() => window.__ensureCalls)
+    check(
+      `${who}：作ってある点検表は「点検表を開く」がリンクになり（読み込み直しても）、押すとサーバーに聞かずに新しいタブで開く`,
+      afterCreate?.href === `about:blank#check-sheet-2026-${FILM}` && afterReload?.href === afterCreate.href && afterReload.target === '_blank' && afterReload.text === '点検表を開く' && !!target && calls === 0,
+      JSON.stringify({ afterCreate, afterReload, opened: target?.url() ?? null, calls }),
+    )
     if (target) await (await target.page())?.close()
     await context.close()
   }

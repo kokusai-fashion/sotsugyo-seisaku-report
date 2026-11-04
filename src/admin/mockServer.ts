@@ -97,6 +97,17 @@ function loadOrders(): Record<string, string[]> {
   }
   return {}
 }
+/** 作った点検表（年度:コース → 場所）。本番は管理用スプレッドシートのシート「点検表」 */
+const SHEETS_KEY = 'sotsugyo-admin-mock-checksheets'
+function loadSheets(): Record<string, string> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHEETS_KEY) ?? 'null') as Record<string, string> | null
+    if (saved && typeof saved === 'object') return saved
+  } catch {
+    // 壊れていたら、まだ作っていない
+  }
+  return {}
+}
 /** 点検表の並び（本番の studentList_ と同じ形。並べ替えてあればその順、あとから来た学生はふりがなの順で後ろに） */
 function mockStudentList(year: number, courseId: string): StudentEntry[] {
   const all = byKana(MOCK_STUDENTS.map(([kana, name, studentId]) => ({ studentId, name, kana, moved: false })))
@@ -123,7 +134,16 @@ export function createMockServer(): AdminServer {
     const role = roleOf(store)
     // 削除できる年度（一度も公開していない「準備中」。本番の readYears_ と同じく、deleteYear と同じ決まりで付ける）
     const years = clone(store.years).map((y) => ({ ...y, deletable: y.status === '準備中' && !wasPublished(store, y.year) }))
-    return { user: USER, isAdmin: role === '管理者', role: role === '管理者' ? 'admin' : role === '先生' ? 'teacher' : null, years: role ? years.sort((a, b) => b.year - a.year) : [], links: role ? { materials: 'https://example.com/materials', ai: 'https://example.com/teacher-ai' } : {} }
+    // 作ってある点検表の場所も（本番の getState の checkSheets と同じ）
+    const checkSheets = Object.entries(loadSheets()).map(([key, url]) => ({ year: Number(key.split(':')[0]), courseId: key.slice(key.indexOf(':') + 1), url }))
+    return {
+      user: USER,
+      isAdmin: role === '管理者',
+      role: role === '管理者' ? 'admin' : role === '先生' ? 'teacher' : null,
+      years: role ? years.sort((a, b) => b.year - a.year) : [],
+      links: role ? { materials: 'https://example.com/materials', ai: 'https://example.com/teacher-ai' } : {},
+      checkSheets: role ? checkSheets : [],
+    }
   }
   const requireAdmin = (store: Store) => {
     if (roleOf(store) !== '管理者') throw new Error(`管理者だけが変更できます（ログイン中：${USER}）`)
@@ -263,8 +283,11 @@ export function createMockServer(): AdminServer {
       const store = load()
       requireTeacher(store)
       requireSavedCourse(store, year, courseId)
-      // 本番は Google スプレッドシートの場所。試験用は、新しいタブで開ける空のページ（自動テストが、開いたことを確かめる）
-      return { url: `about:blank#check-sheet-${year}-${courseId}` }
+      // 本番は Google スプレッドシートの場所。試験用は、新しいタブで開ける空のページ（自動テストが、開いたことを確かめる）。
+      // 作ったことを覚えておく（次からは、管理ページの状態に場所が入り、サーバーに聞かずに開く）
+      const url = `about:blank#check-sheet-${year}-${courseId}`
+      localStorage.setItem(SHEETS_KEY, JSON.stringify({ ...loadSheets(), [`${year}:${courseId}`]: url }))
+      return { url }
     },
     async listStudents(year, courseId) {
       await wait()

@@ -24,7 +24,8 @@
  *   ツールが書く列（番号・氏名・最新 PDF・知らせ・見えない学籍番号と許可の記録・段のあいだのすき間）・✓ の列の見出し・案内の行は、デプロイした人だけが書けるように守る
  *   （先生が書けるのは、白い回の列（見出しも。足す・名前を変えるのも自由）と ✓ の列の中身だけ）。守った列にかかる行の移動・並べ替えは、Google スプレッドシートが断る。
  *   段ごとに列は見出しの名前で探す（先生が片方の段にだけ回の列を足した・名前を変えたときも、そのまま読む）。
- *   それでも見える氏名と見えない学籍番号がずれた行は、許可を学生に渡さず、「知らせ」に「並びが崩れています」と出す（依頼者の選択 2026-11-04）
+ *   それでも見える氏名と見えない学籍番号がずれた行（見える氏名が名簿のほかの学生の氏名）は、許可を学生に渡さず、「知らせ」に「並びが崩れています」と出す
+ *   （依頼者の選択 2026-11-04。氏名の書き方の違い・（試し）・名簿の氏名を直した直後だけでは出さない：nameKey_・outOfStep_）
  *   配り直したあと、エディタで1回だけ setupCheckSheets を実行する（ドライブ・仕掛けの権限を承認し、仕掛けを作り直す。届いた声のメールの仕掛けも作り直す）。
  *   配信の窓口（gas/api-project）も、点検表の「知らせ」「氏名」を書くので、管理ページと同じ人がデプロイする
  *
@@ -122,7 +123,15 @@ function setup() {
 function getState() {
   const user = Session.getActiveUser().getEmail()
   const role = roleOf_(user)
-  return { user: user, isAdmin: role === ROLE_ADMIN, role: role === ROLE_ADMIN ? 'admin' : role === ROLE_TEACHER ? 'teacher' : null, years: role ? readYears_() : [], links: role ? teacherLinks_() : {} }
+  // checkSheets：作ってある点検表の場所（「点検表を開く」を、サーバーに聞かずにすぐ開くため。依頼者の試し 2026-11-04）
+  return {
+    user: user,
+    isAdmin: role === ROLE_ADMIN,
+    role: role === ROLE_ADMIN ? 'admin' : role === ROLE_TEACHER ? 'teacher' : null,
+    years: role ? readYears_() : [],
+    links: role ? teacherLinks_() : {},
+    checkSheets: role ? checkSheetLinks_() : [],
+  }
 }
 
 /** 先生向けのリンク（説明の資料一式・使い方を AI に聞く）。スクリプト プロパティがあれば、そちらを使う */
@@ -1228,6 +1237,42 @@ function pdfFormula_(student) {
   return '=HYPERLINK("https://drive.google.com/file/d/' + student.pdfId + '/view","' + (at ? monthDay_(at) : 'PDF') + '")'
 }
 
+/**
+ * 氏名を比べる形（字の幅・空白・教職員の試しの「（試し）」・先頭の ' の違いは見ない）。
+ * 点検表の氏名と名簿の氏名が、書き方の違いだけで「並びが崩れた」にならないように（依頼者の試し 2026-11-04）
+ */
+function nameKey_(value) {
+  return String(value === undefined || value === null ? '' : value)
+    .normalize('NFKC')
+    .replace(/\s/g, '')
+    .replace(/^'/, '')
+    .replace(/^\(試し\)/, '')
+}
+
+/** 名簿の学生の氏名（学籍番号 → 比べる形）と、氏名ごとの学籍番号（同じ氏名の学生がいても分かるように） */
+function rosterNames_(students) {
+  const byKey = {}
+  const owners = {}
+  students.forEach((s) => {
+    const k = nameKey_(fullName_(s))
+    byKey[s.id] = k
+    ;(owners[k] = owners[k] || []).push(s.id)
+  })
+  return { byKey: byKey, owners: owners }
+}
+
+/**
+ * 点検表の行の並びが崩れているか：見える氏名（shown）が、その行の学籍番号（key）の学生ではなく、名簿のほかの学生の氏名のとき。
+ * 氏名が同じ・だれのものでもない（名簿を直した直後・書き方の違い）・名簿にない学生の行は、崩れたとはみなさない
+ */
+function outOfStep_(names, key, shown) {
+  const mine = names.byKey[key]
+  const k = nameKey_(shown)
+  if (mine === undefined || !k || k === mine) return false
+  const owners = names.owners[k]
+  return !!owners && owners.indexOf(key) < 0
+}
+
 /** 点検表の「氏名」（教職員の試しの行は「（試し）」を付ける） */
 function sheetName_(student) {
   return (student.id.indexOf('staff:') === 0 ? '（試し）' : '') + fullName_(student)
@@ -1372,14 +1417,29 @@ function usableSheet_(id) {
   }
 }
 
+/** 点検表の場所（スプレッドシートの ID から） */
+function checkSheetUrl_(id) {
+  return 'https://docs.google.com/spreadsheets/d/' + id + '/edit'
+}
+
 /**
- * コースの点検表を開く（管理ページの「点検表を開く」。先生も使える）。なければ作る：PDF の控えのコースのフォルダに、
- * 「2026年度 点検表（〇〇 コース）」を作り、シート「点検表」に ID を書き、編集の仕掛けを付ける。名簿から写してから、場所を返す
+ * 作ってある点検表の場所の一覧（管理ページを開いたときに渡す。「点検表を開く」は、サーバーに聞かずに、すぐ開く：依頼者の試し 2026-11-04）
+ */
+function checkSheetLinks_() {
+  return checkSheetEntries_().map((e) => ({ year: e.year, courseId: e.courseId, url: checkSheetUrl_(e.id) }))
+}
+
+/**
+ * コースの点検表を作る（管理ページの「点検表を開く」で、まだ点検表がないとき。先生も使える）：PDF の控えのコースのフォルダに、
+ * 「2026年度 点検表（〇〇 コース）」を作り、シート「点検表」に ID を書き、編集の仕掛けを付け、名簿から写してから、場所を返す。
+ * もうあれば、写さずにすぐ場所を返す（写すのは10分ごとの仕掛けと「この並びにする」。開くのを待たせない：依頼者の試し 2026-11-04）
  */
 function ensureCheckSheet(year, courseId) {
   requireTeacher_()
   const course = requireCourse_(year, courseId)
   rememberAdminBook_()
+  const existing = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
+  if (existing && usableSheet_(existing.id)) return { url: checkSheetUrl_(existing.id) }
   const id = withLock_(() => {
     const found = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
     if (found && usableSheet_(found.id)) return found.id
@@ -1402,7 +1462,7 @@ function ensureCheckSheet(year, courseId) {
     console.error('点検表の編集の仕掛けを付けられませんでした（setupCheckSheets を実行してください）：' + String(err && err.message ? err.message : err))
   }
   syncNow_(year, course.id)
-  return { url: 'https://docs.google.com/spreadsheets/d/' + id + '/edit' }
+  return { url: checkSheetUrl_(id) }
 }
 
 /** 並べ替えの窓の一覧：[{ studentId, name, kana, moved }]（点検表の並び。moved：手で動かした） */
@@ -1541,10 +1601,10 @@ function syncCheckSheet_(entry, course, roster) {
   if (blocks.some((b) => b.cols.key < 0)) throw new Error('見えない列「学籍番号」が見つかりません')
 
   // 先生が書いた中身（学籍番号ごと）と、学生の行のある最後の行。
-  // 見える氏名が名簿の氏名と違う行（先生が表の一部だけを並べ替えたなど）は、中身がだれのものか分からない：ほかの学生には移さず、
-  // その学籍番号の学生（untrusted）は、先生の列を書かずに今の中身のまま残し、「並びが崩れています」を出す（依頼者の選択 2026-11-04）
-  const expected = {}
-  students.forEach((s) => (expected[s.id] = sheetName_(s)))
+  // 並びが崩れた行（先生が表の一部だけを並べ替えたなど）：見える氏名が、名簿の「ほかの学生」の氏名（outOfStep_）。中身がだれのものか分からない：
+  // ほかの学生には移さず、その学籍番号の学生（untrusted）は、先生の列を書かずに今の中身のまま残し、「並びが崩れています」を出す（依頼者の選択 2026-11-04）。
+  // 氏名がだれのものでもない（名簿の氏名を直した直後・書き方の違いなど）だけなら、崩れたとはみなさず、氏名を書き直す
+  const names = rosterNames_(students)
   const kept = {}
   const untrusted = {}
   let lastRow = 0
@@ -1554,8 +1614,9 @@ function syncCheckSheet_(entry, course, roster) {
       const key = String(values[r][b.cols.key] === undefined ? '' : values[r][b.cols.key]).trim()
       if (!key) continue
       lastRow = Math.max(lastRow, r - h)
-      const name = b.cols.name >= 0 ? String(values[r][b.cols.name]).trim() : ''
-      if (expected[key] !== undefined && name !== expected[key]) {
+      const shown = b.cols.name >= 0 ? values[r][b.cols.name] : ''
+      if (outOfStep_(names, key, shown)) {
+        console.warn('点検表（' + entry.year + '年度・' + course.name + '）の ' + (r + 1) + ' 行目は並びが崩れています（見える氏名が、名簿のほかの学生の氏名）：' + key)
         untrusted[key] = true
         continue
       }
@@ -1842,8 +1903,8 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
 /**
  * 点検表の編集の仕掛け（点検表を作ったときに付ける。installable onEdit）：「抄録許可」「最終提出可」の ✓ を入れたら、
  * 見えない記録の列に「日時 / 先生の名字」を残す（学生のツールに「許可が出ました（12/15 〇〇先生）」と出る）。✓ を外したら消す。
- * 見える氏名が名簿の氏名と違う行（並びが崩れた行）には残さず、「知らせ」に「並びが崩れています」と出す。
- * 「並びが崩れています」の行でも、氏名が名簿と同じに戻っていれば、✓ を入れ直したときに知らせを消して残す（先生が行を確かめた印）
+ * 見える氏名が名簿のほかの学生の氏名の行（並びが崩れた行：outOfStep_）には残さず、「知らせ」に「並びが崩れています」と出す。
+ * 「並びが崩れています」の行でも、並びが戻っていれば、✓ を入れ直したときに知らせを消して残す（先生が行を確かめた印）
  */
 function onCheckSheetEdit(e) {
   if (!e || !e.range) return
@@ -1888,8 +1949,8 @@ function onCheckSheetEdit(e) {
       const key = cols.key >= 0 ? text(row[cols.key]) : ''
       const names = ctx().names
       const broken = cols.note >= 0 && text(row[cols.note]) === BROKEN_NOTE
-      // 名簿が読めないときは確かめない（学生のツールへの答えは、配信の窓口がもう一度確かめる）
-      if (names && key && names[key] !== text(row[cols.name])) {
+      // 見える氏名が名簿のほかの学生の氏名なら、並びが崩れている（名簿が読めないときは確かめない。学生のツールへの答えは、配信の窓口がもう一度確かめる）
+      if (names && key && outOfStep_(names, key, cols.name >= 0 ? row[cols.name] : '')) {
         if (cols.note >= 0 && !broken) sheet.getRange(top + i, cols.note + 1).setValue(BROKEN_NOTE)
         return [old]
       }
@@ -1905,7 +1966,7 @@ function onCheckSheetEdit(e) {
 
 /**
  * 編集した先生と、この点検表の学生：who は ✓ を入れた先生の名字（アドレス → 先生の登録のメモ → この点検表のコースの指導教員の名字。
- * わからなければアドレスの @ より前）。names は学籍番号 → 点検表の氏名（名簿から。読めなければ null）
+ * わからなければアドレスの @ より前）。names はこの点検表の学生の氏名（rosterNames_。名簿から。読めなければ null）
  */
 function editContext_(e, sheet) {
   let email = ''
@@ -1929,10 +1990,7 @@ function editContext_(e, sheet) {
     const course = found ? courseOf_(found.config, entry.courseId) : null
     surnames = course ? advisorSurnames_(course.advisors) : []
     const roster = entry ? readRoster_(book) : null
-    if (roster) {
-      names = {}
-      courseStudents_(roster, entry.year, entry.courseId).forEach((s) => (names[s.id] = sheetName_(s)))
-    }
+    if (roster) names = rosterNames_(courseStudents_(roster, entry.year, entry.courseId))
   } catch (err) {
     console.error('✓ を入れた先生・点検表の学生を調べられませんでした：' + String(err && err.message ? err.message : err))
   }
