@@ -43,7 +43,7 @@ describe('先生の許可の仕組み（点検表）', () => {
     expect(finalGateOf(course(), null, '2027-01-14T00:00:00Z')).toEqual({ kind: 'off' })
     expect(finalGateOf(course({ final: true }), null, '2027-01-14T00:00:00Z')).toEqual({ kind: 'before' })
     expect(finalGateOf(course({ final: true }), status(ok), '2027-01-13T00:00:00Z')).toEqual({ kind: 'granted', by: '1/13　山本先生', editedAfter: null })
-    expect(finalGateOf(course({ final: true }), status(ok), '2027-01-14T05:00:00+09:00')).toEqual({ kind: 'granted', by: '1/13　山本先生', editedAfter: '1/14' })
+    expect(finalGateOf(course({ final: true }), status(ok), '2027-01-14T12:00:00+09:00')).toEqual({ kind: 'granted', by: '1/13　山本先生', editedAfter: '1/14' })
   })
 
   it('学生の名簿：コースと氏名の4つの欄がそろうまで送らない。変わったら送り直す', () => {
