@@ -5,12 +5,49 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import * as rules from '../src/admin/serverRules'
 import initialConfig from '../src/config/2026.json'
 
-type Cell = string | number | Date
+type Cell = string | number | boolean | Date
+/** 入力規則（✓ の箱・プルダウン）の簡易版 */
+type Validation = { kind: 'checkbox' } | { kind: 'list'; list: string[]; allowInvalid: boolean }
+/** セルの見た目（確かめるものだけ） */
+interface CellFormat {
+  validation?: Validation | null
+  background?: string | null
+  bold?: boolean
+  numberFormat?: string
+  fontSize?: number
+  color?: string
+}
+/** 守った範囲（Protection の簡易版） */
+interface FakeProtection {
+  description: string
+  editors: string[]
+  domainEdit: boolean
+  range: { row: number; col: number; rows: number; cols: number }
+}
+/** 条件付き書式の簡易版 */
+interface FakeRule {
+  when: string
+  text: string
+  background?: string
+  color?: string
+  bold?: boolean
+  ranges: { row: number; col: number; rows: number }[]
+}
 class FakeSheet {
   rows: Cell[][] = []
   /** 数式として書かれてしまった値（先頭が = + - @ で、' が付いていないもの） */
   formulas: string[] = []
-  constructor(public name: string) {}
+  /** セルの見た目（rows と同じ並び。列を足す・消すと一緒に動く） */
+  fmts: CellFormat[][] = []
+  /** 列の幅と、隠しているか（列を足す・消すと一緒に動く） */
+  cols: { hidden?: boolean; width?: number }[] = []
+  rules: FakeRule[] = []
+  protections: FakeProtection[] = []
+  frozen = 0
+  constructor(
+    public name: string,
+    public parent: FakeSpreadsheet | null = null,
+  ) {}
   /** スプレッドシートと同じく、先頭の ' は「文字として書く」印として外す */
   private written = (v: Cell): Cell => {
     if (typeof v !== 'string') return v
@@ -18,37 +55,162 @@ class FakeSheet {
     if (/^[=+\-@]/.test(v)) this.formulas.push(v)
     return v
   }
+  private cell = (r: number, c: number): Cell => this.rows[r]?.[c] ?? ''
+  private put = (r: number, c: number, v: Cell) => {
+    while (this.rows.length <= r) this.rows.push([])
+    const row = this.rows[r]
+    while (row.length < c) row.push('')
+    row[c] = v
+  }
+  fmtAt = (r: number, c: number): CellFormat => {
+    while (this.fmts.length <= r) this.fmts.push([])
+    const row = this.fmts[r]
+    while (row.length <= c) row.push({})
+    return row[c]
+  }
+  colAt = (c: number) => {
+    while (this.cols.length <= c) this.cols.push({})
+    return this.cols[c]
+  }
+  width = () => Math.max(0, ...this.rows.map((r) => r.length))
   getLastRow = () => this.rows.length
+  getLastColumn = () => this.width()
+  getMaxRows = () => Math.max(1000, this.rows.length)
+  /** 守りの操作（本物の Protection と同じ呼び方） */
+  private protection = (p: FakeProtection) => {
+    const api = {
+      setDescription: (d: string) => ((p.description = d), api),
+      getDescription: () => p.description,
+      addEditor: (u: string | { getEmail: () => string }) => {
+        const email = typeof u === 'string' ? u : u.getEmail()
+        if (!p.editors.includes(email)) p.editors.push(email)
+        return api
+      },
+      removeEditors: (list: (string | { getEmail: () => string })[]) => {
+        const out = list.map((u) => (typeof u === 'string' ? u : u.getEmail()))
+        p.editors = p.editors.filter((e) => !out.includes(e))
+        return api
+      },
+      getEditors: () => p.editors.map((e) => ({ getEmail: () => e })),
+      canDomainEdit: () => p.domainEdit,
+      setDomainEdit: (on: boolean) => ((p.domainEdit = on), api),
+      remove: () => void (this.protections = this.protections.filter((x) => x !== p)),
+    }
+    return api
+  }
+  getProtections = () => this.protections.map(this.protection)
   appendRow = (row: Cell[]) => void this.rows.push(row.map(this.written))
   deleteRow = (row: number) => void this.rows.splice(row - 1, 1)
-  setFrozenRows = () => {}
-  getDataRange = () => ({ getValues: () => this.rows.map((r) => [...r]) })
-  getRange = (row: number, col: number, numRows = 1, numCols = 1) => ({
-    setFontWeight: () => {},
-    setValue: (v: Cell) => void (this.rows[row - 1][col - 1] = this.written(v)),
-    setValues: (values: Cell[][]) => {
-      for (let i = 0; i < numRows; i++) for (let j = 0; j < numCols; j++) this.rows[row - 1 + i][col - 1 + j] = this.written(values[i][j])
-    },
-    getValue: () => this.rows[row - 1][col - 1],
-    getValues: () => Array.from({ length: numRows }, (_, i) => Array.from({ length: numCols }, (_, j) => this.rows[row - 1 + i][col - 1 + j])),
-  })
+  setFrozenRows = (n: number) => void (this.frozen = n)
+  setRowHeight = () => {}
+  setColumnWidth = (c: number, w: number) => void (this.colAt(c - 1).width = w)
+  hideColumns = (c: number) => void (this.colAt(c - 1).hidden = true)
+  showColumns = (c: number) => void (this.colAt(c - 1).hidden = false)
+  setName = (n: string) => {
+    this.name = n
+    return this
+  }
+  getName = () => this.name
+  getParent = () => this.parent
+  insertColumnsAfter = (after: number, n: number) => {
+    for (const row of this.rows) {
+      while (row.length < after) row.push('')
+      row.splice(after, 0, ...Array.from({ length: n }, () => ''))
+    }
+    for (const row of this.fmts) {
+      while (row.length < after) row.push({})
+      row.splice(after, 0, ...Array.from({ length: n }, () => ({})))
+    }
+    while (this.cols.length < after) this.cols.push({})
+    this.cols.splice(after, 0, ...Array.from({ length: n }, () => ({})))
+  }
+  deleteColumns = (pos: number, n: number) => {
+    for (const row of this.rows) row.splice(pos - 1, n)
+    for (const row of this.fmts) row.splice(pos - 1, n)
+    this.cols.splice(pos - 1, n)
+  }
+  setConditionalFormatRules = (rules: FakeRule[]) => void (this.rules = rules)
+  getConditionalFormatRules = () => this.rules
+  /** 本物と同じく、書いてある範囲の四角（足りないセルは ''。何もなければ A1 だけ） */
+  getDataRange = () => this.getRange(1, 1, Math.max(1, this.rows.length), Math.max(1, this.width()))
+  getRange = (row: number, col: number, numRows = 1, numCols = 1) => {
+    const each = (fn: (f: CellFormat) => void) => {
+      for (let i = 0; i < numRows; i++) for (let j = 0; j < numCols; j++) fn(this.fmtAt(row - 1 + i, col - 1 + j))
+    }
+    const grid = <T,>(fn: (v: Cell) => T) => Array.from({ length: numRows }, (_, i) => Array.from({ length: numCols }, (_, j) => fn(this.cell(row - 1 + i, col - 1 + j))))
+    const range = {
+      sheet: this,
+      row,
+      col,
+      numRows,
+      getSheet: () => this,
+      getRow: () => row,
+      getColumn: () => col,
+      getNumRows: () => numRows,
+      getNumColumns: () => numCols,
+      setFontWeight: (w: string | null) => (each((f) => (f.bold = w === 'bold')), range),
+      setFontSize: (n: number) => (each((f) => (f.fontSize = n)), range),
+      setFontColor: (c: string) => (each((f) => (f.color = c)), range),
+      setWrap: () => range,
+      setHorizontalAlignment: () => range,
+      setVerticalAlignment: () => range,
+      // 守ると、はじめは共有している人（先生）も書ける（本物と同じ。ツールが外す）
+      protect: () => {
+        const p: FakeProtection = { description: '', editors: [owner, 'shared-teacher@example.ac.jp'], domainEdit: true, range: { row, col, rows: numRows, cols: numCols } }
+        this.protections.push(p)
+        return this.getProtections().at(-1)!
+      },
+      setBackground: (b: string | null) => (each((f) => (f.background = b)), range),
+      setDataValidation: (v: Validation | null) => (each((f) => (f.validation = v)), range),
+      setNumberFormat: (n: string) => (each((f) => (f.numberFormat = n)), range),
+      setValue: (v: Cell) => (this.put(row - 1, col - 1, this.written(v)), range),
+      setValues: (values: Cell[][]) => {
+        for (let i = 0; i < numRows; i++) for (let j = 0; j < numCols; j++) this.put(row - 1 + i, col - 1 + j, this.written(values[i][j]))
+        return range
+      },
+      getValue: () => this.cell(row - 1, col - 1),
+      getValues: () => grid((v) => v),
+      getFormulas: () => grid((v) => (typeof v === 'string' && v.startsWith('=') ? v : '')),
+    }
+    return range
+  }
 }
 
 class FakeSpreadsheet {
-  sheets: FakeSheet[] = [new FakeSheet('シート1')]
+  sheets: FakeSheet[]
+  constructor(
+    public id = 'sheet-id',
+    public name = '卒業制作報告書_管理',
+  ) {
+    this.sheets = [new FakeSheet('シート1', this)]
+  }
   getSheetByName = (name: string) => this.sheets.find((s) => s.name === name) ?? null
   insertSheet = (name: string) => {
-    const s = new FakeSheet(name)
+    const s = new FakeSheet(name, this)
     this.sheets.push(s)
     return s
   }
   getSheets = () => this.sheets
   deleteSheet = (s: FakeSheet) => void (this.sheets = this.sheets.filter((x) => x !== s))
-  getId = () => 'sheet-id'
-  getName = () => '卒業制作報告書_管理'
+  getId = () => this.id
+  getName = () => this.name
+  rename = (name: string) => void (this.name = name)
+  getUrl = () => `https://docs.google.com/spreadsheets/d/${this.id}/edit`
 }
 
 let spreadsheet: FakeSpreadsheet
+/** 管理ページが作ったスプレッドシート（点検表。ID → スプレッドシート） */
+let books: Map<string, FakeSpreadsheet>
+/** スクリプト プロパティに書いた値（読み込み直しても残る） */
+let stored: Map<string, string>
+/** 仕掛け（ScriptApp のトリガー） */
+interface FakeTrigger {
+  handler: string
+  kind: 'time' | 'edit'
+  minutes?: number
+  source?: string
+}
+let triggers: FakeTrigger[]
 /** ログイン中の人（管理ページを開いている人、またはエディタで実行した人） */
 let user = 'kato@example.ac.jp'
 /** プログラムを動かしている人（デプロイした人。エディタで実行したときは、実行した人） */
@@ -142,12 +304,73 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
   let source = readFileSync(`gas/${project}/Code.js`, 'utf8').replace('/*INITIAL_CONFIG*/ null', JSON.stringify(initialConfig)).replace('/*TRIAL_SAMPLE*/ null', () => JSON.stringify(trialSample))
   for (const [name, value] of Object.entries(values)) source = source.replace(`/*${name}*/ ''`, JSON.stringify(value))
   const cache = new Map<string, string>()
+  /** ドライブのフォルダ（DriveApp の簡易版。高度なサービスの簡易版と同じ中身を見る） */
+  const folderOf = (id: string): Record<string, (...a: never[]) => unknown> => {
+    const item = drive.items.get(id)
+    if (!item || item.mimeType !== FOLDER) throw new Error(`Folder not found: ${id}`)
+    return {
+      getId: () => id,
+      getName: () => item.name,
+      isTrashed: () => item.trashed,
+      getFoldersByName: (name: string) => {
+        const list = [...drive.items.values()].filter((f) => f.mimeType === FOLDER && f.name === name && f.parents.includes(id))
+        return { hasNext: () => list.length > 0, next: () => folderOf(list.shift()!.id) }
+      },
+      createFolder: (name: string) => folderOf(drive.api.Files.create({ name, mimeType: FOLDER, parents: [id] }, null).id),
+    }
+  }
+  /** 入力規則・条件付き書式を組み立てる部品（本物と同じ呼び方。中身は確かめられる形で残す） */
+  const validationBuilder = () => {
+    let v: Validation = { kind: 'checkbox' }
+    const b = {
+      requireCheckbox: () => ((v = { kind: 'checkbox' }), b),
+      requireValueInList: (list: string[]) => ((v = { kind: 'list', list: [...list], allowInvalid: false }), b),
+      setAllowInvalid: (on: boolean) => (v.kind === 'list' && (v.allowInvalid = on), b),
+      build: () => v,
+    }
+    return b
+  }
+  const ruleBuilder = () => {
+    const r: FakeRule = { when: '', text: '', ranges: [] }
+    const b = {
+      whenTextEqualTo: (t: string) => ((r.when = 'equal'), (r.text = t), b),
+      whenTextContains: (t: string) => ((r.when = 'contains'), (r.text = t), b),
+      whenTextStartsWith: (t: string) => ((r.when = 'startsWith'), (r.text = t), b),
+      setBackground: (c: string) => ((r.background = c), b),
+      setFontColor: (c: string) => ((r.color = c), b),
+      setBold: (on: boolean) => ((r.bold = on), b),
+      setRanges: (ranges: { row: number; col: number; numRows: number }[]) => ((r.ranges = ranges.map((x) => ({ row: x.row, col: x.col, rows: x.numRows }))), b),
+      build: () => r,
+    }
+    return b
+  }
   const context = createContext({
     SpreadsheetApp: {
       getActiveSpreadsheet: () => spreadsheet,
-      openById: () => {
+      openById: (id: string) => {
         opened++
-        return spreadsheet
+        if (id === 'sheet-id') return spreadsheet
+        const book = books.get(id)
+        if (!book) throw new Error(`Spreadsheet not found: ${id}`)
+        return book
+      },
+      create: (name: string) => {
+        const id = `book${books.size + 1}`
+        const book = new FakeSpreadsheet(id, name)
+        books.set(id, book)
+        drive.items.set(id, { id, name, mimeType: 'application/vnd.google-apps.spreadsheet', parents: ['my-drive'], trashed: false, versions: 0 })
+        return book
+      },
+      newDataValidation: validationBuilder,
+      newConditionalFormatRule: ruleBuilder,
+      ProtectionType: { RANGE: 'RANGE', SHEET: 'SHEET' },
+    },
+    DriveApp: {
+      getFolderById: folderOf,
+      getFileById: (id: string) => {
+        const item = drive.items.get(id)
+        if (!item) throw new Error(`File not found: ${id}`)
+        return { getId: () => id, isTrashed: () => item.trashed, moveTo: (folder: { getId: () => string }) => void (item.parents = [folder.getId()]) }
       },
     },
     Session: { getActiveUser: () => ({ getEmail: () => user }), getEffectiveUser: () => ({ getEmail: () => owner }) },
@@ -160,13 +383,27 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
         },
         releaseLock: () => {},
       }),
+      getDocumentLock: () => ({ tryLock: () => true, waitLock: () => {}, releaseLock: () => {} }),
     },
     Logger: { log: (m: string) => void logs.push(m) },
     CacheService: { getScriptCache: () => ({ get: (k: string) => cache.get(k) ?? null, put: (k: string, v: string) => void cache.set(k, v) }) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k: string) => (k === 'SHEET_ID' ? 'sheet-id' : (props[k] ?? null)) }) },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: (k: string) => (k === 'SHEET_ID' ? 'sheet-id' : (stored.get(k) ?? props[k] ?? null)),
+        setProperty: (k: string, v: string) => void stored.set(k, v),
+      }),
+    },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (text: string) => ({ text, setMimeType() { return this } }) },
     HtmlService: { createHtmlOutputFromFile: () => ({ setTitle() { return this }, addMetaTag() { return this } }) },
-    ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/admin/exec' }) },
+    ScriptApp: {
+      getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/admin/exec' }),
+      getProjectTriggers: () => triggers.map((t) => ({ trigger: t, getHandlerFunction: () => t.handler, getTriggerSourceId: () => t.source ?? null })),
+      deleteTrigger: (t: { trigger: FakeTrigger }) => void (triggers = triggers.filter((x) => x !== t.trigger)),
+      newTrigger: (handler: string) => ({
+        timeBased: () => ({ everyMinutes: (minutes: number) => ({ create: () => void triggers.push({ handler, kind: 'time', minutes }) }) }),
+        forSpreadsheet: (source: string) => ({ onEdit: () => ({ create: () => void triggers.push({ handler, kind: 'edit', source }) }) }),
+      }),
+    },
     UrlFetchApp: {
       fetch: (url: string) => {
         fetched.push(url)
@@ -197,6 +434,9 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
 
 beforeEach(() => {
   spreadsheet = new FakeSpreadsheet()
+  books = new Map()
+  stored = new Map()
+  triggers = []
   user = 'kato@example.ac.jp'
   owner = 'kato@example.ac.jp'
   opened = 0
@@ -811,8 +1051,19 @@ describe('管理ページ（admin-project）', () => {
       { ...initialConfig, courses: [{ ...course, template: [{ type: 'paragraph' }] }] },
       { ...initialConfig, wordChecks: [{ wrong: 1 }] },
       { ...initialConfig, commonTitle: 'あ'.repeat(46000) },
+      // 先生の許可（依頼者の選択 2026-11-04）
+      { ...initialConfig, courses: [{ ...course, permission: { abstract: true, final: false } }] },
+      { ...initialConfig, courses: [{ ...course, permission: { abstract: 'yes' } }] },
+      { ...initialConfig, courses: [{ ...course, permission: [] }] },
+      { ...initialConfig, courses: [{ ...course, permission: 'x' }] },
     ]
     for (const c of configs) expect(outcome(() => rules.checkConfig(c))).toBe(outcome(() => gas.checkConfig_(c)))
+    for (const p of [{ [course.id]: { abstract: true } }, { [course.id]: { abstract: false, final: false } }, { [course.id]: null }, { [course.id]: { final: 1 } }, { [course.id]: 'x' }, { nothing: { abstract: true } }]) {
+      const a = JSON.parse(JSON.stringify(initialConfig))
+      const b = JSON.parse(JSON.stringify(initialConfig))
+      expect(outcome(() => rules.applyPermissions(a, p))).toBe(outcome(() => gas.applyPermissions_(b, p)))
+      expect(a).toEqual(b)
+    }
     // コースのひな形・お知らせを書き換える（書き換えたあとの設定も同じ）
     const edits: [unknown, unknown][] = [
       [{ [course.id]: { template: [chapter], abstractExample: '本制作報告書は、' }, nothing: { template: [] } }, { [course.id]: 'お知らせ', nothing: 'x' }],
@@ -1208,5 +1459,610 @@ describe('届いた声（api-project の doPost・admin-project の一覧と状�
     expect(post(api, { ...log, message: 'RangeError: b' })).toEqual({ ok: true })
     expect(sheetRows('エラーの記録').map((r) => r[4])).toEqual(['エラー', 'TypeError: a is null', 'RangeError: b'])
     expect(post(api, { ...log, message: '' }).ok).toBe(false)
+  })
+})
+
+describe('先生の許可の仕組み（学生の名簿・点検表。docs/設計_許可の仕組み.md）', () => {
+  const CLIENT = 'client-1.apps.googleusercontent.com'
+  const FILM = initialConfig.courses[0]
+  const TOP_NOTE = '並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
+  const PROTECT_NOTE = 'ツールが書く列です（並べ替えは管理ページの「学生の並びを直す」から）'
+  /** 学生（名前はすべて作り物）：姓・名・セイ・メイ */
+  const PEOPLE: [string, string, string, string][] = [
+    ['青木', '美咲', 'アオキ', 'ミサキ'], ['石田', '遥', 'イシダ', 'ハルカ'], ['上野', '空', 'ウエノ', 'ソラ'], ['遠藤', '莉子', 'エンドウ', 'リコ'], ['太田', '結衣', 'オオタ', 'ユイ'],
+    ['金子', '奈々', 'カネコ', 'ナナ'], ['木村', '葵', 'キムラ', 'アオイ'], ['久保', '芽依', 'クボ', 'メイ'], ['小林', '陽菜', 'コバヤシ', 'ヒナ'], ['斎藤', '美緒', 'サイトウ', 'ミオ'],
+    ['清水', '楓', 'シミズ', 'カエデ'], ['鈴木', '彩花', 'スズキ', 'アヤカ'], ['瀬川', '真央', 'セガワ', 'マオ'], ['高橋', '咲良', 'タカハシ', 'サクラ'], ['千葉', '千尋', 'チバ', 'チヒロ'],
+    ['塚本', '七海', 'ツカモト', 'ナナミ'], ['寺田', '優花', 'テラダ', 'ユウカ'], ['中島', '菜摘', 'ナカジマ', 'ナツミ'], ['西村', '里奈', 'ニシムラ', 'リナ'], ['野口', '杏', 'ノグチ', 'アン'],
+    ['長谷川', '舞', 'ハセガワ', 'マイ'], ['平野', '凛', 'ヒラノ', 'リン'], ['福田', '紗希', 'フクダ', 'サキ'], ['星野', '桃子', 'ホシノ', 'モモコ'], ['前田', '和花', 'マエダ', 'ノドカ'],
+    ['三浦', '未来', 'ミウラ', 'ミライ'],
+  ]
+  const idOf = (i: number) => `00ZZ${String(100 + i).padStart(4, '0')}`
+  const nameOf = (i: number) => `${PEOPLE[i][0]}　${PEOPLE[i][1]}`
+  const mailOf = (i: number) => `${idOf(i).toLowerCase()}@example.ac.jp`
+  const tokenOf = (email: string) => {
+    const token = `tok-${email}-${tokens.size}`
+    tokens.set(token, { aud: CLIENT, azp: CLIENT, email, email_verified: 'true', expires_in: '3500' })
+    return token
+  }
+  const post = (api: ReturnType<typeof load>, body: unknown) => JSON.parse(api.doPost({ postData: { type: 'text/plain', contents: JSON.stringify(body) } }).text)
+  const api = () => load('api-project', { values: { PDF_FOLDER_ID: 'root-folder', CLIENT_ID: CLIENT, DOMAIN: 'example.ac.jp' } })
+  const admin = () => load('admin-project', { values: { PDF_FOLDER_ID: 'root-folder' } })
+  /** 管理ページの準備と、先生（登録のメモに指導教員の名前）を登録 */
+  const setup = () => {
+    admin().setup()
+    admin().addMember('sensei@example.ac.jp', '先生', '梶田　貴子（衣装）')
+    return api()
+  }
+  const registerBody = (i: number, patch: Record<string, unknown> = {}) => ({
+    action: 'register',
+    token: tokenOf(mailOf(i)),
+    year: 2026,
+    courseId: FILM.id,
+    studentId: idOf(i),
+    familyName: PEOPLE[i][0],
+    givenName: PEOPLE[i][1],
+    familyKana: PEOPLE[i][2],
+    givenKana: PEOPLE[i][3],
+    ...patch,
+  })
+  const register = (a: ReturnType<typeof load>, i: number, patch: Record<string, unknown> = {}) => post(a, registerBody(i, patch))
+  const status = (a: ReturnType<typeof load>, i: number) => post(a, { action: 'checkStatus', token: tokenOf(mailOf(i)), year: 2026, studentId: idOf(i) })
+  const roster = () => sheetRows('学生の名簿')
+  const rosterOf = (i: number) => roster().find((r) => r[2] === idOf(i))!
+  const book = () => books.get(String(sheetRows('点検表')[1][2]))!
+  const tab = () => book().getSheetByName('点検表')!
+  const norm = (v: unknown) => String(v ?? '').replace(/\s/g, '')
+  /** 点検表の見出しの行（0 から）・見出しの名前・段の始まりの列 */
+  const layoutOf = () => {
+    const rows = tab().rows
+    const h = rows.findIndex((r) => r.some((v) => norm(v) === '番号'))
+    const header = rows[h].map(norm)
+    const starts = header.flatMap((n, i) => (n === '番号' ? [i] : []))
+    return { h, header, starts }
+  }
+  /** 点検表の学生の行（学籍番号 → 段・行（0 から）・見出しの名前ごとの中身） */
+  const sheetStudents = () => {
+    const { h, header, starts } = layoutOf()
+    const rows = tab().rows
+    const out: Record<string, { block: number; row: number; col: (name: string) => number; cells: Record<string, Cell> }> = {}
+    starts.forEach((start, b) => {
+      const end = b + 1 < starts.length ? starts[b + 1] : header.length
+      const col = (name: string) => header.indexOf(name, start)
+      for (let r = h + 1; r < rows.length; r++) {
+        const key = rows[r]?.[col('学籍番号')]
+        if (!key) continue
+        const cells: Record<string, Cell> = {}
+        for (let c = start; c < end; c++) if (header[c]) cells[header[c]] = rows[r][c] ?? ''
+        out[String(key)] = { block: b, row: r, col, cells }
+      }
+    })
+    return out
+  }
+  /** 先生が点検表のセルに書いた（画面で） */
+  const setCell = (key: string, name: string, value: Cell) => {
+    const s = sheetStudents()[key]
+    tab().rows[s.row][s.col(name)] = value
+    return { row: s.row, col: s.col(name) }
+  }
+  /** 点検表の編集の仕掛け（先生が画面で1つのセルを変えた） */
+  const edit = (key: string, name: string, value: Cell, email = 'sensei@example.ac.jp') => {
+    const at = setCell(key, name, value)
+    admin().onCheckSheetEdit({ range: tab().getRange(at.row + 1, at.col + 1), source: book(), user: { getEmail: () => email } })
+  }
+  /** 日本の時刻の「月/日」 */
+  const md = (d: Date) => {
+    const j = new Date(d.getTime() + 9 * 3600 * 1000)
+    return `${j.getUTCMonth() + 1}/${j.getUTCDate()}`
+  }
+
+  it('register：学生の名簿に入れる・直す（年度と学籍番号で1行）。形の正しくないもの・ほかの学生の学籍番号は断る。教職員の試しは別の行', () => {
+    const a = setup()
+    expect(register(a, 0)).toEqual({ ok: true })
+    expect(roster()[0]).toEqual(['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時'])
+    expect(rosterOf(0).slice(0, 8)).toEqual([2026, FILM.id, '00ZZ0100', '青木', '美咲', 'アオキ', 'ミサキ', ''])
+    expect(rosterOf(0)[11]).toBeInstanceOf(Date)
+    // 直す：同じ行（「wu」＋学籍番号のアドレスも同じ学生）
+    expect(post(a, { ...registerBody(0, { givenName: '美咲子', givenKana: 'ミサコ' }), token: tokenOf('wu00zz0100@example.ac.jp') })).toEqual({ ok: true })
+    expect(roster()).toHaveLength(2)
+    expect(rosterOf(0).slice(3, 7)).toEqual(['青木', '美咲子', 'アオキ', 'ミサコ'])
+    // 断る（名簿は変えない）
+    const bad: [Record<string, unknown>, RegExp][] = [
+      [{ studentId: idOf(1) }, /学籍番号が、ログインしたアカウントと違います/],
+      [{ courseId: 'no-such' }, /コース/],
+      [{ familyName: 'あ'.repeat(51) }, /形が正しくありません/],
+      [{ familyKana: 5 }, /形が正しくありません/],
+      [{ familyName: ' ', givenName: '' }, /氏名が空です/],
+      [{ year: '20x6' }, /形が正しくありません/],
+      [{ token: 'expired-token' }, /ログインを確かめられません/],
+    ]
+    for (const [patch, error] of bad) expect(register(a, 0, patch).error, JSON.stringify(patch)).toMatch(error)
+    expect(roster()).toHaveLength(2)
+    // 数式のような氏名も、文字として書く
+    expect(register(a, 1, { familyName: '=IMPORTXML("x")' })).toEqual({ ok: true })
+    expect(rosterOf(1)[3]).toBe('=IMPORTXML("x")')
+    expect(spreadsheet.getSheetByName('学生の名簿')!.formulas).toEqual([])
+    // 教職員のアカウント：学生の学籍番号を書いても、学生の行は書き換えず、「staff:アドレス」の行
+    expect(post(a, { ...registerBody(0, { familyName: '見本', givenName: '花子' }), token: tokenOf('sensei@example.ac.jp') })).toEqual({ ok: true })
+    expect(rosterOf(0)[3]).toBe('青木')
+    expect(roster().find((r) => r[2] === 'staff:sensei@example.ac.jp')!.slice(3, 5)).toEqual(['見本', '花子'])
+  })
+
+  it('ensureCheckSheet：PDF の控えのコースのフォルダに点検表を作り、ID を覚え、編集の仕掛けを付けて名簿から写す（上に案内の1行。2回目は同じ点検表）', () => {
+    const a = setup()
+    for (const i of [3, 0, 1]) register(a, i)
+    user = 'sensei@example.ac.jp'
+    const result = admin().ensureCheckSheet(2026, FILM.id)
+    const id = String(sheetRows('点検表')[1][2])
+    expect(sheetRows('点検表')[0]).toEqual(['年度', 'コース', 'スプレッドシートの ID'])
+    expect(sheetRows('点検表')[1].slice(0, 2)).toEqual([2026, FILM.id])
+    expect(result).toEqual({ url: `https://docs.google.com/spreadsheets/d/${id}/edit` })
+    expect(book().name).toBe('2026年度 点検表（映画・舞台衣装デザイナー コース）')
+    // 置き場所：PDF の控えのフォルダの中の、コースのフォルダ（PDF の控えと同じ名前）
+    const folder = drive.folders().find((f) => f.name === FILM.name)!
+    expect(folder.parents).toEqual(['root-folder'])
+    expect(drive.items.get(id)!.parents).toEqual([folder.id])
+    expect(triggers).toEqual([{ handler: 'onCheckSheetEdit', kind: 'edit', source: id }])
+    // いちばん上は案内の1行（小さな灰色の字）、見出しは2行目。見出しの行まで固定。ふりがなの順
+    const rows = tab().rows
+    expect(rows[0][0]).toBe(TOP_NOTE)
+    expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 9, color: '#7a8088', bold: false })
+    expect(rows[1].slice(0, 15).map(norm)).toEqual(['番号', '氏名', '最新PDF', '1回目', '2回目', '3回目', '抄録', '4回目', '抄録許可', '最終提出可', '教務提出', '知らせ', '学籍番号', '抄録許可の記録', '最終提出可の記録'])
+    expect(tab().frozen).toBe(2)
+    expect(rows.slice(2).map((r) => [r[0], r[1], r[11], r[12]])).toEqual([
+      [1, '青木　美咲', 'PDF まだ', '00ZZ0100'],
+      [2, '石田　遥', 'PDF まだ', '00ZZ0101'],
+      [3, '遠藤　莉子', 'PDF まだ', '00ZZ0103'],
+    ])
+    expect(rows.slice(2).map((r) => r.slice(3, 11))).toEqual(Array(3).fill(['', '', '', '', '', false, false, false]))
+    // 2回目：同じ点検表（作り直さない）
+    expect(admin().ensureCheckSheet(2026, FILM.id)).toEqual(result)
+    expect(books.size).toBe(1)
+    expect(triggers).toHaveLength(1)
+    // まだ保存していないコース・登録されていない人
+    expect(() => admin().ensureCheckSheet(2026, 'new-course')).toThrow(/まだ保存されていません/)
+    user = 'stranger@example.ac.jp'
+    expect(() => admin().ensureCheckSheet(2026, FILM.id)).toThrow(/登録された先生だけ/)
+    // ごみ箱に入れたら、新しく作って、同じ行の ID を直す
+    user = owner
+    drive.items.get(id)!.trashed = true
+    admin().ensureCheckSheet(2026, FILM.id)
+    expect(sheetRows('点検表')).toHaveLength(2)
+    expect(sheetRows('点検表')[1][2]).toBe('book2')
+    expect(triggers.map((t) => t.source)).toEqual(['book2'])
+  })
+
+  it('まだだれも登録していなくても、点検表は案内・見出し・見た目・守りを整えて開ける', () => {
+    setup()
+    admin().ensureCheckSheet(2026, FILM.id)
+    expect(tab().rows.map((r) => norm(r[0]))).toEqual([norm(TOP_NOTE), '番号'])
+    expect(tab().frozen).toBe(2)
+    expect(tab().protections).toHaveLength(11)
+  })
+
+  it('PDF の控えのフォルダが決まっていなければ、点検表は作れない', () => {
+    load('admin-project').setup()
+    expect(() => load('admin-project').ensureCheckSheet(2026, FILM.id)).toThrow(/PDF の控えを置くフォルダ/)
+    expect(books.size).toBe(0)
+  })
+
+  it('点検表の見た目（v107 案A）と守り：✓ の箱・指導教員の名字のプルダウンと色・隠す列。ツールの列と上の2行は、デプロイした人だけが書ける', () => {
+    const a = setup()
+    for (const i of [0, 1, 2]) register(a, i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    const t = tab()
+    const { header } = layoutOf()
+    const col = (name: string) => header.indexOf(name)
+    expect(t.fmtAt(2, col('抄録許可'))).toMatchObject({ validation: { kind: 'checkbox' }, background: '#fcf9ee' })
+    expect(t.fmtAt(1, col('抄録許可')).background).toBe('#f6efd2')
+    expect(t.fmtAt(2, col('教務提出')).validation).toEqual({ kind: 'checkbox' })
+    expect(t.fmtAt(2, col('番号')).background).toBe('#f3f4f6')
+    expect(t.fmtAt(1, col('知らせ')).background).toBe('#e8eaed')
+    for (const round of ['1回目', '2回目', '3回目', '抄録', '4回目']) {
+      expect(t.fmtAt(4, col(round)).validation).toEqual({ kind: 'list', list: ['梶田 予定', '梶田 済み', '佐藤 予定', '佐藤 済み', '加藤 予定', '加藤 済み'], allowInvalid: true })
+    }
+    // 学生のいない行には、箱もプルダウンもない
+    expect(t.fmtAt(5, col('抄録許可')).validation).toBeUndefined()
+    for (const hidden of ['学籍番号', '抄録許可の記録', '最終提出可の記録']) expect(t.cols[col(hidden)].hidden, hidden).toBe(true)
+    expect(t.cols[col('1回目')].hidden).toBeFalsy()
+    // 済みは先生ごとの淡い色（4人目からは繰り返し）、予定は灰色の字、知らせの赤と灰色
+    const rule = (when: string, text: string) => t.rules.find((r) => r.when === when && r.text === text)
+    expect(rule('equal', '梶田 済み')).toMatchObject({ background: '#e6edf5', color: '#30527a' })
+    expect(rule('equal', '佐藤 済み')).toMatchObject({ background: '#e7efe6', color: '#3d6342' })
+    expect(rule('equal', '加藤 済み')).toMatchObject({ background: '#f2ece0', color: '#7a5a2c' })
+    expect(rule('contains', '予定')).toMatchObject({ color: '#a0a5ad' })
+    expect(rule('contains', '予定')!.ranges.map((r) => r.col)).toEqual([4, 5, 6, 7, 8])
+    expect(rule('startsWith', '書き換え')).toMatchObject({ color: '#c5221f' })
+    expect(rule('equal', '並びが崩れています')).toMatchObject({ color: '#c5221f' })
+    expect(rule('equal', 'PDF まだ')).toMatchObject({ color: '#80868b' })
+    // 守り：案内の行のはじめの3列・ツールの列（番号・氏名・最新 PDF・知らせ・学籍番号・記録の2列。見出しから下まで）・✓ の列の見出しだけ。
+    // 白い回の列は、見出しも中身も守らない（先生が足す・名前を変える）。書けるのはデプロイした人だけ
+    const locked = t.protections.map((p) => (p.range.row === 1 ? `案内の行${p.range.cols}列` : p.range.rows === 1 ? `見出しだけ:${header[p.range.col - 1]}` : `${header[p.range.col - 1]}（${p.range.row}行目から）`))
+    expect(locked.sort()).toEqual(
+      [
+        '案内の行3列',
+        '番号（2行目から）',
+        '氏名（2行目から）',
+        '最新PDF（2行目から）',
+        '知らせ（2行目から）',
+        '学籍番号（2行目から）',
+        '抄録許可の記録（2行目から）',
+        '最終提出可の記録（2行目から）',
+        '見出しだけ:抄録許可',
+        '見出しだけ:最終提出可',
+        '見出しだけ:教務提出',
+      ].sort(),
+    )
+    for (const p of t.protections) expect(p).toMatchObject({ description: PROTECT_NOTE, editors: [owner], domainEdit: false })
+    expect(t.protections.some((p) => ['1回目', '2回目', '3回目', '抄録', '4回目'].includes(header[p.range.col - 1]))).toBe(false)
+    // 写し直しても、守りは増えない（並べ方が変わらなければ、見た目も守りもそのまま）
+    admin().syncCheckSheets()
+    expect(t.protections).toHaveLength(11)
+    // 指導教員が変わると、プルダウンと色を直す
+    const config = admin().getState().years[0].config
+    admin().saveYear({ ...config, courses: [{ ...config.courses[0], advisors: ['山本　太郎', '中村　花'] }] })
+    admin().syncCheckSheets()
+    expect(t.fmtAt(2, col('1回目')).validation).toEqual({ kind: 'list', list: ['山本 予定', '山本 済み', '中村 予定', '中村 済み'], allowInvalid: true })
+    expect(t.rules.find((r) => r.text === '山本 済み')).toMatchObject({ background: '#e6edf5' })
+    expect(t.protections).toHaveLength(11)
+  })
+
+  it('checkStatus：コースの切り替え（年度の設定）と、点検表の自分の行（回の予定・済み、許可の日時と先生）。見出しの行は、見出しの名前で見つける', () => {
+    let a = setup()
+    register(a, 0)
+    register(a, 1)
+    // 点検表がまだない：row は null
+    expect(status(a, 0)).toEqual({ ok: true, enabled: { abstract: false, final: false }, row: null })
+    user = 'sensei@example.ac.jp'
+    admin().saveTeacherEdits(2026, { permissions: { [FILM.id]: { abstract: true } } })
+    admin().ensureCheckSheet(2026, FILM.id)
+    setCell(idOf(0), '1回目', '梶田 済み')
+    setCell(idOf(0), '2回目', '佐藤　予定')
+    setCell(idOf(0), '3回目', '中間発表')
+    setCell(idOf(0), '抄録許可', true)
+    setCell(idOf(0), '抄録許可の記録', '2026-12-15T03:00:00.000Z / 梶田')
+    setCell(idOf(0), '最終提出可', true)
+    a = api()
+    expect(status(a, 0)).toEqual({
+      ok: true,
+      enabled: { abstract: true, final: false },
+      row: {
+        rounds: [
+          { label: '1回目', teacher: '梶田', state: 'done' },
+          { label: '2回目', teacher: '佐藤', state: 'plan' },
+          { label: '3回目', teacher: '中間発表', state: 'done' },
+          { label: '抄録', teacher: '', state: '' },
+          { label: '4回目', teacher: '', state: '' },
+        ],
+        abstractOk: { at: '2026-12-15T03:00:00.000Z', by: '梶田' },
+        finalOk: { at: '', by: '' },
+      },
+    })
+    expect(status(a, 1).row).toMatchObject({ abstractOk: null, finalOk: null })
+    // 名簿にない学生：row は null。ほかの学生の学籍番号では問い合わせられない
+    expect(status(a, 5)).toEqual({ ok: true, enabled: { abstract: false, final: false }, row: null })
+    expect(post(a, { action: 'checkStatus', token: tokenOf(mailOf(0)), year: 2026, studentId: idOf(1) }).ok).toBe(false)
+    // 先生が回の列を足した・名前を変えた（見出しのある列は、どれも回の列）
+    const { h, header } = layoutOf()
+    tab().rows[h][header.indexOf('4回目')] = '最終\n確認'
+    expect(status(a, 0).row.rounds.at(-1)).toEqual({ label: '最終 確認', teacher: '', state: '' })
+    // 学生が氏名を直すと、点検表の氏名もすぐ直る（ずれた行とみなさない）
+    expect(register(a, 0, { givenName: '美咲子' })).toEqual({ ok: true })
+    expect(sheetStudents()[idOf(0)].cells['氏名']).toBe('青木　美咲子')
+    expect(status(a, 0).row.abstractOk).toEqual({ at: '2026-12-15T03:00:00.000Z', by: '梶田' })
+  })
+
+  it('並びが崩れた行（表の一部だけを並べ替えて、見えない学籍番号と氏名・✓ がずれた）は、許可も回も渡さない。写すと「並びが崩れています」を出し、中身はほかの学生に移さない', () => {
+    const a = setup()
+    for (const i of [0, 1, 2]) register(a, i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    setCell(idOf(0), '1回目', '梶田 済み')
+    setCell(idOf(0), '抄録許可', true)
+    setCell(idOf(0), '抄録許可の記録', '2026-12-15T03:00:00.000Z / 梶田')
+    expect(status(a, 0).row.abstractOk).not.toBeNull()
+    // 見える列（番号〜知らせ）だけを、青木と石田の行で入れ替えた（見えない学籍番号・記録は動かない）
+    const { h } = layoutOf()
+    const rows = tab().rows
+    for (let c = 0; c < 12; c++) [rows[h + 1][c], rows[h + 2][c]] = [rows[h + 2][c], rows[h + 1][c]]
+    expect(status(a, 0).row).toBeNull()
+    expect(status(a, 1).row).toBeNull()
+    expect(status(a, 2).row).not.toBeNull()
+    // ずれた行に ✓ を入れても、記録は残さず、知らせに「並びが崩れています」
+    edit(idOf(0), '最終提出可', true)
+    expect(sheetStudents()[idOf(0)].cells).toMatchObject({ 最終提出可の記録: '', 知らせ: '並びが崩れています' })
+    expect(status(a, 0).row).toBeNull()
+    // 写す：氏名は名簿に戻し、知らせに「並びが崩れています」。✓ と回は、その場所のまま（ほかの学生に移さない）
+    admin().syncCheckSheets()
+    let s = sheetStudents()
+    expect(s[idOf(0)].cells).toMatchObject({ 氏名: '青木　美咲', 知らせ: '並びが崩れています', 抄録許可: false, 最終提出可: true, '1回目': '' })
+    expect(s[idOf(1)].cells).toMatchObject({ 氏名: '石田　遥', 知らせ: '並びが崩れています', 抄録許可: true, '1回目': '梶田 済み' })
+    expect(s[idOf(2)].cells.知らせ).toBe('PDF まだ')
+    expect(status(a, 1).row).toBeNull()
+    // 次に写しても、知らせは残る（先生が確かめるまで）
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(1)].cells.知らせ).toBe('並びが崩れています')
+    // 先生が石田の行を確かめて、✓ を入れ直す：知らせが消え、その先生の記録が残る
+    edit(idOf(1), '抄録許可', false)
+    edit(idOf(1), '抄録許可', true)
+    s = sheetStudents()
+    expect(s[idOf(1)].cells.知らせ).toBe('')
+    expect(String(s[idOf(1)].cells.抄録許可の記録)).toMatch(/^\d{4}-\d\d-\d\dT[\d:.]+Z \/ 梶田$/)
+    expect(status(a, 1).row.abstractOk.by).toBe('梶田')
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(1)].cells.知らせ).toBe('PDF まだ')
+  })
+
+  it('行ごと動かした（見えない学籍番号も一緒）なら、その行は正しい。写すと、ツールの並びに戻る（先生の書いた中身も一緒）', () => {
+    const a = setup()
+    for (const i of [0, 1, 2]) register(a, i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    setCell(idOf(2), '最終提出可', true)
+    setCell(idOf(2), '2回目', '加藤 済み')
+    const { h } = layoutOf()
+    const rows = tab().rows
+    rows.splice(h + 1, 0, rows.splice(h + 3, 1)[0])
+    expect(Object.keys(sheetStudents())).toEqual([idOf(2), idOf(0), idOf(1)])
+    expect(status(a, 2).row).toMatchObject({ finalOk: { at: '', by: '' } })
+    admin().syncCheckSheets()
+    const s = sheetStudents()
+    expect(Object.keys(s)).toEqual([idOf(0), idOf(1), idOf(2)])
+    expect(s[idOf(2)].cells).toMatchObject({ 番号: 3, 氏名: '上野　空', 最終提出可: true, '2回目': '加藤 済み', 知らせ: 'PDF まだ' })
+    expect(s[idOf(0)].cells).toMatchObject({ 最終提出可: false, '2回目': '' })
+  })
+
+  it('26人をこえると半分ずつ2段に組み直し、25人に戻ると1段に。先生の書いた中身は学生と一緒に動く', () => {
+    let a = setup()
+    for (let i = 25; i >= 1; i--) register(a, i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    expect(layoutOf().starts).toEqual([0])
+    expect(Object.keys(sheetStudents())).toHaveLength(25)
+    setCell(idOf(13), '2回目', '佐藤 済み')
+    setCell(idOf(13), '抄録許可', true)
+    setCell(idOf(13), '抄録許可の記録', '2026-12-01T00:00:00.000Z / 佐藤')
+    setCell(idOf(25), '教務提出', true)
+    setCell(idOf(1), '1回目', '梶田 予定')
+    // 26人目（アオキ：いちばん上に入る）→ 13人ずつ2段（前半が左。すき間の列を1つ）
+    register(a, 0)
+    admin().syncCheckSheets()
+    let { h, header, starts } = layoutOf()
+    expect(starts).toEqual([0, 16])
+    expect(header[15]).toBe('')
+    expect(header.slice(16, 31)).toEqual(header.slice(0, 15))
+    let s = sheetStudents()
+    expect(Object.keys(s)).toHaveLength(26)
+    expect(s[idOf(0)]).toMatchObject({ block: 0, row: h + 1, cells: { 番号: 1 } })
+    expect(s[idOf(13)]).toMatchObject({ block: 1, row: h + 1, cells: { 番号: 14, '2回目': '佐藤 済み', 抄録許可: true } })
+    expect(s[idOf(25)]).toMatchObject({ block: 1, cells: { 番号: 26, 教務提出: true } })
+    expect(s[idOf(1)].cells).toMatchObject({ 番号: 2, '1回目': '梶田 予定', 教務提出: false })
+    // 1段目の14行目から下は空にし、箱も外す
+    expect(tab().rows.slice(h + 14).every((r) => r.every((v) => v === ''))).toBe(true)
+    expect(tab().fmtAt(h + 14, header.indexOf('抄録許可')).validation).toBeNull()
+    // 2段目にも ✓ の箱と守り。段のあいだのすき間の列も守る
+    expect(tab().fmtAt(h + 1, 16 + header.indexOf('抄録許可')).validation).toEqual({ kind: 'checkbox' })
+    expect(tab().protections.filter((p) => p.range.row > 1).map((p) => p.range.col - 1)).toContain(15)
+    expect(tab().protections).toHaveLength(1 + 2 * 10 + 1)
+    expect(tab().protections.find((p) => p.range.row === 1)!.range).toMatchObject({ col: 1, cols: 3 })
+    expect(status(api(), 13).row).toMatchObject({ abstractOk: { at: '2026-12-01T00:00:00.000Z', by: '佐藤' } })
+    // 1人がほかのコースへ移る → 25人 → 1段（移った学生の行はなくなる）
+    const config = admin().getState().years[0].config
+    admin().saveYear({ ...config, courses: [...config.courses, { id: 'pattern', name: 'パターン', advisors: [], subtitleTemplate: '―{input}の制作―' }] })
+    a = api()
+    expect(register(a, 5, { courseId: 'pattern' })).toEqual({ ok: true })
+    admin().syncCheckSheets()
+    ;({ h, starts } = layoutOf())
+    expect(starts).toEqual([0])
+    s = sheetStudents()
+    expect(Object.keys(s)).toHaveLength(25)
+    expect(s[idOf(5)]).toBeUndefined()
+    expect(s[idOf(13)].cells).toMatchObject({ '2回目': '佐藤 済み', 抄録許可: true, 抄録許可の記録: '2026-12-01T00:00:00.000Z / 佐藤' })
+    expect(s[idOf(25)].cells).toMatchObject({ 番号: 25, 教務提出: true })
+    expect(tab().width()).toBe(15)
+    expect(status(a, 13).row.abstractOk.by).toBe('佐藤')
+  })
+
+  it('先生が片方の段にだけ回の列を足した・名前を変えた：段ごとに見出しの名前で読み、学生のツールには新しい名前で返す。写しても先生の書いた中身は残る（段を移った学生は、対応する回の列へ）', () => {
+    const a = setup()
+    for (let i = 0; i < 26; i++) register(a, i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    let { h, header, starts } = layoutOf()
+    expect(starts).toEqual([0, 16])
+    // 1段目だけ：「4回目」を「最終確認」に変え、「2回目」のあとに「中間」を足す（白い回の列の見出しは、先生が書ける）
+    tab().rows[h][header.indexOf('4回目')] = '最終\n確認'
+    tab().insertColumnsAfter(header.indexOf('2回目') + 1, 1)
+    tab().rows[h][header.indexOf('2回目') + 1] = '中間'
+    expect(layoutOf().starts).toEqual([0, 17])
+    setCell(idOf(0), '中間', '梶田 済み')
+    setCell(idOf(0), '最終確認', '佐藤 予定')
+    // 2段目のはじめの学生（1段目にはない「4回目」）
+    setCell(idOf(13), '4回目', '加藤 済み')
+    setCell(idOf(13), '抄録許可', true)
+    expect(status(a, 0).row.rounds.map((r: { label: string }) => r.label)).toEqual(['1回目', '2回目', '中間', '3回目', '抄録', '最終 確認'])
+    expect(status(a, 0).row.rounds[2]).toEqual({ label: '中間', teacher: '梶田', state: 'done' })
+    expect(status(a, 13).row.rounds.map((r: { label: string }) => r.label)).toEqual(['1回目', '2回目', '3回目', '抄録', '4回目'])
+    // 写しても、先生の書いた中身はそのまま。足した回の列にもプルダウン。回の列の見出しは守らない
+    admin().syncCheckSheets()
+    let s = sheetStudents()
+    expect(s[idOf(0)]).toMatchObject({ block: 0, cells: { 中間: '梶田 済み', 最終確認: '佐藤 予定' } })
+    expect(s[idOf(13)]).toMatchObject({ block: 1, cells: { '4回目': '加藤 済み', 抄録許可: true } })
+    ;({ h, header } = layoutOf())
+    expect(tab().fmtAt(h + 1, header.indexOf('中間')).validation).toMatchObject({ kind: 'list' })
+    expect(tab().protections.some((p) => ['中間', '最終確認'].includes(header[p.range.col - 1]))).toBe(false)
+    // 27人目（ふりがながいちばん後ろ）：1段は14人になり、2段目のはじめの学生は1段目の最後へ移る。
+    // 「4回目」の中身は、1段目の対応する列「最終確認」へ（足しただけの「中間」は空）
+    expect(post(a, { action: 'register', token: tokenOf(mailOf(26)), year: 2026, courseId: FILM.id, studentId: idOf(26), familyName: '渡辺', givenName: '光', familyKana: 'ワタナベ', givenKana: 'ヒカル' })).toEqual({ ok: true })
+    admin().syncCheckSheets()
+    s = sheetStudents()
+    expect(s[idOf(13)]).toMatchObject({ block: 0, cells: { 番号: 14, 最終確認: '加藤 済み', 中間: '', 抄録許可: true } })
+    expect(s[idOf(0)].cells).toMatchObject({ 中間: '梶田 済み', 最終確認: '佐藤 予定' })
+    expect(s[idOf(26)]).toMatchObject({ block: 1, cells: { 番号: 27 } })
+    expect(status(api(), 13).row.rounds.at(-1)).toEqual({ label: '最終 確認', teacher: '加藤', state: 'done' })
+    // 回の列の対応（同じ名前はそのまま、名前の違う列は、同じ名前の列のあいだで順に組にする。足しただけの列は組にしない）
+    const g = admin()
+    expect({ ...g.alignRounds_(['1', '2', '3', '抄', '4'], ['1', '2', '中', '3', '抄', '最']) }).toEqual({ '1': '1', '2': '2', '3': '3', 抄: '抄', 最: '4' })
+  })
+
+  it('並び：ふりがなの順（ひらがな・カタカナ・半角カナは同じ。ふりがなのない学生は後ろ）。先生の並びのあとに来た学生は、ふりがなの所に入る。「手で動かした」は動かした学生だけ。25人まで1段', () => {
+    const g = load('admin-project')
+    const st = (id: string, kana: string, order = 0) => ({ id, familyName: id, givenName: '', familyKana: kana, givenKana: '', order })
+    const ids = (list: { id: string }[]) => list.map((s) => s.id)
+    expect(ids(g.orderStudents_([st('c', 'ウエノ'), st('a', 'あおき'), st('x', ''), st('b', 'ｲｼﾀﾞ')]))).toEqual(['a', 'b', 'c', 'x'])
+    // 同じセイなら、メイの順
+    expect(ids(g.orderStudents_([{ ...st('b', 'アオキ'), givenKana: 'ミサキ' }, { ...st('a', 'アオキ'), givenKana: 'アヤ' }]))).toEqual(['a', 'b'])
+    // 先生の並び：ブンカを3番目に
+    const placed = [st('a', 'アオキ', 1), st('b', 'イシダ', 2), st('h', 'ブンカ', 3), st('c', 'ウエノ', 4), st('d', 'エンドウ', 5)]
+    expect(ids(g.orderStudents_(placed))).toEqual(['a', 'b', 'h', 'c', 'd'])
+    expect(g.movedFlags_(g.orderStudents_(placed))).toEqual([false, false, true, false, false])
+    expect(g.movedFlags_(g.orderStudents_(placed.map((s) => ({ ...s, order: 0 }))))).toEqual([false, false, false, false, false])
+    // あとから来た学生（並びが空）は、ふりがなの所へ（手で動かした学生は目印にしない）
+    expect(ids(g.orderStudents_([...placed, st('e', 'オオタ'), st('f', 'ハヤシ'), st('a2', 'アイダ')]))).toEqual(['a2', 'a', 'b', 'h', 'c', 'd', 'e', 'f'])
+    expect(g.blockLayout_(0)).toEqual({ count: 0, blocks: 1, perBlock: 0 })
+    expect(g.blockLayout_(25)).toEqual({ count: 25, blocks: 1, perBlock: 25 })
+    expect(g.blockLayout_(26)).toEqual({ count: 26, blocks: 2, perBlock: 13 })
+    expect(g.blockLayout_(27)).toEqual({ count: 27, blocks: 2, perBlock: 14 })
+  })
+
+  it('学生の並びを直す：listStudents・saveStudentOrder（名簿の「並び」と点検表の順）。null でふりがなの順に戻す。コースを変えた学生の並びは消す', () => {
+    let a = setup()
+    for (const i of [4, 3, 2, 1, 0]) register(a, i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    user = 'sensei@example.ac.jp'
+    expect(admin().listStudents(2026, FILM.id)).toEqual([0, 1, 2, 3, 4].map((i) => ({ studentId: idOf(i), name: nameOf(i), kana: `${PEOPLE[i][2]} ${PEOPLE[i][3]}`, moved: false })))
+    // 遠藤（4番目）を2番目に
+    const order = [0, 3, 1, 2, 4].map(idOf)
+    const saved = admin().saveStudentOrder(2026, FILM.id, order)
+    expect(saved.map((s: { studentId: string }) => s.studentId)).toEqual(order)
+    expect(saved.map((s: { moved: boolean }) => s.moved)).toEqual([false, true, false, false, false])
+    expect(order.map((id) => roster().find((r) => r[2] === id)![7])).toEqual([1, 2, 3, 4, 5])
+    expect(Object.keys(sheetStudents())).toEqual(order)
+    expect(memberHistory().at(-1)).toBe('sensei@example.ac.jp:点検表の学生の並びを直す（2026年度・映画・舞台衣装デザイナー コース）')
+    // あとから来た学生（金子）は、ふりがなの所（太田のあと）
+    register(a, 5)
+    expect(admin().listStudents(2026, FILM.id).map((s: { studentId: string }) => s.studentId)).toEqual([...order, idOf(5)])
+    // ふりがなの順に戻す
+    const back = admin().saveStudentOrder(2026, FILM.id, null)
+    expect(back.map((s: { studentId: string }) => s.studentId)).toEqual([0, 1, 2, 3, 4, 5].map(idOf))
+    expect(back.every((s: { moved: boolean }) => !s.moved)).toBe(true)
+    expect(roster().slice(1).map((r) => r[7])).toEqual(Array(6).fill(''))
+    expect(Object.keys(sheetStudents())).toEqual([0, 1, 2, 3, 4, 5].map(idOf))
+    // コースを変えた学生の並びは消す
+    admin().saveStudentOrder(2026, FILM.id, order)
+    const config = admin().getState().years[0].config
+    user = owner
+    admin().saveYear({ ...config, courses: [...config.courses, { id: 'pattern', name: 'パターン', advisors: [], subtitleTemplate: '―{input}の制作―' }] })
+    a = api()
+    register(a, 3, { courseId: 'pattern' })
+    expect(rosterOf(3)[7]).toBe('')
+    expect(rosterOf(0)[7]).toBe(1)
+    // 形の正しくないもの・登録されていない人
+    expect(() => admin().saveStudentOrder(2026, FILM.id, 'x')).toThrow(/並びの形/)
+    user = 'stranger@example.ac.jp'
+    expect(() => admin().saveStudentOrder(2026, FILM.id, null)).toThrow(/登録された先生だけ/)
+    expect(() => admin().listStudents(2026, FILM.id)).toThrow(/登録された先生だけ/)
+  })
+
+  it('touchAfterFinal：名簿の書き換え日時に入れ、最終提出可の ✓ のあとなら、点検表の知らせに「書き換え 1/14」（写しても残る。✓ を入れ直すと消える）', () => {
+    const a = setup()
+    register(a, 0)
+    register(a, 1)
+    admin().ensureCheckSheet(2026, FILM.id)
+    const touch = (i: number, at: string) => post(a, { action: 'touchAfterFinal', token: tokenOf(mailOf(i)), year: 2026, studentId: idOf(i), at })
+    // 最終提出可の前：名簿だけ
+    expect(touch(0, '2026-01-14T03:00:00.000Z')).toEqual({ ok: true, saved: true, noted: false })
+    expect((rosterOf(0)[10] as Date).toISOString()).toBe('2026-01-14T03:00:00.000Z')
+    expect(sheetStudents()[idOf(0)].cells.知らせ).toBe('PDF まだ')
+    // ✓（1/10）のあとに書き換えた
+    setCell(idOf(0), '最終提出可', true)
+    setCell(idOf(0), '最終提出可の記録', '2026-01-10T00:00:00.000Z / 梶田')
+    expect(touch(0, '2026-01-14T03:00:00.000Z')).toEqual({ ok: true, saved: true, noted: true })
+    expect(sheetStudents()[idOf(0)].cells.知らせ).toBe('書き換え 1/14')
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(0)].cells.知らせ).toBe('書き換え 1/14')
+    // ✓ を入れ直した（1/15）あとは、知らせを消す
+    setCell(idOf(0), '最終提出可の記録', '2026-01-15T00:00:00.000Z / 梶田')
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(0)].cells.知らせ).toBe('PDF まだ')
+    // 名簿にない学生・先の日時（今にする）
+    expect(touch(9, '2026-01-14T03:00:00.000Z')).toEqual({ ok: true, saved: false })
+    touch(1, '2099-01-01T00:00:00.000Z')
+    expect(Math.abs((rosterOf(1)[10] as Date).getTime() - Date.now())).toBeLessThan(60000)
+  })
+
+  it('PDF の控え（pdfCopy）を置くと、名簿に PDF の ID と日時を書き（なければ行を作る）、点検表の「最新 PDF」は押すとその PDF。教職員の試しは名簿に足さない', () => {
+    const a = setup()
+    const pdf = Buffer.from('%PDF-1.4\n1\n%%EOF').toString('base64')
+    expect(post(a, { action: 'pdfCopy', token: tokenOf(mailOf(0)), year: 2026, courseId: FILM.id, studentId: idOf(0), name: '青木　美咲', pdf })).toEqual({ ok: true })
+    const file = drive.pdfs()[0]
+    expect(rosterOf(0).slice(1, 7)).toEqual([FILM.id, idOf(0), '青木', '美咲', '', ''])
+    expect(rosterOf(0)[8]).toBe(file.id)
+    expect(rosterOf(0)[9]).toBeInstanceOf(Date)
+    admin().ensureCheckSheet(2026, FILM.id)
+    const s = sheetStudents()[idOf(0)]
+    expect(s.cells.最新PDF).toBe(`=HYPERLINK("https://drive.google.com/file/d/${file.id}/view","${md(rosterOf(0)[9] as Date)}")`)
+    expect(s.cells.知らせ).toBe('')
+    expect(post(a, { action: 'pdfCopy', token: tokenOf('sensei@example.ac.jp'), year: 2026, courseId: FILM.id, studentId: '', name: '見本　花子', pdf })).toEqual({ ok: true })
+    expect(roster()).toHaveLength(2)
+  })
+
+  it('先生の許可は、先生も保存できる（変更履歴に残す）。両方切ると項目ごと消す。形が正しくなければ保存しない。管理者は年度の設定ごと', () => {
+    admin().setup()
+    admin().addMember('sensei@example.ac.jp', '先生', '')
+    user = 'sensei@example.ac.jp'
+    const saved = admin().saveTeacherEdits(2026, { permissions: { [FILM.id]: { abstract: true, final: true }, 'no-such': { abstract: true } } })
+    expect(saved.years[0].config.courses[0].permission).toEqual({ abstract: true, final: true })
+    expect(admin().getHistory(2026)[0].action).toBe('先生の許可を保存（映画・舞台衣装デザイナー）')
+    const off = admin().saveTeacherEdits(2026, { permissions: { [FILM.id]: { abstract: false, final: false } } })
+    expect('permission' in off.years[0].config.courses[0]).toBe(false)
+    expect(() => admin().saveTeacherEdits(2026, { permissions: { [FILM.id]: { abstract: 'yes' } } })).toThrow('「映画・舞台衣装デザイナー」の先生の許可の設定が正しくありません')
+    expect(admin().getHistory(2026)).toHaveLength(3)
+    user = owner
+    const config = admin().getState().years[0].config
+    expect(admin().saveYear({ ...config, courses: [{ ...config.courses[0], permission: { final: true } }] }).years[0].config.courses[0].permission).toEqual({ final: true })
+    expect(() => admin().saveYear({ ...config, courses: [{ ...config.courses[0], permission: 'x' }] })).toThrow(/先生の許可の設定が正しくありません/)
+  })
+
+  it('名字：最初の空白（半角・全角）の前。指導教員の欄の「、」「,」も分ける。✓ を入れた先生は、登録のメモにある指導教員の名字（なければアドレスの @ より前）', () => {
+    const g = load('admin-project')
+    expect(['梶田　貴子', '佐藤 綾', '山本', '  加藤　淳之介 ', ''].map((n) => g.surnameOf_(n))).toEqual(['梶田', '佐藤', '山本', '加藤', ''])
+    expect(g.advisorSurnames_(['梶田　貴子、佐藤 綾', '加藤　淳之介', '梶田 貴子', '', '中村 花,小川　空'])).toEqual(['梶田', '佐藤', '加藤', '中村', '小川'])
+    expect(g.editorSurname_('k-kajita@example.ac.jp', '梶田　貴子（衣装）', ['梶田', '佐藤'])).toBe('梶田')
+    expect(g.editorSurname_('k-kajita@example.ac.jp', '衣装の先生', ['梶田'])).toBe('k-kajita')
+    expect(g.editorSurname_('', '', [])).toBe('')
+  })
+
+  it('✓ を入れると、編集の仕掛けが見えない記録の列に「日時 / 先生の名字」を残し、外すと消す（名字が分からなければアドレスの @ より前）', () => {
+    const a = setup()
+    register(a, 0)
+    admin().ensureCheckSheet(2026, FILM.id)
+    edit(idOf(0), '最終提出可', true)
+    const record = String(sheetStudents()[idOf(0)].cells.最終提出可の記録)
+    expect(record).toMatch(/^\d{4}-\d\d-\d\dT[\d:.]+Z \/ 梶田$/)
+    expect(status(a, 0).row.finalOk).toEqual({ at: record.split(' / ')[0], by: '梶田' })
+    edit(idOf(0), '最終提出可', false)
+    expect(sheetStudents()[idOf(0)].cells.最終提出可の記録).toBe('')
+    expect(status(a, 0).row.finalOk).toBeNull()
+    admin().addMember('k-other@example.ac.jp', '先生', '')
+    edit(idOf(0), '抄録許可', true, 'k-other@example.ac.jp')
+    expect(String(sheetStudents()[idOf(0)].cells.抄録許可の記録)).toMatch(/ \/ k-other$/)
+    // 回の列などを変えても、記録は書かない
+    edit(idOf(0), '1回目', '梶田 済み')
+    expect(sheetStudents()[idOf(0)].cells.最終提出可の記録).toBe('')
+  })
+
+  it('setupCheckSheets（エディタで1回）：10分ごとの写し・点検表ごとの編集の仕掛け・届いた声のメールの仕掛けを作り直す（デプロイした本人だけ。終わった年度の仕掛けは外す）', () => {
+    const a = setup()
+    register(a, 0)
+    admin().ensureCheckSheet(2026, FILM.id)
+    triggers.push({ handler: 'onCheckSheetEdit', kind: 'edit', source: 'gone' }, { handler: 'syncCheckSheets', kind: 'time', minutes: 5 })
+    admin().setupCheckSheets()
+    admin().setupCheckSheets()
+    const list = () => triggers.map((t) => `${t.handler}:${t.source ?? t.minutes}`).sort()
+    expect(list()).toEqual(['notifyNewFeedback:10', 'onCheckSheetEdit:book1', 'syncCheckSheets:10'])
+    expect(stored.get('ADMIN_SHEET_ID')).toBe('sheet-id')
+    // 新しい年度を公開すると、前の年度は終わり。その点検表の仕掛けは外し、もう写さない
+    admin().createYear(2026, 2027)
+    admin().publishYear(2027)
+    admin().setupCheckSheets()
+    expect(list()).toEqual(['notifyNewFeedback:10', 'syncCheckSheets:10'])
+    user = 'sensei@example.ac.jp'
+    expect(() => admin().setupCheckSheets()).toThrow(/デプロイした人/)
   })
 })

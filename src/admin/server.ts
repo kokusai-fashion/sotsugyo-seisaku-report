@@ -48,6 +48,19 @@ export interface Member {
 /** コースごとの下書きのひな形（コースID → ひな形と抄録の書き出し例） */
 export type TemplateSet = Record<string, { template: TemplateBlock[]; abstractExample: string }>
 
+/** コースごとの先生の許可（コースID → 抄録・提出用の PDF。依頼者の選択 2026-11-04） */
+export type PermissionSet = Record<string, { abstract: boolean; final: boolean }>
+
+/** 「学生の並びを直す」の窓の1行（点検表の並び。moved：手で動かした。studentId が「staff:」で始まるのは教職員の試し） */
+export interface StudentEntry {
+  studentId: string
+  /** 姓と名（全角の空白でつなぐ） */
+  name: string
+  /** セイ メイ */
+  kana: string
+  moved: boolean
+}
+
 /** 役割（古いサーバーは role を返さないため、isAdmin から決める） */
 export function roleOf(state: AdminState): Role {
   return state.role !== undefined ? state.role : state.isAdmin ? 'admin' : null
@@ -69,10 +82,19 @@ export interface AdminServer {
   /** 書き間違えやすい語の一覧を保存する（管理者・先生） */
   saveWordChecks(year: number, words: WordCheck[]): Promise<AdminState>
   /**
-   * 先生の画面の保存：ひな形・お知らせ・書き間違えやすい語を、まとめて1回で。
+   * 先生の画面の保存：ひな形・お知らせ・書き間違えやすい語・先生の許可を、まとめて1回で。
    * expectedUpdatedAt：画面を開いたときの更新日時（そのあとにほかの人が保存していたら、保存せずに知らせる）
    */
-  saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[] }, expectedUpdatedAt?: string): Promise<AdminState>
+  saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[]; permissions?: PermissionSet }, expectedUpdatedAt?: string): Promise<AdminState>
+  /**
+   * コースの点検表を開く（管理者・先生）。なければ、PDF の控えのコースのフォルダに作る。名簿から写してから、場所を返す
+   * （gas/admin-project の ensureCheckSheet。依頼者の選択 2026-11-04）
+   */
+  ensureCheckSheet(year: number, courseId: string): Promise<{ url: string }>
+  /** 「学生の並びを直す」の窓の一覧（点検表の並び） */
+  listStudents(year: number, courseId: string): Promise<StudentEntry[]>
+  /** 「この並びにする」（studentIds が null なら、ふりがなの順に戻す）。返り値は直したあとの一覧 */
+  saveStudentOrder(year: number, courseId: string, studentIds: string[] | null): Promise<StudentEntry[]>
   getMembers(): Promise<Member[]>
   /** mustExist：一覧の役割を変えるとき（登録されていない人は書き足さない） */
   addMember(email: string, role: Member['role'], memo: string, mustExist?: boolean): Promise<Member[]>
@@ -165,6 +187,9 @@ function appsScriptServer(): AdminServer {
     getVersion: () => call('getVersion'),
     getFeedback: () => call('getFeedback'),
     updateFeedback: (id, status, reply, memo, notify) => call('updateFeedback', id, status, reply, memo, notify),
+    ensureCheckSheet: (year, courseId) => call('ensureCheckSheet', year, courseId),
+    listStudents: (year, courseId) => call('listStudents', year, courseId),
+    saveStudentOrder: (year, courseId, studentIds) => call('saveStudentOrder', year, courseId, studentIds),
   }
 }
 

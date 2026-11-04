@@ -47,7 +47,12 @@ const linkOf = (key) => {
   if (value && !/^https:\/\/[^\s"'<>]+$/.test(value)) throw new Error(`gas/admin-links.local.json の ${key} は https:// で始まる URL にしてください`)
   return value
 }
-for (const mark of ["/*MATERIALS_URL*/ ''", "/*TEACHER_AI_URL*/ ''"]) if (!adminCode.includes(mark)) throw new Error(`gas/admin-project/Code.js に ${mark} がありません`)
+for (const mark of ["/*MATERIALS_URL*/ ''", "/*TEACHER_AI_URL*/ ''", "/*PDF_FOLDER_ID*/ ''"]) if (!adminCode.includes(mark)) throw new Error(`gas/admin-project/Code.js に ${mark} がありません`)
+// 書き出した PDF の控えを置く、先生のドライブのフォルダ（git に入れないファイル gas/pdf-folder.local.json の folderId。なければ空 → スクリプト プロパティ）。
+// 配信の窓口（PDF の控え）と、管理ページ（コースの点検表を、PDF の控えのコースのフォルダに置く：依頼者の選択 2026-11-04）の両方に入れる
+const pdfFolder = existsSync('gas/pdf-folder.local.json') ? JSON.parse(readFileSync('gas/pdf-folder.local.json', 'utf8')) : {}
+const pdfFolderId = typeof pdfFolder.folderId === 'string' ? pdfFolder.folderId.trim() : ''
+if (pdfFolderId && !/^[\w-]+$/.test(pdfFolderId)) throw new Error('gas/pdf-folder.local.json の folderId の形が正しくありません')
 const code = adminCode
   .replace('/*INITIAL_CONFIG*/ null', () => initial)
   .replace('/*TRIAL_SAMPLE*/ null', () => trialSample)
@@ -55,6 +60,7 @@ const code = adminCode
   .replace("/*ADMIN_URL*/ ''", () => JSON.stringify(adminUrl))
   .replace("/*MATERIALS_URL*/ ''", () => JSON.stringify(linkOf('materialsUrl')))
   .replace("/*TEACHER_AI_URL*/ ''", () => JSON.stringify(linkOf('aiUrl')))
+  .replace("/*PDF_FOLDER_ID*/ ''", () => JSON.stringify(pdfFolderId))
 writeFileSync('gas-dist/admin-project/Code.js', code)
 console.log(`\n先生向けのリンク：資料一式 ${linkOf('materialsUrl') ? 'あり' : 'なし'}・使い方を AI に聞く ${linkOf('aiUrl') ? 'あり' : 'なし'}（gas/admin-links.local.json）`)
 console.log(`\nお試しの見本の原稿：${trialSample === 'null' ? 'なし（gas/trial-sample.private.json がない。管理ページの「学生の画面を試す」は開けない）' : `あり（${Math.round(trialSample.length / 1024)}KB）`}`)
@@ -62,10 +68,6 @@ console.log(`\nお試しの見本の原稿：${trialSample === 'null' ? 'なし�
 const adminClasp = existsSync('gas/admin-project/.clasp.json') ? JSON.parse(readFileSync('gas/admin-project/.clasp.json', 'utf8')) : {}
 // clasp の版によって、parentId は文字列のことも配列のこともある
 const sheetId = (Array.isArray(adminClasp.parentId) ? adminClasp.parentId[0] : adminClasp.parentId) ?? ''
-// 書き出した PDF の控えを置く、先生のドライブのフォルダ（git に入れないファイル gas/pdf-folder.local.json の folderId。なければ空 → スクリプト プロパティ）
-const pdfFolder = existsSync('gas/pdf-folder.local.json') ? JSON.parse(readFileSync('gas/pdf-folder.local.json', 'utf8')) : {}
-const pdfFolderId = typeof pdfFolder.folderId === 'string' ? pdfFolder.folderId.trim() : ''
-if (pdfFolderId && !/^[\w-]+$/.test(pdfFolderId)) throw new Error('gas/pdf-folder.local.json の folderId の形が正しくありません')
 // PDF の控えを送った人を確かめる：学生のツールのログインの登録（OAuth クライアント ID）と、大学のドメイン（学生用ツールと同じ .env の値）
 const env = loadEnv('production', process.cwd(), 'VITE_')
 const apiValues = { SHEET_ID: sheetId, PDF_FOLDER_ID: pdfFolderId, CLIENT_ID: env.VITE_GOOGLE_CLIENT_ID ?? '', DOMAIN: env.VITE_GOOGLE_DOMAIN || 'bunka-wu.ac.jp' }

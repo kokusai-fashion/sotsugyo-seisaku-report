@@ -628,3 +628,57 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 @media (max-width: 760px) {
   .fb-meta { grid-template-columns: 1fr; }
 }
+
+/* ---- 先生の許可・点検表（mockups/v103。依頼者の選択 2026-11-04：CourseSection.tsx の PermissionRow・CheckSheetRow） ---- */
+.perm-checks { display: grid; gap: 2px; }
+/* 長い文の切り替えは、狭い画面では文の切れ目で折り返す（はみ出さない） */
+.perm-checks .toggle-label { align-items: flex-start; white-space: normal; line-height: 1.5; }
+.perm-checks .toggle-label input { flex: none; margin-top: 2px; }
+.row-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cs-link { display: inline-block; margin-top: 6px; font-size: 14px; color: var(--accent); }
+.cs-note { margin-top: 6px; font-size: 13.5px; line-height: 1.6; }
+.cs-note.ok { color: var(--ok); }
+.cs-note.ng { color: var(--error); }
+
+/* 学生の並びの窓（StudentOrderDialog.tsx。mockups/v103 案1）：番号・ふりがな・氏名・学籍番号・▲▼。手で動かした学生は、うすい黄色と札 */
+.modal.so-modal { width: min(680px, calc(100vw - 32px)); }
+.so-box { max-height: min(420px, calc(100vh - 300px)); overflow: auto; border: 1px solid #dfe3ea; border-radius: 10px; background: #fff; }
+.so-head, .so-li { display: grid; grid-template-columns: 22px 34px minmax(0, 1.25fr) minmax(0, 1fr) 92px auto; align-items: center; gap: 8px; padding: 6px 10px; }
+.so-head { position: sticky; top: 0; z-index: 3; background: #f5f6f8; color: #667; font-size: 12px; font-weight: 600; }
+.so-list { position: relative; }
+.so-li { border-top: 1px solid #eef0f4; background: #fff; font-size: 14px; }
+.so-li.moved { background: #fff8e6; }
+.so-li.dragging { opacity: 0.55; }
+.so-li .grip { width: 22px; height: 28px; font-size: 13px; }
+.so-head .no, .so-li .no { text-align: right; color: #667; font-variant-numeric: tabular-nums; }
+.so-li .kana { min-width: 0; color: #334; font-size: 13px; }
+.so-li .nm { min-width: 0; }
+.so-li .id { color: #556; font-family: Consolas, ui-monospace, monospace; font-size: 13px; }
+.so-li .mv { display: flex; gap: 4px; }
+.so-li .mv button { width: 28px; height: 26px; padding: 0; border: 1px solid #cfd5de; border-radius: 6px; background: #fff; color: #334; font-size: 12px; }
+.so-li .mv button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.so-li .mv button:disabled { opacity: 0.35; }
+.so-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #fdeec8; color: #7a5200; font-size: 11px; font-weight: 600; white-space: nowrap; vertical-align: 1px; }
+.so-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.so-foot .spacer { flex: 1; }
+.so-wait { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 14.5px; }
+.so-empty { color: var(--muted); font-size: 14.5px; line-height: 1.7; }
+.so-error { color: var(--error); font-size: 14px; line-height: 1.6; }
+/* スマホ：見出しの行は出さず、1人を3行（氏名・ふりがな・学籍番号）に。▲▼ は指で押しやすい大きさ。窓ごとスクロール（横にはみ出さない） */
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
+  .so-box { max-height: none; overflow: visible; }
+  .so-head { display: none; }
+  .so-li { grid-template-columns: 22px 26px minmax(0, 1fr) auto; grid-template-areas: 'grip no nm mv' 'grip no kana mv' 'grip no id mv'; gap: 0 8px; padding: 8px 10px; }
+  .so-li .grip { grid-area: grip; height: 40px; }
+  .so-li .no { grid-area: no; }
+  .so-li .nm { grid-area: nm; }
+  .so-li .kana { grid-area: kana; }
+  .so-li .id { grid-area: id; font-size: 12px; }
+  .so-li .mv { grid-area: mv; }
+  .so-li .mv button { width: 38px; height: 38px; font-size: 13px; }
+  .so-foot .so-kana { flex: 1 1 100%; }
+  .so-foot .spacer { display: none; }
+  .so-foot .btn:not(.so-kana) { flex: 1 1 0; }
+  /* ボタンは窓の下に留める（長い一覧の下までスクロールしなくても押せる） */
+  .so-modal .so-foot { position: sticky; bottom: -20px; z-index: 4; margin: 14px -22px -20px; padding: 10px 22px 16px; border-top: 1px solid var(--line); background: #fff; }
+}

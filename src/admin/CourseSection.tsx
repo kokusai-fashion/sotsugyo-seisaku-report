@@ -2,22 +2,34 @@ import { Fragment, useId, useRef, useState, type ReactNode } from 'react'
 import type { Course, YearConfig } from '../config'
 import { AdminIcon } from './adminIcons'
 import { courseChanged, courseName } from './changes'
+import { server } from './server'
+import { StudentOrderDialog } from './StudentOrderDialog'
 import { endsWithCourse, joinSubtitle, splitSubtitle, subtitleExample } from './subtitleText'
 import { templateSummary } from './templateText'
 import { Chip, FieldProblems, Row, SectionHead } from './ui'
 import { usePhone } from './usePhone'
 import { useReorder } from './useReorder'
+import { useSlow } from './useWait'
+import { SlowNote, Waiting } from './Wait'
 
 /**
  * 「コースごとの設定」の区切り（mockups/v43 案B。はじめは閉じたまま、この端末で最後に開いていたコースを開く：useOpenCourse。コースは1行ずつに閉じておき、「開く」で、その行の中に全部の欄を出す）。
  * 管理者：コース名（欄の外に「コース」）・指導教員・お知らせ・ひな形・サブタイトル（「―」は欄の外）。並べ替えは ⋮⋮ をドラッグ。
- * 先生（teacher）：指導教員（見るだけ）・お知らせ・ひな形だけ。学生に表示しないコースは出さない
+ * 先生（teacher）：指導教員（見るだけ）・お知らせ・ひな形だけ。学生に表示しないコースは出さない。
+ * 先生の許可・点検表（「点検表を開く」「学生の並びを直す」）は、管理者と先生の両方（依頼者の選択 2026-11-04。mockups/v103）
  */
 
 export const NOTICE_HINT = 'このコースの学生のツールの、セルフチェック欄の上に表示されます。'
 const NOTICE_EXAMPLE = '例：12月4日（金）の中間発表では、本文の下書きを印刷して持ってきてください'
 /** 表の空の行の説明（ひな形で枠を用意し、少なければ空欄の行のままでよいコースのため） */
 const BLANK_ROWS_HINT = '学生がまるごと空のままにした表の行を、セルフチェックで「空いている所」に数えません。ひな形で表の枠を用意するときに使います。'
+/**
+ * 先生の許可の説明（mockups/v103 の言葉。点検表の列の名前だけ、今の点検表に合わせて「抄録許可」にした：
+ * 見本のころは「抄録」と書いていたが、点検表の「抄録」は回の列（v106・v107）で、✓ の列は「抄録許可」のため）
+ */
+const PERMISSION_HINT = '許可は、点検表の「抄録許可」「最終提出可」に ✓ を入れて出します。使わないときは今のまま（抄録は学生が自分で「先生の許可が出た」を押す。PDF に「点検用」の印は入らない）。'
+/** 点検表の説明（点検表は PDF の控えのコースのフォルダに置くので、見られる人はそのフォルダと同じ：依頼者 2026-11-04） */
+const CHECK_SHEET_HINT = '学生がコースを選ぶと、ふりがなの順に自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。'
 
 interface Props {
   draft: YearConfig
@@ -217,6 +229,10 @@ function CourseItem({
                 </label>
               </Row>
             )}
+            {/* 先生の許可（コースごと。管理者もそのコースの先生も切り替えられる：依頼者の選択 2026-11-04。mockups/v103 ①） */}
+            <PermissionRow course={course} changed={changed('permission')} onChange={onChange} />
+            {/* 点検表（コースごとの Google スプレッドシート）と、学生の並びを直す窓（mockups/v103 案1） */}
+            <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} />
             {!teacher && <SubtitleRow course={course} changed={changed('subtitleTemplate')} onChange={onChange} />}
           </div>
           {/* このコースの誤り・確認（指導教員がいない・4名以上など）は、コースの欄の下に（上の枠に出すと、打っている間に欄がずれた：mockups/v49 G） */}
@@ -235,6 +251,103 @@ function CourseItem({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * 先生の許可（mockups/v103 ①）：抄録・提出用の PDF を、先生の許可（点検表の ✓）が出てから。はじめは両方とも切ってある（今のまま）。
+ * 先生の画面でも切り替えられる（先生の保存 saveTeacherEdits で送る）
+ */
+function PermissionRow({ course, changed, onChange }: { course: Course; changed: boolean; onChange: (c: Course) => void }) {
+  const set = (key: 'abstract' | 'final', on: boolean) => {
+    const next = { ...course.permission, [key]: on }
+    const permission = { ...(next.abstract ? { abstract: true } : {}), ...(next.final ? { final: true } : {}) }
+    onChange({ ...course, permission: Object.keys(permission).length ? permission : undefined })
+  }
+  return (
+    <Row label="先生の許可" htmlFor={`c-${course.id}-perm-abstract`} hint={PERMISSION_HINT} changed={changed}>
+      <div className="perm-checks">
+        <label className="toggle-label">
+          <input id={`c-${course.id}-perm-abstract`} type="checkbox" checked={course.permission?.abstract === true} onChange={(e) => set('abstract', e.target.checked)} />
+          <span>抄録は、先生の許可が出てから書ける</span>
+        </label>
+        <label className="toggle-label">
+          <input id={`c-${course.id}-perm-final`} type="checkbox" checked={course.permission?.final === true} onChange={(e) => set('final', e.target.checked)} />
+          <span>提出用の PDF は、先生の許可が出てから作れる</span>
+        </label>
+      </div>
+    </Row>
+  )
+}
+
+/**
+ * 点検表（mockups/v103）：「点検表を開く」はサーバーが点検表を用意して（なければ作って）から、新しいタブで開く。
+ * 押したらすぐ空のタブを開いておき、場所が届いたらそこへ移す（あとから開くと、ブラウザが新しいタブを止めるため）。
+ * 「学生の並びを直す」は窓（StudentOrderDialog）。まだ保存していないコースは、保存してから使う
+ */
+function CheckSheetRow({ year, course, saved }: { year: number; course: Course; saved: boolean }) {
+  const [opening, setOpening] = useState(false)
+  const [ordering, setOrdering] = useState(false)
+  const [note, setNote] = useState<{ kind: 'ok' | 'ng'; text: string } | null>(null)
+  /** 新しいタブを開けなかったとき（ブラウザが止めた）の、押して開くリンク */
+  const [link, setLink] = useState<string | null>(null)
+  const slow = useSlow(opening)
+  const open = async () => {
+    setNote(null)
+    setLink(null)
+    const win = window.open('', '_blank')
+    try {
+      win?.document.write('<p style="font:16px sans-serif;color:#5f6675;padding:24px">点検表を用意しています…</p>')
+    } catch {
+      // 書けなくても、場所が届けば移る
+    }
+    setOpening(true)
+    try {
+      const { url } = await server.ensureCheckSheet(year, course.id)
+      if (win && !win.closed) {
+        win.opener = null
+        win.location.href = url
+      } else setLink(url)
+    } catch (e) {
+      win?.close()
+      setNote({ kind: 'ng', text: `点検表を開けませんでした：${String((e as Error)?.message ?? e)}` })
+    } finally {
+      setOpening(false)
+    }
+  }
+  return (
+    <Row label="点検表" hint={CHECK_SHEET_HINT} warn={saved ? undefined : 'このコースは、保存してから使えます'}>
+      <div className="row-btns">
+        <button type="button" className={`btn sub sm cs-open${opening ? ' busy' : ''}`} disabled={!saved || opening} onClick={() => void open()}>
+          {opening ? <Waiting text="用意しています…" /> : '点検表を開く'}
+        </button>
+        <button type="button" className="btn sub sm cs-order" disabled={!saved} onClick={() => setOrdering(true)}>
+          学生の並びを直す
+        </button>
+        <SlowNote show={slow} />
+      </div>
+      {link && (
+        <a className="cs-link" href={link} target="_blank" rel="noreferrer">
+          点検表を新しいタブで開く
+        </a>
+      )}
+      {note && (
+        <div className={`cs-note ${note.kind}`} role="status">
+          {note.text}
+        </div>
+      )}
+      {ordering && (
+        <StudentOrderDialog
+          year={year}
+          course={course}
+          onClose={() => setOrdering(false)}
+          onSaved={() => {
+            setOrdering(false)
+            setNote({ kind: 'ok', text: '学生の並びを保存しました。点検表も、この並びになります' })
+          }}
+        />
+      )}
+    </Row>
   )
 }
 
