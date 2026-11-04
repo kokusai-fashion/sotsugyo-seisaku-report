@@ -350,8 +350,9 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
       guide('name-space', 'warning', '姓と名の間は全角の空白にする', 'cover', { blockId: 'basic:name', start: gap.start, end: gap.end, detail: gap.half ? '半角の空白 → 全角の空白（例：文化　花子）' : '空白は1つにする（例：文化　花子）' }),
     )
   }
-  // 姓と名の間に空白がない（どこで分けるかはツールに分からないので、学生に入れてもらう。依頼者の選択 2026-10-28 案1）
-  if (nameWithoutSpace(basicInfo.name)) {
+  // 姓と名の間に空白がない（どこで分けるかはツールに分からないので、学生に入れてもらう。依頼者の選択 2026-10-28 案1）。
+  // 姓・名の欄で入れた氏名（2026-11-04 から）は、名を空にした人（名前が1つだけ）なので見ない
+  if (basicInfo.familyName === undefined && nameWithoutSpace(basicInfo.name)) {
     findings.push(guide('name-no-space', 'warning', '姓と名の間に全角の空白を入れる', 'cover', { blockId: 'basic:name', detail: '表紙と抄録の氏名は、姓と名の間を全角の空白1つにそろえます（例：文化　花子）' }))
   }
   // 氏名に数字や「学籍番号」：学籍番号の欄の文までいっしょに入っている（2行ぶんを氏名の欄に貼り付けたなど）。表紙とファイル名がおかしくなる

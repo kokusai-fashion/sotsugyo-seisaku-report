@@ -1,7 +1,7 @@
 import { courseIdInText, findCourse, type YearConfig } from '../config'
 import { chapterNotStarted, newId, normalizeParagraph, numbering, setCourse, textToContent, type Numbering } from '../editor/reportOps'
 import { chapterLabel, minorHeadingLabel, subheadingLabel } from '../layout/bodyHtml'
-import { tidyName } from '../model/personName'
+import { nameParts, tidyName } from '../model/personName'
 import type { StoredImage } from '../model/storage'
 import { abstractEmpty, abstractHint, bodyFromTemplate, courseTemplate, emptyParagraph } from '../model/template'
 import { headingFromText, minorFromText } from '../model/headingText'
@@ -1465,7 +1465,9 @@ export function applyWordImport(report: Report, result: WordImportResult, course
   const cover = Object.fromEntries(Object.entries(result.cover).filter(([, v]) => typeof v === 'string' && v.trim() !== ''))
   // 氏名は、ツールで書いたときと同じく、姓と名の間を全角の空白1つにそろえる（提出前チェックは、Word に打ったままを見て知らせるので、読むときにはそろえない）
   if (cover.name) cover.name = tidyName(cover.name)
-  const imported: Report = { ...report, body: result.body, basicInfo: { ...report.basicInfo, ...cover } }
+  // 氏名は、姓と名にも分けて入れる（最初の空白で分ける。空白がなければ全部を姓に）。ふりがなは原稿のまま（なければ、はじめての案内で入れてもらう：依頼者の選択 2026-11-04）
+  const parts = cover.name ? nameParts({ name: cover.name }) : null
+  const imported: Report = { ...report, body: result.body, basicInfo: { ...report.basicInfo, ...cover, ...(parts ? { familyName: parts.familyName, givenName: parts.givenName } : {}) } }
   if (!course || course.courseId === report.basicInfo.courseId) return imported
   const renamed = setCourse(imported, course.courseId)
   return abstractEmpty(renamed) ? { ...renamed, abstract: { ...renamed.abstract, paragraphs: [emptyParagraph(abstractHint(course.config, course.courseId))] } } : renamed

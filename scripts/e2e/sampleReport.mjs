@@ -24,7 +24,7 @@ export async function setupWriting() {
   const fig = (rowId, id, imageId, caption) => ({ type: 'figureRow', id: rowId, figures: [{ id, imageId, caption }] })
   window.__editor.replace({
     ...r0,
-    basicInfo: { ...r0.basicInfo, name: '文化　花子', courseId: 'film-stage-costume', subtitleInput: 'シンドバッド' },
+    basicInfo: { ...r0.basicInfo, name: '文化　花子', familyName: '文化', givenName: '花子', familyKana: 'ブンカ', givenKana: 'ハナコ', courseId: 'film-stage-costume', subtitleInput: 'シンドバッド' },
     abstract: {
       started: true,
       paragraphs: [

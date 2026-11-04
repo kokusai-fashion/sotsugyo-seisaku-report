@@ -10,6 +10,7 @@ import { withEdge } from '../poc/edge.mjs'
 import { stubConfig } from './configStub.mjs'
 import { setupWriting } from './sampleReport.mjs'
 import { confirmQueue } from './confirmUi.mjs'
+import { fillGuideName } from './nameStep.mjs'
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const OUT = 'poc-output/phone-fixes-1024'
@@ -65,25 +66,22 @@ await withEdge(async (browser) => {
     await wait(400)
     const during = { tip: !!(await page.$('.pinch-tip')), stored: await page.evaluate(() => localStorage.getItem('sotsugyo-seisaku-report-pinch-tip')) }
     await page.screenshot({ path: `${OUT}/1-guide-no-tip.png` })
-    // 氏名：「文化　花子」が1行のまま（書く欄は下線の右端まで）
-    await page.waitForSelector('.guide.step-name', { timeout: 20000 }).catch(() => {})
-    await tapBlock(page, 'basic:name')
-    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 20000 })
-    await page.keyboard.type('文化　花子')
-    await wait(600)
+    // 学籍番号を書き終える（「完了」）と、氏名の段（4つの欄。2026-11-04 から紙面では書かない）
+    await page.evaluate(() => [...document.querySelectorAll('.direct-bar button')].find((b) => b.textContent.includes('完了'))?.click())
+    await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 20000 })
+    await wait(400)
+    // 案内の吹き出しは画面の上に収まり、4つの欄が見えている（スマホでは、キーボードは画面の下）
     const name = await page.evaluate(() => {
-      const box = document.querySelector('.overlay-editor')
-      const r = box.getBoundingClientRect()
-      const lh = parseFloat(getComputedStyle(box).lineHeight) * (r.height / box.offsetHeight || 1)
-      const rule = [...document.querySelectorAll('.page-viewport.front .rule.name-rule')].find((e) => e.getBoundingClientRect().width > 0).getBoundingClientRect()
-      return { lines: Math.round(r.height / lh), right: Math.round(r.right), ruleRight: Math.round(rule.right) }
+      const tip = document.querySelector('.guide .g-tip').getBoundingClientRect()
+      const inputs = [...document.querySelectorAll('.guide .name-fields input')].map((i) => i.getBoundingClientRect())
+      return { tipTop: Math.round(tip.top), tipBottom: Math.round(tip.bottom), inputs: inputs.length, inside: inputs.every((r) => r.left >= tip.left && r.right <= tip.right && r.bottom <= tip.bottom), h: innerHeight }
     })
     await page.screenshot({ path: `${OUT}/2-name-one-line.png` })
     const storedAfterName = await page.evaluate(() => localStorage.getItem('sotsugyo-seisaku-report-pinch-tip') + '|' + (document.querySelector('.guide')?.className ?? 'noguide'))
     check('はじめての案内が出ている間は、「字を大きくするには」を出さない（「見た」にもしない）', !during.tip && during.stored === null, JSON.stringify(during))
-    check('表紙の氏名「文化　花子」を書いている間も1行のまま（書く欄は下線の右端まで）', name.lines === 1 && Math.abs(name.right - name.ruleRight) <= 2, JSON.stringify(name))
-    // 氏名を書き終えてから（「完了」）、案内を閉じて本文を書くと出る
-    await page.evaluate(() => [...document.querySelectorAll('.direct-bar button')].find((b) => b.textContent.includes('完了'))?.click())
+    check('スマホ：案内の氏名の段は、4つの欄が案内の吹き出しの中に収まり、画面の上半分に出る', name.inputs === 4 && name.inside && name.tipBottom < name.h * 0.6, JSON.stringify(name))
+    // 氏名を入れてから、案内を閉じて本文を書くと出る
+    await fillGuideName(page)
     await wait(600)
     await ready()
     const storedAfterDone = await page.evaluate(() => localStorage.getItem('sotsugyo-seisaku-report-pinch-tip'))

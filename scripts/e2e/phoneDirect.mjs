@@ -20,6 +20,7 @@ import { stubConfig } from './configStub.mjs'
 import { setupWriting } from './sampleReport.mjs'
 import { captionGap, gapDetail, gapOk } from './captionGap.mjs'
 import { answerConfirms } from './confirmUi.mjs'
+import { fillGuideName } from './nameStep.mjs'
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const OUT = 'poc-output/phone-direct-v2'
@@ -317,6 +318,9 @@ export async function phoneDirectPhone(browser, check) {
     JSON.stringify({ editing: coverDone.editing, zoomed: coverDone.zoomed, id: coverDone.id, step: coverDone.step }),
   )
   await keyboard(page, 0)
+  // 氏名の段は、4つの欄を入れるまで閉じられない（2026-11-04 から）。入れて、サブタイトルの段で閉じる
+  await fillGuideName(page)
+  await page.waitForSelector('.guide .g-later', { timeout: 10000 })
   await page.evaluate(() => document.querySelector('.g-later').click())
   await ready()
   await page.evaluate(setupWriting)

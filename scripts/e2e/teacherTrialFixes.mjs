@@ -6,6 +6,7 @@
 import { mkdirSync } from 'node:fs'
 import { stubConfig } from './configStub.mjs'
 import { setupWriting } from './sampleReport.mjs'
+import { fillGuideName } from './nameStep.mjs'
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const OUT = 'poc-output/student-fixes'
@@ -142,12 +143,14 @@ async function guideResumeCheck(browser, check) {
   await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:studentId', { timeout: 30000 })
   await page.keyboard.type('00ZZ0123')
   await page.keyboard.press('Enter')
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 30000 })
+  await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 30000 })
   await reload(page, ready)
   const atName = await page.waitForSelector('.guide.step-name', { timeout: 15000 }).then(() => true, () => false)
   await page.screenshot({ path: `${OUT}/guide-resume-name.png` })
   check('氏名の案内の途中で読み込み直すと、氏名の案内から続く（学籍番号は入ったまま）', atName && (await page.evaluate(() => window.__editor.getSnapshot().report.basicInfo.studentId)) === '00ZZ0123', String(atName))
-  // 「あとで入力する」で閉じたら、読み込み直しても出ない（覚えた段階も消える）
+  // 「あとで入力する」で閉じたら、読み込み直しても出ない（覚えた段階も消える）。氏名の段には「あとで」がないので、氏名を入れてサブタイトルの段で閉じる
+  await fillGuideName(page)
+  await page.waitForSelector('.guide .g-later', { timeout: 15000 })
   await page.evaluate(() => document.querySelector('.guide .g-later').click())
   await pause(300)
   check('「あとで入力する」で閉じると、覚えていた案内の段階を消す', (await page.evaluate((k) => localStorage.getItem(k), GUIDE_KEY)) === null)

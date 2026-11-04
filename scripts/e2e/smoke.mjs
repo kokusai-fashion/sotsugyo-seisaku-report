@@ -181,10 +181,16 @@ await withEdge(async (browser) => {
   )
   await page.keyboard.type('00ZZ0123')
   await page.keyboard.press('Enter')
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 30000 })
-  await page.keyboard.type('文化　花子')
-  await page.keyboard.press('Enter')
+  // 氏名は、案内の中の4つの欄（姓・名・セイ・メイ）。Enter で次の欄へ、最後の欄の Enter で次の段へ（依頼者の選択 2026-11-04 mockups/v101）
+  await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 30000 })
+  check('案内の「氏名」の段は、4つの欄が出て「あとで入力する」がなく、姓の欄に文字のカーソルがある', await page.evaluate(() => document.querySelectorAll('.guide.step-name .name-fields input').length === 4 && !document.querySelector('.guide .g-later') && document.activeElement?.closest('label')?.classList.contains('nf-familyName')))
+  for (const t of ['文化', '花子', 'ぶんか', 'ハナコ']) {
+    await page.keyboard.type(t)
+    await page.keyboard.press('Enter')
+  }
   await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:subtitleInput', { timeout: 30000 })
+  const named = (await snap()).report.basicInfo
+  check('氏名の4つの欄に入れると、表紙の氏名は「姓　名」、ひらがなで打ったふりがなもカタカナで入る', named.name === '文化　花子' && named.familyKana === 'ブンカ' && named.givenKana === 'ハナコ', JSON.stringify(named))
   // 光る枠は、開いた入力欄（紙面の仮の文字より広い）を囲む
   await new Promise((r) => setTimeout(r, 500))
   const spotCovers = await page.evaluate(() => {
@@ -517,12 +523,15 @@ await withEdge(async (browser) => {
   await page.keyboard.press('Tab')
   let pf = await focused()
   check('表紙の欄に Tab で移れ、移った欄に目印（黄色の枠）が出る（読み上げの名前「氏名」）', pf.key === 'b:basic:name' && pf.label?.startsWith('氏名：') && pf.visible && pf.outline === 'solid', JSON.stringify(pf))
+  // 氏名は紙面では書かず、Enter で姓・名・ふりがなの小窓が開く（mockups/v101 ③）。Esc で閉じると、氏名の欄に戻る
   await page.keyboard.press('Enter')
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 20000 })
+  await page.waitForSelector('.name-dialog', { timeout: 20000 })
+  const dialogOpen = await page.evaluate(() => ({ editing: window.__editor.getSnapshot().editingId, family: document.querySelector('.name-dialog input')?.value }))
   await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('.name-dialog'), { timeout: 10000 })
   await ready()
   pf = await focused()
-  check('Enter で書き始め、Esc で書き終えると、書いていた欄に戻る（組み直したあとも）', pf.key === 'b:basic:name' && pf.inPaper && pf.visible && (await snap()).editingId === null, JSON.stringify(pf))
+  check('氏名の欄で Enter を押すと姓・名・ふりがなの小窓が開き（紙面では書かない）、Esc で閉じると氏名の欄に戻る', dialogOpen.editing === null && dialogOpen.family === '文化' && pf.key === 'b:basic:name' && pf.inPaper && pf.visible, JSON.stringify({ dialogOpen, pf }))
 
   // ---- 表紙のサブタイトルが長いときは、枠の1行に入るまで文字を小さくする（mockups/v23 ①） ----
   const subtitleFit = () =>

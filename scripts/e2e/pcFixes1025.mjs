@@ -84,13 +84,22 @@ await withEdge(async (browser) => {
     await editingWait(page, 'basic:studentId')
     await page.keyboard.type('24AB001')
     await page.keyboard.press('Enter')
-    await page.waitForSelector('.guide.step-name', { timeout: 20000 })
-    await editingWait(page, 'basic:name')
+    // 氏名は、案内の中の姓・名・セイ・メイの4つの欄（2026-11-04 から。入れるまで次へ進めない）
+    await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 20000 })
+    await wait(300)
     await page.keyboard.press('Tab')
     await wait(500)
-    const afterTab = { step: await page.evaluate(() => document.querySelector('.guide')?.className ?? ''), editing: (await snap(page)).editingId, focus: await page.evaluate(() => document.activeElement?.classList.contains('overlay-editor')) }
-    check('案内の氏名の段で Tab を押しても、書く欄にとどまる（次の段へ進まない・道具へ移らない）', afterTab.step.includes('step-name') && afterTab.editing === 'basic:name' && afterTab.focus, JSON.stringify(afterTab))
-    await page.keyboard.press('Enter')
+    const afterTab = { step: await page.evaluate(() => document.querySelector('.guide')?.className ?? ''), editing: (await snap(page)).editingId, inTip: await page.evaluate(() => !!document.activeElement?.closest('.g-tip')) }
+    check('案内の氏名の段で Tab を押しても、案内の中にとどまる（次の段へ進まない・道具へ移らない）', afterTab.step.includes('step-name') && afterTab.editing === null && afterTab.inTip, JSON.stringify(afterTab))
+    await page.evaluate(() => document.querySelector('.guide.step-name .g-actions .primary').click())
+    await wait(400)
+    const emptyNext = await page.evaluate(() => ({ step: document.querySelector('.guide')?.className ?? '', error: document.querySelector('.guide .nf-error')?.textContent ?? '' }))
+    check('氏名の段で、空のまま「次へ」を押しても進まず、「姓を入力してください」と出る', emptyNext.step.includes('step-name') && emptyNext.error === '姓を入力してください', JSON.stringify(emptyNext))
+    await page.focus('.guide.step-name .nf-familyName input')
+    for (const t of ['文化', '花子', 'ブンカ', 'ハナコ']) {
+      await page.keyboard.type(t)
+      await page.keyboard.press('Enter')
+    }
     await page.waitForSelector('.guide.step-subtitle', { timeout: 20000 })
     await editingWait(page, 'basic:subtitleInput')
     await page.keyboard.press('Enter')
@@ -99,8 +108,8 @@ await withEdge(async (browser) => {
     const done = await page.evaluate(() => ({ h2: document.querySelector('.g-tip h2')?.textContent ?? '', missing: document.querySelector('.g-missing')?.textContent ?? '' }))
     await page.screenshot({ path: `${OUT}/1-guide-missing.png` })
     check(
-      '氏名・サブタイトルが空のまま進むと、「表紙ができました」ではなく「まだ入っていない項目があります（氏名・サブタイトルが空です）」と出す',
-      done.h2 === 'まだ入っていない項目があります' && done.missing.includes('氏名・サブタイトルが空です'),
+      'サブタイトルが空のまま進むと、「表紙ができました」ではなく「まだ入っていない項目があります（サブタイトルが空です）」と出す',
+      done.h2 === 'まだ入っていない項目があります' && done.missing.includes('サブタイトルが空です') && !done.missing.includes('氏名'),
       JSON.stringify(done),
     )
     await context.close()
@@ -881,10 +890,12 @@ await withEdge(async (browser) => {
     await editingWait(page, 'basic:studentId')
     await page.keyboard.type('24AB001')
     await page.keyboard.press('Enter')
-    await page.waitForSelector('.guide.step-name', { timeout: 20000 })
-    await editingWait(page, 'basic:name')
-    await page.keyboard.type('文化　花子')
-    await page.keyboard.press('Enter')
+    await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 20000 })
+    await wait(300)
+    for (const t of ['文化', '花子', 'ブンカ', 'ハナコ']) {
+      await page.keyboard.type(t)
+      await page.keyboard.press('Enter')
+    }
     await page.waitForSelector('.guide.step-subtitle', { timeout: 20000 })
     await editingWait(page, 'basic:subtitleInput')
     await page.keyboard.type('シンドバッド')

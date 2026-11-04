@@ -49,5 +49,5 @@ export async function setupSinbad(sample) {
   }
   window.__editor.addImages(made)
   const r0 = window.__editor.getSnapshot().report
-  window.__editor.replace({ ...sample.report, fiscalYear: r0.fiscalYear, basicInfo: { ...sample.report.basicInfo, courseId: r0.basicInfo.courseId || sample.report.basicInfo.courseId }, updatedAt: new Date().toISOString() })
+  window.__editor.replace({ ...sample.report, fiscalYear: r0.fiscalYear, basicInfo: { familyKana: 'ブンカ', givenKana: 'ハナコ', ...sample.report.basicInfo, courseId: r0.basicInfo.courseId || sample.report.basicInfo.courseId }, updatedAt: new Date().toISOString() })
 }

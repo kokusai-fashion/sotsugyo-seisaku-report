@@ -280,13 +280,14 @@ export async function firstTimeV3Pc(browser, check) {
   await page.evaluate(() => [...document.querySelectorAll('.modal .close-row button')].find((b) => b.textContent === '閉じる').click())
   await pause(300)
 
-  // ---- 1行の欄（氏名）に2行を貼り付けると、1行目だけが入り、画面の下に知らせる ----
-  await clickBlock('basic:name')
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 30000 })
+  // ---- 1行の欄（サブタイトル）に2行を貼り付けると、1行目だけが入り、画面の下に知らせる ----
+  // （前は氏名の欄で確かめていた。氏名は 2026-11-04 から紙面では書かず、姓・名・ふりがなの小窓で入れる）
+  await clickBlock('basic:subtitleInput')
+  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:subtitleInput', { timeout: 30000 })
   await page.keyboard.down('Control')
   await page.keyboard.press('a')
   await page.keyboard.up('Control')
-  await paste(page, '文化　花子\r\n学籍番号　00ZZ0123')
+  await paste(page, 'シンドバッド\r\n学籍番号　00ZZ0123')
   await pause(300)
   const pastedToast = await toastText(page)
   await page.screenshot({ path: `${OUT}/03-paste-name.png` })
@@ -294,9 +295,9 @@ export async function firstTimeV3Pc(browser, check) {
   await ready()
   const afterPaste = await snap()
   check(
-    '氏名の欄に2行を貼り付けると、1行目（文化　花子）だけが入り、「この欄は1行なので、1行目だけを貼り付けました」と出る',
-    afterPaste.report.basicInfo.name === '文化　花子' && pastedToast === 'この欄は1行なので、1行目だけを貼り付けました',
-    JSON.stringify({ name: afterPaste.report.basicInfo.name, pastedToast }),
+    'サブタイトルの欄に2行を貼り付けると、1行目（シンドバッド）だけが入り、「この欄は1行なので、1行目だけを貼り付けました」と出る',
+    afterPaste.report.basicInfo.subtitleInput === 'シンドバッド' && pastedToast === 'この欄は1行なので、1行目だけを貼り付けました',
+    JSON.stringify({ subtitle: afterPaste.report.basicInfo.subtitleInput, pastedToast }),
   )
   // つながって入ってしまった氏名（前の動き）は、エラーになる：数字・「学籍番号」と、表紙の欄からはみ出す
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, name: '文化　花子学籍番号　00ZZ0123' } })))

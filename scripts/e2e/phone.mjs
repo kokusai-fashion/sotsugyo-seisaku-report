@@ -2,6 +2,7 @@
 // 使い方: node scripts/e2e/phone.mjs（開発サーバーが http://localhost:5173 で動いていること）
 // スマホのふつうの書き方は「紙面で直接書く」（2026-10-20 から）。ここのほとんどの確かめは、予備の「下から出る書く欄」（?direct=0）で動かす
 // （予備が壊れないように）。紙面で直接書く・2本の指で広げる・作品写真を選んでから動かす、は scripts/e2e/phoneDirect.mjs（このファイルの最後で呼ぶ）
+import { fillGuideName } from './nameStep.mjs'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { withEdge } from '../poc/edge.mjs'
@@ -144,6 +145,11 @@ await withEdge(async (browser) => {
   check('学籍番号を書き終えると、氏名の案内に進む', (await snap()).report.basicInfo.studentId === '00ZZ0123')
   const afterDone = await tapFocus()
   check('タップで書くとき・書き終えたとき、紙面にキーボードの目印は出ない', afterTap.inSheet && !afterTap.ring && !afterDone.ring, JSON.stringify({ afterTap, afterDone }))
+  // 氏名の段は、4つの欄を入れるまで閉じられない（「あとで」がない。2026-11-04 から）。入れてから、サブタイトルの段で閉じる
+  const nameLater = await page.evaluate(() => !!document.querySelector('.guide.step-name .g-later'))
+  await fillGuideName(page)
+  await page.waitForSelector('.guide.step-subtitle .g-later')
+  check('スマホ：氏名の段には「あとで入力する」がなく、4つの欄を入れるとサブタイトルの段へ進む', !nameLater && (await snap()).report.basicInfo.familyKana === 'ブンカ')
   await page.click('.g-later')
   await ready()
 
@@ -833,6 +839,11 @@ async function bandCheck(browser) {
   check('案内の「あとで入力する（案内を閉じる）」は高さ 44px 以上。案内の間は、紙面の下の帯を出さない', laterH >= 44 && !duringGuide.shown, JSON.stringify({ laterH, duringGuide }))
   // 案内の最後（「表紙ができました」）まで進む（学籍番号・氏名・サブタイトルの欄を開いて閉じる）。「本文へ進む」「閉じる」は見た目も高さ 44px 以上
   for (const id of ['basic:studentId', 'basic:name', 'basic:subtitleInput']) {
+    // 氏名は、案内の中の4つの欄（入れ終わっていれば、案内はとばす）
+    if (id === 'basic:name') {
+      if (await page.$('.guide.step-name')) await fillGuideName(page)
+      continue
+    }
     await page.evaluate((id) => window.__editor.openEditor(id, 0), id)
     await wait(300)
     await page.evaluate(() => window.__editor.finishEditing())
@@ -1969,6 +1980,11 @@ async function writingVisibleCheck(browser) {
       await page.waitForSelector(`.guide.step-${step}`)
       await ready()
       await wait(300)
+      // 氏名は、案内の中の4つの欄（紙面では書かない。2026-11-04 から）
+      if (step === 'name') {
+        await fillGuideName(page)
+        continue
+      }
       await tapField(id)
       await record(`案内の${step}`)
       if (step === 'subtitle') {
@@ -1986,7 +2002,7 @@ async function writingVisibleCheck(browser) {
     await ready()
     const afterGuide = { room: await roomLeft(), zoomed: (await page.evaluate(() => window.__editor.getSnapshot().zoomed)) }
     // 案内を閉じたあと：表紙のサブタイトル・氏名と、本文の最初の段落
-    for (const id of ['basic:subtitleInput', 'basic:name']) {
+    for (const id of ['basic:subtitleInput']) {
       await tapField(id)
       await record(`あとから${id.replace('basic:', '')}`)
       if (id === 'basic:subtitleInput') await withKeyboard('あとからsubtitleInput')

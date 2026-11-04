@@ -56,23 +56,27 @@ async function open(browser, { phone = false } = {}) {
 const editingWait = (page, id) => page.waitForFunction((id) => window.__editor.getSnapshot().editingId === id, { timeout: 20000 }, id)
 const nameNow = (page) => page.evaluate(() => window.__editor.getSnapshot().report.basicInfo.name)
 const nameFindings = (page) => page.evaluate(() => window.__editor.getSnapshot().findings.filter((f) => f.blockId === 'basic:name').map((f) => f.ruleId))
-/** 氏名の欄を開き、中身を消して text を打つ（書き終えるのは呼ぶ側） */
-async function typeName(page, ready, text) {
+/**
+ * 表紙の氏名を押して、姓・名・セイ・メイの小窓に入れる（2026-11-04 から。紙面では書かない：mockups/v101 ③）。
+ * parts：[姓, 名, セイ, メイ]。「決める」を押すのは呼ぶ側（finish）
+ */
+async function typeName(page, ready, parts) {
   await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('basic:name'), 'none'))
   await ready()
   await page.evaluate(() => window.__editor.openEditor('basic:name', 0))
-  await editingWait(page, 'basic:name')
+  await page.waitForSelector('.name-dialog input', { timeout: 20000 })
+  await page.evaluate((parts) => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+    ;[...document.querySelectorAll('.name-dialog input')].forEach((input, i) => {
+      set.call(input, parts[i] ?? '')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }, parts)
   await wait(300)
-  await page.keyboard.down('Control')
-  await page.keyboard.press('KeyA')
-  await page.keyboard.up('Control')
-  await page.keyboard.press('Backspace')
-  await page.keyboard.type(text)
-  await wait(900)
 }
 const finish = async (page, ready) => {
-  await page.keyboard.press('Enter')
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId !== 'basic:name', { timeout: 20000 })
+  await page.evaluate(() => document.querySelector('.name-dialog .nf-actions .primary').click())
+  await page.waitForFunction(() => !document.querySelector('.name-dialog'), { timeout: 20000 })
   await wait(400)
   await ready()
 }
@@ -81,35 +85,32 @@ await withEdge(async (browser) => {
   // ---- 氏名の書き方をそろえる（パソコン） ----
   {
     const { context, page, ready } = await open(browser)
-    await typeName(page, ready, ' 文化 花子 ')
-    const typing = await nameFindings(page)
+    // 姓・名の4つの欄で入れる（2026-11-04 から）：表紙は「姓　名」。欄の前後の空白は除く
+    await typeName(page, ready, [' 文化 ', ' 花子 ', 'ぶんか', 'ハナコ'])
     await finish(page, ready)
-    const half = { name: await nameNow(page), findings: await nameFindings(page), cover: await page.evaluate(() => document.querySelector('.page-viewport.front .name-value')?.textContent ?? '') }
-    check('氏名に半角の空白で打っても、書き終えると全角の空白1つになり（前後の空白は除く）、紙面にもそう出る。書いている間に指摘は出さない', half.name === '文化　花子' && half.cover.includes('文化　花子') && !half.findings.includes('name-space') && !typing.includes('name-space'), JSON.stringify({ typing, ...half }))
+    const half = { name: await nameNow(page), findings: await nameFindings(page), cover: await page.evaluate(() => document.querySelector('.page-viewport.front .name-value')?.textContent ?? ''), kana: await page.evaluate(() => window.__editor.getSnapshot().report.basicInfo.familyKana) }
+    check('姓と名の欄に入れると、表紙の氏名は全角の空白1つの「文化　花子」になり（前後の空白は除く）、ふりがなはカタカナになる', half.name === '文化　花子' && half.cover.includes('文化　花子') && !half.findings.includes('name-space') && half.kana === 'ブンカ', JSON.stringify(half))
 
-    await typeName(page, ready, '文化　　花子')
-    await finish(page, ready)
-    check('全角の空白が2つ続いても、1つにする', (await nameNow(page)) === '文化　花子', await nameNow(page))
-
-    await typeName(page, ready, 'Emma Smith')
+    await typeName(page, ready, ['Smith', 'Emma', 'スミス', 'エマ'])
     await finish(page, ready)
     const latin = { name: await nameNow(page), findings: await nameFindings(page) }
-    check('英字の名前は、打ったまま（半角の空白のまま。指摘も出さない）', latin.name === 'Emma Smith' && latin.findings.length === 0, JSON.stringify(latin))
+    check('英字の名前は、半角の空白でつなぐ（指摘も出さない）', latin.name === 'Smith Emma' && latin.findings.length === 0, JSON.stringify(latin))
 
-    await typeName(page, ready, '文化花子')
-    const noSpaceTyping = await nameFindings(page)
+    // 名前が1つだけの人：名は空でよい（姓・名の欄で入れた氏名には「空白を入れる」の指摘を出さない）
+    await typeName(page, ready, ['文化花子', '', 'ブンカハナコ', ''])
     await finish(page, ready)
+    const one = { name: await nameNow(page), findings: await nameFindings(page) }
+    check('名を空にした氏名（名前が1つだけの人）は、そのまま入り、「姓と名の間に全角の空白を入れる」は出さない', one.name === '文化花子' && !one.findings.includes('name-no-space'), JSON.stringify(one))
+
+    // 前の原稿（氏名の欄が1つだったころ）で空白のない氏名は、今までどおり要確認を出す
+    await page.evaluate(() => window.__editor.update((r) => ({ ...r, basicInfo: { studentId: r.basicInfo.studentId, courseId: r.basicInfo.courseId, subtitleInput: r.basicInfo.subtitleInput, name: '文化花子' } })))
+    await wait(900)
+    await ready()
     const noSpace = await page.evaluate(() => window.__editor.getSnapshot().findings.find((f) => f.ruleId === 'name-no-space') ?? null)
-    await wait(600)
-    const side = await page.evaluate(() => document.querySelector('.side')?.textContent ?? '')
-    check(
-      '空白のない「文化花子」は、書き終えてから「姓と名の間に全角の空白を入れる」（要確認）を出す（書いている間は出さない）。右の欄にも出る',
-      !noSpaceTyping.includes('name-no-space') && noSpace?.severity === 'warning' && side.includes('姓と名の間に全角の空白を入れる'),
-      JSON.stringify({ noSpaceTyping, noSpace }),
-    )
-    await typeName(page, ready, '文化　花子')
+    check('前の原稿の、空白のない「文化花子」は「姓と名の間に全角の空白を入れる」（要確認）を出す', noSpace?.severity === 'warning', JSON.stringify(noSpace))
+    await typeName(page, ready, ['文化', '花子', 'ブンカ', 'ハナコ'])
     await finish(page, ready)
-    check('空白を入れると、その指摘は消える', !(await nameFindings(page)).includes('name-no-space'), JSON.stringify(await nameFindings(page)))
+    check('姓と名の欄で入れ直すと、その指摘は消える', !(await nameFindings(page)).includes('name-no-space') && (await nameNow(page)) === '文化　花子', JSON.stringify(await nameFindings(page)))
 
     // ---- 「元に戻す」で戻した所は、うすい黄色の地だけ（枠なし） ----
     await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p2'), 'none'))
@@ -300,12 +301,10 @@ await withEdge(async (browser) => {
   // ---- スマホ：氏名をそろえる ----
   {
     const { context, page, ready } = await open(browser, { phone: true })
-    await typeName(page, ready, '文化 花子')
-    await page.evaluate(() => window.__editor.finishEditing())
-    await page.waitForFunction(() => window.__editor.getSnapshot().editingId !== 'basic:name', { timeout: 20000 })
-    await wait(600)
-    await ready()
-    check('スマホ：氏名を半角の空白で打っても、書き終えると全角の空白1つになる', (await nameNow(page)) === '文化　花子', await nameNow(page))
+    await typeName(page, ready, ['文化', '花子', 'ブンカ', 'ハナコ'])
+    const phoneDialog = await page.evaluate(() => { const r = document.querySelector('.name-dialog')?.getBoundingClientRect(); return r ? Math.round(r.top) : null })
+    await finish(page, ready)
+    check('スマホ：表紙の氏名を押すと、画面の上に姓・名・ふりがなの小窓が出て、決めると「文化　花子」になる', phoneDialog !== null && phoneDialog < 80 && (await nameNow(page)) === '文化　花子', JSON.stringify({ phoneDialog, name: await nameNow(page) }))
     await context.close()
   }
 })

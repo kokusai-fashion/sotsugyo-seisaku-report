@@ -16,6 +16,8 @@ import { ImageWorkToast } from './app/ImageWork'
 import { ImageWork } from './app/imageWorkStore'
 import { nextPaint, useSlow } from './app/useBusy'
 import { BackupDialog, CourseChangeDialog, CourseMenu, ReferencesDialog } from './app/dialogs'
+import { NameDialog } from './app/NameForm'
+import { nameParts, namePartsDone } from './model/personName'
 import { ExportDialog } from './app/ExportDialog'
 import { ConflictDialog, IdMismatchDialog, LoginGate, OtherAccountDialog, ReloginDialog, WipeDialog, type DriveControls, type GateState } from './app/DriveUi'
 import { Icon } from './app/icons'
@@ -70,6 +72,8 @@ type Dialog =
   /** snapshots：自動の控え（読み込んでいる間は null。窓はすぐ開く） */
   | { kind: 'backup'; snapshots: Snapshot[] | null }
   | { kind: 'course'; rect: DOMRect }
+  /** 表紙の氏名を押した：姓・名・ふりがなの4つの欄（mockups/v101 ③） */
+  | { kind: 'name'; rect: DOMRect }
   | { kind: 'courseChange'; courseId: string }
   /** 今年度だけ：Word から読み込む（mockups/v24） */
   | { kind: 'word' }
@@ -89,7 +93,8 @@ const rendered = (ed: ReportEditor) =>
 /** 表紙の項目のうち、まだ入っていない最初のもの（はじめての案内で、その項目から案内する） */
 const firstEmptyCoverStep = (report: Report): GuideStep | null => {
   const b = report.basicInfo
-  return !b.studentId.trim() ? 'studentId' : !b.name.trim() ? 'name' : !b.subtitleInput.trim() ? 'subtitle' : null
+  // 氏名は、ふりがなまで入っていなければ、まだ（Word から読み込んだ氏名にも、ふりがなを入れてもらう：依頼者の選択 2026-11-04）
+  return !b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : !b.subtitleInput.trim() ? 'subtitle' : null
 }
 
 /**
@@ -221,6 +226,11 @@ export default function App() {
   const [trialMissing, setTrialMissing] = useState(false)
   // はじめて使う学生への案内（コース →（今年度だけ）Word で書き始めているか → 学籍番号 → 氏名 → サブタイトル）
   const [guide, setGuide] = useState<GuideStep | null>(null)
+  /** 案内で、氏名のふりがなだけを頼んでいる（前から書いている原稿を開いた。「氏名」の段を済ませたら閉じる） */
+  const [nameOnly, setNameOnly] = useState(false)
+  useEffect(() => {
+    if (!guide) setNameOnly(false)
+  }, [guide])
   // 使い方（ヘルプ）：PC は右の欄が使い方に替わり、スマホは画面いっぱいの欄（mockups/v27 案A）
   const [help, setHelp] = useState(false)
   // 指差し確認（mockups/v27 案A）：出したい（tourWanted）→ ほかの窓や案内がなく、紙面が落ち着いたら出す（tourOn）
@@ -350,7 +360,12 @@ export default function App() {
       const left = guideLeftAt()
       const empty = firstEmptyCoverStep(report)
       if (left && left !== 'course' && empty) setGuide(left === 'word' && wordImportOffered(cfg) ? 'word' : empty)
-      else {
+      // ふりがなをまだ入れていない（氏名の欄が1つだったころから書いている）：開いたときに、氏名の4つの欄を入れてもらう（入れるまで閉じられない。
+      // 依頼者の選択 2026-11-04。先生の点検表を、ふりがなの順に並べるため）。先生のお試し（見本の原稿）では聞かない
+      else if (!trialMode && !namePartsDone(nameParts(report.basicInfo))) {
+        setNameOnly(true)
+        setGuide('name')
+      } else {
         if (left) forgetGuide()
         if (!tourSeen() && firstOpenInTab()) setTourWanted(true)
       }
@@ -580,6 +595,7 @@ export default function App() {
             drive?.schedule(r)
           },
           onCourseClick: (rect) => setDialog({ kind: 'course', rect }),
+          onNameClick: (rect) => setDialog({ kind: 'name', rect }),
           onReferencesClick: () => setDialog({ kind: 'references' }),
           onTocClick: (point) => setTocPoint(point),
           pickImage: pickImageFile,
@@ -1212,6 +1228,9 @@ export default function App() {
       {dialog?.kind === 'course' && snap && editor && (
         <CourseMenu config={config} rect={dialog.rect} current={snap.report.basicInfo.courseId} onSelect={chooseCourse} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === 'name' && snap && editor && (
+        <NameDialog rect={dialog.rect} initial={nameParts(snap.report.basicInfo)} onSave={(p) => editor.setNameParts(p)} onClose={() => setDialog(null)} />
+      )}
       {dialog?.kind === 'courseChange' && snap && editor && (
         <CourseChangeDialog
           courseName={findCourse(config, dialog.courseId)?.name ?? ''}
@@ -1258,6 +1277,7 @@ export default function App() {
             // 案内を終えたら、指差し確認を出す（この端末でまだ見ていなければ）
             if (!tourSeen()) setTourWanted(true)
           }}
+          nameOnly={nameOnly}
         />
       )}
       {/* スマホの使い方：画面いっぱいの欄（メニューの「？ 使い方」から） */}

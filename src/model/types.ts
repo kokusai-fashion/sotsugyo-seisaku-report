@@ -29,7 +29,16 @@ export interface Report {
 /** 表紙と抄録の両方に反映する基本情報 */
 export interface BasicInfo {
   studentId: string
+  /** 表紙・抄録に出す氏名（姓と名から作る：「姓　名」。model/personName.ts の joinName） */
   name: string
+  /**
+   * 姓・名と、そのふりがな（カタカナ）。氏名は4つの欄で入れる（依頼者の選択 2026-11-04 mockups/v101。先生の点検表を、ふりがなのあいうえお順に並べるため）。
+   * ふりがなは表紙には出さない。前の原稿（name だけ）には無い：nameParts で name を空白で分けて使う。名は空でもよい（名前が1つだけの人）
+   */
+  familyName?: string
+  givenName?: string
+  familyKana?: string
+  givenKana?: string
   courseId: string
   /** サブタイトルの可変部分（例: パリス）。前後の決まり文句はコース設定から付ける */
   subtitleInput: string

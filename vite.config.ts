@@ -119,6 +119,7 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     // 試しや見直しで作ったもの（poc-output、git に入らない）のテストは、単体テストに含めない
-    exclude: [...configDefaults.exclude, 'poc-output/**'],
+    // .claude/worktrees：手分けして作るときの作業用の写し（同じテストが2回流れないように）
+    exclude: [...configDefaults.exclude, 'poc-output/**', '.claude/**'],
   },
 }))

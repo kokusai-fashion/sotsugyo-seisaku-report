@@ -7,6 +7,9 @@ import { BAND_SIDE_QUERY } from './bandText'
 import { imeKey, useDialogFocus } from './useDialogFocus'
 import { ENTER_KEY } from '../editor/selectionBar'
 import { WordIcon } from './WordImport'
+import { nameParts, namePartsDone, toKatakana } from '../model/personName'
+import type { BasicInfo } from '../model/types'
+import { NameFields, nameProblem } from './NameForm'
 
 /**
  * はじめて使う学生への案内（mockups/v8 案3「表紙の上で順に案内する」）。
@@ -35,6 +38,47 @@ const STEP_LABELS: [GuideStep, string][] = [
 
 /** 選ぶまで、ほかの操作をできないようにする段階（コースを選ぶ・Word で書き始めているか） */
 const isChoiceStep = (step: GuideStep) => step === 'course' || step === 'word'
+/**
+ * 済ませるまで閉じられない段階。選ぶ段階と、氏名（姓・名・ふりがなを入れるまで閉じられない：依頼者の選択 2026-11-04。
+ * 先生の点検表を、ふりがなの順に並べるため）
+ */
+const isLockedStep = (step: GuideStep) => isChoiceStep(step) || step === 'name'
+
+/** 「いいえ、ここから書き始める」のあと：表紙の項目のうち、まだ入っていない最初のもの（全部入っていれば「表紙ができました」） */
+const firstCoverStep = (b: BasicInfo): GuideStep => (!b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : !b.subtitleInput.trim() ? 'subtitle' : 'done')
+
+/**
+ * 「氏名」の段：姓・名・セイ・メイの4つの欄（mockups/v101 ①②）。入れ終わるまで次へ進めない。
+ * 姓がもう入っている（Word の表紙から読み込んだ・前から書いている）ときは、ふりがなを頼む言い方にする
+ */
+function NameStep({ editor, titleId, onDone }: { editor: ReportEditor; titleId: string; onDone: () => void }) {
+  const [value, setValue] = useState(() => nameParts(editor.getSnapshot().report.basicInfo))
+  const [hadName] = useState(() => !!value.familyName.trim())
+  const [tried, setTried] = useState(false)
+  const next = () => {
+    setTried(true)
+    if (!namePartsDone({ ...value, familyKana: toKatakana(value.familyKana), givenKana: toKatakana(value.givenKana) })) return
+    editor.setNameParts(value)
+    onDone()
+  }
+  const problem = tried ? nameProblem(value) : null
+  return (
+    <>
+      <h2 id={titleId}>{hadName ? '氏名のふりがなを入力してください' : '氏名とふりがなを入力してください'}</h2>
+      <NameFields value={value} onChange={setValue} onSubmit={next} tried={tried} />
+      {problem && <p className="nf-error">{problem}</p>}
+      <p className="nf-note">
+        {hadName ? '姓と名は、表紙の氏名から入れてあります（分かれていなければ直してください）。' : '表紙には「姓　名」の形で入ります。'}
+        ふりがなは表紙には出ず、先生の点検表を名前の順に並べるのに使います。
+      </p>
+      <div className="g-actions">
+        <button className="primary" onClick={next}>
+          次へ
+        </button>
+      </div>
+    </>
+  )
+}
 
 /** スマホで欄を書いている間、案内と下の書く欄の間に要る高さ（px。紙面の欄1行と、その上下の少しの間） */
 const TYPING_ROOM = 64
@@ -86,11 +130,13 @@ interface Props {
   onWordImport?: () => void
   /** 最後の「表紙ができました」で「本文へ進む」「閉じる」を押した（このあと指差し確認を出す。mockups/v27） */
   onFinish?: () => void
+  /** 氏名のふりがなだけを頼んでいる（前から書いている原稿を開いた。「氏名」の段を済ませたら閉じる） */
+  nameOnly?: boolean
 }
 
 // （コースを選ぶ画面の「バックアップから戻す」は、使う学生が少なく、はじめの画面が込み入るのでやめた：依頼者の判断 2026-10-30。
 //  バックアップファイルからは、メニューの「バックアップ・作り直す」で戻す）
-export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish }: Props) {
+export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish, nameOnly }: Props) {
   const field = FIELD_OF[step]
   const [rect, setRect] = useState<DOMRect | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -158,7 +204,8 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
   // 表紙を表示する。PC は案内する欄の入力欄を開く（スマホは、タップしたときにキーボードが出るよう、学生にタップしてもらう）
   useEffect(() => {
     if (editor.getSnapshot().page !== 0) void editor.goToPage(0, 'none')
-    if (!tap && field && step !== 'course') editor.openWhenReady(field)
+    // 氏名は紙面では書かない（案内の中の4つの欄で入れる）
+    if (!tap && field && step !== 'course' && step !== 'name') editor.openWhenReady(field)
   }, [editor, tap, field, step])
 
   // 案内している欄を書き終えたら（入力欄を閉じたら）、次の段階へ。
@@ -199,7 +246,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
   // 表紙の欄の段階で、ページの絵・ページ送りを押した（ほかのページへ移るつもり）：案内を閉じる。欄を閉じたことだけを見ると、
   // 打ちかけのときは移る前に次の段階へ進み、表紙へ引き戻していた（学生の試し 3回目 2026-10-29）
   useEffect(() => {
-    if (!field || step === 'course') return
+    if (!field || isLockedStep(step)) return
     const leave = (e: PointerEvent) => {
       if (e.target instanceof Element && e.target.closest('.thumb-list, .arrow, .bar-arrow, .pager, .page-band')) onStep(null)
     }
@@ -348,7 +395,8 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
                   <small>本文の Word と、書いていれば表紙の Word を選びます</small>
                 </span>
               </button>
-              <button className="g-word-opt no" onClick={() => onStep(snap.report.basicInfo.studentId.trim() ? 'name' : 'studentId')}>
+              {/* まだ入っていない最初の項目から（入れ終わった氏名を、もう一度聞かない） */}
+              <button className="g-word-opt no" onClick={() => onStep(firstCoverStep(snap.report.basicInfo))}>
                 <span>
                   いいえ、ここから書き始める
                   <small>学籍番号・氏名・サブタイトルを順に案内します</small>
@@ -367,12 +415,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
           </>
         )
       case 'name':
-        return (
-          <>
-            <h2 id={titleId}>氏名を入力してください</h2>
-            <p>姓と名の間は、全角の空白を入れます（例：文化　花子）。{tap ? '欄をタップして入力します。' : `入力したら ${ENTER_KEY} で次へ進みます。`}</p>
-          </>
-        )
+        return <NameStep editor={editor} titleId={titleId} onDone={() => onStep(nameOnly ? null : snap.report.basicInfo.subtitleInput.trim() ? 'done' : 'subtitle')} />
       case 'subtitle':
         return (
           <>
@@ -446,23 +489,23 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
     <div className={`guide step-${step}${narrow ? ' narrow' : ''}`}>
       {/* コースを選ぶまで（Word で書き始めているかを答えるまで）は、ほかの操作をできないようにする（指・マウスは g-block、キーボードと読み上げは CourseStepFocus と aria-modal）。
           段階が変わったら、新しい段階の見出しに移す（key） */}
-      {isChoiceStep(step) && <div className="g-block" />}
-      {isChoiceStep(step) && <CourseStepFocus key={step} tip={tipRef} />}
+      {isLockedStep(step) && <div className="g-block" />}
+      {isLockedStep(step) && <CourseStepFocus key={step} tip={tipRef} />}
       {/* 光の枠と、暗くするだけの幕は、別の要素にする（key）。同じ要素を使い回すと、幕の位置（画面の左上）から枠が動いてくるように見えていた */}
       {typingOnPhone ? null : spot ? (
         <div key="spot" className="g-spot" style={{ left: spot.left - pad, top: spot.top - pad, width: spot.width + pad * 2, height: spot.height + pad * 2 }} />
       ) : (
         <div key="dim" className="g-dim" />
       )}
-      {/* 案内の中を押しても入力欄から文字のカーソルが外れないようにする（外れると次の段階へ進み、案内が動いてしまう） */}
+      {/* 案内の中を押しても入力欄から文字のカーソルが外れないようにする（外れると次の段階へ進み、案内が動いてしまう）。「氏名」の段の4つの欄は押して選べるように */}
       <div
         className="g-tip"
         ref={tipRef}
         role="dialog"
-        aria-modal={isChoiceStep(step) ? true : undefined}
+        aria-modal={isLockedStep(step) ? true : undefined}
         aria-label="はじめての案内"
         aria-describedby={titleId}
-        onMouseDown={(e) => e.preventDefault()}
+        onMouseDown={(e) => !(e.target instanceof HTMLInputElement) && e.preventDefault()}
       >
         {step !== 'done' && (
           <div className="g-steps">
@@ -474,7 +517,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
           </div>
         )}
         {body}
-        {!isChoiceStep(step) && step !== 'done' && (
+        {!isLockedStep(step) && step !== 'done' && (
           <button className="g-later" onClick={close}>
             あとで入力する（案内を閉じる）
           </button>

@@ -5,7 +5,7 @@ import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
 import { markedLine, numberedLine, subheadingTitle, typedHeading, type TypedHeading } from '../model/headingText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
-import { tidyName } from '../model/personName'
+import { joinName, tidyName, toKatakana, type NameParts } from '../model/personName'
 import { putImage, type StoredImage } from '../model/storage'
 import { skippedPages } from '../pdf/exportPages'
 import { abstractEmpty, abstractOpening, applyCourseTemplate, bodyWritten } from '../model/template'
@@ -150,6 +150,11 @@ export interface EditorCallbacks {
   onChange(report: Report): void
   /** 紙面のコース欄をクリックした */
   onCourseClick(rect: DOMRect): void
+  /**
+   * 紙面の氏名の欄をクリックした（姓・名・ふりがなの4つの欄を出す。紙面では直接書かない：依頼者の選択 2026-11-04 mockups/v101 ③）。
+   * なければ、今までどおり紙面で書く
+   */
+  onNameClick?(rect: DOMRect): void
   /** 紙面の引用・参考文献をクリックした */
   onReferencesClick(): void
   /** 目次のページの、行のない所を押した（押した点。目次は自動であることを、その近くに知らせる：mockups/v41 案B。app/TocNotice.tsx） */
@@ -2681,6 +2686,15 @@ export class ReportEditor {
       else this.noticeInfo('学籍番号・氏名・サブタイトルは、学生が書きます（ひな形には入りません）')
       return
     }
+    // 氏名は、紙面では書かず、姓・名・ふりがなの4つの欄で直す（押す・Tab と Enter・帯の「入力する」など、どこから開いても同じ。
+    // 依頼者の選択 2026-11-04 mockups/v101 ③）。見えているページの氏名の位置に出す
+    if (id === FIELD_IDS.name && this.callbacks.onNameClick) {
+      this.commitEditing()
+      const shown = this.renderer.pageView.fragments(id).find((el) => el.getBoundingClientRect().width > 0 && this.renderer.pageView.pageIndexOf(el) === this.page)
+      const el = shown ?? this.renderer.pageView.fragments(id)[0]
+      if (el) this.callbacks.onNameClick(el.getBoundingClientRect())
+      return
+    }
     // 開いた直後に頼まれていたページへの移動は、書き始めたらやめる（書いている欄が、急にほかのページへ移って閉じないように）
     this.cancelQueuedNav()
     // 書く位置が別のページにあれば、そのページを表示する（見開きで、並べている隣のページなら、紙面はそのまま）
@@ -4106,6 +4120,23 @@ export class ReportEditor {
 
   setCourse(courseId: string): void {
     this.update((r) => ops.setCourse(r, courseId))
+  }
+
+  /**
+   * 氏名を、姓・名・ふりがなの4つで入れる（表紙の氏名は「姓　名」で作る。ふりがなはカタカナにそろえる。依頼者の選択 2026-11-04 mockups/v101）。
+   * 変わっていなければ何もしない（元に戻すの履歴を増やさない）
+   */
+  setNameParts(parts: NameParts): void {
+    const next = {
+      familyName: parts.familyName.trim(),
+      givenName: parts.givenName.trim(),
+      familyKana: toKatakana(parts.familyKana),
+      givenKana: toKatakana(parts.givenKana),
+    }
+    const name = joinName(next.familyName, next.givenName)
+    const b = this.report.basicInfo
+    if (b.name === name && b.familyName === next.familyName && b.givenName === next.givenName && b.familyKana === next.familyKana && b.givenKana === next.givenKana) return
+    this.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, ...next, name } }))
   }
 
   /** 本文を書き始めているか（そのコースのひな形のままでなければ、書き始めているとみなす） */

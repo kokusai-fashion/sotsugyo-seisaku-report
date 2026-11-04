@@ -293,13 +293,24 @@ await withEdge(async (browser) => {
     const id = await page.evaluate(() => window.__editor.getSnapshot().report.basicInfo.studentId)
     const tip = await page.evaluate(() => document.querySelector('.guide .g-tip')?.textContent ?? '')
     check('200%（スマホの形のパソコン）でも、はじめての案内の学籍番号の欄が開き、打った字が入る（言葉は「Enter で次へ」）', id === '24DC1234' && !tip.includes('タップ'), JSON.stringify({ id, tip: tip.slice(0, 60) }))
-    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 20000 }).catch(() => {})
+    // 氏名の段は、4つの欄を入れるまで閉じない（Esc でも閉じない。依頼者の選択 2026-11-04）
+    await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 20000 }).catch(() => {})
+    await wait(400)
+    await page.keyboard.press('Escape')
+    await wait(800)
+    const nameStay = await page.evaluate(() => !!document.querySelector('.guide.step-name'))
+    check('200%：案内の氏名の段は、Esc を押しても閉じない（姓・名・ふりがなを入れるまで）', nameStay)
+    for (const t of ['文化', '花子', 'ブンカ', 'ハナコ']) {
+      await page.keyboard.type(t, { delay: 30 })
+      await page.keyboard.press('Enter')
+    }
+    await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:subtitleInput', { timeout: 20000 }).catch(() => {})
     await wait(400)
     await page.keyboard.press('Escape')
     await wait(1200)
     await ready()
     const guide = await page.evaluate(() => ({ guide: !!document.querySelector('.guide'), name: window.__editor.getSnapshot().report.basicInfo.name }))
-    check('表紙の案内で Esc を押すと、次の欄へ進まずに案内を閉じる', !guide.guide, JSON.stringify(guide))
+    check('表紙の案内（サブタイトル）で Esc を押すと、次の欄へ進まずに案内を閉じる', !guide.guide && guide.name === '文化　花子', JSON.stringify(guide))
     await context.close()
   }
 
@@ -307,6 +318,17 @@ await withEdge(async (browser) => {
   {
     const { context, page, ready } = await open(browser, { sample: false })
     for (const [field, text] of [['basic:studentId', '24DC1234'], ['basic:name', '文化　花子'], ['basic:subtitleInput', 'ドレス']]) {
+      // 氏名は、案内の中の4つの欄（姓・名・セイ・メイ。Enter で次の欄へ）
+      if (field === 'basic:name') {
+        await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 20000 }).catch(() => {})
+        await wait(300)
+        for (const t of ['文化', '花子', 'ブンカ', 'ハナコ']) {
+          await page.keyboard.type(t, { delay: 30 })
+          await page.keyboard.press('Enter')
+        }
+        await wait(800)
+        continue
+      }
       await page.waitForFunction((f) => window.__editor.getSnapshot().editingId === f, { timeout: 20000 }, field).catch(() => {})
       await wait(300)
       await page.keyboard.type(text, { delay: 30 })
