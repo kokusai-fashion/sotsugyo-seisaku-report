@@ -613,6 +613,21 @@ export async function phoneDirectPhone(browser, check) {
   await wait(300)
   await ready()
 
+  // ---- 12b. ひな形の仮の名前「〇〇〇〇」の見出しをタップ：全部を選んで開き、打つと置き換わる（パソコンと同じ。前はカーソルが〇の途中に入った：学生の試し 8回目 2026-11-04） ----
+  await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 's5' ? { ...b, title: '〇〇〇〇' } : b)) })) })))
+  await wait(600)
+  await ready()
+  await tapChar(page, 's5', 2, true)
+  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 's5', { timeout: 10000 })
+  await wait(400)
+  await page.keyboard.type('袖の刺繍')
+  await wait(300)
+  await page.tap('.direct-bar .db-done')
+  await wait(300)
+  await ready()
+  const placeholder = await page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === 's5').title)
+  check('スマホでも、ひな形の仮の名前「〇〇〇〇」の見出しをタップして打つと、全部が置き換わる（〇が残らない）', placeholder === '袖の刺繍', JSON.stringify(placeholder))
+
   // ---- 13. ページの終わりの段落に書き足して、次のページへ続く ----
   await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfBlock('p12'), 'none'))
   await ready()

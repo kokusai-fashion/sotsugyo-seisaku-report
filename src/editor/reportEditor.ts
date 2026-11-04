@@ -2713,10 +2713,10 @@ export class ReportEditor {
     this.reportBeforeEdit = this.report
     this.hideStyle.textContent = this.editingStyle(id)
     this.overlay.open(target)
-    // ひな形の仮の名前（見出し・図・表のタイトルの「〇〇〇〇」だけ）を押した：全部を選んで開く（打つと置き換わる。PC。前は押した所に字が入り、
-    // 「〇〇ジャケット〇〇」になっていた：学生の試し 2026-11-01 録画1。図のタイトルも：録画3）
+    // ひな形の仮の名前（見出し・図・表のタイトルの「〇〇〇〇」だけ）を押した：全部を選んで開く（打つと置き換わる。前は押した所に字が入り、
+    // 「〇〇ジャケット〇〇」になっていた：学生の試し 2026-11-01 録画1。図のタイトルも：録画3。スマホも：学生の試し 8回目 2026-11-04 依頼者の選択）
     const editable = ops.findEditable(this.report, id)
-    if (!this.phone && editable && PLACEHOLDER_KINDS.has(editable.kind) && PLACEHOLDER_TITLE.test(editable.text)) this.overlay.selectText(0, editable.text.length)
+    if (editable && PLACEHOLDER_KINDS.has(editable.kind) && PLACEHOLDER_TITLE.test(editable.text)) this.overlay.selectText(0, editable.text.length)
     // スマホ：紙面を拡大し、書いているところを見せる
     if (this.phone) {
       if (!this.stage.zoomed) this.stage.setZoom(true)
