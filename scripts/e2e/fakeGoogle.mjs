@@ -9,7 +9,8 @@ export function fakeDrive(email = '00zz901@bunka-wu.ac.jp') {
   // 学生のアカウント（@ より前は学籍番号の小文字）。pdfCopies：学科の Apps Script（配信の窓口）に届いた PDF の控え（PDF の中身は先頭と大きさだけ）。
   // uploadDelay：ファイルを送るのに、わざと時間をかける（ミリ秒。「置いています…」の表示を見るため）。
   // delay：どの呼び出しにも、わざと時間をかける（ミリ秒。ログイン・読み込み直すときの「待つ間の表示」を見るため。waiting.mjs）
-  const drive = { files, email, failNext: null, logins: 0, pdfCopies: [], uploadDelay: 0, delay: 0 }
+  // apiPosts：PDF の控えのほかの窓口（学生の名簿 register・点検表の行 checkStatus・touchAfterFinal）。checkRow：checkStatus に返す自分の行（null はまだ載っていない）
+  const drive = { files, email, failNext: null, logins: 0, pdfCopies: [], apiPosts: [], checkRow: null, uploadDelay: 0, delay: 0 }
   // 1回ごとに1秒進めるが、本当の時刻より遅れない（遅れると、開き直したときの「保存 10:39」が前に出ていた時刻より古く見えた：学生の試し 8回目）
   const now = () => new Date((clock = Math.max(Date.now(), clock + 1000))).toISOString()
   const meta = (f) => ({ id: f.id, name: f.name, size: String(f.content?.length ?? 0), modifiedTime: f.modifiedTime, appProperties: f.appProperties })
@@ -126,6 +127,12 @@ export async function routeGoogle(page, drive, config) {
           data = JSON.parse((await request.fetchPostData()) ?? '')
         } catch {
           // JSON でなければ、data は null のまま残す
+        }
+        // 先生の許可の仕組み（点検表）の窓口：中身を残し、checkStatus には drive.checkRow を返す（docs/設計_許可の仕組み.md）
+        if (data && ['register', 'checkStatus', 'touchAfterFinal'].includes(data.action)) {
+          drive.apiPosts.push(data)
+          const body = data.action === 'checkStatus' ? { ok: true, row: drive.checkRow } : { ok: true }
+          return request.respond({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(body) })
         }
         const { pdf, ...fields } = data ?? {}
         drive.pdfCopies.push({

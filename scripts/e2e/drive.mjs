@@ -154,6 +154,9 @@ await withEdge(async (browser) => {
   // 氏名の段は、姓・名・ふりがなを入れるまで閉じられない（2026-11-04 から）。入れてから、サブタイトルの段で閉じる
   await fillGuideName(pc.page)
   await pc.page.waitForSelector('.guide .g-later')
+  // 先生の許可の仕組み（点検表）：ログインしたら自分の行を聞き、氏名の4つの欄がそろったら学生の名簿に入れる（docs/設計_許可の仕組み.md）
+  const registered = await until(() => drive.apiPosts.some((p) => p.action === 'register' && p.studentId === '00ZZ901' && p.familyName === '文化' && p.familyKana === 'ブンカ' && p.givenKana === 'ハナコ'), 15000)
+  check('氏名の4つの欄を入れると、学生の名簿に入れる（学科の窓口に register：コース・学籍番号・姓名・ふりがな）。自分の点検表の行も聞く（checkStatus）', registered && drive.apiPosts.some((p) => p.action === 'checkStatus'), JSON.stringify(drive.apiPosts.map((p) => p.action)))
   await clickText(pc.page, '.guide button', 'あとで入力する')
   await setInfo(pc.page, { name: '文化　花子' })
   await savedChip(pc.page)

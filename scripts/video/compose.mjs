@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { createServer } from 'node:http'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { makeWarp } from './timeWarp.mjs'
 
 process.env.EDGE_PORT ??= '9412'
 const { withEdge } = await import('../poc/edge.mjs')
@@ -73,6 +74,8 @@ async function setup(p) {
   await document.fonts.load(`bold 40px ${FONT}`).catch(() => {})
 
   const marks = p.marks
+  // ナレーションに合わせる（sync.json があるとき）：印の名前 → 出来上がりの時刻（秒）。timeWarp.mjs の makeWarp をページの中で作る
+  const warp = p.sync ? new Function(`return (${p.warpSrc})`)()(p.sync.anchors, p.duration, p.sync.end) : null
   const captionMarks = marks.filter((m) => p.meta.captions[m.name])
   const ease = (k) => (k <= 0 ? 0 : k >= 1 ? 1 : k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2)
 
@@ -409,11 +412,12 @@ async function setup(p) {
 
   window.__R = {
     report,
-    total: Math.round((p.title + p.duration + p.tail) * p.fps),
+    total: Math.round((p.title + (warp ? warp.end : p.duration) + p.tail) * p.fps),
     async render(from, to) {
       for (let n = from; n < to; n++) {
         const T = n / p.fps
-        const t = Math.min(Math.max(T - p.title, 0), p.duration)
+        // ナレーションに合わせるときは、録画の時刻を文の時刻にそろえる（timeWarp.mjs）
+        const t = warp ? warp.at(Math.max(T - p.title, 0)) : Math.min(Math.max(T - p.title, 0), p.duration)
         const bmp = await frameAt(t)
         g.clearRect(0, 0, W, H)
         if (phone) drawPhone(bmp, t)
@@ -443,7 +447,14 @@ await withEdge(async (browser) => {
     const viewport = timeline.viewport ?? (meta.device === 'phone' ? { width: 390, height: 844 } : { width: 1280, height: 720 })
     const dir = join(ROOT, name, 'out')
     const started = Date.now()
-    const { total, report } = await page.evaluate(setup, { meta, viewport, marks: timeline.marks, frames: timeline.frames, mouse: timeline.mouse, duration: timeline.duration, fps: FPS, title: TITLE, tail: TAIL })
+    // ナレーションに合わせる：poc-output/video/<場面>/sync.json（{ marks: { 印の名前: 出来上がりの秒 }, end: 出来上がりの長さ, title?: 0 }）。
+    // 印の録画の時刻と組にして、timeWarp.mjs で時刻をそろえる（声の文が始まる時刻に、その操作が始まる）
+    const syncFile = join(ROOT, name, 'sync.json')
+    const syncSpec = !process.env.CAPTIONS_ONLY && existsSync(syncFile) ? JSON.parse(readFileSync(syncFile, 'utf8')) : null
+    const sync = syncSpec
+      ? { anchors: timeline.marks.filter((m) => syncSpec.marks[m.name] !== undefined).map((m) => ({ src: m.t, out: syncSpec.marks[m.name] })).sort((a, b) => a.src - b.src), end: syncSpec.end }
+      : null
+    const { total, report } = await page.evaluate(setup, { meta, viewport, marks: timeline.marks, frames: timeline.frames, mouse: timeline.mouse, duration: timeline.duration, fps: FPS, title: syncSpec?.title ?? TITLE, tail: syncSpec ? 0 : TAIL, sync, warpSrc: makeWarp.toString() })
     console.log(name)
     for (const c of report) console.log(`  字幕 ${c.name}：${c.lines.join(' ／ ')}${c.lonely ? '　← 1字だけの行があります' : ''}`)
     if (process.env.CAPTIONS_ONLY) continue

@@ -1,6 +1,7 @@
 // 通しの動作確認（Edge を自動で操作する）。
 // 新しい報告書に、表紙・抄録・本文を入力し、指摘を直し、図を入れ、PDF に書き出すまでを行う。
 // 使い方: node scripts/e2e/smoke.mjs（開発サーバーが http://localhost:5173 で動いていること）
+import { finishGuideAfterImport } from './nameStep.mjs'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -3049,6 +3050,16 @@ async function wordImportCheck(browser) {
   await page.waitForFunction(() => !document.querySelector('.modal'), { timeout: 60000 })
   await pause(500)
   await ready()
+  // 氏名のふりがなは Word にないので、読み込んだあと、案内の「氏名」の段でふりがなを聞く（姓・名は Word の表紙から入っている。2026-11-04 から）。
+  // 済ませると、本文へ移る
+  const kanaStep = await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 10000 }).then(() => true, () => false)
+  const kanaInfo = await page.evaluate(() => ({ h2: document.querySelector('.guide h2')?.textContent ?? '', family: document.querySelector('.guide .nf-familyName input')?.value ?? '' }))
+  if (kanaStep) {
+    check('Word から読み込むと、案内の氏名の段でふりがなを聞く（姓・名は Word の表紙から入っている）', kanaInfo.h2.includes('ふりがな') && !!kanaInfo.family, JSON.stringify(kanaInfo))
+    await finishGuideAfterImport(page)
+    await pause(800)
+    await ready()
+  }
   const after = await page.evaluate(async () => {
     const { allImages, listSnapshots } = await window.__import('model/storage.ts')
     const s = window.__editor.getSnapshot()

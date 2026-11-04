@@ -16,7 +16,7 @@ import { serveBuilt } from './serveBuilt.mjs'
 
 const args = process.argv.slice(2)
 const flags = new Set(args.filter((a) => a.startsWith('--')))
-const ALL = ['smoke', 'phone', 'admin', 'drive', 'check', 'cellImage', 'askVersion', 'spreadTurn', 'phoneFixes1024', 'pcFixes1025', 'fixes1026b', 'adminPhone', 'adminVersion', 'adminFixes1027', 'fixes1028', 'fixes1029', 'fixes1029b', 'fixes1029c', 'fixes1029d', 'fixes1029e', 'fixes1030', 'fixes1030b', 'fixes1030c', 'fixes1030d', 'fixes1030e', 'fixes1030f', 'fixes1031', 'feedback', 'aiHelp', 'figureRefChip', 'adminCourseOpen', 'phoneErrorStrip', 'fixes1103', 'trim', 'headings3', 'zoomPager', 'toc1104']
+const ALL = ['smoke', 'phone', 'admin', 'drive', 'check', 'cellImage', 'askVersion', 'spreadTurn', 'phoneFixes1024', 'pcFixes1025', 'fixes1026b', 'adminPhone', 'adminVersion', 'adminFixes1027', 'fixes1028', 'fixes1029', 'fixes1029b', 'fixes1029c', 'fixes1029d', 'fixes1029e', 'fixes1030', 'fixes1030b', 'fixes1030c', 'fixes1030d', 'fixes1030e', 'fixes1030f', 'fixes1031', 'feedback', 'aiHelp', 'figureRefChip', 'adminCourseOpen', 'phoneErrorStrip', 'fixes1103', 'trim', 'headings3', 'zoomPager', 'toc1104', 'permission1104']
 const names = args.filter((a) => !a.startsWith('--')).flatMap((a) => (a === 'all' ? ALL : [a]))
 if (!names.length) {
   console.log('流すテストの名前を書いてください（例：node scripts/e2e/run.mjs smoke phone、全部なら all）')
