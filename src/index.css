@@ -540,6 +540,24 @@ body.resizing .page-viewport { pointer-events: none; }
 .sheet-body .meta { margin-top: 0; }
 .sheet-body .links { margin: 12px 0; }
 .sheet-body .notice { margin: 12px 0 0; }
+/* 点検の予定と記録（先生の点検表の自分の行。mockups/v105） */
+.check-card { margin: 0 20px 14px; padding: 8px 10px 9px; border: 1px solid #d9dee8; border-radius: 8px; background: #fff; font-size: 11.5px; line-height: 1.5; color: var(--ink); }
+.check-card h4 { margin: 0 0 4px; font-size: 11px; color: var(--accent); letter-spacing: 0.06em; display: flex; align-items: baseline; gap: 6px; }
+.check-card h4 small { font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.check-card table { width: 100%; border-collapse: collapse; }
+.check-card td { padding: 2px 0; vertical-align: baseline; }
+.check-card td.r { width: 3.6em; color: #555; }
+.check-card td.t { width: 5.6em; }
+.check-card .done { color: #1e7b34; font-weight: 600; }
+.check-card .plan { color: #7a8190; }
+.check-card .next { color: #7a5200; font-weight: 700; }
+.check-card .perm { margin-top: 5px; padding-top: 5px; border-top: 1px dashed #d9dee8; }
+.check-card .perm.first { margin-top: 0; padding-top: 0; border-top: 0; }
+.check-card .ok { color: #1e7b34; font-weight: 700; }
+.check-card .wait { color: #7a8190; }
+.side .check-card { margin: 0 16px 10px; }
+.sheet-body .check-card { margin: 12px 0 0; font-size: 14px; }
+.sheet-body .check-card h4 { font-size: 13px; }
 .sheet-body .export { margin-top: 16px; }
 .sheet-hint { margin: 0 0 12px; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
 .add-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -828,6 +846,17 @@ body.resizing .page-viewport { pointer-events: none; }
 .modal h2 .pdf-ng { color: var(--error); }
 .modal h2 .pdf-ng svg { width: 24px; height: 24px; }
 /* 保存するファイル（名前と、保存する場所・ページの数と大きさ） */
+/* 最終提出の許可（先生の許可を使うコース。mockups/v108 ②）：許可の前は赤（点検用）、許可のあとは緑（提出用） */
+.pdf-perm { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; align-items: start; margin: 2px 0 12px; padding: 11px 14px; border-radius: 12px; font-size: 13.5px; line-height: 1.7; }
+.pdf-perm.wait { background: #fdf4f3; border: 1px solid #f0cdc8; }
+.pdf-perm.ok { background: #eff7f0; border: 1px solid #c7e3cb; }
+.pdf-perm b { font-size: 14px; }
+.pdf-perm p { margin: 0; color: #3c4253; }
+/* 字間を入れるので、左の内側の余白を字間の分だけ広く（字が枠のまん中に来るように） */
+.pdf-perm .mark { grid-row: span 2; align-self: center; display: block; width: max-content; box-sizing: content-box; height: 1.6em; line-height: 1.6em; padding: 1px 6px 1px calc(6px + 0.12em); border: 1.5px solid #c62828; background: #fff; color: #c62828; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; white-space: nowrap; }
+.pdf-perm .okmark { grid-row: span 2; align-self: center; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ok); color: #fff; }
+.pdf-perm .okmark svg { width: 16px; height: 16px; }
+.pdf-edited { margin: -4px 0 12px; padding: 6px 12px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: 12.5px; line-height: 1.6; }
 .pdf-file { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: center; margin: 4px 0 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-bg); }
 .pdf-file > svg { width: 28px; height: 28px; color: var(--accent); }
 .pdf-file b { display: block; font-size: 13.5px; overflow-wrap: anywhere; }

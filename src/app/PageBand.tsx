@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { editables } from '../editor/reportOps'
-import { FIELD_IDS, ABSTRACT_LOCK_TEXT } from '../layout/document'
+import { FIELD_IDS, ABSTRACT_LOCK_TEXT, ABSTRACT_WAIT_TEXT, grantedTitle } from '../layout/document'
 import { BAND_SIDE_QUERY, paragraphHint, photoBand, photoToolsAtSide, TOC_BAND, todoBand, type BandTodo } from './bandText'
 import { SelectionTools } from './Palette'
 import { useBandSide } from './uiShared'
@@ -167,15 +167,23 @@ function BandView({ editor, band, inColumn }: { editor: ReportEditor; band: Band
     )
   }
   if (band.kind === 'abstract') {
+    // 先生の許可を使うコースは、許可を待つ（「確かめ直す」）・許可が出た（「抄録を書き始める」）の形（紙面の案内と同じ。mockups/v108 ①）
+    const gate = editor.getAbstractGate()
+    const words =
+      gate.kind === 'waiting'
+        ? { title: ABSTRACT_WAIT_TEXT.title, note: ABSTRACT_WAIT_TEXT.note, button: ABSTRACT_WAIT_TEXT.recheck, run: () => editor.requestAbstractRecheck() }
+        : gate.kind === 'granted'
+          ? { title: grantedTitle(gate.by), note: ABSTRACT_WAIT_TEXT.grantedNote, button: ABSTRACT_WAIT_TEXT.button, run: () => editor.startAbstract() }
+          : { title: ABSTRACT_LOCK_TEXT.title, note: ABSTRACT_LOCK_TEXT.note, button: ABSTRACT_LOCK_TEXT.button, run: () => editor.startAbstract() }
     return (
       <section className="page-band" aria-label="このページの案内" ref={ref}>
         <div className="t">
           {/* 紙面の印と同じ向きの矢印（縦向きは ↓、帯が紙面の右に出る横向きは →。向きは index.css） */}
           <span className="mk mk-dir">{Mark.down}</span>
-          <span>{ABSTRACT_LOCK_TEXT.title}</span>
+          <span>{words.title}</span>
         </div>
-        <p>{ABSTRACT_LOCK_TEXT.note}</p>
-        <button onClick={() => editor.startAbstract()}>{ABSTRACT_LOCK_TEXT.button}</button>
+        <p>{words.note}</p>
+        <button onClick={words.run}>{words.button}</button>
       </section>
     )
   }

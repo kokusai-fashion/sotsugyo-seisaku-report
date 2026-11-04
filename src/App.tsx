@@ -17,6 +17,9 @@ import { ImageWork } from './app/imageWorkStore'
 import { nextPaint, useSlow } from './app/useBusy'
 import { BackupDialog, CourseChangeDialog, CourseMenu, ReferencesDialog } from './app/dialogs'
 import { NameDialog } from './app/NameForm'
+import { CheckCard } from './app/CheckCard'
+import { useCheckStatus } from './app/useCheckStatus'
+import { abstractGateOf, finalGateOf } from './drive/checkStatus'
 import { nameParts, namePartsDone } from './model/personName'
 import { ExportDialog } from './app/ExportDialog'
 import { ConflictDialog, IdMismatchDialog, LoginGate, OtherAccountDialog, ReloginDialog, WipeDialog, type DriveControls, type GateState } from './app/DriveUi'
@@ -228,6 +231,19 @@ export default function App() {
   const [guide, setGuide] = useState<GuideStep | null>(null)
   /** 案内で、氏名のふりがなだけを頼んでいる（前から書いている原稿を開いた。「氏名」の段を済ませたら閉じる） */
   const [nameOnly, setNameOnly] = useState(false)
+  /** 抄録の「許可が出たか、確かめ直す」（紙面の部品は1回だけ作るので、いつも新しい処理を呼ぶように） */
+  const recheckRef = useRef<() => Promise<void>>(async () => {})
+  /**
+   * 案内を閉じたあとにすること（Word から読み込んだあと、ふりがななどを案内で聞いたとき：本文へ移り、スマホは「つぎにすること」を開く。
+   * 前は表紙の項目がそろっていればすぐ移っていたが、2026-11-04 から氏名のふりがなを必ず聞くので、案内のあとに回す）
+   */
+  const afterGuideRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    if (guide || !afterGuideRef.current) return
+    const run = afterGuideRef.current
+    afterGuideRef.current = null
+    run()
+  }, [guide])
   useEffect(() => {
     if (!guide) setNameOnly(false)
   }, [guide])
@@ -596,6 +612,8 @@ export default function App() {
           },
           onCourseClick: (rect) => setDialog({ kind: 'course', rect }),
           onNameClick: (rect) => setDialog({ kind: 'name', rect }),
+          // 抄録の「許可が出たか、確かめ直す」：点検表を読み直し、まだなら画面の下で知らせる
+          onAbstractRecheck: () => void recheckRef.current(),
           onReferencesClick: () => setDialog({ kind: 'references' }),
           onTocClick: (point) => setTocPoint(point),
           pickImage: pickImageFile,
@@ -964,12 +982,18 @@ export default function App() {
       // 表紙の Word の学籍番号がアカウントと違う：読み込んだすぐあとに、直すかを聞く（依頼者の選択 2026-10-25）
       setWordIdCheck(idMismatch(editor.getSnapshot().report))
       const next = firstEmptyCoverStep(editor.getSnapshot().report)
+      const toBody = async () => {
+        await rendered(editor)
+        editor.goToArea('body')
+        // スマホは、チェックの欄を開き、そのいちばん上に「つぎにすること」を出す
+        if (narrow) setCheckRequest((n) => n + 1)
+      }
       setGuide(next)
-      if (next) return
-      await rendered(editor)
-      editor.goToArea('body')
-      // スマホは、チェックの欄を開き、そのいちばん上に「つぎにすること」を出す
-      if (narrow) setCheckRequest((n) => n + 1)
+      if (next) {
+        afterGuideRef.current = () => void toBody()
+        return
+      }
+      await toBody()
     },
     [editor, wordTodo, setWordTodo, narrow, idMismatch],
   )
@@ -1038,6 +1062,23 @@ export default function App() {
   const pdfCopy = usePdfCopy(drive, !driveStopped)
   // 書き出した PDF を、自分のドライブの「卒業制作報告書」フォルダにも置く（ログインして使っているときだけ。PDF の窓に1行で知らせる）
   const drivePdf = useDrivePdf(drive, !driveStopped)
+  // 先生の許可の仕組み（点検表）：自分の行を読む・学生の名簿に入れる（ログインして使っているときだけ。docs/設計_許可の仕組み.md）
+  const checkStatus = useCheckStatus(drive, !!driveState?.email, !driveStopped, snap?.report ?? null)
+  const myCourse = snap ? findCourse(config, snap.report.basicInfo.courseId) : undefined
+  const finalGate = snap ? finalGateOf(myCourse, checkStatus.status, snap.report.updatedAt) : ({ kind: 'off' } as const)
+  // 抄録の欄の案内（許可を待つ・許可が出た）を、紙面に伝える
+  const abstractGate = abstractGateOf(myCourse, checkStatus.status)
+  const abstractGateKey = JSON.stringify(abstractGate)
+  useEffect(() => {
+    editor?.setAbstractGate(JSON.parse(abstractGateKey))
+  }, [editor, abstractGateKey])
+  const checkCard = <CheckCard status={checkStatus.status} course={myCourse} />
+  recheckRef.current = async () => {
+    if (!checkStatus.ready) return void editor?.showNotice('許可を確かめるには、大学のアカウントでログインしてください')
+    const next = await checkStatus.refresh()
+    if (!next) editor?.showNotice('許可を確かめられませんでした。つながっているときに、もう一度押してください')
+    else if (!next.row?.abstractOk) editor?.showNotice('まだ許可は出ていません（先生が点検表で許可すると、書けるようになります）')
+  }
   // 指差し確認を出さないとき：ログインの窓・どの原稿で続けるか・学籍番号の確かめ・Word の読み込みなどの窓・別のタブで開いている・
   // はじめての案内・使い方を開いている
   const tourBlocked = !snap?.layout || !!loadError || !!guide || !!gate || !!dialog || !!driveDialog || tabLock.locked || help || reloginShown
@@ -1199,6 +1240,7 @@ export default function App() {
           guiding={!!guide || tourOn}
           onFeedback={openFeedback}
           feedbackDone={doneNotice}
+          checkCard={checkCard}
         />
       ) : ready && help ? (
         // PC の使い方：右の欄がまるごと使い方に替わる（紙面と道具は、そのまま使える）
@@ -1220,6 +1262,7 @@ export default function App() {
           wordTodo={guide ? undefined : todoCard()}
           onFeedback={openFeedback}
           feedbackDone={doneNotice}
+          checkCard={checkCard}
         />
       ) : (
         <aside className="side" />
@@ -1317,6 +1360,7 @@ export default function App() {
           }}
           drivePdf={drivePdf.state}
           onReload={() => void reloadTool()}
+          finalGate={finalGate}
           onClose={() => {
             setDialog(null)
             pdfCopy.onClosed()

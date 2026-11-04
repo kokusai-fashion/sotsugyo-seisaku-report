@@ -48,6 +48,8 @@ interface Props {
   onFeedback?: () => void
   /** 送った声の「直しました」の知らせ（右の欄のいちばん上。mockups/v85 知らせA） */
   feedbackDone?: ReactNode
+  /** 点検の予定と記録（先生の点検表の自分の行。CheckCard。コースからのお知らせの下に出す） */
+  checkCard?: ReactNode
 }
 
 /**
@@ -589,7 +591,7 @@ export function Tally({ snap, config }: { snap: EditorSnapshot; config: YearConf
   )
 }
 
-export function SidePanel({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, onWordImport, onReload, wordTodo, onFeedback, feedbackDone }: Props) {
+export function SidePanel({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, onWordImport, onReload, wordTodo, onFeedback, feedbackDone, checkCard }: Props) {
   const exportSlow = useSlow(!!exporting)
   return (
     <aside className="side">
@@ -615,6 +617,7 @@ export function SidePanel({ editor, snap, config, saveState, drive, driveStopped
 
       {feedbackDone}
       <CourseNotice config={config} courseId={snap.report.basicInfo.courseId} short />
+      {checkCard}
 
       <section className="sec check">
         {/* 数は、中見出し（まだのところ・直すところ）の横に出す（mockups/v37。スマホは見出しの横の Tally のまま） */}

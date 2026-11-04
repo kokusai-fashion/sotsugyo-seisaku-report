@@ -10,7 +10,7 @@ import { withEdge } from '../poc/edge.mjs'
 import { stubConfig } from './configStub.mjs'
 import { setupWriting } from './sampleReport.mjs'
 import { confirmQueue } from './confirmUi.mjs'
-import { fillGuideName } from './nameStep.mjs'
+import { fillGuideName, finishGuideAfterImport } from './nameStep.mjs'
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 const OUT = 'poc-output/phone-fixes-1024'
@@ -163,6 +163,8 @@ await withEdge(async (browser) => {
       await page.evaluate(() => [...document.querySelectorAll('.modal .row-buttons button')].find((b) => b.textContent.includes('読み込む')).click())
       await page.waitForFunction(() => !document.querySelector('.modal'), { timeout: 60000 })
       await ready()
+      // ふりがなをまだ入れていなければ、案内の氏名の段を済ませる（そのあと「つぎにすること」が開く）
+      await finishGuideAfterImport(page)
       await page.waitForSelector('.sheet .word-todo', { timeout: 20000 })
       await wait(500)
       const counts = await page.evaluate(() => {

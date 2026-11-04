@@ -413,7 +413,10 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   if (!abstractStarted) {
     findings.push(
       guide('abstract-not-started', 'error', '抄録はまだ書いていない', 'abstract', {
-        detail: '本文を書き終えて、先生のチェックで許可が出たら、抄録のページの「先生の許可が出た」を押して書き始めます（それまでも PDF を書き出して先生に見せられます。抄録のページは入りません）',
+        // 先生の許可を使うコース（docs/設計_許可の仕組み.md）は、学生が押すボタンがなく、先生が点検表で許可すると書けるようになる
+        detail: findCourse(config, report.basicInfo.courseId)?.permission?.abstract
+          ? '本文を書き終えて、先生が点検表で許可すると、抄録のページの「抄録を書き始める」で書き始められます（それまでも PDF を書き出して先生に見せられます。抄録のページは入りません）'
+          : '本文を書き終えて、先生のチェックで許可が出たら、抄録のページの「先生の許可が出た」を押して書き始めます（それまでも PDF を書き出して先生に見せられます。抄録のページは入りません）',
       }),
     )
   }

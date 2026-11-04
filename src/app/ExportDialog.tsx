@@ -1,3 +1,5 @@
+import { addCheckMarks, CHECK_MARK_TEXT } from '../pdf/checkMark'
+import type { FinalGate } from '../drive/checkStatus'
 import { useEffect, useRef, useState } from 'react'
 import type { YearConfig } from '../config'
 import { countOf, exportNote, type ProgressRow } from '../checker/progress'
@@ -161,6 +163,38 @@ interface Props {
   drivePdf?: DrivePdfState
   /** ページを読み込み直す（書いたものを保存してから。PDF を作る部品を読み込めなかったとき。App.tsx の reloadTool） */
   onReload?: () => void
+  /** 最終提出の許可（先生の許可を使うコース。drive/checkStatus.ts の finalGateOf。なければ今のまま） */
+  finalGate?: FinalGate
+}
+
+/**
+ * 最終提出の許可の知らせ（先生の許可を使うコースだけ。mockups/v108 ②）。
+ * 許可の前は赤（この PDF は点検用）、許可のあとは緑（提出用）。許可のあとに書き換えたら一言添える（許可は残る）
+ */
+function FinalNote({ gate }: { gate: FinalGate }) {
+  if (gate.kind === 'off') return null
+  if (gate.kind === 'before')
+    return (
+      <div className="pdf-perm wait" role="note">
+        <span className="mark">{CHECK_MARK_TEXT}</span>
+        <b>最終提出の許可は、まだ出ていません</b>
+        <p>
+          <Keep text="この PDF は点検用です。各ページの右上に「点検用」の印が入ります。途中の点検には、このまま使えます。教務課へは、先生の許可のあとに作る PDF を出します。" />
+        </p>
+      </div>
+    )
+  return (
+    <>
+      <div className="pdf-perm ok" role="note">
+        <span className="okmark">{Icon.check}</span>
+        <b>最終提出の許可が出ています{gate.by ? `（${gate.by}）` : ''}</b>
+        <p>
+          <Keep text="印のない、提出用の PDF を作ります。教務課の提出フォームから、この PDF を出してください。" />
+        </p>
+      </div>
+      {gate.editedAfter && <p className="pdf-edited">許可のあとに書き換えました（{gate.editedAfter}）。先生の点検表にも、書き換えたことが出ます。</p>}
+    </>
+  )
 }
 
 /**
@@ -240,7 +274,7 @@ function NotYetList({ rows, editor, onClose }: { rows: ProgressRow[]; editor: Re
   )
 }
 
-export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, drivePdf = null, onReload }: Props) {
+export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, drivePdf = null, onReload, finalGate = { kind: 'off' } }: Props) {
   // 残っている直すところ（書いた文の間違い。要確認も含む）と、まだのところ（まだの行。抄録の「先生の許可のあと」は数えない）。右の欄と同じ分け方
   const { rows, fixes } = checkSummary(snap, config)
   const notYet = rows.filter((r) => r.state === 'todo')
@@ -262,7 +296,9 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
   const [waiting, setWaiting] = useState(false)
   /** 待つのをやめる（時計と、フォーカス・画面の切り替えの見張りを外す） */
   const stopWatch = useRef<(() => void) | null>(null)
-  const fileName = `${editor.pdfTitle}.pdf`
+  // 最終提出の許可の前は、ファイル名に「_点検用」を付ける（印のない提出用と見分けられるように。依頼者の選択 2026-11-04）
+  const pdfTitle = finalGate.kind === 'before' ? `${editor.pdfTitle}_点検用` : editor.pdfTitle
+  const fileName = `${pdfTitle}.pdf`
 
   /** PDF に入れるページ（写真のない作品写真のページは入れない。pdf/exportPages.ts） */
   const pagesToExport = () => {
@@ -356,12 +392,19 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
     let release = () => {}
     try {
       const exported = await editor.pdfPages()
-      release = exported.release
       const pages = exported.pages
+      // 許可の前は、全ページの右上に「点検用」の印を置いてから撮る（撮り終えたら外す）
+      const unmark = finalGate.kind === 'before' ? addCheckMarks(pages) : () => {}
+      release = () => {
+        unmark()
+        exported.release()
+      }
       if (controller.signal.aborted) return
       setPhase({ kind: 'build', total: pages.filter((p) => !p.classList.contains('print-skip')).length })
       const pdf = await buildPdf(pages, {
-        title: editor.pdfTitle,
+        title: pdfTitle,
+        // 許可のあとの提出用の PDF は、ファイルの情報に許可を残す（日付・先生）
+        subject: finalGate.kind === 'granted' ? `最終提出の許可：${finalGate.by || 'あり'}` : undefined,
         signal: controller.signal,
         onPage: async ({ canvas }) => {
           const url = await thumbnail(canvas)
@@ -601,6 +644,7 @@ export function ExportDialog({ editor, snap, config, onClose, onStart, onBuilt, 
           まだ何も書いていない章（<Keep text={notStarted.join('・')} />）は、このPDFには入りません（目次には灰色で出ます）。
         </p>
       )}
+      <FinalNote gate={finalGate} />
       <FileBox fileName={fileName} note={mode === 'share' ? 'できたら「保存する」を押し、「"ファイル"に保存」を選びます' : '「ダウンロード」のフォルダに保存します'} />
       {printOpen && (
         <div className="pdf-print-box">

@@ -34,7 +34,17 @@ export interface DocumentRenderOptions extends BodyRenderOptions {
    * なければ字数から見積もる（coverSubtitleFontPt）
    */
   coverSubtitlePt?: number
+  /** 抄録を書き始める前の案内（画面だけ。先生の許可を使うコースは、許可を待つ・許可が出た の形。AbstractGate） */
+  abstractGate?: AbstractGate
 }
+
+/**
+ * 抄録を書き始める前の、抄録の欄の案内（画面だけ。PDF では空欄）。
+ * self：学生が「先生の許可が出た」を押して書き始める（今まで。先生の許可を使わないコース）。
+ * waiting：先生の許可を待っている（許可を使うコース。学生のボタンはない）。granted：許可が出た（by：「12/15　小川先生」）。
+ * 依頼者の選択 2026-11-04 mockups/v108 ①
+ */
+export type AbstractGate = { kind: 'self' } | { kind: 'waiting' } | { kind: 'granted'; by: string }
 
 /** 引用・参考文献の見出しの id（目次のページ番号を読み取るのに使う） */
 export const REFERENCES_ANCHOR = 'references'
@@ -187,11 +197,35 @@ export const ABSTRACT_LOCK_TEXT = {
   note: LOCK_PHRASES.note.join(''),
   button: '先生の許可が出た（抄録を書き始める）',
 } as const
+/** 先生の許可を使うコース：許可を待っている間・許可が出たあとの案内（mockups/v108 ①） */
+const WAIT_PHRASES = {
+  title: ['抄録は、', '先生の許可が', '出てから', '書きます。'],
+  note: ['このコースでは、', '先生が点検表で', '許可すると、', 'ここで', '書けるように', 'なります', '（それまで、', 'このページは', 'PDF には', '入りません）。'],
+}
+export const ABSTRACT_WAIT_TEXT = {
+  title: WAIT_PHRASES.title.join(''),
+  note: WAIT_PHRASES.note.join(''),
+  waiting: '先生の許可を待っています',
+  recheck: '許可が出たか、確かめ直す',
+  grantedNote: '下のボタンを押すと、抄録を書き始められます。',
+  button: '抄録を書き始める',
+} as const
+/** 「先生の許可が出ました（12/15　小川先生）」 */
+export const grantedTitle = (by: string) => `先生の許可が出ました${by ? `（${by}）` : ''}`
+
+/** 抄録の欄の案内（書き始める前） */
+function abstractLockHtml(gate: AbstractGate): string {
+  if (gate.kind === 'waiting')
+    return `<div class="abstract-lock waiting"><b>${phrased(WAIT_PHRASES.title)}</b><span>${phrased(WAIT_PHRASES.note)}</span><span class="abstract-wait">${ABSTRACT_WAIT_TEXT.waiting}</span><span class="abstract-recheck" data-abstract-recheck>${ABSTRACT_WAIT_TEXT.recheck}</span></div>`
+  if (gate.kind === 'granted')
+    return `<div class="abstract-lock granted"><b>${escapeHtml(grantedTitle(gate.by))}</b><span>${ABSTRACT_WAIT_TEXT.grantedNote}</span><span class="abstract-start" data-abstract-start>${ABSTRACT_WAIT_TEXT.button}</span></div>`
+  return `<div class="abstract-lock"><b>${phrased(LOCK_PHRASES.title)}</b><span>${phrased(LOCK_PHRASES.note)}</span><span class="abstract-start" data-abstract-start>${ABSTRACT_LOCK_TEXT.button}</span></div>`
+}
 
 /** 言葉の切れ目のまとまり（まとまりの中では折り返さない。documentCss.ts の .abstract-lock .ph） */
 const phrased = (parts: string[]) => parts.map((part) => `<i class="ph">${part}</i>`).join('')
 
-export function abstractHtml(report: Report, config: YearConfig): string {
+export function abstractHtml(report: Report, config: YearConfig, gate: AbstractGate = { kind: 'self' }): string {
   const course = findCourse(config, report.basicInfo.courseId)
   const { basicInfo } = report
   // サブタイトルは、本文の幅の1行に入るまで小さくする（抄録の書体は字の幅がそろっているので、字数から決める）
@@ -203,10 +237,10 @@ export function abstractHtml(report: Report, config: YearConfig): string {
   const studentPart = `学籍番号　${basicInfo.studentId}　　氏名　${basicInfo.name}`
   const advisorPart = `（指導教員　${advisors}　）`
   const rowFontPt = abstractRowFontPt(studentPart, advisorPart, widthMm)
-  // 書き始めるまでは、抄録の欄に案内と「先生の許可が出た」ボタンを出す（画面だけ。PDF では空欄）
+  // 書き始めるまでは、抄録の欄に案内と「先生の許可が出た」ボタンを出す（画面だけ。PDF では空欄。先生の許可を使うコースは abstractLockHtml の形）
   const locked = report.abstract.started === false
   const paragraphs = locked
-    ? `<div class="abstract-lock"><b>${phrased(LOCK_PHRASES.title)}</b><span>${phrased(LOCK_PHRASES.note)}</span><span class="abstract-start" data-abstract-start>${ABSTRACT_LOCK_TEXT.button}</span></div>`
+    ? abstractLockHtml(gate)
     : report.abstract.paragraphs
     .map((p) => {
       const text = p.content.map((n) => (n.type === 'text' ? n.text : '')).join('')
@@ -394,7 +428,7 @@ export function buildReportDocument(report: Report, config: YearConfig, options:
   return documentHtml(
     config,
     `${coverHtml(report, config, options)}
-${abstractHtml(report, config)}
+${abstractHtml(report, config, options.abstractGate)}
 ${tocHtml(report, options.tocPageNumbers ?? {}, options.allChapters)}
 ${mainHtml(report, options)}`,
   )
@@ -425,7 +459,7 @@ export function buildReportParts(report: Report, config: YearConfig, options: Do
   const section = (inner: string) => `<section class="body">\n${inner}\n</section>`
   return {
     cover: documentHtml(config, coverHtml(report, config, options)),
-    abstract: documentHtml(config, abstractHtml(report, config)),
+    abstract: documentHtml(config, abstractHtml(report, config, options.abstractGate)),
     toc: documentHtml(config, tocHtml(report, options.tocPageNumbers ?? {}, options.allChapters)),
     chapters: split
       ? chapters.slice(0, -1).map((html, i) => documentHtml(config, section(`${html}\n${chapterSentinelHtml(report.body[i + 1], chapterNumberIndex(report.body[i + 1], i + 1, options))}`)))

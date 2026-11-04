@@ -23,6 +23,8 @@ export interface PagesToPdfOptions {
   quality?: number
   /** PDF の題（ファイルの情報に入る） */
   title?: string
+  /** PDF の主題（ファイルの情報に入る。最終提出の許可のあとの提出用 PDF に、許可の日付と先生を残す） */
+  subject?: string
   /** 1ページ画像にするたびに呼ぶ（進み具合の表示や、縮小画像を作るのに使う。canvas は、この後すぐ解放する） */
   onPage?: (page: CapturedPage) => void | Promise<void>
   /** やめる（ページとページの間で止める。止めたら、signal の理由を投げる） */
@@ -229,10 +231,10 @@ function toJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
  * JPEG を A4 のページに1枚ずつ敷いて、PDF にまとめる（jsPDF。JPEG は作り直さずに、そのまま PDF に入れる）。
  * 試作では pdf-lib とも比べた（時間はどちらも 0.1 秒ほど。jsPDF のほうが読み込む量が少なく（圧縮して約130KB・pdf-lib は約210KB）、今も手入れされている）
  */
-async function assemble(jpegs: Blob[], title: string): Promise<Blob> {
+async function assemble(jpegs: Blob[], title: string, subject?: string): Promise<Blob> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true })
-  doc.setProperties({ title, creator: '卒業制作報告書ツール' })
+  doc.setProperties({ title, creator: '卒業制作報告書ツール', ...(subject ? { subject } : {}) })
   for (const [i, jpeg] of jpegs.entries()) {
     if (i > 0) doc.addPage('a4')
     doc.addImage(new Uint8Array(await jpeg.arrayBuffer()), 'JPEG', 0, 0, A4_PT.width, A4_PT.height, undefined, 'NONE')
@@ -245,7 +247,7 @@ async function assemble(jpegs: Blob[], title: string): Promise<Blob> {
  * .print-skip の付いたページは入れない。ページは文書の中に置いたまま渡すこと（表示していなくてもよい）
  */
 export async function pagesToPdf(pages: HTMLElement[], options: PagesToPdfOptions = {}): Promise<PagesToPdfResult> {
-  const { dpi = DEFAULT_DPI, quality = DEFAULT_QUALITY, title = '', onPage, signal } = options
+  const { dpi = DEFAULT_DPI, quality = DEFAULT_QUALITY, title = '', subject, onPage, signal } = options
   const started = performance.now()
   // 部品を先に読み込んでおく（読み込みの時間を、画像にする時間と分けて測る）
   await Promise.all([import('modern-screenshot'), import('jspdf')])
@@ -295,7 +297,7 @@ export async function pagesToPdf(pages: HTMLElement[], options: PagesToPdfOption
   }
   signal?.throwIfAborted()
   const captured = performance.now()
-  const blob = await assemble(jpegs, title)
+  const blob = await assemble(jpegs, title, subject)
   const finished = performance.now()
   return {
     blob,

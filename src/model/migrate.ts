@@ -170,7 +170,14 @@ export function migrateReport(input: unknown): Report {
   return {
     formatVersion: DATA_FORMAT_VERSION,
     fiscalYear: typeof raw.fiscalYear === 'number' ? raw.fiscalYear : 0,
-    basicInfo: { studentId: str(basic.studentId), name: str(basic.name), courseId: str(basic.courseId), subtitleInput: str(basic.subtitleInput) },
+    basicInfo: {
+      studentId: str(basic.studentId),
+      name: str(basic.name),
+      // 姓・名・ふりがな（2026-11-04 から。前の原稿には無い：model/personName.ts の nameParts が氏名から分ける）
+      ...(['familyName', 'givenName', 'familyKana', 'givenKana'] as const).reduce((o, k) => (typeof basic[k] === 'string' ? { ...o, [k]: basic[k] } : o), {}),
+      courseId: str(basic.courseId),
+      subtitleInput: str(basic.subtitleInput),
+    },
     abstract: migrateAbstract(abstract),
     body: migrateBody(list(raw.body)),
     references: migrateReferences(raw.references),

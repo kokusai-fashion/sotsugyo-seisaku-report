@@ -93,6 +93,10 @@ section.body { counter-reset: page 1; }
 .abstract .abstract-lock b { display: block; font-size: 11pt; margin-bottom: 2mm; }
 .abstract .abstract-lock .ph { font-style: normal; white-space: nowrap; }
 .abstract .abstract-lock span { display: block; font-size: 9pt; color: #6b7290; margin-bottom: 6mm; }
+/* 先生の許可を使うコース：許可を待っている（ボタンではない札と、確かめ直すリンク）・許可が出た（見出しを緑に）。mockups/v108 ① */
+.abstract .abstract-lock .abstract-wait { display: inline-block; margin: 0 0 3mm; padding: 2.5mm 7mm; border-radius: 2.5mm; background: #e9ebf2; color: #4a5170; font-size: 10.5pt; font-weight: 700; }
+.abstract .abstract-lock .abstract-recheck { display: block; margin: 0; color: #2f3e75; font-size: 9pt; text-decoration: underline; cursor: pointer; }
+.abstract .abstract-lock.granted b { color: #1e6b34; }
 .abstract .abstract-lock .abstract-start { display: inline-block; margin: 0; padding: 3mm 8mm; border-radius: 2.5mm; background: #2f3e75; color: #fff; font-size: 10.5pt; font-weight: 700; cursor: pointer; }
 .abstract .body p {
   font-size: ${ABSTRACT_FONT_PT}pt;

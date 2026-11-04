@@ -105,6 +105,8 @@ export function markFocusable(viewport: HTMLElement): void {
   }
   // 「先生の許可が出た（抄録を書き始める）」は、書いてある文がそのまま名前になる
   for (const el of viewport.querySelectorAll<HTMLElement>('[data-abstract-start]')) mark(el, 'abstract-start')
+  // 先生の許可を使うコース：「許可が出たか、確かめ直す」（mockups/v108 ①）
+  for (const el of viewport.querySelectorAll<HTMLElement>('[data-abstract-recheck]')) mark(el, 'abstract-recheck')
   for (const el of viewport.querySelectorAll<HTMLElement>('section.references')) mark(el, 'references', { label: `引用・参考文献：${contentOf(el).replace(/^引用・参考文献\s*/, '')}` })
   // 目次の行：押す（Enter）と、その見出しへ移って書き始める（mockups/v41 案C。行き先は data-toc-target の ID）
   for (const el of viewport.querySelectorAll<HTMLElement>('[data-toc-target]')) {

@@ -1,6 +1,7 @@
 // ドライブへの保存（ログイン必須）の通しの動作確認。Edge を自動で操作する。
 // Google のログインとドライブは、偽物（fakeGoogle.mjs）に差し替える（本物の Google には一切つながない）。
 // 使い方: node scripts/e2e/drive.mjs（開発サーバーが http://localhost:5173 で動いていること）
+import { fillGuideName } from './nameStep.mjs'
 import { readFileSync } from 'node:fs'
 import { withEdge } from '../poc/edge.mjs'
 import { fakeDrive, routeGoogle } from './fakeGoogle.mjs'
@@ -150,6 +151,9 @@ await withEdge(async (browser) => {
     (await pc.page.evaluate(() => window.__editor.getSnapshot().report.basicInfo.studentId)) === '00ZZ901' && (await pc.page.$eval('.guide .g-tip h2', (e) => e.textContent)).includes('氏名'),
   )
   check('学生のアカウントでは、教職員の表示は出ない', !(await pc.page.$('.staff-note')))
+  // 氏名の段は、姓・名・ふりがなを入れるまで閉じられない（2026-11-04 から）。入れてから、サブタイトルの段で閉じる
+  await fillGuideName(pc.page)
+  await pc.page.waitForSelector('.guide .g-later')
   await clickText(pc.page, '.guide button', 'あとで入力する')
   await setInfo(pc.page, { name: '文化　花子' })
   await savedChip(pc.page)

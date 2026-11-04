@@ -778,10 +778,12 @@ interface Props {
   onFeedback?: () => void
   /** 送った声の「直しました」の知らせ（メニューのいちばん上。PC は右の欄の上） */
   feedbackDone?: ReactNode
+  /** 点検の予定と記録（先生の点検表の自分の行。メニューの中、コースからのお知らせの下） */
+  checkCard?: ReactNode
 }
 
 /** スマホ版の、紙面のまわりの部品（紙面そのものは App の .stage） */
-export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, sheetHostRef, onWordImport, onReload, wordTodo, checkRequest, direct, guiding = false, onFeedback, feedbackDone }: Props) {
+export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopped, onBackup, onExport, exporting, onHelp, sheetHostRef, onWordImport, onReload, wordTodo, checkRequest, direct, guiding = false, onFeedback, feedbackDone, checkCard }: Props) {
   const [sheet, setSheet] = useState<SheetKind>(null)
   const close = () => setSheet(null)
   // checkRequest が増えたら、チェックの欄を開く（描く途中で合わせる。React の「前の値と比べて state を変える」書き方）
@@ -938,6 +940,7 @@ export function PhoneChrome({ editor, snap, config, saveState, drive, driveStopp
           {drive?.staff && <p className="staff-note">教職員のアカウントで試しています（学籍番号は自動で入りません）</p>}
           {feedbackDone}
           <CourseNotice config={config} courseId={snap.report.basicInfo.courseId} />
+          {checkCard}
           <div className="links">
             {config.handbookUrl && (
               <a className="link-btn" href={config.handbookUrl} target="_blank" rel="noreferrer">

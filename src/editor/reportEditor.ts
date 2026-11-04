@@ -1,6 +1,6 @@
 import { findCourse, subtitleInputOnly, type YearConfig } from '../config'
 import { abstractCapacity, checkReportDetailed, type ReportFinding } from '../checker/reportChecks'
-import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT } from '../layout/document'
+import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT, type AbstractGate } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
 import { captionWithoutNumber } from '../model/captionText'
 import { markedLine, numberedLine, subheadingTitle, typedHeading, type TypedHeading } from '../model/headingText'
@@ -155,6 +155,8 @@ export interface EditorCallbacks {
    * なければ、今までどおり紙面で書く
    */
   onNameClick?(rect: DOMRect): void
+  /** 抄録の欄の「許可が出たか、確かめ直す」を押した（先生の許可を使うコース。学科の窓口に聞き直す） */
+  onAbstractRecheck?(): void
   /** 紙面の引用・参考文献をクリックした */
   onReferencesClick(): void
   /** 目次のページの、行のない所を押した（押した点。目次は自動であることを、その近くに知らせる：mockups/v41 案B。app/TocNotice.tsx） */
@@ -1177,7 +1179,7 @@ export class ReportEditor {
         ? { page: firstPage, onShow: (page, layout) => this.showFirst(rendered, page, layout), onProgress: (left, kinds) => this.onFirstProgress(left, kinds) }
         : undefined
     try {
-      const result = await this.renderer.renderBack(rendered, this.config, this.imageSources(), () => this.renderUrgent, first)
+      const result = await this.renderer.renderBack(rendered, this.config, { ...this.imageSources(), abstractGate: this.abstractGate }, () => this.renderUrgent, first)
       done = true
       // 先に見せた紙面を組み直すことになった（resettle）ときも、もう一方の表示枠で、はじめから組み直す（先に見せた紙面は、組み終えるまで出したまま）
       if (result.stale || result.resettle || (this.renderUrgent && !result.unchanged)) {
@@ -3300,6 +3302,8 @@ export class ReportEditor {
     if (keyHit === undefined && this.outsidePaper(x, y)) return this.select(null)
     // 抄録の「先生の許可が出た」
     if (target.closest('[data-abstract-start]')) return this.startAbstract()
+    // 先生の許可を使うコース：「許可が出たか、確かめ直す」
+    if (target.closest('[data-abstract-recheck]')) return void this.callbacks.onAbstractRecheck?.()
     // 目次のページ（本文の見出しから自動で作る。書けない）：行を押すと、その見出しへ移って書き始める（mockups/v41 案C）。
     // 行のない所を押すと、目次は自動であることを、押した所の近くに知らせる（案B）。前は、押しても何も起きなかった
     if (this.layout?.kinds[this.page] === 'toc') {
@@ -3554,7 +3558,7 @@ export class ReportEditor {
     if (!page) return null
     const scale = this.stage.scale
     // 押した所にある、紙面の物
-    const content = target.closest<HTMLElement>('[data-block-id], h1, h2, p, figure, figcaption, td, th, [data-photo-slot], [data-abstract-start], .el')
+    const content = target.closest<HTMLElement>('[data-block-id], h1, h2, p, figure, figcaption, td, th, [data-photo-slot], [data-abstract-start], [data-abstract-recheck], .el')
     let best: { id: string; d: number } | null = null
     for (const el of page.querySelectorAll<HTMLElement>('[data-block-id][data-placeholder]:empty')) {
       const mark = getComputedStyle(el, '::after')
@@ -4120,6 +4124,24 @@ export class ReportEditor {
     this.removedStyle.textContent = selectors.length ? `${selectors.join(',\n')} { display: none !important; }` : ''
   }
 
+  /**
+   * 抄録を書き始める前の案内の形（先生の許可を使うコースは、許可を待つ・許可が出た。layout/document.ts の AbstractGate）。
+   * 学科の窓口に聞いた答えが変わったら、組み直す（案内は画面だけで、紙面の組み方は変わらない）
+   */
+  private abstractGate: AbstractGate = { kind: 'self' }
+  setAbstractGate(gate: AbstractGate): void {
+    if (JSON.stringify(gate) === JSON.stringify(this.abstractGate)) return
+    this.abstractGate = gate
+    void this.render()
+  }
+  getAbstractGate(): AbstractGate {
+    return this.abstractGate
+  }
+  /** 「許可が出たか、確かめ直す」（スマホの帯から） */
+  requestAbstractRecheck(): void {
+    this.callbacks.onAbstractRecheck?.()
+  }
+
   setCourse(courseId: string): void {
     this.update((r) => ops.setCourse(r, courseId))
   }
@@ -4261,7 +4283,8 @@ export class ReportEditor {
    * 押すと確かめずに変わり、戻し方が見えなかったため。書く欄は開かない（開くと、書いている間は知らせが隠れるため。抄録の段落を押すと書き始められる）
    */
   startAbstract(): void {
-    if (this.report.abstract.started !== false) return
+    // 先生の許可を使うコースで、まだ許可が出ていない（抄録の欄に、押すボタンは出ていない）
+    if (this.report.abstract.started !== false || this.abstractGate.kind === 'waiting') return
     // キーボードで押したとき：押した欄は無くなるので、組み直したあと、抄録の最初の段落に移る（Enter で書き始められる）
     const first = this.report.abstract.paragraphs[0]
     const active = document.activeElement
@@ -5328,7 +5351,7 @@ export class ReportEditor {
     const first = this.stage.spread ? this.page - (this.page % 2) : this.page
     const shown = this.stage.spread ? [first, first + 1] : [first]
     if (shown.some((i) => this.layout?.kinds[i] === 'abstract')) {
-      this.showNotice(this.report.abstract.started === false ? '抄録は「先生の許可が出た」を押してから書きます' : '抄録の段落を押して、書く欄を開いてから貼り付けます')
+      this.showNotice(this.report.abstract.started === false ? abstractWaitNotice(this.abstractGate) : '抄録の段落を押して、書く欄を開いてから貼り付けます')
       return
     }
     // 本文のページも、何も入らない理由を知らせる（紙面で選んだまま・書く欄を開かずに Ctrl+V しても、何も起きなかった：学生の試し 5回目 2026-10-30）
@@ -5871,4 +5894,11 @@ function typingBuffer(): { focus(): void; stop(): string } {
       return text
     },
   }
+}
+
+/** 抄録を書き始める前に、抄録のページで貼り付けた・書こうとしたときの知らせ（先生の許可を使うコースは言い方を変える） */
+function abstractWaitNotice(gate: AbstractGate): string {
+  if (gate.kind === 'waiting') return '抄録は、先生の許可が出てから書きます'
+  if (gate.kind === 'granted') return '抄録は「抄録を書き始める」を押してから書きます'
+  return '抄録は「先生の許可が出た」を押してから書きます'
 }

@@ -106,6 +106,11 @@ describe('migrateReport', () => {
     expect(r.workPhotos).toEqual([{ layout: 1, imageIds: [] }])
   })
 
+  it('姓・名・ふりがなを残す（文字でないものは捨てる）', () => {
+    const r = migrateReport({ formatVersion: 2, body: [], basicInfo: { name: '文化　花子', familyName: '文化', givenName: '花子', familyKana: 'ブンカ', givenKana: 42 } })
+    expect(r.basicInfo).toEqual({ studentId: '', name: '文化　花子', familyName: '文化', givenName: '花子', familyKana: 'ブンカ', courseId: '', subtitleInput: '' })
+  })
+
   it('細工したファイルや壊れたファイルでも、形を確かめてから使う（紙面に HTML を入れられない・画面が止まらない）', () => {
     const r = migrateReport({
       formatVersion: 1,

@@ -30,9 +30,9 @@ export function saveMode(): SaveMode {
  * 紙面のページを PDF にする。title：ファイル名のもと（拡張子なし）。onPage：1ページできるたびに呼ぶ（縮小の絵を作る）。
  * signal でやめると、ページとページの間で止まる
  */
-export async function buildPdf(pages: HTMLElement[], options: { title: string; signal?: AbortSignal; onPage?: (page: CapturedPage) => void | Promise<void> }): Promise<BuiltPdf> {
-  const { title, signal, onPage } = options
-  const result = await pagesToPdf(pages, { title, signal, onPage })
+export async function buildPdf(pages: HTMLElement[], options: { title: string; subject?: string; signal?: AbortSignal; onPage?: (page: CapturedPage) => void | Promise<void> }): Promise<BuiltPdf> {
+  const { title, subject, signal, onPage } = options
+  const result = await pagesToPdf(pages, { title, subject, signal, onPage })
   return { blob: result.blob, fileName: `${title}.pdf`, pageCount: result.pageCount, url: URL.createObjectURL(result.blob) }
 }
 
