@@ -1317,6 +1317,24 @@ await withEdge(async (browser) => {
   check('開き直しても、決めた幅（680px）のまま。境目を選んで → で広く、← で狭くなる（16px ずつ）', remembered === 680 && keyRight === 696 && keyLeft === 664, `${remembered} → ${keyRight} → ${keyLeft}`)
   await drag(-600)
   const narrowest = await contentWidth()
+  // 境目をいちばん左にした見開きの見本が、揺れ続けない（見本がちょうど縦に収まらない大きさのとき、縦のスクロールバーが出たり消えたりして、
+  // 見本の倍率が行き来していた：依頼者の指摘 2026-11-05。先生の画面の 1620×800 で起きた）。バーの幅を空けておく
+  const viewport0 = fx.viewport()
+  await fx.setViewport({ width: 1620, height: 800 })
+  await sleep(700)
+  const shake = await fx.evaluate(async () => {
+    const pv = document.querySelector('.preview.paged')
+    const f = pv.querySelector('iframe')
+    const seen = []
+    for (let i = 0; i < 40; i++) {
+      seen.push(f.style.height)
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    return { changes: seen.filter((v, i) => i && v !== seen[i - 1]).length, gutter: getComputedStyle(pv).scrollbarGutter, view: document.querySelector('.pv-view .on')?.textContent ?? '' }
+  })
+  await fx.setViewport(viewport0)
+  await sleep(500)
+  check('境目をいちばん左にしても、見開きの見本は揺れない（縦のスクロールバーの幅を、いつも空けておく）', shake.changes === 0 && shake.gutter === 'stable' && shake.view.includes('見開き'), JSON.stringify(shake))
   await drag(900)
   const widest = await contentWidth()
   h = await handleBox()

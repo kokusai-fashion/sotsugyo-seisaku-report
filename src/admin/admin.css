@@ -108,7 +108,9 @@ button:disabled { opacity: 0.45; cursor: default; }
 .preview, .tpl-preview { min-height: 0; overflow: hidden; }
 .preview iframe, .tpl-preview iframe { width: 100%; height: 100%; border: 0; display: block; }
 /* 見開きで送る見本（Preview.tsx。依頼者の選択 2026-10-22 案A）：見本の絵の下に「‹ 表紙・抄録 1 / 4 ›」 */
-.preview.paged { display: flex; flex-direction: column; overflow: auto; }
+/* 縦のスクロールバーの幅は、出ていなくても空けておく（見本の倍率は欄の幅で決まるので、ちょうど縦に収まらない大きさのとき、
+   バーが出る → 幅が狭まる → 見本が縮む → バーが消える → 見本が広がる…をくり返し、見本が揺れ続けた：依頼者の指摘 2026-11-05） */
+.preview.paged { display: flex; flex-direction: column; overflow: auto; scrollbar-gutter: stable; }
 .preview.paged iframe { flex: none; }
 .pv-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; padding: 4px 8px 14px; }
 /* 見本の「1ページ」「見開き」（学生の書く画面の右下と同じ形。依頼者の要望 2026-10-27） */
