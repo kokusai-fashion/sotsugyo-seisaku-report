@@ -30,6 +30,9 @@ function sideMenuTitle({ handbookUrl, aiHelpUrl, onWordImport }: Pick<Props, 'ha
   return ['使い方', aiHelpUrl && 'AI に聞く', handbookUrl && '手順書', 'バックアップ・作り直す', onWordImport && 'Word の読み込み'].filter(Boolean).join('・')
 }
 
+/** ソースコードの場所（ライセンス AGPL-3.0 に従い、利用者に示す。右の欄の SourceNotice と同じ） */
+const SOURCE_URL = import.meta.env.VITE_SOURCE_URL as string | undefined
+
 export function SideMenu({ handbookUrl, aiHelpUrl, onHelp, onBackup, onWordImport, onReload, onFeedback }: Props) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -166,6 +169,15 @@ export function SideMenu({ handbookUrl, aiHelpUrl, onHelp, onBackup, onWordImpor
             <button type="button" role="menuitem" onClick={choose(onReload)}>
               {Icon.reload}ページを読み込み直す
             </button>
+          )}
+          {/* ソースコードの場所（AGPL-3.0）。前は右の欄のいちばん下にあったが、直すところを広く見せるため、ここへ移した（mockups/v110 案C） */}
+          {SOURCE_URL && (
+            <>
+              <hr />
+              <a role="menuitem" className="hm-source" href={SOURCE_URL} target="_blank" rel="noreferrer" title="新しいタブで開きます" onClick={() => close(true)}>
+                {Icon.open}このツールのソースコード（AGPL-3.0）
+              </a>
+            </>
           )}
         </div>
       )}

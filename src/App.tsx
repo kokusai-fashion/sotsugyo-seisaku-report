@@ -1091,6 +1091,8 @@ export default function App() {
     editor?.setCheckMarkPrint(finalGate.kind === 'before')
   }, [editor, finalGate.kind])
   const checkCard = <CheckCard status={checkStatus.status} course={myCourse} />
+  // パソコンの右の欄では、はじめは1行にたたむ（押すと開く。直すところを広く見せる：依頼者の選択 2026-11-05 mockups/v110 案C）
+  const checkCardPc = <CheckCard status={checkStatus.status} course={myCourse} foldable />
   recheckRef.current = async () => {
     if (!checkStatus.ready) return void editor?.showNotice('許可を確かめるには、大学のアカウントでログインしてください')
     const next = await checkStatus.refresh()
@@ -1288,7 +1290,7 @@ export default function App() {
           wordTodo={guide ? undefined : todoCard()}
           onFeedback={openFeedback}
           feedbackDone={doneNotice}
-          checkCard={checkCard}
+          checkCard={checkCardPc}
         />
       ) : (
         <aside className="side" />

@@ -1,0 +1,38 @@
+{
+ "now": {
+  "seen": 0,
+  "total": 6,
+  "head": 93,
+  "notice": 81,
+  "card": 191,
+  "foot": 154,
+  "sideW": 340
+ },
+ "A": {
+  "seen": 2,
+  "total": 6,
+  "head": 93,
+  "notice": 81,
+  "card": 32,
+  "foot": 154,
+  "sideW": 340
+ },
+ "B": {
+  "seen": 3,
+  "total": 6,
+  "head": 93,
+  "notice": 80,
+  "card": 32,
+  "foot": 114,
+  "sideW": 340
+ },
+ "C": {
+  "seen": 6,
+  "total": 6,
+  "head": 93,
+  "notice": 80,
+  "card": 32,
+  "foot": 114,
+  "sideW": 340
+ }
+}

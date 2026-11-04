@@ -116,6 +116,14 @@ await withEdge(async (browser) => {
     const notice = await page.evaluate(() => document.querySelector('.undo-area .undo-toast')?.textContent ?? '')
     const startedAfter = await page.evaluate(() => window.__editor.getSnapshot().report.abstract.started)
     check('「確かめ直す」：ログインしていなければ、ログインを頼む知らせ（抄録は書き始めない）', startedAfter === false && notice.includes('ログイン'), JSON.stringify({ startedAfter, notice: notice.slice(0, 60) }))
+    // パソコンの右の欄では、はじめは1行にたたんである（次の回と先生。mockups/v110 案C）。押して開いてから中身を見る
+    const folded = await page.evaluate(() => {
+      const c = document.querySelector('.side .check-card')
+      return c ? { folded: c.classList.contains('folded'), rows: c.querySelectorAll('tr').length, sum: c.querySelector('.cc-sum')?.textContent ?? '', expanded: c.querySelector('.cc-toggle')?.getAttribute('aria-expanded') } : null
+    })
+    check('右の欄の「点検の予定と記録」は、はじめは1行（「次は 抄録・小川先生」）。表は出ていない', !!folded && folded.folded && folded.rows === 0 && folded.sum === '次は 抄録・小川先生' && folded.expanded === 'false', JSON.stringify(folded))
+    await page.evaluate(() => document.querySelector('.side .check-card .cc-toggle').click())
+    await wait(300)
     const card = await page.evaluate(() => {
       const c = document.querySelector('.side .check-card')
       return c ? { rows: [...c.querySelectorAll('tr')].map((tr) => tr.textContent), perm: c.querySelector('.perm')?.textContent ?? '' } : null

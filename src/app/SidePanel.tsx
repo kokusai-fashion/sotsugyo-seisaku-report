@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { findCourse, type YearConfig } from '../config'
 import { exportNote, splitFindings, type ProgressRow } from '../checker/progress'
 import type { ReportFinding } from '../checker/reportChecks'
@@ -353,9 +353,11 @@ function activeKind(f: ReportFinding, snap: EditorSnapshot): 'here' | 'block' | 
 }
 
 /**
- * 指摘の1行。直すのは学生が自分でする（前の「直す」のボタンはなくした。押すとその箇所へ移り、直し方は detail に書いてある）
+ * 指摘の1行。直すのは学生が自分でする（前の「直す」のボタンはなくした。押すとその箇所へ移り、直し方は detail に書いてある）。
+ * short（パソコンの右の欄）：題名だけの短い行にし、説明と「このままにする」などは、開いた行（open：押した行・書いている所の行）だけに出す
+ * （1つの画面で、直すところをできるだけ多く見せる：依頼者の選択 2026-11-05 mockups/v110 案C）
  */
-function Issue({ finding, editor, onPick, active }: { finding: ReportFinding; editor: ReportEditor; onPick?: () => void; active?: 'here' | 'block' | null }) {
+function Issue({ finding, editor, onPick, active, short = false, open = false, onSelect }: { finding: ReportFinding; editor: ReportEditor; onPick?: () => void; active?: 'here' | 'block' | null; short?: boolean; open?: boolean; onSelect?: () => void }) {
   // 手で書いた「（図n）」の図がないとき：その段落の下に図を入れて、書いた番号につなげる「図nを入れる」（mockups/v87 案B）
   const figureRef =
     finding.ruleId === 'reference-missing' && finding.blockId && finding.start !== undefined && finding.end !== undefined && finding.title.endsWith('の図がない')
@@ -365,8 +367,9 @@ function Issue({ finding, editor, onPick, active }: { finding: ReportFinding; ed
   return (
     // 行のどこを押しても、その箇所へ移る（「このままにする」は、その働きだけ）
     <li
-      className={`issue ${finding.severity}${active ? ` active ${active}` : ''}`}
+      className={`issue ${finding.severity}${active ? ` active ${active}` : ''}${short ? (open ? ' short open' : ' short') : ''}`}
       onClick={() => {
+        onSelect?.()
         onPick?.()
         void editor.goToFinding(finding)
       }}
@@ -508,6 +511,9 @@ export function CheckBody({ editor, snap, config, onPick, pc }: { editor: Report
     if (here) listRef.current?.querySelector('.issue.here')?.scrollIntoView({ block: 'nearest', behavior })
   }, [here])
   const { rows, fixes, notYet } = checkSummary(snap, config)
+  // PC：最後に押した指摘（説明を出す行。書いている所の指摘も開く：mockups/v110 案C）
+  const [picked, setPicked] = useState<string | null>(null)
+  const keyOf = (f: ReportFinding) => `${f.ruleId}:${f.blockId ?? ''}:${f.start ?? ''}:${f.title}`
   // PC：中見出しの横の数（紙面を組み終えるまでは出さない。ページ数などのチェックが加わって、数が変わるため）
   const count = (n: number, error?: boolean, prefix = '') => pc && !snap.pageChecksPending && n > 0 && <span className={`count-badge${error ? ' e' : ''}`}>{prefix}{n}</span>
   // PC で直すところがあるときは、済んだ行を1行にたたむ（まだ・先生の許可のあとなどの行は、そのまま）
@@ -553,7 +559,16 @@ export function CheckBody({ editor, snap, config, onPick, pc }: { editor: Report
               </div>
               <ul className="issues">
                 {items.map((f, i) => (
-                  <Issue key={`${f.ruleId}-${f.blockId}-${f.start}-${i}`} finding={f} editor={editor} onPick={onPick} active={activeKind(f, snap)} />
+                  <Issue
+                    key={`${f.ruleId}-${f.blockId}-${f.start}-${i}`}
+                    finding={f}
+                    editor={editor}
+                    onPick={onPick}
+                    active={activeKind(f, snap)}
+                    short={pc}
+                    open={!!pc && (activeKind(f, snap) === 'here' || picked === keyOf(f))}
+                    onSelect={pc ? () => setPicked(keyOf(f)) : undefined}
+                  />
                 ))}
               </ul>
             </div>
@@ -639,7 +654,7 @@ export function SidePanel({ editor, snap, config, saveState, drive, driveStopped
         </button>
         {exportSlow ? <p className="export-note slow-note on">数秒かかることがあります</p> : <ExportNote snap={snap} config={config} />}
         {onFeedback && <FeedbackLink onClick={onFeedback} />}
-        <SourceNotice />
+        {/* ソースコードの場所（AGPL-3.0）は、右上のメニューの中（右の欄を詰める：mockups/v110 案C） */}
       </footer>
     </aside>
   )

@@ -337,9 +337,11 @@ await withEdge(async (browser) => {
   const RELOAD_ITEM = 'ページを読み込み直す'
   // 「使い方」のすぐ下：困ったこと・おかしいことを知らせる（mockups/v85 入口A）
   const FEEDBACK_ITEM = '困ったこと・おかしいことを知らせる'
+  // いちばん下：ソースコードの場所（AGPL-3.0。前は右の欄のいちばん下。右の欄を詰めるため、ここへ移した：mockups/v110 案C 2026-11-05）
+  const SOURCE_ITEM = 'このツールのソースコード（AGPL-3.0）'
   check(
-    '「メニュー」を押すと開き（aria-expanded・role="menu"）、「使い方」がいちばん上、その下に「バックアップ・作り直す」「Word で書いた分を読み込む（今年度だけ）」「ページを読み込み直す」が出る（幅 290px：「困ったこと・おかしいことを知らせる」が1行に入る幅・字 13.5px）',
-    menuOpen.expanded === 'true' && menuOpen.controls && menuOpen.role === 'menu' && menuOpen.labelled && menuOpen.items.join(',') === `使い方,${FEEDBACK_ITEM},バックアップ・作り直す,${WORD_ITEM},${RELOAD_ITEM}` && menuOpen.width === 290 && menuOpen.font === '13.5px',
+    '「メニュー」を押すと開き（aria-expanded・role="menu"）、「使い方」がいちばん上、その下に「バックアップ・作り直す」「Word で書いた分を読み込む（今年度だけ）」「ページを読み込み直す」、いちばん下に「このツールのソースコード（AGPL-3.0）」が出る（幅 290px：「困ったこと・おかしいことを知らせる」が1行に入る幅・字 13.5px）',
+    menuOpen.expanded === 'true' && menuOpen.controls && menuOpen.role === 'menu' && menuOpen.labelled && menuOpen.items.join(',') === `使い方,${FEEDBACK_ITEM},バックアップ・作り直す,${WORD_ITEM},${RELOAD_ITEM},${SOURCE_ITEM}` && menuOpen.width === 290 && menuOpen.font === '13.5px',
     JSON.stringify(menuOpen),
   )
   // ほかの所（「PDFを書き出す」の下のひとこと。セルフチェックの見出しはメニューに隠れることがある）を押すと閉じる
@@ -362,7 +364,7 @@ await withEdge(async (browser) => {
   const menuEsc = await menuState()
   check(
     'キーボード：Enter で開いて「使い方」へ、↓↑ で項目を動き（端で回る）、Home・End、Tab でも次の項目へ（←→ でページは送らない）。Esc で閉じて「メニュー」のボタンに戻る',
-    menuKeys.join('|') === ['使い方', FEEDBACK_ITEM, 'バックアップ・作り直す', WORD_ITEM, RELOAD_ITEM, WORD_ITEM, '使い方', RELOAD_ITEM, RELOAD_ITEM, '使い方', FEEDBACK_ITEM].join('|') &&
+    menuKeys.join('|') === ['使い方', FEEDBACK_ITEM, 'バックアップ・作り直す', WORD_ITEM, RELOAD_ITEM, WORD_ITEM, '使い方', SOURCE_ITEM, SOURCE_ITEM, '使い方', FEEDBACK_ITEM].join('|') &&
       !menuEsc.open &&
       menuEsc.focus === 'button' &&
       menuEsc.expanded === 'false' &&
@@ -382,7 +384,7 @@ await withEdge(async (browser) => {
   const menuTabbedOut = await menuState()
   check(
     'Space でも開き（「使い方」へ）、↑ で開くと最後の項目へ。最後の項目から Tab でメニューの外に出ると閉じる',
-    menuBySpace === '使い方' && menuByUp === RELOAD_ITEM && !menuTabbedOut.open && menuTabbedOut.focus !== 'button',
+    menuBySpace === '使い方' && menuByUp === SOURCE_ITEM && !menuTabbedOut.open && menuTabbedOut.focus !== 'button',
     JSON.stringify({ menuBySpace, menuByUp, menuTabbedOut }),
   )
   await page.evaluate(() => document.activeElement?.blur())

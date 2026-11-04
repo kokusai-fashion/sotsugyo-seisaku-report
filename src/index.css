@@ -2438,3 +2438,31 @@ body.fd-dragging, body.fd-dragging * { cursor: grabbing !important; user-select:
   .err-strip .go { margin-left: 4px; }
 }
 @media print { .err-strip { display: none !important; } }
+
+/* ---- パソコンの右の欄を詰める（依頼者 2026-11-05：直すところが縦に押しつぶされている。mockups/v110 案C） ---- */
+/* 点検の予定と記録：はじめは1行（次の回と先生）。押すと開く（app/CheckCard.tsx の foldable） */
+.side .check-card.foldable { padding: 0 10px; }
+.side .check-card.foldable:not(.folded) { padding-bottom: 9px; }
+.side .check-card.foldable h4 { margin: 0; }
+.side .check-card .cc-toggle { display: flex; align-items: baseline; gap: 6px; width: calc(100% + 20px); margin: 0 -10px; padding: 6px 10px; border: 0; border-radius: 8px; background: none; font: inherit; color: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+.side .check-card .cc-toggle:hover { background: var(--accent-soft); }
+.side .check-card .cc-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.side .check-card .cc-sum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7a5200; font-size: 11.5px; letter-spacing: 0; }
+.side .check-card .cc-open { flex: none; margin-left: auto; font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+/* お知らせ：見出しを文の頭に入れて、1行へらす */
+.side .notice b { display: inline; margin-right: 6px; }
+.side .notice p { display: inline; margin: 0; }
+/* エラー・要確認の説明は、なるべく1行に */
+.side .sev-legend { gap: 0 10px; font-size: 10.5px; }
+.side .sev-legend .dot { width: 14px; height: 14px; }
+/* 下の欄を細く（ソースコードの字は、右上のメニューの中へ移した） */
+.side .side-foot { padding: 10px 16px; }
+.side .side-foot .export { padding: 10px 0; }
+.side .side-foot p.export-note { margin-top: 5px; }
+.side .feedback-link { margin-top: 7px; padding: 5px 10px; }
+/* 直すところは、題名だけの短い行。説明と「このままにする」などは、押した行・書いている所の行だけ（Issue の short・open） */
+.side .issue.short { padding: 7px 4px; }
+.side .issue.short:not(.open) .detail, .side .issue.short:not(.open) .keep { display: none; }
+.side .issue.short.open:not(.active) { background: rgba(47, 62, 117, 0.045); }
+/* メニューの中のソースコードの場所（小さな灰色の字） */
+.head-menu .hm-source { font-size: 12px !important; color: var(--muted) !important; }
