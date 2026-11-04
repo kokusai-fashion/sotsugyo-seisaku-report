@@ -11,6 +11,12 @@ describe('段落に打った見出しの形（typedHeading）', () => {
     expect(typedHeading('ＩＩ．制作過程')).toEqual({ level: 1, title: '制作過程' })
     // 番号のあとが空白だけ（Word の見出しと同じ）
     expect(typedHeading('Ⅱ　制作過程')).toEqual({ level: 1, title: '制作過程' })
+    // 英字のローマ数字でも、空白のあとが日本語の短い行なら見出し（Word の読み込みの試し 2026-11-04：「III まとめ」が前の章にまぎれた）
+    expect(headingFromText('III まとめ')).toEqual({ level: 1, title: 'まとめ' })
+    expect(headingFromText('II　制作過程')).toEqual({ level: 1, title: '制作過程' })
+    expect(headingFromText('ii デザイン説明')).toEqual({ level: 2, title: 'デザイン説明' })
+    // 空白のあとが英数字（英語の文）・文（「。」で終わる）・長い行は、見出しにしない
+    for (const t of ['I am a student', 'V neck', 'III まとめとして、帯の結び目が大きく早替えに時間がかかったことを反省した。', 'II ' + 'あ'.repeat(31)]) expect(headingFromText(t), t).toBeNull()
   })
 
   it('中見出し：「ⅱ．袖の刺繍」、英字の「i.」「ii.」', () => {

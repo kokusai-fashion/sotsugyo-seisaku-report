@@ -39,6 +39,11 @@ export function headingFromText(raw: string): HeadingText | null {
     // 英字・全角英字のローマ数字（I. Ⅱ を II と打ったなど）は、区切りがあり、短い行だけ
     const a = new RegExp(`^([${ascii}]{1,4})${HEADING_SEP}(\\S.*)$`).exec(t)
     if (a && ROMAN_WORD.test(a[1].normalize('NFKC').toUpperCase()) && a[2].length <= 40 && !/[。！？]$/.test(a[2])) return { level, title: a[2].trim() }
+    // 区切りがなく空白だけでも、すぐ後ろが日本語の短い行（「III まとめ」）は見出しにする（機種依存のローマ数字の「Ⅲ まとめ」と同じ決まり）。
+    // Word から読み込むと、見出しにならずに前の章の段落にまぎれ、空の「まとめ」の章が別にでき、知らせも出なかった（Word の読み込みの試し 2026-11-04）。
+    // 英語の文（「I am」「V neck」）と分けるため、空白のすぐ後ろが英数字のものは見出しにしない
+    const s = new RegExp(`^([${ascii}]{1,4})${SP}+(?=[^\\x00-\\x7f])(\\S.*)$`).exec(t)
+    if (s && ROMAN_WORD.test(s[1].normalize('NFKC').toUpperCase()) && s[2].length <= 30 && !/[。！？]$/.test(s[2])) return { level, title: s[2].trim() }
     return null
   }
   return tryLevel(1, UPPER_ROMAN, 'IVXＩＶＸ') ?? tryLevel(2, LOWER_ROMAN, 'ivxｉｖｘ')

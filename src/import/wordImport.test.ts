@@ -446,6 +446,17 @@ describe('学生の書き方の違い', () => {
     expect(withCover.problems[0].detail).toContain('表紙は、選んだ表紙のファイルから読み取ります。')
   })
 
+  it('英字のローマ数字のあとが空白だけの見出し（「III まとめ」）も大見出しにする（前は前の章の段落にまぎれ、空の「まとめ」の章が別にできた：2026-11-04）', async () => {
+    const result = await read(
+      makeDocx({
+        body: [p('I 企画・立案'), p('ii デザイン説明'), p('袖を大きく膨らませた。'), p('II　制作過程'), p('仮縫いを2回した。'), p('III まとめ'), p('課題が残った。')].join(''),
+      }),
+    )
+    expect(result.body.map((c) => c.title)).toEqual(['企画・立案', '制作過程', 'まとめ'])
+    expect(paragraphs(result.body, 2)).toEqual(['課題が残った。'])
+    expect(result.body[0].blocks.find((b) => b.type === 'subheading')).toMatchObject({ title: 'デザイン説明' })
+  })
+
   it('「参考文献」の行（見出しでも）から次の大見出しまでは写さず、使い方の「引用・参考文献」から入れるよう知らせる（依頼者の選択 2026-10-27）', async () => {
     const result = await read(
       makeDocx({
