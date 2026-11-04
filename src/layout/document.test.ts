@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { currentConfig } from '../config'
 import { createReport } from '../model/newReport'
-import { ABSTRACT_SUBTITLE, abstractHtml, abstractRowFontPt, buildReportDocument, buildReportParts, COVER_SUBTITLE, coverHeadingPt, coverHtml, fitLineFontPt, formatReference, partList, refitLineFontPt, subtitleLine, textUnits, TOC_TARGET_ATTR, TOC_TEXT, yearDigits } from './document'
+import { ABSTRACT_SUBTITLE, abstractHtml, abstractRowFontPt, buildReportDocument, buildReportParts, COVER_SUBTITLE, coverHeadingPt, coverHtml, fitLineFontPt, formatReference, partList, refitLineFontPt, subtitleLine, textUnits, TOC_NOT_STARTED_NOTE, TOC_TARGET_ATTR, TOC_TEXT, yearDigits } from './document'
 import { documentCss } from './documentCss'
 
 describe('抄録の見出し（学籍番号・氏名と指導教員を1行に）', () => {
@@ -234,6 +234,54 @@ describe('目次の行の行き先（mockups/v41 案C：目次の行を押すと
   it('画面だけの言葉は、紙面（目次の文書）には入らない', () => {
     for (const text of Object.values(TOC_TEXT)) expect(toc).not.toContain(text)
     expect(toc).not.toContain('見出しへ')
+  })
+})
+
+describe('PDF の目次：まだ何も書いていない章も、灰色でページ番号なしに載せる。章の番号は詰めない（依頼者の選択 2026-11-04 案3）', () => {
+  const options = { imageSrc: (id: string) => `img/${id}`, figureSize: () => ({ widthMm: 60, heightMm: 45 }) }
+  const p = (id: string, text: string) => ({ type: 'paragraph' as const, id, content: [{ type: 'text' as const, text }] })
+  const all = [
+    { id: 'c1', title: '企画', blocks: [p('p1', '一つ目の章。')] },
+    { id: 'c2', title: '制作', blocks: [{ type: 'subheading' as const, id: 's2', title: '仮縫い' }, { type: 'subheading' as const, id: 's3', title: '素材', level: 3 as const }, p('p2', '')] },
+    { id: 'c3', title: 'まとめ', blocks: [p('p3', '三つ目の章。')] },
+  ]
+  const full = { ...createReport(currentConfig), body: all, references: [{ type: 'book' as const, id: 'r1', author: '文化花子', title: '衣装', publisher: '文化出版局', year: '2020', pages: '1-2' }] }
+  // PDF に入れる原稿（c2 を除いたもの：editor/reportOps.ts の withoutNotStartedChapters）
+  const printed = { ...full, body: [all[0], all[2]] }
+  const parts = buildReportParts(printed, currentConfig, { ...options, allChapters: all, tocPageNumbers: { c1: 1, c3: 2, references: 3 } })
+
+  it('除いた章（c2）も目次に載せる：大見出し・中見出し・小見出しの行を灰色（not-started）にし、ページ番号とリーダーを付けない', () => {
+    expect(parts.toc).toContain(`<div class="toc-ch next not-started" ${TOC_TARGET_ATTR}="c2"><span>Ⅱ．制作</span></div>`)
+    expect(parts.toc).toContain(`<div class="toc-sub not-started" ${TOC_TARGET_ATTR}="s2"><span>ⅰ．仮縫い</span></div>`)
+    expect(parts.toc).toContain(`<div class="toc-sub minor not-started" ${TOC_TARGET_ATTR}="s3"><span>（1）素材</span></div>`)
+  })
+
+  it('PDF に入る章は、除く前の番号（Ⅲ．）で、ページ番号を付ける。引用・参考文献も今までどおり', () => {
+    expect(parts.toc).toContain(`<div class="toc-ch" ${TOC_TARGET_ATTR}="c1"><span>Ⅰ．企画</span><span class="leader"></span><span class="pno">1</span></div>`)
+    expect(parts.toc).toContain(`<div class="toc-ch next" ${TOC_TARGET_ATTR}="c3"><span>Ⅲ．まとめ</span><span class="leader"></span><span class="pno">2</span></div>`)
+    expect(parts.toc).toContain(`<div class="toc-ch next" ${TOC_TARGET_ATTR}="references"><span>引用・参考文献</span><span class="leader"></span><span class="pno">3</span></div>`)
+  })
+
+  it('目次の下に、灰色の章のわけを1行出す', () => {
+    expect(parts.toc).toContain(`<div class="toc-not-started">${TOC_NOT_STARTED_NOTE}</div>\n</section>`)
+    expect(TOC_NOT_STARTED_NOTE).toBe('灰色の章は、まだ書いていないので、この PDF には入っていません')
+  })
+
+  it('本文の大見出しも、除く前の番号（Ⅰ．とⅢ．。Ⅱ．はない）。章の終わりの「次の章の始まり」の代わりも同じ番号', () => {
+    const whole = buildReportDocument(printed, currentConfig, { ...options, allChapters: all })
+    const body = whole.slice(whole.indexOf('<section class="body">'))
+    expect(body).toContain('<h1 class="chapter" id="ch-c1"><span class="num">Ⅰ．</span>')
+    expect(body).toContain('<h1 class="chapter" id="ch-c3"><span class="num">Ⅲ．</span>')
+    expect(body).not.toContain('Ⅱ．')
+    expect(parts.chapters[0]).toContain('<h1 class="chapter" data-sentinel=""><span class="num">Ⅲ．</span><span>まとめ</span></h1>')
+  })
+
+  it('除く章がないとき（すべての章を書き始めている）は、灰色の行もわけの1行もなく、allChapters を渡さないときと同じ', () => {
+    const same = buildReportParts(full, currentConfig, { ...options, allChapters: all })
+    // 組版の CSS（文書の頭）には灰色の行の決まりがあるので、中身（body）で見る
+    expect(same.toc.slice(same.toc.indexOf('<body>'))).not.toContain('not-started')
+    expect(same.toc).toBe(buildReportParts(full, currentConfig, options).toc)
+    expect(partList(same)).toEqual(partList(buildReportParts(full, currentConfig, options)))
   })
 })
 

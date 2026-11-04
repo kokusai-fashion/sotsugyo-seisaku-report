@@ -1,6 +1,6 @@
 import { marginsOf, setPageMargins } from '../layout/pageGeometry'
 import type { YearConfig } from '../config'
-import type { FigureSize } from '../layout/bodyHtml'
+import type { BodyRenderOptions, FigureSize } from '../layout/bodyHtml'
 import { buildReportParts, COVER_SUBTITLE, fitLineFontPt, OVERFLOW_RATIO, partList, refitLineFontPt, subtitleLine } from '../layout/document'
 import { FONT_SIZE_PT } from '../layout/documentCss'
 import { reviseDeferredGroups, sameSet } from '../layout/figureFloat'
@@ -197,9 +197,11 @@ export class ReportRenderer {
 
   /**
    * 見えていない側で組版し、紙面の情報を測る（まだ表には出さない。first を渡したときは、見せるページを先に表に出すことがある：FirstShow）。
-   * stale：組んでいる途中で原稿がまた変わったか（変わっていたら、組み直しの回の区切りでやめる）
+   * stale：組んでいる途中で原稿がまた変わったか（変わっていたら、組み直しの回の区切りでやめる）。
+   * sources の allChapters：PDF に入れる紙面を、まだ何も書いていない章を除いて組むときの、除く前のすべての章（目次に灰色で載せ、章の番号をそろえる：
+   * layout/bodyHtml.ts。依頼者の選択 2026-11-04 案3）
    */
-  async renderBack(report: Report, config: YearConfig, sources: ImageSources, stale: () => boolean = () => false, first?: FirstShow): Promise<RenderResult> {
+  async renderBack(report: Report, config: YearConfig, sources: ImageSources & Pick<BodyRenderOptions, 'allChapters'>, stale: () => boolean = () => false, first?: FirstShow): Promise<RenderResult> {
     // 組む報告書の余白（図の置き方・図を大きくする・改ページの空きの測り方が読む：layout/pageGeometry.ts）
     setPageMargins(marginsOf(config))
     const front = this.buffers[this.frontIndex]

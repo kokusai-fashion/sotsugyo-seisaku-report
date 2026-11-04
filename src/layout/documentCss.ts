@@ -113,6 +113,10 @@ section.body { counter-reset: page 1; }
 .toc .toc-sub.minor { padding-left: 10mm; }
 /* 2つ目からの大見出し（と引用・参考文献）の前に半行あけて、章のまとまりを見せる（mockups/v29 ② 案A） */
 .toc .toc-ch.next { margin-top: ${LINE_PITCH_PT / 2}pt; }
+/* PDF だけ：まだ何も書いていない章（PDF に入れない章）の行は灰色（ページ番号なし。印刷しても読める濃さ）。目次の下に、そのわけを1行
+   （依頼者の選択 2026-11-04 案3。layout/document.ts の tocHtml） */
+.toc .not-started { color: #8a8f99; }
+.toc .toc-not-started { margin-top: ${LINE_PITCH_PT}pt; color: #8a8f99; font-size: 9pt; letter-spacing: 0.04em; }
 
 /* ---- 引用・参考文献（本文に続けてページ番号を振る） ---- */
 .references h1 { margin-bottom: 0; }

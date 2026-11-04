@@ -171,13 +171,15 @@ await withEdge(async (browser) => {
   await page.keyboard.press('Escape')
   await settle(page, ready)
 
-  // ---- 会議のあと：まだ何も書いていない章は PDF に入れない（目次からも外し、ページ番号を詰める） ----
+  // ---- 会議のあと：まだ何も書いていない章は PDF に入れない（ページ番号を詰める。目次には灰色で載せる：依頼者の選択 2026-11-04 案3。詳しくは toc1104） ----
   const exportFacts = () =>
     page.evaluate(async () => {
       const { pages, release } = await window.__editor.pdfPages()
       const texts = pages.filter((p) => !p.classList.contains('print-skip')).map((p) => p.textContent ?? '')
       // 章の見出し「Ⅲ．まとめ」で見る（抄録の「まとめたものである」は数えない）
-      const out = { n: texts.length, toc: texts.find((t) => t.includes('目次')) ?? '', matome: texts.some((t) => /[ⅠⅡⅢⅣⅤ]．\s*まとめ/.test(t) && !t.includes('目次')), paperDuring: !!document.querySelector('.export-paper') }
+      const tocPage = pages.find((p) => (p.textContent ?? '').includes('目次'))
+      const gray = [...(tocPage?.querySelectorAll('.toc .not-started') ?? [])].map((e) => e.textContent ?? '')
+      const out = { n: texts.length, toc: texts.find((t) => t.includes('目次')) ?? '', gray, matome: texts.some((t) => /[ⅠⅡⅢⅣⅤ]．\s*まとめ/.test(t) && !t.includes('目次')), paperDuring: !!document.querySelector('.export-paper') }
       release()
       return { ...out, paperAfter: !!document.querySelector('.export-paper') }
     })
@@ -187,15 +189,15 @@ await withEdge(async (browser) => {
   const cut = await exportFacts()
   const screenHas = await page.evaluate(() => window.__editor.pageElements().some((p) => (p.textContent ?? '').includes('まとめ') && !(p.textContent ?? '').includes('目次')))
   check(
-    '会議のあと：まだ何も書いていない章（まとめ）は PDF に入れず、目次にも出さない（画面の紙面には残る。組み直しに使った所は、終わったら消す）',
-    full.matome && full.toc.includes('まとめ') && !cut.matome && !cut.toc.includes('まとめ') && cut.toc.includes('制作過程') && cut.n === full.n - 1 && screenHas && cut.paperDuring && !cut.paperAfter,
-    JSON.stringify({ full: { n: full.n, matome: full.matome }, cut: { n: cut.n, matome: cut.matome, toc: cut.toc.slice(0, 60) }, screenHas }),
+    '会議のあと：まだ何も書いていない章（まとめ）は PDF に入れない。目次には灰色で載せる（画面の紙面には残る。組み直しに使った所は、終わったら消す）',
+    full.matome && full.toc.includes('まとめ') && full.gray.length === 0 && !cut.matome && cut.gray.join() === 'Ⅲ．まとめ' && cut.toc.includes('制作過程') && cut.n === full.n - 1 && screenHas && cut.paperDuring && !cut.paperAfter,
+    JSON.stringify({ full: { n: full.n, matome: full.matome, gray: full.gray }, cut: { n: cut.n, matome: cut.matome, gray: cut.gray, toc: cut.toc.slice(0, 60) }, screenHas }),
   )
   // 「PDFを書き出す」の窓に、入らない章の名前を出す（提出のときに、書き忘れた章に気づけるように）
   await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith('PDFを書き出す'))?.click())
   await page.waitForSelector('.pdf-not-started', { timeout: 10000 }).catch(() => {})
   const note = await page.evaluate(() => document.querySelector('.pdf-not-started')?.textContent ?? '')
-  check('「PDFを書き出す」の窓に「まだ何も書いていない章（Ⅲ．まとめ）は、このPDFには入りません」と出す', note.includes('Ⅲ．まとめ') && note.includes('入りません'), note)
+  check('「PDFを書き出す」の窓に「まだ何も書いていない章（Ⅲ．まとめ）は、このPDFには入りません（目次には灰色で出ます）」と出す', note.includes('Ⅲ．まとめ') && note.includes('入りません') && note.includes('目次には灰色で出ます'), note)
   // そのまま作る：画面に出さない所で組み直したページで、PDF が最後までできる（ページの数は、まとめを除いた数）
   await page.click('.modal .pdf-start')
   await page.waitForSelector('.modal .pdf-open', { timeout: 120000 }).catch(() => {})
