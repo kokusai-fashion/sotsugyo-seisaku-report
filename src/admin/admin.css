@@ -694,7 +694,8 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .pdf-folder .pf-tree { font-size: 13px; line-height: 1.8; background: #f6f7f9; border-radius: 8px; padding: 6px 12px; }
 .pdf-folder .pf-tree .d1 { padding-left: 1em; }
 .pdf-folder .pf-tree .d2 { padding-left: 2.6em; }
-.pdf-folder .pf-change { display: flex; gap: 8px; }
-.pdf-folder .pf-change .in { flex: 1; min-width: 0; }
+/* 欄が狭いので、リンクの欄は幅いっぱいにして、ボタンはその下に */
+.pdf-folder .pf-change { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.pdf-folder .pf-change .in { width: 100%; box-sizing: border-box; }
 .pdf-folder .pf-ok { margin-top: 6px; color: #1e6b34; font-size: 13px; }
 .pdf-folder .pf-error { margin-top: 6px; color: var(--error); font-size: 13px; }
