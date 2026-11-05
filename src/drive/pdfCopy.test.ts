@@ -40,20 +40,45 @@ describe('PDF の控えを送る', () => {
     expect(JSON.parse(init.body as string)).toEqual(payload)
   })
 
-  it('つながらなかったときだけ、1回やり直す', async () => {
+  const quick = { retryDelaysMs: [0, 0, 0] }
+
+  it('つながらなかったときは、待って送り直す（3回まで。届けば終わり）', async () => {
     const fetch = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(answer({ ok: true }))
-    await postPdfCopy('u', payload, { fetch, retryDelayMs: 0 })
+    await postPdfCopy('u', payload, { fetch, ...quick })
     expect(fetch).toHaveBeenCalledTimes(2)
-    const twice = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
-    await expect(postPdfCopy('u', payload, { fetch: twice, retryDelayMs: 0 })).rejects.toThrow('Failed to fetch')
-    expect(twice).toHaveBeenCalledTimes(2)
+    const never = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(postPdfCopy('u', payload, { fetch: never, ...quick })).rejects.toThrow(new PdfCopyError('Failed to fetch'))
+    expect(never).toHaveBeenCalledTimes(4)
   })
 
-  it('窓口が断ったとき・答えが読めないときは、やり直さずに理由を投げる', async () => {
+  it('混んでいるとき（答えが JSON でない・500・ドライブのエラー）も、送り直す（締切の直前に、学生がいっせいに書き出したとき）', async () => {
+    const busy = vi.fn().mockResolvedValueOnce(answer('<html>混んでいます</html>')).mockResolvedValueOnce(answer({ ok: true }, 500)).mockResolvedValueOnce(answer({ ok: false, error: 'PDF の控えを保存できませんでした（ドライブのエラー）' })).mockResolvedValueOnce(answer({ ok: true }))
+    await postPdfCopy('u', payload, { fetch: busy, ...quick })
+    expect(busy).toHaveBeenCalledTimes(4)
+    await expect(postPdfCopy('u', payload, { fetch: vi.fn(async () => answer('<html>')), ...quick })).rejects.toThrow('窓口の答えを読めませんでした')
+    await expect(postPdfCopy('u', payload, { fetch: vi.fn(async () => answer({ ok: true }, 500)), ...quick })).rejects.toThrow('500')
+  })
+
+  it('送り直すまでの待ちは、少しずつ延ばし、ばらつかせる（学生がいっせいに送り直さないように）', async () => {
+    vi.useFakeTimers()
+    try {
+      const never = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+      const done = postPdfCopy('u', payload, { fetch: never, retryDelaysMs: [1000, 2000, 4000], random: () => 1 }).catch((e) => e)
+      await vi.advanceTimersByTimeAsync(1499)
+      expect(never).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(never).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(3000 + 6000)
+      expect(never).toHaveBeenCalledTimes(4)
+      expect(await done).toBeInstanceOf(PdfCopyError)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('窓口がはっきり断ったとき（フォルダが未設定など）は、送り直さずに理由を投げる', async () => {
     const refused = vi.fn(async () => answer({ ok: false, error: 'PDF の控えを置くフォルダが未設定' }))
-    await expect(postPdfCopy('u', payload, { fetch: refused })).rejects.toThrow(new PdfCopyError('PDF の控えを置くフォルダが未設定'))
+    await expect(postPdfCopy('u', payload, { fetch: refused, ...quick })).rejects.toThrow(new PdfCopyError('PDF の控えを置くフォルダが未設定'))
     expect(refused).toHaveBeenCalledTimes(1)
-    await expect(postPdfCopy('u', payload, { fetch: vi.fn(async () => answer('<html>')) })).rejects.toThrow('窓口の答えを読めませんでした')
-    await expect(postPdfCopy('u', payload, { fetch: vi.fn(async () => answer({ ok: true }, 500)) })).rejects.toThrow('500')
   })
 })

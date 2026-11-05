@@ -42,31 +42,59 @@ export async function pdfCopyPayload(token: string, report: Report, pdf: Blob): 
   return { action: 'pdfCopy', token, year: report.fiscalYear, courseId: courseId ?? '', studentId: studentId.trim(), name: name.trim(), pdf: await blobToBase64(pdf) }
 }
 
-/** 窓口が断った・答えが読めなかった（やり直さない） */
+/** 送れなかった（窓口が断った・送り直しても届かなかった）。理由は message */
 export class PdfCopyError extends Error {}
 
+/** 送り直せば届くかもしれない失敗（つながらない・窓口が混んで別の答えを返した・ドライブの一時的なエラー） */
+class Transient extends Error {}
+
 /**
- * 窓口に送る。つながらなかった（fetch が投げた）ときだけ、少し待って1回やり直す。
- * 窓口が ok を返さなければ PdfCopyError を投げる（理由は error）。
+ * 混んでいる・つながらないときに送り直すまでの待ち時間（ミリ秒）。窓口の Apps Script は、同時に動けるのが持ち主のアカウント1つにつき30まで
+ * なので、締切の直前に学生がいっせいに書き出すと断られることがある（前は、つながらなかったときに1回やり直すだけで、断られた控えは届かなかった）。
+ * 待ちを少しずつ延ばし、ばらつき（JITTER）を足して、学生がいっせいに送り直さないようにする
+ */
+const RETRY_DELAYS_MS = [3000, 10000, 30000]
+/** 待ち時間に足すばらつき（待ち時間の 0〜50%） */
+const JITTER = 0.5
+
+/**
+ * 窓口に送る。送り直せば届くかもしれない失敗（Transient）は、待って送り直す（RETRY_DELAYS_MS の回数まで）。
+ * 窓口がはっきり断ったとき（フォルダが未設定・大きすぎるなど）は送り直さない。届かなければ PdfCopyError を投げる（理由は message）。
  * Google のログインの情報（cookie）は送らない（誰かは、トークンで確かめる）
  */
-export async function postPdfCopy(url: string, payload: PdfCopyPayload, options: { fetch?: typeof fetch; retryDelayMs?: number } = {}): Promise<void> {
+export async function postPdfCopy(url: string, payload: PdfCopyPayload, options: { fetch?: typeof fetch; retryDelaysMs?: number[]; random?: () => number } = {}): Promise<void> {
   const send = options.fetch ?? fetch
+  const delays = options.retryDelaysMs ?? RETRY_DELAYS_MS
+  const random = options.random ?? Math.random
   const body = JSON.stringify(payload)
-  const once = () => send(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, credentials: 'omit', redirect: 'follow' })
-  let res: Response
-  try {
-    res = await once()
-  } catch {
-    await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? 3000))
-    res = await once()
+  const once = async (): Promise<void> => {
+    let res: Response
+    try {
+      res = await send(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, credentials: 'omit', redirect: 'follow' })
+    } catch (e) {
+      throw new Transient(e instanceof Error ? e.message : String(e))
+    }
+    if (!res.ok) throw new Transient(`窓口の答え：${res.status}`)
+    let answer: { ok?: boolean; error?: string }
+    try {
+      answer = await res.json()
+    } catch {
+      // 混んでいるときの Apps Script は、JSON ではなく案内の画面（HTML）を返す
+      throw new Transient('窓口の答えを読めませんでした')
+    }
+    if (answer?.ok === true) return
+    const reason = answer?.error || '窓口が受け取りませんでした'
+    // ドライブの思いがけないエラー（混んでいるときにも出る）は送り直す。ほかの断りは、送り直しても変わらない
+    if (reason.includes('ドライブのエラー')) throw new Transient(reason)
+    throw new PdfCopyError(reason)
   }
-  if (!res.ok) throw new PdfCopyError(`窓口の答え：${res.status}`)
-  let answer: { ok?: boolean; error?: string }
-  try {
-    answer = await res.json()
-  } catch {
-    throw new PdfCopyError('窓口の答えを読めませんでした')
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await once()
+    } catch (e) {
+      if (!(e instanceof Transient)) throw e
+      if (attempt >= delays.length) throw new PdfCopyError(e.message)
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt] * (1 + JITTER * random())))
+    }
   }
-  if (answer?.ok !== true) throw new PdfCopyError(answer?.error || '窓口が受け取りませんでした')
 }
