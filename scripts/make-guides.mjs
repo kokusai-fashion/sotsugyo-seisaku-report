@@ -33,6 +33,7 @@ process.env.EDGE_PORT ??= '9364'
 const { withEdge } = await import('./poc/edge.mjs')
 const { fakeDrive, routeGoogle } = await import('./e2e/fakeGoogle.mjs')
 const { sinbadSample, setupSinbad, sampleText } = await import('./e2e/sampleSinbad.mjs')
+const { closeGuide } = await import('./e2e/nameStep.mjs')
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
 /** 学生に配るツールの URL（QR コードにする。GitHub のリポジトリを移したら、ここと HTML の URL を直す） */
@@ -749,6 +750,18 @@ const charPoint = (page, id, i) =>
  */
 async function detailShots(browser, config) {
   const drive = fakeDrive(STUDENT_EMAIL)
+  // 先生の点検表の自分の行（右の欄の「点検の予定と記録」。パソコンは1行にたたんである。先生向けの説明動画と同じ架空の行）
+  drive.checkRow = {
+    rounds: [
+      { label: '1回目', teacher: '小川', state: 'done' },
+      { label: '2回目', teacher: '山本', state: 'done' },
+      { label: '3回目', teacher: '中村', state: 'plan' },
+      { label: '抄録', teacher: '中村', state: 'plan' },
+      { label: '4回目', teacher: '小川', state: 'plan' },
+    ],
+    abstractOk: null,
+    finalOk: null,
+  }
   const { context, page } = await openTool(browser, drive, config)
   await ready(page)
   await page.waitForSelector('.login-over .login-btn')
@@ -758,9 +771,9 @@ async function detailShots(browser, config) {
   await clickText(page, '.guide .g-opts button', '映画・舞台衣装')
   await page.waitForSelector('.guide.step-word .g-word-opt.no')
   await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 30000 })
-  await page.keyboard.type('文化　花子')
-  await page.evaluate(() => document.querySelector('.g-later')?.click())
+  // 「氏名」の段（姓・名・セイ・メイ。入れるまで閉じられない：2026-11-04 から）を入れてから閉じる
+  await closeGuide(page)
+  await page.evaluate(() => window.__editor.finishEditing())
   await sleep(600)
   await ready(page)
   await page.evaluate(() => document.documentElement.classList.add('no-guide'))
@@ -779,7 +792,8 @@ async function detailShots(browser, config) {
     { n: 1, box: await page.evaluate(rectOf, '.thumbs-col'), at: 'c' },
     { n: 2, box: await page.evaluate(rectOf, '.palette'), at: 'r' },
     { n: 3, box: await page.evaluate(rectOf, '.overlay-clip:not([hidden]) .overlay-editor'), at: 'r' },
-    { n: 4, box: await page.evaluate(rectOf, '.side .drive-chip-wrap .chip'), at: 'b' },
+    // 保存の札の下は「点検の予定と記録」の1行（たたんだ形）なので、番号は左に付ける
+    { n: 4, box: await page.evaluate(rectOf, '.side .drive-chip-wrap .chip'), at: 'l' },
     { n: 5, box: await page.evaluate(rectOf, '.side .sec.check .sec-h'), at: 'l' },
     { n: 6, box: await page.evaluate(rectOf, '.side .export'), at: 'l' },
     // 元に戻す・やり直すは、左の道具のいちばん下（mockups/v65 案B。前は右下の帯）
