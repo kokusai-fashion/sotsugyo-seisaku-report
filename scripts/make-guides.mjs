@@ -388,28 +388,10 @@ async function studentShots(browser, config) {
     { n: 2, box: await page.evaluate(rectOf, '.g-word-opt.no'), at: 'r' },
   ])
   await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:name', { timeout: 30000 })
-  await sleep(500)
-  // 氏名を書いているところ（学籍番号は、ログインしたアカウントから入っている）
-  await page.keyboard.type('文化　花子')
-  await sleep(900)
-  {
-    const fields = await page.evaluate(rectOf, `${CUR} [data-block-id="basic:course"], ${CUR} [data-block-id="basic:studentId"], .overlay-clip:not([hidden]) .overlay-editor`)
-    const tip = await page.evaluate(rectOf, '.g-tip')
-    const paper = await page.evaluate(rectOf, CUR)
-    const area = union(fields, tip)
-    await capture(page, 'g-cover', { x: paper.x + 20, y: area.y - 24, w: paper.w - 40, h: area.h + 40 }, [
-      { n: 1, box: await page.evaluate(rectOf, `${CUR} [data-block-id="basic:studentId"]`), at: 'r' },
-      { n: 2, box: await page.evaluate(rectOf, '.overlay-clip:not([hidden]) .overlay-editor'), at: 'r' },
-    ])
-  }
-  await page.keyboard.press('Enter')
-  await page.waitForFunction(() => window.__editor.getSnapshot().editingId === 'basic:subtitleInput', { timeout: 30000 })
-  await page.keyboard.type('シンドバッド')
-  await sleep(500)
-  await page.keyboard.press('Enter')
-  await page.waitForSelector('.guide.step-done')
-  await page.evaluate(() => [...document.querySelectorAll('.g-actions button')].find((b) => b.textContent.includes('閉じる')).click())
+  // 「氏名」の段（姓・名・セイ・メイ。入れるまで閉じられない：2026-11-04 から）を入れてから閉じる。
+  // 前は表紙で氏名を打っているところ（g-cover）も撮っていたが、氏名は案内の中で入れるようになったので撮らない（どの手引きも使っていない）
+  await closeGuide(page)
+  await page.evaluate(() => window.__editor.finishEditing())
   await ready(page)
   await page.evaluate(() => document.documentElement.classList.add('no-guide'))
 
@@ -502,7 +484,8 @@ async function studentShots(browser, config) {
       { n: 2, box: await page.evaluate(rectFirst, '.side .issue.warning .dot'), at: 'l' },
       // 3：指摘の題（押すと、その箇所へ移る）
       { n: 3, box: await page.evaluate(rectFirst, '.side .issue.error .go .ttl'), at: 'r' },
-      { n: 4, box: await page.evaluate(rectFirst, '.side .issue .keep'), at: 'l' },
+      // 4：「このままにする」。パソコンは、押した指摘（と書いている所の指摘）にだけ出る（mockups/v110 案C）ので、出ていなければ付けない
+      { n: 4, box: await page.evaluate(rectFirst, '.side .issue .keep'), at: 'l', optional: true },
     ])
     await page.setViewport(PC)
     await sleep(800)
