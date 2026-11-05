@@ -13,6 +13,7 @@
   ・画面の画像は <figure class="shot" data-shot="g-…"> の場所に入る（guide-images/g-*.jpg。番号と枠は guide.js が重ねる）。
     ツールや管理ページの画面が変わったら node scripts/make-guides.mjs で撮り直す。
   ・管理ページの URL は載せない（管理者からメールで知らせる）。公開の場所に置くので、先生の名前・連絡先・大学のメールアドレスも載せない。
+    ただし、管理ページの写真の「指導教員」の欄に写る本当の先生の名前は、そのままでよい（依頼者 2026-11-05：ご本人たちが承知している）。
   ・くわしい手順・担当の引き継ぎは docs/引き継ぎ手順.md。食い違わないよう、片方を直したらもう片方も確かめる。
 -->
 <link rel="stylesheet" href="../node_modules/@fontsource/biz-udpgothic/400.css">
@@ -43,7 +44,7 @@
       <li><span class="d">4</span><b>学生が直す</b><small>直したら、また 2 へ</small></li>
     </ol>
   </section>
-  <p class="same-note">先生がツールを操作する必要はありません。<br><small>PDF の控えは、先生のフォルダにも届きます（見たいときだけ）。</small></p>
+  <p class="same-note">先生がツールで原稿を直す必要はありません。<br><small>PDF の控えは、先生のフォルダにも届きます（見たいときだけ）。</small></p>
 
   <!-- 02 は、先生にとって変わること（依頼者 2026-11-02）：書式は崩れない・学科の執筆ルールの誤りは学生がセルフチェックで直してから出す。
        だから先生は、書式やルールの点検より、内容が適しているかの指導に力を注げる -->
@@ -60,11 +61,11 @@
   </ol>
   <p class="focus-note">先生は、内容が適しているかの指導に力を注げます</p>
 
-  <header class="lh"><span class="num d">03</span><div><span class="k d">ADMIN PAGE</span><h2>コースごとに、ひな形とお知らせを設定できます</h2></div></header>
+  <header class="lh"><span class="num d">03</span><div><span class="k d">ADMIN PAGE</span><h2>コースごとに、ひな形・お知らせ・点検表を使えます</h2></div></header>
   <div class="cols block" style="grid-template-columns: 112mm 1fr; gap: 6mm; align-items: center">
     <figure class="shot lift" data-shot="g-admin-teacher" aria-label="先生の画面（コースごとの設定）"></figure>
     <div>
-      <ul class="dots"><li>URL は管理者からメールで届く</li><li><span class="btn">学生の画面を試す</span><br>見本の原稿で試せる</li></ul>
+      <ul class="dots"><li>URL は管理者からメールで届く</li><li><span class="btn">点検表を開く</span><br>点検の記録と許可の ✓</li></ul>
       <ol class="row-steps" style="gap: 2.4mm 0; margin-top: 3.4mm">
         <li><span class="no">1</span><p><span class="btn">ひな形を作る画面を開く</span><br>最初の章立てと説明を書く</p></li>
         <li><span class="no">2</span><p>お知らせを書く（締切など）<br>個人の情報は書かない</p></li>
