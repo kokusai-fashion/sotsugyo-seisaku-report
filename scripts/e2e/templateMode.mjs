@@ -117,7 +117,7 @@ export async function templateModeAdmin(browser, check) {
   await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await page.waitForSelector('.course.open .tpl-line .tpl-open')
 
-  const card = await page.evaluate(() => ({ open: document.querySelector('.course.open .tpl-open').textContent, old: document.querySelector('.course.open .tpl-old').textContent, summary: document.querySelector('.course.open .tpl-line b').textContent }))
+  const card = await page.evaluate(() => ({ open: document.querySelector('.course.open .tpl-open').textContent, old: document.querySelector('.course.open .tpl-old').textContent, summary: document.querySelector('.course.open .tpl-line b').title }))
   check('コースのカードに「ひな形を作る画面を開く」と、予備の「前の作り方で直す」', card.open === 'ひな形を作る画面を開く' && card.old === '前の作り方で直す' && card.summary === '大見出し3・中見出し3・説明5・図の枠1・素材表1', JSON.stringify(card))
   const csp = await page.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content ?? '')
   check('管理ページの CSP は、中に開く枠を、学生のツールの場所（開発中は同じ開発サーバー）だけにする', csp === "frame-src 'self'", csp)
@@ -404,7 +404,7 @@ export async function templateModeAdmin(browser, check) {
     const label = ctl.previousElementSibling.textContent
     return {
       toast: document.querySelector('.message.ok')?.textContent ?? '',
-      summary: document.querySelector('.course.open .tpl-line b').textContent,
+      summary: document.querySelector('.course.open .tpl-line b').title,
       chg: ctl.classList.contains('chg') && label.startsWith('ひな形') && label.includes('変更あり'),
       bar: document.querySelector('.dirty-bar .tx')?.textContent ?? '',
       message: document.querySelector('.message')?.textContent ?? '',
@@ -487,7 +487,7 @@ export async function templateModeAdmin(browser, check) {
   dialogs.answer(true)
   await page.evaluate(() => document.querySelector('.tpl-close').click())
   await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 5000 }).catch(() => {})
-  const summaryAfter = await page.evaluate(() => document.querySelector('.course.open .tpl-line b').textContent)
+  const summaryAfter = await page.evaluate(() => document.querySelector('.course.open .tpl-line b').title)
   check(
     '直してから「閉じる」・「×」を押すと確かめ（窓のボタンは「書き続ける」「消して閉じる」）、書き続けるなら閉じない。消して閉じるなら閉じ、下書きは変わらない',
     asked === 'ひな形を作る画面で直した内容は、反映されずに消えます。閉じますか？' && keptOpen && askedX && !(await page.$('.tpl-overlay')) && summaryAfter === back.summary && !(await page.$('.dirty-bar')),
@@ -506,7 +506,7 @@ export async function templateModeAdmin(browser, check) {
   // iframe から（source は合う）、合言葉も合うが、場所（origin）が違う知らせ
   await page.evaluate((msg) => window.dispatchEvent(new MessageEvent('message', { data: msg, origin: 'https://evil.example.com', source: document.querySelector('.tpl-overlay iframe').contentWindow })), fake(nonce))
   await sleep(600)
-  const ignored = await page.evaluate(() => ({ open: !!document.querySelector('.tpl-overlay'), summary: document.querySelector('.course.open .tpl-line b').textContent, bar: !!document.querySelector('.dirty-bar') }))
+  const ignored = await page.evaluate(() => ({ open: !!document.querySelector('.tpl-overlay'), summary: document.querySelector('.course.open .tpl-line b').title, bar: !!document.querySelector('.dirty-bar') }))
   // 比べるため：場所・iframe・合言葉がすべて合う知らせは受け取る（直したと知らせると、タブを閉じるときに確かめる）
   const guardedBefore = await leaveGuarded()
   await page.evaluate((nonce, origin) => window.dispatchEvent(new MessageEvent('message', { data: { source: 'sotsugyo-template', type: 'dirty', nonce, dirty: true }, origin, source: document.querySelector('.tpl-overlay iframe').contentWindow })), nonce, new URL(APP).origin)
@@ -588,7 +588,7 @@ export async function templateModeAdmin(browser, check) {
   await tframe.waitForFunction(() => { const s = window.__editor?.getSnapshot(); return s?.layout && !s.rendering && !s.turning }, { timeout: 60000 })
   await tframe.evaluate(() => document.querySelector('.tpl-primary').click())
   await teacher.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 10000 })
-  const tback = await teacher.evaluate(() => ({ toast: document.querySelector('.message.ok')?.textContent ?? '', summary: document.querySelector('.course.open .tpl-line b').textContent, bar: !!document.querySelector('.dirty-bar') }))
+  const tback = await teacher.evaluate(() => ({ toast: document.querySelector('.message.ok')?.textContent ?? '', summary: document.querySelector('.course.open .tpl-line b').title, bar: !!document.querySelector('.dirty-bar') }))
   check('先生の画面でも、ひな形を作る画面で直して戻せる（知らせ・保存の帯）', tback.toast.startsWith('ひな形を受け取りました（まだ学生に届いていません）') && tback.summary.startsWith('大見出し4') && tback.bar, JSON.stringify(tback))
   // 使い方の「コースの下書きのひな形」は、新しい作り方の言葉（1366×768 で1字だけの行がない）
   await teacher.evaluate(() => document.querySelector('.help-open').click())
@@ -746,7 +746,7 @@ export async function templatePrefilledAdmin(browser, check) {
   await frame.evaluate(() => document.querySelector('.tpl-primary').click())
   await page.waitForFunction(() => !document.querySelector('.tpl-overlay'), { timeout: 10000 })
   await sleep(300)
-  const summary = await page.evaluate(() => document.querySelector('.course.open .tpl-line b').textContent)
+  const summary = await page.evaluate(() => document.querySelector('.course.open .tpl-line b').title)
   await page.evaluate(() => document.querySelector('.course.open .tpl-old').click())
   await page.waitForSelector('.tpl-modal')
   await sleep(400)

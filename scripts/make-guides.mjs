@@ -1297,9 +1297,15 @@ async function adminShots(browser) {
   await t.page.waitForSelector('.course .open-btn')
   await t.page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
   await t.page.waitForSelector('.course.open textarea.notice')
-  await setValue(await t.page.$('.course.open textarea.notice'), '12月4日（金）の中間発表では、本文の下書きを印刷して持ってきてください')
+  await setValue(await t.page.$('.course.open textarea.notice'), '夏休み明けの初回授業時に、第1回目の途中点検を提出してください。')
   await t.page.waitForSelector('.dirty-bar')
   await unfocus(t.page)
+  // コースの欄を絵の並びにして（mockups/v114 案C）欄が高くなったので、お知らせの行を上に寄せて、ひな形の「ひな形を作る画面を開く」まで見せる
+  await t.page.evaluate(() => {
+    const c = document.querySelector('.content')
+    const row = document.querySelector('.course.open textarea.notice').closest('.set-row')
+    c.scrollTop += row.getBoundingClientRect().top - c.getBoundingClientRect().top - 16
+  })
   await t.page.mouse.move(5, 5)
   await hideMockBadge(t.page)
   await sleep(600)

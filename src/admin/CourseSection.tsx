@@ -1,4 +1,4 @@
-import { Fragment, useId, useRef, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import type { Course, YearConfig } from '../config'
 import { AdminIcon } from './adminIcons'
 import { courseChanged, courseName } from './changes'
@@ -21,7 +21,8 @@ import { SlowNote, Waiting } from './Wait'
 
 /** お知らせの説明（1行の説明にした：mockups/v114 案C） */
 export const NOTICE_HINT = '学生の画面の、セルフチェックの上に出ます'
-const NOTICE_EXAMPLE = '例：12月4日（金）の中間発表では、本文の下書きを印刷して持ってきてください'
+/** お知らせの欄の例（依頼者の指定 2026-11-05） */
+const NOTICE_EXAMPLE = '例：夏休み明けの初回授業時に、第1回目の途中点検を提出してください。'
 /** 表の空の行の説明（ひな形で枠を用意し、少なければ空欄の行のままでよいコースのため） */
 const BLANK_ROWS_HINT = '空のままの表の行を、セルフチェックで「空いている所」に数えません（ひな形で表の枠を用意するときに）'
 /**
@@ -203,16 +204,16 @@ function CourseItem({
             </Row>
             <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined} icon={AdminIcon.template} tone="t-template">
               <div className={`tpl-line${course.template?.length ? '' : ' default'}`}>
-                {/* 要約は「・」の切れ目で折り返す（「図の枠」と数を別の行に分けない） */}
-                <b>
-                  {templateSummary(course)
-                    .split('・')
-                    .map((part, k) => (
-                      <Fragment key={k}>
-                        {k > 0 && '・'}
-                        <span className="part">{part}</span>
-                      </Fragment>
-                    ))}
+                {/* 作ってあるかだけを出す（中身の数の一覧を見て決めることはないため：依頼者 2026-11-05）。数の一覧は、重ねると出る */}
+                <b className={`tpl-state${course.template?.length ? ' on' : ''}`} title={templateSummary(course)}>
+                  {course.template?.length ? (
+                    <>
+                      {AdminIcon.done}
+                      作ってあります
+                    </>
+                  ) : (
+                    'まだ作っていません（標準のひな形）'
+                  )}
                 </b>
                 {/* 学生と同じ紙面で作る画面を、管理ページの上に重ねて開く（mockups/v44 案A）。開けないときの予備に、前の窓も残す */}
                 <span className="tpl-acts">

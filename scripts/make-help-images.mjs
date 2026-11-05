@@ -668,6 +668,8 @@ async function adminShots(browser) {
   await previewReady(page)
   await sleep(400)
   await capture(page, 'admin-save', { x: 0, y: 0, w: PC.width, h: PC.height })
+  // このあとの写真には、下の帯を写さない（コース・詳細設定の欄の下を隠していた）。保存する前に戻す
+  const hideBar = await page.addStyleTag({ content: '.dirty-bar { visibility: hidden !important; }' })
 
   // ---- コース（開いたコースのカード） ----
   await nav(page, 'コースごとの設定')
@@ -700,10 +702,13 @@ async function adminShots(browser) {
 
   // ---- 詳細設定：Google の障害のとき（学生のドライブ保存） ----
   await nav(page, '詳細設定')
+  await page.evaluate(() => [...document.querySelectorAll('.content .card')].find((c) => c.textContent.includes('Google の障害のとき'))?.scrollIntoView({ block: 'center' }))
+  await sleep(300)
   await page.mouse.move(5, 5)
   await capture(page, 'admin-switch', pad(await R(page, '.content .card', 'Google の障害のとき'), 10))
 
   // ---- 保存して学生に反映 → 新年度を作成（準備中の年度の「新年度の準備」） ----
+  await hideBar.evaluate((e) => e.remove())
   await page.evaluate(() => document.querySelector('.dirty-bar .btn.primary').click())
   // 画面の中の確認の窓（src/admin/confirm.tsx）で「保存する」
   await page.waitForSelector('[data-confirm="ok"]')
