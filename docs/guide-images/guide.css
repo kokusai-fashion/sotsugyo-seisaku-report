@@ -49,6 +49,8 @@ b, strong { font-weight: 700; }
 .no { display: inline-grid; place-items: center; width: 5.6mm; height: 5.6mm; flex: none; background: var(--mustard); border: 0.35mm solid var(--ink); font: 700 10.5pt/1 'Bahnschrift', 'Segoe UI', sans-serif; vertical-align: middle; }
 .t .no { background: var(--sky); }
 .no.sm { width: 4.6mm; height: 4.6mm; font-size: 9.5pt; }
+/* 四角の中の番号を、上下も真ん中に（Bahnschrift の数字は、字の箱の真ん中より 0.1em ほど上に描かれるため、上を少し空けて下げる：依頼者 2026-11-05） */
+.no, .shot .mk { padding-top: 0.16em; }
 
 /* ---- 表紙 ---- */
 .cover .hero { position: absolute; left: 0; top: 0; right: 0; height: 152mm; padding: 13mm 14mm 0; background: var(--navy); color: #fff; overflow: hidden; }
