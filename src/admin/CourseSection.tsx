@@ -204,15 +204,15 @@ function CourseItem({
             </Row>
             <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined} icon={AdminIcon.template} tone="t-template">
               <div className={`tpl-line${course.template?.length ? '' : ' default'}`}>
-                {/* 作ってあるかだけを出す（中身の数の一覧を見て決めることはないため：依頼者 2026-11-05）。数の一覧は、重ねると出る */}
+                {/* 作ってあるかだけを出す（中身の数の一覧を見て決めることはないため。言葉は「作成済み」「未作成（標準のひな形）」：依頼者 2026-11-05）。数の一覧は、重ねると出る */}
                 <b className={`tpl-state${course.template?.length ? ' on' : ''}`} title={templateSummary(course)}>
                   {course.template?.length ? (
                     <>
                       {AdminIcon.done}
-                      作ってあります
+                      作成済み
                     </>
                   ) : (
-                    'まだ作っていません（標準のひな形）'
+                    '未作成（標準のひな形）'
                   )}
                 </b>
                 {/* 学生と同じ紙面で作る画面を、管理ページの上に重ねて開く（mockups/v44 案A）。開けないときの予備に、前の窓も残す */}

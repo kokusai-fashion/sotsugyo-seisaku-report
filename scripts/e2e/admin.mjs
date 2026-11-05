@@ -436,7 +436,7 @@ await withEdge(async (browser) => {
   check('反映すると、コースのひな形の要約が変わる（要約は、重ねると出る）', summary.includes('中見出し4'), summary)
   // 欄には、作ってあるかだけを出す（中身の数の一覧は出さない：依頼者 2026-11-05）
   const shown = await page.evaluate(() => ({ text: document.querySelector('.course.open .tpl-line b').textContent, on: document.querySelector('.course.open .tpl-line b').classList.contains('on') }))
-  check('ひな形の欄には「作ってあります」（緑の ✓）とだけ出て、中身の数の一覧は出さない', shown.text === '作ってあります' && shown.on, JSON.stringify(shown))
+  check('ひな形の欄には「作成済み」（緑の ✓）とだけ出て、中身の数の一覧は出さない', shown.text === '作成済み' && shown.on, JSON.stringify(shown))
   check('ひな形を反映した知らせは、公開中の年度では「保存して学生に反映」を押すと届くと言う', (await messageText()) === 'ひな形を反映しました。「保存して学生に反映」を押すと、学生のツールに届きます', await messageText())
   await clickButton('保存して学生に反映')
   await page.waitForFunction(() => document.querySelector('.message.ok')?.textContent.includes('反映'))
