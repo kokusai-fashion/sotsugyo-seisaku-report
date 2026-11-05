@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { PageMargins, YearConfig } from '../config'
 import { DEFAULT_MARGINS } from '../layout/pageGeometry'
+import { AdminIcon } from './adminIcons'
 import { server, type PdfFolder } from './server'
 import { NumberInput, OptionalNumberInput, Row, SectionHead, TextInput } from './ui'
 
@@ -51,6 +52,7 @@ function PdfFolderCard() {
   return (
     <div className="card pdf-folder">
       <h2 className="card-h">
+        <span className="set-ic t-sheet">{AdminIcon.folder}</span>
         PDF の控えのフォルダ<small>どの年度にも共通</small>
       </h2>
       <div className="grid">
@@ -112,7 +114,9 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
       {notices}
       <PdfFolderCard />
       <div className="card">
-        <h2 className="card-h">Google の障害のとき</h2>
+        <h2 className="card-h">
+          <span className="set-ic t-notice">{AdminIcon.cloud}</span>Google の障害のとき
+        </h2>
         <div className="grid">
           {/* Google の障害や大学の設定変更で学生がログインできないときだけ止める（mockups/v22 ② 案B） */}
           <Row label="ドライブ保存" sub="学生の原稿" changed={changed('driveSave')}>
@@ -135,7 +139,9 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
         </div>
       </div>
       <div className="card">
-        <h2 className="card-h">表紙と抄録の言葉</h2>
+        <h2 className="card-h">
+          <span className="set-ic t-subtitle">{AdminIcon.subtitle}</span>表紙と抄録の言葉
+        </h2>
         <div className="grid">
           <Row label="報告書の名前" htmlFor="d-reportName" changed={changed('reportName')} field="reportName">
             <TextInput id="d-reportName" value={draft.reportName} onChange={(v) => set({ reportName: v })} />
@@ -164,7 +170,9 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
         </div>
       </div>
       <div className="card">
-        <h2 className="card-h">ページの余白</h2>
+        <h2 className="card-h">
+          <span className="set-ic t-table">{AdminIcon.margin}</span>ページの余白
+        </h2>
         <div className="grid">
           <Row label="余白" sub="本文・抄録・目次" htmlFor="d-marginTop" hint={MARGINS_HINT} field="margins" changed={marginsChanged}>
             <span className="range margins">
@@ -182,7 +190,9 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
         </div>
       </div>
       <div className="card">
-        <h2 className="card-h">分量の決まり</h2>
+        <h2 className="card-h">
+          <span className="set-ic t-stamp">{AdminIcon.ruler}</span>分量の決まり
+        </h2>
         <div className="grid">
           <Row label="抄録の字数" htmlFor="d-minChars" changed={changed('abstract.minChars') || changed('abstract.maxChars')} field="abstract.chars">
             <span className="range">
@@ -211,7 +221,9 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
         </div>
       </div>
       <div className="card">
-        <h2 className="card-h">学籍番号</h2>
+        <h2 className="card-h">
+          <span className="set-ic t-people">{AdminIcon.idcard}</span>学籍番号
+        </h2>
         <div className="grid">
           <Row label="形式" sub="正規表現" htmlFor="d-studentId" hint={STUDENT_ID_HINT} changed={changed('studentIdPattern')} field="studentIdPattern">
             <TextInput id="d-studentId" value={draft.studentIdPattern ?? ''} onChange={(v) => set({ studentIdPattern: v.trim() ? v : null })} placeholder="例：^\d{2}FA[A-Z]?\d{3,4}$" />

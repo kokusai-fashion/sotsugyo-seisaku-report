@@ -77,6 +77,9 @@ export function decideFigureGrowth(layout: GrowLayout, chapters: Chapter[], defe
         return
       }
       if (deferred.has(block.id)) return
+      // まだ写真を入れていない枠（ひな形の図の枠）のあるまとまりは、大きくしない（空の枠が大きく出ると、その大きさ・形の図を入れるものと
+      // 思われる：依頼者の判断 2026-11-05。写真を入れたら、今までどおり大きくする）
+      if (block.figures.some((f) => !f.imageId)) return
       const after = chapter.blocks[index + 1]
       if (after && after.type !== 'pageBreak') return
       const was = grow[block.id]

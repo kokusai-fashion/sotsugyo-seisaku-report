@@ -19,15 +19,16 @@ import { SlowNote, Waiting } from './Wait'
  * 先生の許可・点検表（「点検表を開く」「学生の並びを直す」）は、管理者と先生の両方（依頼者の選択 2026-11-04。mockups/v103）
  */
 
-export const NOTICE_HINT = 'このコースの学生のツールの、セルフチェック欄の上に表示されます。'
+/** お知らせの説明（1行の説明にした：mockups/v114 案C） */
+export const NOTICE_HINT = '学生の画面の、セルフチェックの上に出ます'
 const NOTICE_EXAMPLE = '例：12月4日（金）の中間発表では、本文の下書きを印刷して持ってきてください'
 /** 表の空の行の説明（ひな形で枠を用意し、少なければ空欄の行のままでよいコースのため） */
-const BLANK_ROWS_HINT = '学生がまるごと空のままにした表の行を、セルフチェックで「空いている所」に数えません。ひな形で表の枠を用意するときに使います。'
+const BLANK_ROWS_HINT = '空のままの表の行を、セルフチェックで「空いている所」に数えません（ひな形で表の枠を用意するときに）'
 /**
  * 先生の許可の説明（mockups/v103 の言葉。点検表の列の名前だけ、今の点検表に合わせて「抄録許可」にした：
  * 見本のころは「抄録」と書いていたが、点検表の「抄録」は回の列（v106・v107）で、✓ の列は「抄録許可」のため）
  */
-const PERMISSION_HINT = '許可は、点検表の「抄録許可」「最終提出可」に ✓ を入れて出します。使わないときは今のまま（抄録は学生が自分で「先生の許可が出た」を押す。PDF に「点検用」の印は入らない）。'
+const PERMISSION_HINT = '使わないときは今のまま（抄録は学生が自分で「先生の許可が出た」を押す。PDF に「点検用」の印は入らない）'
 /** 点検表の説明（点検表は PDF の控えのコースのフォルダに置くので、見られる人はそのフォルダと同じ：依頼者 2026-11-04） */
 const CHECK_SHEET_HINT = '学生がコースを選ぶと、ふりがなの順に自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。'
 
@@ -183,9 +184,11 @@ function CourseItem({
       </div>
       {open && (
         <div className="cbody" id={bodyId}>
-          <div className="grid">
+          {/* 絵・名前・1行の説明・右のスイッチの並び（mockups/v114 案C）。2つのまとまりに分ける */}
+          <div className="set-group">このコースの学生に出すもの</div>
+          <div className="grid set-list">
             {teacher ? (
-              <Row label="指導教員" hint="変えるときは、管理者に頼んでください">
+              <Row label="指導教員" hint="変えるときは、管理者に頼んでください" icon={AdminIcon.people} tone="t-people">
                 <div className="plain">{advisors.join('、') || 'まだいません'}</div>
               </Row>
             ) : (
@@ -194,11 +197,11 @@ function CourseItem({
                 <AdvisorRow course={course} changed={changed('advisors')} onChange={onChange} />
               </>
             )}
-            <Row label="お知らせ" sub="任意" htmlFor={`c-${course.id}-notice`} hint={NOTICE_HINT} changed={changed('notice')}>
+            <Row label="お知らせ" sub="任意" htmlFor={`c-${course.id}-notice`} hint={NOTICE_HINT} changed={changed('notice')} icon={AdminIcon.notice} tone="t-notice">
               {/* 書いてから消したときは「お知らせなし」に戻す（空の文字のまま残すと、保存していない変更があるように見えるため） */}
               <textarea id={`c-${course.id}-notice`} className="in notice" rows={teacher ? 3 : 2} value={course.notice ?? ''} placeholder={NOTICE_EXAMPLE} onChange={(e) => onChange({ ...course, notice: e.target.value || undefined })} />
             </Row>
-            <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined}>
+            <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined} icon={AdminIcon.template} tone="t-template">
               <div className={`tpl-line${course.template?.length ? '' : ' default'}`}>
                 {/* 要約は「・」の切れ目で折り返す（「図の枠」と数を別の行に分けない） */}
                 <b>
@@ -222,15 +225,19 @@ function CourseItem({
                 </span>
               </div>
             </Row>
+            {!teacher && <SubtitleRow course={course} changed={changed('subtitleTemplate')} onChange={onChange} />}
+          </div>
+          <div className="set-group">コースで選べること</div>
+          <div className="grid set-list">
             {/* 表の空の行（コースごとに決める：依頼者の選択 2026-10-22 案1）。先生は見るだけ（変えるときは管理者に頼む） */}
             {teacher ? (
-              <Row label="表の空の行" hint="変えるときは、管理者に頼んでください">
+              <Row label="表の空の行" hint="変えるときは、管理者に頼んでください" icon={AdminIcon.table} tone="t-table">
                 <div className="plain">{course.blankRowsOk ? '使わない行は、空のままでよい' : '空の行も、空いている所に数える'}</div>
               </Row>
             ) : (
-              <Row label="表の空の行" htmlFor={`c-${course.id}-blankrows`} hint={BLANK_ROWS_HINT} changed={changed('blankRowsOk')}>
-                <label className="toggle-label">
-                  <input id={`c-${course.id}-blankrows`} type="checkbox" checked={course.blankRowsOk === true} onChange={(e) => onChange({ ...course, blankRowsOk: e.target.checked || undefined })} />
+              <Row label="表の空の行" htmlFor={`c-${course.id}-blankrows`} hint={BLANK_ROWS_HINT} changed={changed('blankRowsOk')} icon={AdminIcon.table} tone="t-table">
+                <label className="toggle-label" data-on="使う" data-off="使わない">
+                  <input id={`c-${course.id}-blankrows`} type="checkbox" role="switch" checked={course.blankRowsOk === true} onChange={(e) => onChange({ ...course, blankRowsOk: e.target.checked || undefined })} />
                   使わない行は、空のままでよい
                 </label>
               </Row>
@@ -239,7 +246,6 @@ function CourseItem({
             <PermissionRow course={course} changed={changed('permission')} onChange={onChange} />
             {/* 点検表（コースごとの Google スプレッドシート）と、学生の並びを直す窓（mockups/v103 案1） */}
             <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} url={checkSheetUrl} />
-            {!teacher && <SubtitleRow course={course} changed={changed('subtitleTemplate')} onChange={onChange} />}
           </div>
           {/* このコースの誤り・確認（指導教員がいない・4名以上など）は、コースの欄の下に（上の枠に出すと、打っている間に欄がずれた：mockups/v49 G） */}
           <FieldProblems field={field} />
@@ -271,16 +277,18 @@ function PermissionRow({ course, changed, onChange }: { course: Course; changed:
     onChange({ ...course, permission: Object.keys(permission).length ? permission : undefined })
   }
   return (
-    <Row label="先生の許可" htmlFor={`c-${course.id}-perm-abstract`} hint={PERMISSION_HINT} changed={changed}>
+    <Row label="先生の許可" htmlFor={`c-${course.id}-perm-abstract`} hint={PERMISSION_HINT} changed={changed} icon={AdminIcon.stamp} tone="t-stamp">
       <div className="perm-checks">
-        <label className="toggle-label">
-          <input id={`c-${course.id}-perm-abstract`} type="checkbox" checked={course.permission?.abstract === true} onChange={(e) => set('abstract', e.target.checked)} />
+        <label className="toggle-label" data-on="使う" data-off="使わない">
+          <input id={`c-${course.id}-perm-abstract`} type="checkbox" role="switch" checked={course.permission?.abstract === true} onChange={(e) => set('abstract', e.target.checked)} />
           <span>抄録は、先生の許可が出てから書ける</span>
         </label>
-        <label className="toggle-label">
-          <input id={`c-${course.id}-perm-final`} type="checkbox" checked={course.permission?.final === true} onChange={(e) => set('final', e.target.checked)} />
+        <div className="sw-desc">点検表の「抄録許可」に ✓ を入れて許可します</div>
+        <label className="toggle-label" data-on="使う" data-off="使わない">
+          <input id={`c-${course.id}-perm-final`} type="checkbox" role="switch" checked={course.permission?.final === true} onChange={(e) => set('final', e.target.checked)} />
           <span>提出用の PDF は、先生の許可が出てから作れる</span>
         </label>
+        <div className="sw-desc">点検表の「最終提出可」に ✓ を入れて許可します</div>
       </div>
     </Row>
   )
@@ -326,7 +334,7 @@ function CheckSheetRow({ year, course, saved, url }: { year: number; course: Cou
     }
   }
   return (
-    <Row label="点検表" hint={CHECK_SHEET_HINT} warn={saved ? undefined : 'このコースは、保存してから使えます'}>
+    <Row label="点検表" hint={CHECK_SHEET_HINT} warn={saved ? undefined : 'このコースは、保存してから使えます'} icon={AdminIcon.sheet} tone="t-sheet">
       <div className="row-btns">
         {known && saved ? (
           <a className="btn sub sm cs-open" href={known} target="_blank" rel="noreferrer">
@@ -372,7 +380,7 @@ function NameRow({ course, changed, onChange }: { course: Course; changed: boole
   const warnId = useId()
   const warn = endsWithCourse(course.name)
   return (
-    <Row label="コース名" htmlFor={`c-${course.id}-name`} changed={changed}>
+    <Row label="コース名" htmlFor={`c-${course.id}-name`} changed={changed} icon={AdminIcon.tag} tone="t-tag">
       <span className="name-box">
         <input id={`c-${course.id}-name`} className="in name" value={course.name} placeholder="コース名" aria-describedby={warn ? warnId : undefined} onChange={(e) => onChange({ ...course, name: e.target.value })} />
         <span className="suffix">コース</span>
@@ -382,8 +390,8 @@ function NameRow({ course, changed, onChange }: { course: Course; changed: boole
           名前の最後の「コース」は消してください（表紙では自動で付きます）
         </div>
       )}
-      <label className="toggle-label">
-        <input type="checkbox" checked={!course.hidden} onChange={(e) => onChange({ ...course, hidden: !e.target.checked })} />
+      <label className="toggle-label" data-on="出す" data-off="出さない">
+        <input type="checkbox" role="switch" checked={!course.hidden} onChange={(e) => onChange({ ...course, hidden: !e.target.checked })} />
         学生に表示
       </label>
     </Row>
@@ -400,7 +408,7 @@ function AdvisorRow({ course, changed, onChange }: { course: Course; changed: bo
     setAdvisor('')
   }
   return (
-    <Row label="指導教員" htmlFor={`c-${course.id}-advisor`} hint="抄録に出ます" changed={changed}>
+    <Row label="指導教員" htmlFor={`c-${course.id}-advisor`} hint="抄録に出ます" changed={changed} icon={AdminIcon.people} tone="t-people">
       <div className="tags">
         {course.advisors.map((name, i) => (
           <span key={`${name}-${i}`} className="tag">
@@ -433,7 +441,7 @@ function AdvisorRow({ course, changed, onChange }: { course: Course; changed: bo
 function SubtitleRow({ course, changed, onChange }: { course: Course; changed: boolean; onChange: (c: Course) => void }) {
   const [before, after] = splitSubtitle(course.subtitleTemplate)
   return (
-    <Row label="サブタイトル" htmlFor={`c-${course.id}-before`} hint={<span className="example">例：{subtitleExample(course.subtitleTemplate)}</span>} changed={changed}>
+    <Row label="サブタイトル" htmlFor={`c-${course.id}-before`} hint={<span className="example">例：{subtitleExample(course.subtitleTemplate)}</span>} changed={changed} icon={AdminIcon.subtitle} tone="t-subtitle">
       <div className="template">
         <span className="dash" title="この線は自動で付きます">
           ―

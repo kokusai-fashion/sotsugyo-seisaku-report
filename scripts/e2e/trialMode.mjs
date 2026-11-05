@@ -73,7 +73,7 @@ export async function trialModeAdmin(browser, check) {
   await admin.evaluate(() => [...document.querySelectorAll('.side-nav button')].find((b) => b.textContent.includes('学生の画面を試す')).click())
   await admin.waitForSelector('.trial-sec .trial-open .btn')
   await admin.waitForFunction(() => !document.querySelector('.trial-open .btn').disabled)
-  const sec = await admin.evaluate(() => ({ head: document.querySelector('.content .sec-h')?.textContent, points: document.querySelectorAll('.trial-points li').length, button: document.querySelector('.trial-open .btn').textContent }))
+  const sec = await admin.evaluate(() => ({ head: document.querySelector('.content .sec-h')?.textContent, points: document.querySelectorAll('.icon-points li').length, button: document.querySelector('.trial-open .btn').textContent }))
   check('先生の管理ページに「学生の画面を試す」（説明3つと「見本の原稿で開く」）', sec.head === '学生の画面を試す' && sec.points === 3 && sec.button === '見本の原稿で開く', JSON.stringify(sec))
   await admin.screenshot({ path: `${OUT}/1-admin-teacher.png` })
 

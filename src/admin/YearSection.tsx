@@ -80,25 +80,26 @@ export function YearSection({
         </div>
       )}
       {notices}
-      <div className="card">
-        <div className="grid">
-          <Row label="共通の題目" htmlFor="y-commonTitle" hint="学生は変えられません" changed={changed('commonTitle')} field="commonTitle">
-            <TextInput id="y-commonTitle" value={draft.commonTitle} onChange={(v) => set({ commonTitle: v })} placeholder="例：卒業イベント「シンドバッド」について" />
-          </Row>
-          <Row label="最終締切" htmlFor="y-deadline" changed={changed('deadline')} field="deadline">
-            {/* max を付けると、年の欄に5桁以上を打てなくなる（「2028」と打つと月の欄に移る。付けないと「202801」のような年になる） */}
-            <TextInput id="y-deadline" className="date" type="date" max="9999-12-31" value={draft.deadline} onChange={(v) => set({ deadline: v })} />
-          </Row>
-          <Row label="手順書のリンク" sub="任意" htmlFor="y-handbook" hint="学生のツールの上に「手順書」ボタンで出ます" changed={changed('handbookUrl')} field="handbookUrl">
-            <TextInput id="y-handbook" value={draft.handbookUrl ?? ''} onChange={(v) => set({ handbookUrl: v })} placeholder="https://drive.google.com/…" />
-          </Row>
-          <Row label="AI に聞くのリンク" sub="任意" htmlFor="y-aiHelp" hint="学生のツールの使い方とメニューに「使い方を AI に聞く」で出ます（NotebookLM のノートブック）" changed={changed('aiHelpUrl')} field="aiHelpUrl">
-            <TextInput id="y-aiHelp" value={draft.aiHelpUrl ?? ''} onChange={(v) => set({ aiHelpUrl: v })} placeholder="https://notebook.google.com/…" />
-          </Row>
-        </div>
+      {/* 絵・名前・欄の並び（mockups/v114 案C を広げた：依頼者の選択 2026-11-05） */}
+      <div className="grid set-list">
+        <Row icon={AdminIcon.book} tone="t-template" label="共通の題目" htmlFor="y-commonTitle" hint="学生は変えられません" changed={changed('commonTitle')} field="commonTitle">
+          <TextInput id="y-commonTitle" value={draft.commonTitle} onChange={(v) => set({ commonTitle: v })} placeholder="例：卒業イベント「シンドバッド」について" />
+        </Row>
+        <Row icon={AdminIcon.calendar} tone="t-notice" label="最終締切" htmlFor="y-deadline" changed={changed('deadline')} field="deadline">
+          {/* max を付けると、年の欄に5桁以上を打てなくなる（「2028」と打つと月の欄に移る。付けないと「202801」のような年になる） */}
+          <TextInput id="y-deadline" className="date" type="date" max="9999-12-31" value={draft.deadline} onChange={(v) => set({ deadline: v })} />
+        </Row>
+        <Row icon={AdminIcon.link} tone="t-table" label="手順書のリンク" sub="任意" htmlFor="y-handbook" hint="学生のツールの上に「手順書」ボタンで出ます" changed={changed('handbookUrl')} field="handbookUrl">
+          <TextInput id="y-handbook" value={draft.handbookUrl ?? ''} onChange={(v) => set({ handbookUrl: v })} placeholder="https://drive.google.com/…" />
+        </Row>
+        <Row icon={AdminIcon.sparkle} tone="t-subtitle" label="AI に聞くのリンク" sub="任意" htmlFor="y-aiHelp" hint="学生のツールの使い方とメニューに「使い方を AI に聞く」で出ます（NotebookLM のノートブック）" changed={changed('aiHelpUrl')} field="aiHelpUrl">
+          <TextInput id="y-aiHelp" value={draft.aiHelpUrl ?? ''} onChange={(v) => set({ aiHelpUrl: v })} placeholder="https://notebook.google.com/…" />
+        </Row>
       </div>
       <div className="card next-year">
-        <h2 className="card-h">{AdminIcon.sprout}次の年度</h2>
+        <h2 className="card-h">
+          <span className="set-ic t-sheet">{AdminIcon.sprout}</span>次の年度
+        </h2>
         {later ? (
           // 次の年度がもうある：ここから作ると年度を1つ飛ばし、古い設定をコピーしてしまう（先生の試し 2026-10-21：2026年度のページに「2028年度を作ります」と出ていた）
           <>

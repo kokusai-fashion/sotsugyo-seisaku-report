@@ -36,6 +36,11 @@ describe('改ページ・章の終わりの直前の図を、下の空きに合�
     expect(decide(layout([at(0, 120, 212)], [[size(60, 80)]]))).toEqual({ g1: { scale: 1.5, page: 0 } })
   })
 
+  it('まだ写真を入れていない枠（ひな形の図の枠）は、下が空いていても大きくしない（依頼者の判断 2026-11-05）', () => {
+    const empty: Chapter = { ...chapter('pageBreak'), blocks: chapter('pageBreak').blocks.map((b) => (b.type === 'figureRow' ? { ...b, figures: [{ id: 'f1', caption: 'デザイン画' }] } : b)) }
+    expect(decideFigureGrowth(layout([at(0, 120, 177)], [[size(60, 45)]]), [empty], new Set(), {}, new Set(), new Set())).toEqual({})
+  })
+
   it('空きが少なければ、空いた分だけ（1行分は残す）', () => {
     // 図の下端 250mm：空きは 272 − 6.5 − 250 ≒ 15.5mm → (80 + 15.5) / 80 ≒ 1.19
     expect(decide(layout([at(0, 158, 250)], [[size(60, 80)]]))).toEqual({ g1: { scale: 1.19, page: 0 } })

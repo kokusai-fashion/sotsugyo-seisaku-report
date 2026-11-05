@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { parseAddresses, studentIdFromEmail, UNIVERSITY_DOMAIN } from '../model/account'
+import { AdminIcon } from './adminIcons'
 import { useConfirm } from './confirm'
 import { isMockServer, server, type Member } from './server'
 import { SectionHead } from './ui'
@@ -133,14 +134,22 @@ export function MembersSection({
 
   return (
     <div className="members">
-      <SectionHead
-        title="先生の登録"
-        lead={
-          <>
-            大学の Google アカウントのメールアドレスで登録します。<b>先生</b>は、すべてのコースの「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます（ほかの設定は変えられません）。<b>管理者</b>は、すべての設定の変更と公開ができます。管理者は2人以上にしておいてください。
-          </>
-        }
-      />
+      <SectionHead title="先生の登録" lead="大学の Google アカウントのメールアドレスで登録します。管理者は2人以上にしておいてください。" />
+      {/* 役わりごとにできること（絵と短い言葉。mockups/v114 案C を広げた：依頼者の選択 2026-11-05） */}
+      <ul className="icon-points roles">
+        <li>
+          <span className="set-ic t-people">{AdminIcon.person}</span>
+          <span>
+            <b>先生</b>すべてのコースの「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます（ほかの設定は変えられません）
+          </span>
+        </li>
+        <li>
+          <span className="set-ic t-template">{AdminIcon.key}</span>
+          <span>
+            <b>管理者</b>すべての設定の変更と公開ができます
+          </span>
+        </li>
+      </ul>
       {notices}
       {(error || loadError) && <div className="message ng member-info">{error || loadError}</div>}
       {!error && !loadError && info && <div className="message ok member-info">{info}</div>}
@@ -155,6 +164,7 @@ export function MembersSection({
           <ul className="member-list">
             {members.map((m) => (
               <li key={m.email}>
+                <span className={`set-ic ${m.role === '管理者' ? 't-template' : 't-people'}`}>{m.role === '管理者' ? AdminIcon.key : AdminIcon.person}</span>
                 <span className="who">
                   {m.email}
                   {m.memo && <small>{m.memo}</small>}

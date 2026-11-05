@@ -93,10 +93,29 @@ export function TrialSection({ config }: { config: YearConfig }) {
     <div className="trial-sec">
       <SectionHead title="学生の画面を試す" lead="学生と同じ画面を、書き上がった見本の原稿が入った状態で、別のタブに開きます。" />
       <div className="card">
-        <ul className="trial-points">
-          <li>書く・図や表を入れる・セルフチェック・PDF を作る、などを自由に試せます。</li>
-          <li>試した内容は、このブラウザにだけ残ります。学生やほかの先生には見えず、提出やドライブにも届きません。</li>
-          <li>「見本に戻す」で、いつでも最初の状態に戻せます。</li>
+        {/* 絵と短い言葉の並び（mockups/v114 案C を広げた：依頼者の選択 2026-11-05） */}
+        <ul className="icon-points">
+          <li>
+            <span className="set-ic t-template">{AdminIcon.pen}</span>
+            <span>
+              <b>自由に試せます</b>
+              書く・図や表を入れる・セルフチェック・PDF を作る、など
+            </span>
+          </li>
+          <li>
+            <span className="set-ic t-sheet">{AdminIcon.lock}</span>
+            <span>
+              <b>このブラウザにだけ残ります</b>
+              学生やほかの先生には見えず、提出やドライブにも届きません
+            </span>
+          </li>
+          <li>
+            <span className="set-ic t-notice">{AdminIcon.reset}</span>
+            <span>
+              <b>いつでも最初に戻せます</b>
+              「見本に戻す」で、最初の状態に
+            </span>
+          </li>
         </ul>
         <div className="trial-open">
           <button className="btn primary" disabled={sample === null} onClick={open}>

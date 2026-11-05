@@ -375,6 +375,9 @@ const FEEDBACK_NAV: NavItem = { key: 'feedback', icon: AdminIcon.feedback, title
 /** お試しで学生のツールに渡す、公開中の年度の設定（学生が見ているもの。公開中の年度がなければ、開いている年度の保存した設定） */
 const publishedConfig = (state: AdminState, row: YearRow): YearConfig => state.years.find((y) => y.status === '公開中')?.config ?? row.config
 
+/** 左の見出しの絵の丸の色（区切りの中の絵と同じ色づかい：admin.css の .set-ic。mockups/v114 案C を広げた：依頼者の選択 2026-11-05） */
+const NAV_TONE: Partial<Record<Section, string>> = { year: 't-notice', course: 't-template', words: 't-table', trial: 't-subtitle', feedback: 't-stamp' }
+
 /** 左の見出し（ボタンの一覧。選んでいる区切りに aria-current）。下に、ログイン中の人 */
 function SideNav({ items, active, onSelect, user, teacher }: { items: NavItem[]; active: Section; onSelect: (s: Section) => void; user: string; teacher: boolean }) {
   return (
@@ -383,7 +386,7 @@ function SideNav({ items, active, onSelect, user, teacher }: { items: NavItem[];
         {items.map((it) => (
           <li key={it.key} className={it.sep ? 'sep' : ''}>
             <button className={active === it.key ? 'on' : ''} aria-current={active === it.key ? 'page' : undefined} onClick={() => onSelect(it.key)}>
-              {it.icon}
+              <span className={`set-ic ${NAV_TONE[it.key] ?? 't-people'}`}>{it.icon}</span>
               <span className="nt">
                 <b>
                   {it.title}

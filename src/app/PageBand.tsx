@@ -4,7 +4,7 @@ import { editables } from '../editor/reportOps'
 import { FIELD_IDS, ABSTRACT_LOCK_TEXT, ABSTRACT_WAIT_TEXT, grantedTitle } from '../layout/document'
 import { BAND_SIDE_QUERY, paragraphHint, photoBand, photoToolsAtSide, TOC_BAND, todoBand, type BandTodo } from './bandText'
 import { SelectionTools } from './Palette'
-import { useBandSide } from './uiShared'
+import { touchPrimary, useBandSide } from './uiShared'
 
 /**
  * スマホ：紙面の中の小さな案内とボタンを、紙面の下の帯に、ふつうの文字の大きさで出す（mockups/v32 ④ 案A）。
@@ -84,7 +84,7 @@ function bandOf(editor: ReportEditor, snap: EditorSnapshot): Band | null {
     return editable ? [{ kind: 'field', id, editable, hint: paragraphHint(snap.report, id) }] : []
   })
   if (!todos.length) return null
-  return { kind: 'fields', todo: todos[0], ...todoBand(todos[0], todos.length - 1) }
+  return { kind: 'fields', todo: todos[0], ...todoBand(todos[0], todos.length - 1, touchPrimary()) }
 }
 
 /**

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { AdminIcon } from './adminIcons'
 import { useConfirm } from './confirm'
 import { FEEDBACK_NOTIFY, FEEDBACK_STATUSES, server, type FeedbackItem, type FeedbackStatus } from './server'
 import { Chip, SectionHead } from './ui'
@@ -15,6 +16,9 @@ import { Waiting } from './Wait'
 const STATUS_KIND: Record<FeedbackStatus, '' | 'acc' | 'chg' | 'off' | 'ok'> = { 受け付けた: 'chg', 確かめ中: 'acc', 直しました: 'ok', 使い方で解決: 'ok', 対応しない: 'off' }
 /** まだ対応していない（「まだのもの」に出す） */
 const OPEN: FeedbackStatus[] = ['受け付けた', '確かめ中']
+
+/** 種類の札の絵（うまく動かない：！、やり方が分からない：？） */
+const KIND_ICON: Record<string, ReactNode> = { うまく動かない: AdminIcon.alert, やり方が分からない: AdminIcon.question }
 
 export function FeedbackSection() {
   const [list, setList] = useState<FeedbackItem[] | null>(null)
@@ -34,10 +38,28 @@ export function FeedbackSection() {
   const shown = all ? (list ?? []) : open
   return (
     <>
-      <SectionHead
-        title="届いた声"
-        lead="学生がツールの「困ったこと・おかしいことを知らせる」から送ったものです。届くと、10分ほどで管理者にメールが届きます。「直しました」「使い方で解決」にして知らせると、学生のツールとメールに届きます。"
-      />
+      <SectionHead title="届いた声" />
+      {/* 届いてから知らせるまでの流れを、絵の3つの段で（前は長い1段の説明。mockups/v114 案C を広げた：依頼者の選択 2026-11-05） */}
+      <ol className="fb-flow">
+        <li>
+          <span className="set-ic t-notice">{AdminIcon.feedback}</span>
+          <span>
+            <b>学生が送る</b>ツールの「困ったこと・おかしいことを知らせる」から
+          </span>
+        </li>
+        <li>
+          <span className="set-ic t-template">{AdminIcon.mail}</span>
+          <span>
+            <b>管理者にメール</b>届いてから10分ほどで
+          </span>
+        </li>
+        <li>
+          <span className="set-ic t-sheet">{AdminIcon.done}</span>
+          <span>
+            <b>学生に知らせる</b>「直しました」「使い方で解決」にすると、学生のツールとメールに届きます
+          </span>
+        </li>
+      </ol>
       {error ? (
         <p className="fb-load-error" role="alert">
           読み込めませんでした（{error}）
@@ -97,14 +119,19 @@ function FeedbackCard({ item, onSaved }: { item: FeedbackItem; onSaved: (list: F
       <header className="fb-head">
         <b className="fb-id">{item.id}</b>
         <span className="fb-date">{item.receivedAt}</span>
-        <Chip>{item.kind}</Chip>
+        <Chip>
+          {KIND_ICON[item.kind]}
+          {item.kind}
+        </Chip>
         <Chip kind={STATUS_KIND[item.status] ?? ''}>{item.status}</Chip>
         {item.notifiedAt && <Chip kind="ok">知らせた {item.notifiedAt.slice(5)}</Chip>}
       </header>
       <p className="fb-text">{item.text}</p>
       <dl className="fb-meta">
         <div>
-          <dt>送った人</dt>
+          <dt>
+            {AdminIcon.person}送った人
+          </dt>
           <dd>
             {sender}
             <span className="fb-mail">{item.email || 'ログインなし（メールは送れません）'}</span>
@@ -112,11 +139,15 @@ function FeedbackCard({ item, onSaved }: { item: FeedbackItem; onSaved: (list: F
           </dd>
         </div>
         <div>
-          <dt>端末</dt>
+          <dt>
+            {item.device.includes('スマホ') ? AdminIcon.phone : AdminIcon.pc}端末
+          </dt>
           <dd>{item.device}</dd>
         </div>
         <div>
-          <dt>開いていたページ</dt>
+          <dt>
+            {AdminIcon.page}開いていたページ
+          </dt>
           <dd>{item.page || '—'}</dd>
         </div>
         {item.notice && (
@@ -146,7 +177,9 @@ function FeedbackCard({ item, onSaved }: { item: FeedbackItem; onSaved: (list: F
           </div>
         )}
         <div>
-          <dt>ツールの版</dt>
+          <dt>
+            {AdminIcon.tag}ツールの版
+          </dt>
           <dd>{item.version || '—'}</dd>
         </div>
       </dl>

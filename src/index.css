@@ -604,9 +604,14 @@ body.resizing .page-viewport { pointer-events: none; }
 /* ---- ひな形の図の枠（まだ写真を入れていない） ---- */
 .page-viewport .figure-slot { margin: 0 auto; outline: 1px dashed #b9b9b9; background: repeating-linear-gradient(45deg, #f6f6f6 0 8px, #efefef 8px 16px); display: grid !important; place-items: center !important; cursor: pointer; }
 .page-viewport .figure-slot::before { content: '（クリックして写真を選ぶ）'; color: #5f6b95; font-family: 'BIZ UDPGothic', sans-serif; font-size: 10pt; }
+/* 図はこの枠だけでなく、ほかの所にも入れられること（ひな形の枠しかないと思われないように：依頼者の心配 2026-11-05、mockups/v113 案A）。
+   ひな形を作る画面とスマホでは出さない（スマホは下の帯に出す：bandText.ts） */
+.page-viewport .figure-slot { align-content: center !important; row-gap: 2.2mm; }
+.page-viewport .figure-slot::after { content: '図は、ほかの所にも\A左の「図を入れる」で入れられます'; white-space: pre; text-align: center; color: #5f6b95; font-family: 'BIZ UDPGothic', sans-serif; font-size: 8pt; line-height: 1.6; }
+.tpl-mode .page-viewport .figure-slot::after, .app.phone .page-viewport .figure-slot::after { content: none; }
 @media print {
   .page-viewport .figure-slot { outline: none !important; background: none !important; }
-  .page-viewport .figure-slot::before { content: none !important; }
+  .page-viewport .figure-slot::before, .page-viewport .figure-slot::after { content: none !important; }
 }
 
 /* ---- はじめての案内（表紙の上で順に案内する） ---- */
@@ -1137,7 +1142,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .page-band { position: absolute; z-index: 12; left: 10px; right: 10px; max-width: 600px; margin: 0 auto; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--float-shadow); color: var(--ink); overflow-y: auto; }
 .page-band * { box-sizing: border-box; }
 .page-band .t { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; font-weight: 700; line-height: 1.6; }
-.page-band .t small { display: block; margin-top: 1px; font-size: 13px; font-weight: 400; line-height: 1.5; color: var(--muted); }
+.page-band .t small { display: block; margin-top: 1px; font-size: 13px; font-weight: 400; line-height: 1.5; color: var(--muted); word-break: keep-all; overflow-wrap: anywhere; }
 .page-band .mk { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%; background: var(--accent); color: #fff; }
 .page-band .mk svg { width: 14px; height: 14px; }
 .page-band p { margin: 4px 0 10px 30px; font-size: 13px; line-height: 1.65; color: var(--muted); }

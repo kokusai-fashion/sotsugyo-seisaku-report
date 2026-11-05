@@ -60,6 +60,7 @@ const courseState = (page) =>
       labels: labels.join('|'),
       checks: [...(perm?.querySelectorAll('.toggle-label') ?? [])].map((l) => `${l.querySelector('input').checked ? '☑' : '☐'}${l.textContent.trim()}`),
       permHint: perm?.querySelector('.hint')?.textContent ?? '',
+      swDesc: [...(perm?.querySelectorAll('.sw-desc') ?? [])].map((d) => d.textContent).join('|'),
       permChanged: !!lb('先生の許可')?.querySelector('.chg'),
       sheetButtons: [...(ctl('点検表')?.querySelectorAll('button') ?? [])].map((b) => `${b.textContent.trim()}${b.disabled ? '（押せない）' : ''}`),
       sheetHint: ctl('点検表')?.querySelector('.hint')?.textContent ?? '',
@@ -125,7 +126,8 @@ await withEdge(async (browser) => {
       `${who}：コースの欄の「表の空の行」のあとに「先生の許可」と「点検表」。はじめは両方とも切ってある`,
       /表の空の行\|先生の許可\|点検表/.test(s.labels) &&
         s.checks.join('|') === '☐抄録は、先生の許可が出てから書ける|☐提出用の PDF は、先生の許可が出てから作れる' &&
-        s.permHint === '許可は、点検表の「抄録許可」「最終提出可」に ✓ を入れて出します。使わないときは今のまま（抄録は学生が自分で「先生の許可が出た」を押す。PDF に「点検用」の印は入らない）。' &&
+        s.permHint === '使わないときは今のまま（抄録は学生が自分で「先生の許可が出た」を押す。PDF に「点検用」の印は入らない）' &&
+        s.swDesc === '点検表の「抄録許可」に ✓ を入れて許可します|点検表の「最終提出可」に ✓ を入れて許可します' &&
         s.sheetButtons.join('|') === '点検表を開く|学生の並びを直す' &&
         s.sheetHint === '学生がコースを選ぶと、ふりがなの順に自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。',
       JSON.stringify(s),

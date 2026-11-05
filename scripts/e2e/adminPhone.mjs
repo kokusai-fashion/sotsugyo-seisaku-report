@@ -93,6 +93,9 @@ await withEdge(async (browser) => {
 
     // 変更：お知らせに書くと、画面の下に帯（変更を見る・保存）。見出しの保存のボタンは隠す
     const ta = await page.$('textarea.in.notice')
+    // コースの欄を絵の並びにして（mockups/v114 案C）、お知らせの欄が画面の下の端にかかるようになった。見えるところへ動かしてから押す
+    await ta.evaluate((e) => e.scrollIntoView({ block: 'center' }))
+    await wait(300)
     await ta.tap()
     await page.keyboard.type('中間発表には下書きを持ってきてください')
     // 書き終えてから（書いている間は、下の帯を隠す：mockups/v71 ③）

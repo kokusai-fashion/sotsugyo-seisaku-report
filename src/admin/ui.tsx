@@ -47,7 +47,10 @@ export function FieldProblems({ field }: { field: string }) {
  * 保存していない変更のある欄には、ラベルの下に「変更あり」の印を付け、欄を黄色の線で囲む
  */
 
-/** ラベルと欄の1行。htmlFor を渡すと、ラベルを押すとその欄に入る */
+/**
+ * ラベルと欄の1行。htmlFor を渡すと、ラベルを押すとその欄に入る。
+ * icon を渡すと、色つきの丸の絵を付けた1行のまとまり（.set-row）にする（mockups/v114 案C。.set-list の中で使う。tone は丸の色：admin.css）
+ */
 export function Row({
   label,
   sub,
@@ -57,8 +60,14 @@ export function Row({
   htmlFor,
   className = '',
   field,
+  icon,
+  tone = '',
   children,
 }: {
+  /** 項目の絵（色つきの丸の中に出す） */
+  icon?: ReactNode
+  /** 丸の色（admin.css の .set-ic.〜） */
+  tone?: string
   label: string
   /** ラベルの下の小さな字（「任意」など） */
   sub?: string
@@ -81,7 +90,7 @@ export function Row({
       {changed && <small className="chg">変更あり</small>}
     </>
   )
-  return (
+  const row = (
     <>
       {htmlFor ? (
         <label className={`lb ${className}`} htmlFor={htmlFor}>
@@ -102,6 +111,13 @@ export function Row({
         {hint && <div className="hint">{hint}</div>}
       </div>
     </>
+  )
+  if (!icon) return row
+  return (
+    <div className="set-row">
+      <span className={`set-ic ${tone}`}>{icon}</span>
+      {row}
+    </div>
   )
 }
 

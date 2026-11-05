@@ -68,6 +68,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 .side-nav button:hover { background: #f4f6fa; }
 .side-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .side-nav button > svg { flex: none; width: 22px; height: 22px; margin-top: 1px; color: #7a8292; }
+.side-nav button > .set-ic { flex: none; width: 32px; height: 32px; margin-top: 1px; }
+.side-nav button > .set-ic svg { width: 18px; height: 18px; }
 .side-nav .nt { min-width: 0; }
 .side-nav .nt b { display: block; font-size: 15.5px; line-height: 1.45; }
 .side-nav .nt small { display: block; font-size: 13px; color: var(--muted); line-height: 1.45; }
@@ -165,6 +167,9 @@ body.resizing iframe { pointer-events: none; }
 .card { min-width: 0; padding: 16px 20px 18px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
 .card-h { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; font-size: 17px; font-weight: 700; }
 .card-h svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
+/* 見出しの色つきの丸の絵（mockups/v114 案C を広げた） */
+.card-h .set-ic { flex: none; width: 32px; height: 32px; }
+.card-h .set-ic svg { width: 18px; height: 18px; color: inherit; }
 .card-lead { margin: 0 0 12px; font-size: 14.5px; color: var(--muted); line-height: 1.7; }
 .card > .card-h + .grid { margin-top: 10px; }
 .grid { display: grid; grid-template-columns: 7.6em minmax(0, 1fr); gap: 14px 16px; align-items: start; }
@@ -249,6 +254,43 @@ body.reordering iframe { pointer-events: none; }
 .name-warn { margin-top: 5px; font-size: 13.5px; color: var(--warn); line-height: 1.6; }
 .toggle-label { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 14.5px; white-space: nowrap; }
 .toggle-label input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
+
+/* ---- 絵・名前・1行の説明・右のスイッチの並び（mockups/v114 案C。依頼者の選択 2026-11-05：字が多く硬いので、絵で見やすく） ---- */
+.set-group { margin: 16px 0 6px; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+.cbody > .set-group:first-child { margin-top: 12px; }
+.grid.set-list { display: block; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.set-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; padding: 12px 14px; }
+.set-row + .set-row { border-top: 1px solid var(--line); }
+.set-row > .lb { grid-column: 2; padding-top: 5px; }
+.set-row > .ctl { grid-column: 2; }
+.set-row > .ctl .hint { margin-top: 3px; }
+/* 「任意」「下書き」は、名前の横に */
+.set-row > .lb small:not(.chg) { display: inline; margin: 0 0 0 8px; }
+.set-row > .lb small.chg { margin: 0 0 0 8px; }
+/* 項目の絵（色つきの丸） */
+.set-ic { grid-row: 1 / span 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
+.set-ic svg { width: 20px; height: 20px; }
+.set-ic.t-tag { background: #eef2fb; color: #1e3a8a; }
+.set-ic.t-people { background: #eceff4; color: #3f4a5e; }
+.set-ic.t-notice { background: #fff0dd; color: #b25e00; }
+.set-ic.t-template { background: #e8edf9; color: #1e3a8a; }
+.set-ic.t-subtitle { background: #f1ecfb; color: #5b3fa6; }
+.set-ic.t-table { background: #dff3ef; color: #0f6e63; }
+.set-ic.t-stamp { background: #f6e6ef; color: #a2336b; }
+.set-ic.t-sheet { background: #e5f3ea; color: #2f7d4f; }
+/* 使う・使わないのスイッチ（中身は今までのチェックの欄。右に「使う／使わない」と、つまみ） */
+.set-list .toggle-label { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 2px; padding: 4px 0; font-size: 15px; white-space: normal; line-height: 1.5; cursor: pointer; }
+.set-list .toggle-label::after { content: attr(data-off); order: 2; margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.set-list .toggle-label:has(input:checked)::after { content: attr(data-on); color: var(--ok); font-weight: 700; }
+.set-list .toggle-label input { order: 3; flex: none; position: relative; width: 44px; height: 26px; margin: 0; border-radius: 13px; background: #cfd4dd; appearance: none; -webkit-appearance: none; cursor: pointer; transition: background 0.15s; }
+.set-list .toggle-label input::before { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: left 0.15s; }
+.set-list .toggle-label input:checked { background: var(--ok); }
+.set-list .toggle-label input:checked::before { left: 21px; }
+.set-list .toggle-label input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.set-list .ctl.chg .toggle-label input { box-shadow: 0 0 0 2px var(--chg-line); }
+.set-list .perm-checks .toggle-label { align-items: center; }
+.set-list .perm-checks .toggle-label input { margin: 0; }
+.set-list .sw-desc { margin: -2px 0 6px; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
 /* サブタイトルの形式：「―」［前］〔学生が入力〕［後ろ］「―」。前後の「―」は固定の印（保存するときに付ける） */
 .template { display: flex; align-items: center; gap: 5px; }
 .template .in { flex: 1; min-width: 0; }
@@ -282,7 +324,8 @@ body.reordering iframe { pointer-events: none; }
 .wedit .wbtns { display: flex; align-items: center; gap: 8px; }
 .werr { font-size: 14px; color: var(--error); }
 .wtable .add { width: auto; margin: 12px 16px 0; }
-.sev { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.sev { display: inline-flex; align-items: center; gap: 3px; padding: 1px 9px 1px 6px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.sev svg { flex: none; width: 14px; height: 14px; }
 .sev.e { background: var(--error-soft); color: var(--error); }
 .sev.w { background: var(--warn-soft); color: var(--warn); }
 .wtry p { margin: 0 0 10px; font-size: 14px; color: var(--muted); line-height: 1.7; }
@@ -300,6 +343,9 @@ body.reordering iframe { pointer-events: none; }
 .members .card-h { margin-top: 16px; font-size: 16px; }
 .member-list { margin: 0; padding: 0; list-style: none; }
 .member-list li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #eef0f3; font-size: 15px; }
+.member-list li > .set-ic { flex: none; width: 30px; height: 30px; }
+.member-list li > .set-ic svg { width: 17px; height: 17px; }
+.members .roles { margin: -4px 0 16px; }
 .member-list .who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .member-list small { display: block; color: var(--muted); font-size: 13px; }
 .member-list .self { font-size: 14px; color: var(--muted); }
@@ -322,6 +368,9 @@ body.reordering iframe { pointer-events: none; }
 /* ---- 変更履歴 ---- */
 .history { margin: 0; padding: 0; list-style: none; }
 .history li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #eef0f3; }
+.history .what { flex: 1; min-width: 0; }
+.history li > .set-ic { flex: none; width: 30px; height: 30px; }
+.history li > .set-ic svg { width: 17px; height: 17px; }
 .history .what b { display: block; font-size: 15px; font-weight: 400; }
 .history small { display: block; font-size: 13.5px; color: var(--muted); }
 .empty { margin: 0; color: var(--muted); }
@@ -487,7 +536,11 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 /* 学生の画面を試す（TrialSection.tsx。依頼者の選択 2026-10-22 案1） */
 .trial-sec { display: grid; gap: 16px; max-width: 760px; }
 .trial-sec .sec-lead { margin: -12px 0 0; }
-.trial-points { margin: 0 0 18px; padding-left: 1.3em; line-height: 1.85; word-break: auto-phrase; }
+/* 絵と短い言葉の並び（学生の画面を試す・届いた声の流れ・先生の登録の役わり。mockups/v114 案C を広げた） */
+.icon-points { display: grid; gap: 12px; margin: 0 0 18px; padding: 0; list-style: none; word-break: auto-phrase; }
+.icon-points li { display: flex; align-items: flex-start; gap: 12px; line-height: 1.6; color: var(--muted); font-size: 14px; }
+.icon-points li .set-ic { flex: none; }
+.icon-points li b { display: block; color: var(--ink); font-size: 15px; }
 .trial-open { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .trial-open .btn svg { width: 17px; height: 17px; }
 .trial-state { color: var(--muted); font-size: 14px; word-break: auto-phrase; }
@@ -616,7 +669,15 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .fb-text { margin: 0 0 10px; font-size: 15px; line-height: 1.8; white-space: pre-wrap; }
 .fb-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: #f7f8fa; font-size: 13px; line-height: 1.6; }
 .fb-meta div { display: flex; gap: 8px; min-width: 0; }
-.fb-meta dt { flex: none; width: 8.5em; color: var(--muted); white-space: nowrap; }
+.fb-meta dt { flex: none; align-self: flex-start; display: flex; align-items: center; gap: 5px; width: 9.5em; color: var(--muted); white-space: nowrap; }
+.fb-meta dt svg { flex: none; width: 15px; height: 15px; }
+.fb-head .chip svg { width: 14px; height: 14px; }
+/* 届いてから知らせるまでの流れ（絵の3つの段。mockups/v114 案C を広げた） */
+.fb-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: -6px 0 16px; padding: 0; list-style: none; counter-reset: fb; word-break: auto-phrase; }
+.fb-flow li { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 13px; line-height: 1.55; color: var(--muted); }
+.fb-flow li b { display: block; color: var(--ink); font-size: 14.5px; }
+.fb-flow li + li::before { content: ''; position: absolute; left: -9px; top: 50%; width: 8px; height: 8px; border-top: 2px solid #b8bfcc; border-right: 2px solid #b8bfcc; transform: translate(-1px, -50%) rotate(45deg); }
+@media (max-width: 760px) { .fb-flow { grid-template-columns: minmax(0, 1fr); } .fb-flow li + li::before { display: none; } }
 .fb-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .fb-meta .fb-mail, .fb-meta .fb-course { display: block; color: var(--muted); }
 .fb-meta .fb-errors { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }

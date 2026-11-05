@@ -143,7 +143,10 @@ export function WordsSection({ words, onChange, onPending, notices }: { words: W
                 <span className="ar">→</span>
                 <span className="w">{w.right}</span>
                 <span>
-                  <span className={`sev ${w.severity === 'error' ? 'e' : 'w'}`}>{w.severity === 'error' ? 'エラー' : '要確認'}</span>
+                  <span className={`sev ${w.severity === 'error' ? 'e' : 'w'}`}>
+                    {w.severity === 'error' ? AdminIcon.cross : AdminIcon.alert}
+                    {w.severity === 'error' ? 'エラー' : '要確認'}
+                  </span>
                 </span>
                 <span className="nt">{w.note}</span>
               </button>
@@ -157,7 +160,9 @@ export function WordsSection({ words, onChange, onPending, notices }: { words: W
           )}
         </div>
         <aside className="card wtry">
-          <h2 className="card-h">{AdminIcon.eye}試しに確かめる</h2>
+          <h2 className="card-h">
+            <span className="set-ic t-subtitle">{AdminIcon.eye}</span>試しに確かめる
+          </h2>
           <p>文を入れると、いまの一覧で指摘される所に印が付きます。</p>
           <input className="in" aria-label="試しの文" value={trial} onChange={(e) => setTrial(e.target.value)} />
           <div className="s">
@@ -173,11 +178,15 @@ export function WordsSection({ words, onChange, onPending, notices }: { words: W
           </div>
           <dl>
             <dt>
-              <span className="sev e">エラー</span>
+              <span className="sev e">
+                {AdminIcon.cross}エラー
+              </span>
             </dt>
             <dd>学生は消せません。提出の前に直すものです。</dd>
             <dt>
-              <span className="sev w">要確認</span>
+              <span className="sev w">
+                {AdminIcon.alert}要確認
+              </span>
             </dt>
             <dd>知らせるだけです。文脈によっては正しい語に使います。</dd>
           </dl>

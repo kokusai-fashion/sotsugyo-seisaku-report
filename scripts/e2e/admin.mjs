@@ -841,7 +841,8 @@ await withEdge(async (browser) => {
   check('管理者を先生にして管理者が1人だけになるときは、2人以上にするよう伝える（キャンセルなら変えない）', demoteAsked.includes('管理者が1人だけになります') && stillAdmin === '管理者', demoteAsked.replace(/\n/g, '⏎'))
   const savedRole = await page.evaluate(() => JSON.parse(localStorage.getItem('sotsugyo-admin-mock')).members.find((m) => m.email === 'tester@example.ac.jp').role)
   check('キャンセルした役割の変更は保存されない', savedRole === '管理者', savedRole)
-  const membersLead = await page.evaluate(() => document.querySelector('.members .sec-lead').textContent)
+  // 役わりごとにできることは、絵と短い言葉の並びに（mockups/v114 案C を広げた）
+  const membersLead = await page.evaluate(() => document.querySelector('.members .roles').textContent)
   check('先生ができることの説明に、お知らせも入っている', membersLead.includes('すべてのコースの「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます'), membersLead)
 
   // 変更履歴（左の見出しの区切り）
@@ -1071,7 +1072,7 @@ await withEdge(async (browser) => {
   await fx.waitForSelector('.admin .content')
 
   // ---- 3. お知らせの欄の案内は、どこに出るかだけ（管理者・先生の画面とも） ----
-  const NOTICE_HINT = 'このコースの学生のツールの、セルフチェック欄の上に表示されます。'
+  const NOTICE_HINT = '学生の画面の、セルフチェックの上に出ます'
   const noticeHints = (p) => p.evaluate(() => [...document.querySelectorAll('.course.open textarea.notice')].map((t) => t.closest('.ctl').querySelector('.hint').textContent))
   const adminHint = await noticeHints(fx)
   await fx.evaluate(() => document.querySelector('.course.open textarea.notice').scrollIntoView({ block: 'center' }))
@@ -1090,7 +1091,7 @@ await withEdge(async (browser) => {
   const teacherLonely = await lonelyAtWidths(teacherFx)
   await teacherFx.close()
   check(
-    'お知らせの欄の案内は「このコースの学生のツールの、セルフチェック欄の上に表示されます。」だけ（管理者・先生の画面とも。1字だけ次の行に残らない）',
+    'お知らせの欄の案内は「学生の画面の、セルフチェックの上に出ます」だけ（管理者・先生の画面とも。1字だけ次の行に残らない）',
     adminHint.length === 1 && adminHint[0] === NOTICE_HINT && teacherHint.length === 1 && teacherHint[0] === NOTICE_HINT && teacherLonely.length === 0,
     JSON.stringify({ adminHint, teacherHint, teacherLonely }),
   )
@@ -1815,8 +1816,8 @@ await withEdge(async (browser) => {
     JSON.stringify({ toCover, toBody }),
   )
   check(
-    '先生の画面のはじめに見えるのは、入力欄4・ボタン9前後・12px以下の字0（mockups/v43 案B：入力欄2・ボタン7。左の見出しの「届いた声」で1つ、先生の許可の2つの切り替えと点検表の2つのボタンで、入力欄2・ボタン2増えた：依頼者の選択 2026-11-04）',
-    teacherCount.fields === 4 && teacherCount.buttons >= 8 && teacherCount.buttons <= 11 && teacherCount.small === 0,
+    '先生の画面のはじめに見えるのは、入力欄2・ボタン9前後・12px以下の字0（mockups/v43 案B：入力欄2・ボタン7。左の見出しの「届いた声」で1つ、点検表の2つのボタンで2増えた：依頼者の選択 2026-11-04。コースの欄を絵とスイッチの並びにして（mockups/v114 案C）、先生の許可の2つのスイッチは、はじめの画面の下に移った）',
+    teacherCount.fields === 2 && teacherCount.buttons >= 8 && teacherCount.buttons <= 11 && teacherCount.small === 0,
     JSON.stringify(teacherCount),
   )
   await nav(tv, '書き方のチェック')

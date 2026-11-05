@@ -69,11 +69,14 @@ const KIND_NAMES: Record<EditableKind, string> = {
 
 /**
  * まだ書いていない所の帯の言葉。todo：いちばん上の所、rest：同じページの、ほかのまだの所の数。
- * text：太字の1行目、sub：小さな2行目（なければ null）、button：押すボタンの名前
+ * text：太字の1行目、sub：小さな2行目（なければ null）、button：押すボタンの名前。
+ * touch：指で使う端末（「タップ」「キーボードの上」）。ブラウザを拡大したパソコンには画面のキーボードがないので、「クリック」「書いている間に出る道具」
  */
-export function todoBand(todo: BandTodo, rest: number): { text: string; sub: string | null; button: string } {
+export function todoBand(todo: BandTodo, rest: number, touch = true): { text: string; sub: string | null; button: string } {
   const more = rest > 0 ? `このページで、ほかに${rest}か所（＋の印）` : null
-  if (todo.kind === 'figure') return { text: '図の枠に、まだ写真がありません', sub: more, button: '写真を選ぶ' }
+  // ひな形の図の枠：図はこの枠だけでなく、ほかの所にも入れられること（依頼者の心配 2026-11-05。mockups/v113 スマホ）
+  const elsewhere = touch ? '図は、ほかの所にも入れられます（文の中をタップして、キーボードの上の「図」）' : '図は、ほかの所にも入れられます（文の中をクリックして、書いている間に出る道具の「図」）'
+  if (todo.kind === 'figure') return { text: '図の枠に、まだ写真がありません', sub: [elsewhere, more].filter(Boolean).join('。'), button: '写真を選ぶ' }
   if (todo.kind === 'course') return { text: 'コースを、まだ選んでいません', sub: more, button: '選ぶ' }
   const hint = todo.hint?.trim()
   // ひな形の段落は「ここに何を書くか」をそのまま出す（紙面では小さくて読めないため）

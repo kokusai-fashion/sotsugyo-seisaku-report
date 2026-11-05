@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { describeChanges, shortChanges } from './changes'
 import type { HistoryRow } from './server'
+import { AdminIcon } from './adminIcons'
 import { SectionHead } from './ui'
 import { SlowNote, Waiting } from './Wait'
 
@@ -36,6 +37,8 @@ export function HistorySection({ year, history, loading, slow, onRestore, notice
           <ul className="history">
             {history.map((h, i) => (
               <li key={i}>
+                {/* 記録の種類の絵（公開：✓、保存：時計。mockups/v114 案C を広げた） */}
+                <span className={`set-ic ${h.action.includes('公開') ? 't-sheet' : h.action.includes('保存') ? 't-template' : 't-people'}`}>{h.action.includes('公開') ? AdminIcon.done : AdminIcon.history}</span>
                 <span className="what">
                   <b>
                     {new Date(h.at).toLocaleString('ja-JP')}　{h.action}
