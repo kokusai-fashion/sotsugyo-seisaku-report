@@ -1,18 +1,18 @@
 import type { Course, TemplateBlock } from '../config'
 
-/** ひな形の中身の要約（コースのカードに出す。例：大見出し3・中見出し3・説明5・本文に入る文1・図の枠1・素材表1・改ページ1・表1） */
+/** ひな形の中身の要約（コースのカードに出す。例：大見出し3・中見出し3・説明5・書き出しの文1・図の枠1・素材表1・改ページ1・表1） */
 export function templateSummary(course: Course): string {
   const t = course.template
   if (!t || t.length === 0) return '標準のひな形（まだ決めていません）'
   const count = (type: TemplateBlock['type']) => t.filter((b) => b.type === type).length
-  // 段落は、説明（薄い字）と本文に入る文に分けて数える（mockups/v70）
+  // 段落は、説明（薄い字）と書き出しの文に分けて数える（mockups/v70）
   const texts = t.filter((b) => b.type === 'paragraph' && !!b.text?.trim()).length
   // 小見出し（（1））は、中見出しと分けて数える（あるときだけ出す）
   const minors = t.filter((b) => b.type === 'subheading' && b.level === 3).length
   const parts = [`大見出し${count('chapter')}`, `中見出し${count('subheading') - minors}`]
   if (minors) parts.push(`小見出し${minors}`)
   parts.push(`説明${count('paragraph') - texts}`)
-  if (texts) parts.push(`本文に入る文${texts}`)
+  if (texts) parts.push(`書き出しの文${texts}`)
   if (count('figure')) parts.push(`図の枠${count('figure')}`)
   if (count('materialTable')) parts.push(`素材表${count('materialTable')}`)
   if (count('pageBreak')) parts.push(`改ページ${count('pageBreak')}`)

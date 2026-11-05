@@ -4429,7 +4429,7 @@ export class ReportEditor {
   }
 
   /**
-   * ひな形を作る画面：書いている本文の段落を「本文に入る文」（on）か「ここに書くこと」にする（左の道具の「この段落」。mockups/v70 案C）。
+   * ひな形を作る画面：書いている本文の段落を「書き出しの文」（on）か「ここに書くこと」にする（左の道具の「この段落」。mockups/v70 案C）。
    * 切り替えたあとも、同じ段落を同じ所から書き続ける
    */
   setPrefilled(on: boolean): void {
@@ -4441,6 +4441,19 @@ export class ReportEditor {
     this.pushHistory(this.report)
     this.report = ops.setPrefilled(this.report, id, on)
     this.reopenAfterRender(id, caret)
+  }
+
+  /**
+   * ひな形を作る画面：「書き出しの文」の段落 id の、続きの説明を変える（書いている段落の下の「続きの説明」の欄。mockups/v111 案B）。
+   * 欄から離れたとき・Enter で呼ぶ。書く欄は閉じない（書いている字は、書く欄を閉じたときに、この説明のまま段落に入る：reportOps の paragraph の keep）。
+   * 欄から離れたのが、ほかの段落を押したためでも、その段落の説明だけを変える
+   */
+  setContinuation(id: string, text: string): void {
+    const p = ops.findParagraph(this.report, id)
+    if (!p || !p.prefilled || (p.hint ?? '') === text.trim() || this.settlingRemoval) return
+    this.pushHistory(this.report)
+    this.report = ops.setContinuation(this.report, id, text)
+    this.afterChange({ render: 'now', save: true })
   }
 
   addParagraph(): void {

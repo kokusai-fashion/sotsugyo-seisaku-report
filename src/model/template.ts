@@ -1,6 +1,7 @@
 import { findCourse, type TemplateBlock, type YearConfig } from '../config'
 import { numbering, textToContent } from '../editor/reportOps'
 import { templateProblems } from '../config/validate'
+import { contentKey } from './starter'
 import { materialTable, tableFromTemplate } from './table'
 import type { BodyBlock, Chapter, ParagraphBlock, Report } from './types'
 
@@ -66,10 +67,12 @@ export function bodyFromTemplate(template: TemplateBlock[]): Chapter[] {
       case 'subheading':
         body = { type: 'subheading', id: newId('s'), title: textOf(block.title), ...(block.level === 3 ? { level: 3 as const } : {}) }
         break
-      // 本文に入る文があれば、その字の段落（学生が直せる。mockups/v70）。なければ、説明を薄く出す空の段落
+      // 書き出しの文があれば、その字の段落（学生が直せる。mockups/v70）。説明もあれば、書き出しの続きの説明（mockups/v111 案B）。
+      // 書き出しの文がなければ、説明を薄く出す空の段落
       case 'paragraph': {
         const text = textOf(block.text)
-        body = text.trim() ? { type: 'paragraph', id: newId('p'), content: [{ type: 'text', text }] } : emptyParagraph(textOf(block.hint).trim() || undefined)
+        const hint = textOf(block.hint).trim()
+        body = text.trim() ? { type: 'paragraph', id: newId('p'), content: [{ type: 'text', text }], ...(hint ? { hint } : {}) } : emptyParagraph(hint || undefined)
         break
       }
       case 'figure':
@@ -91,11 +94,16 @@ export function bodyFromTemplate(template: TemplateBlock[]): Chapter[] {
     current().blocks.push(body)
   }
   for (const chapter of chapters) if (chapter.blocks.length === 0) chapter.blocks.push(emptyParagraph())
-  // 本文に入る文の「表1」「（図1）」は、ひな形の表・図へのリンクにする（文字のままだと、学生が何もしないうちから
+  // 書き出しの文の「表1」「（図1）」は、ひな形の表・図へのリンクにする（文字のままだと、学生が何もしないうちから
   // 「表の番号を手で書いている」のエラーになっていた：学生の試し 2026-11-01 録画1。ない番号は文字のまま）
+  // 続きの説明のある書き出しの文には、はじめの字の印を付ける（書き出しのままのあいだ、説明を出し、「まだ書いていない段落」に数える）
   const num = numbering({ body: chapters })
   for (const chapter of chapters)
-    chapter.blocks = chapter.blocks.map((b) => (b.type === 'paragraph' && !b.hint && b.content.length === 1 && b.content[0].type === 'text' && b.content[0].text ? { ...b, content: textToContent(b.content[0].text, num) } : b))
+    chapter.blocks = chapter.blocks.map((b) => {
+      if (b.type !== 'paragraph' || b.content.length !== 1 || b.content[0].type !== 'text' || !b.content[0].text) return b
+      const content = textToContent(b.content[0].text, num)
+      return { ...b, content, ...(b.hint ? { starter: contentKey(content) } : {}) }
+    })
   return chapters
 }
 

@@ -746,7 +746,7 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
         {template && (
           <>
             <Tool label={'ここに\n書くこと'} icon={Icon.hintText} pressed={!prefilled} title="学生には薄い字で出す説明にする（学生が書き始めると消え、PDF には出ません）" onClick={() => editor.setPrefilled(false)} />
-            <Tool label={'本文に\n入る文'} icon={Icon.fixedText} pressed={prefilled} title="学生の本文に、そのまま字として入れる（学生が直したり消したりできます）" onClick={() => editor.setPrefilled(true)} />
+            <Tool label={'書き出し\nの文'} icon={Icon.fixedText} pressed={prefilled} title="学生の本文のはじめに、そのまま字として入れる（学生が直したり消したりできます。下の欄で、続きの説明も付けられます）" onClick={() => editor.setPrefilled(true)} />
           </>
         )}
         {paste}

@@ -12,6 +12,7 @@ import { panelStyle } from '../app/usePanelWidths'
 import { useUndoNotice } from '../app/useUndoNotice'
 import { useNarrow, useWheelPaging } from '../app/uiShared'
 import { DEFAULT_TEMPLATE } from '../model/template'
+import { LIMITS } from '../config/validate'
 import { inFrame, initPayload, onInit, sendToAdmin } from './bridge'
 import { templateBody, templateConfig, templateFromReport, templateIssues, templateReport, usableTemplate, type TemplateIssue, type TemplateResult } from './convert'
 import type { InitPayload, TemplateYearStatus } from './protocol'
@@ -19,7 +20,7 @@ import type { InitPayload, TemplateYearStatus } from './protocol'
 /**
  * ひな形を作る画面（mockups/v44 案A）。管理ページの上に重ねた窓（iframe）の中で、学生のツールを ?template=1 で開いたもの。
  * 紙面・左の道具は学生と同じ。本文の段落の字は、学生に薄い字で出す「ここに書くこと」になる。
- * 左の道具の「この段落」で「本文に入る文」にした段落の字は、学生の本文にそのまま入る（mockups/v70 案C）。
+ * 左の道具の「この段落」で「書き出しの文」にした段落の字は、学生の本文にそのまま入る（mockups/v70 案C）。
  * 学生の原稿ではないので：ログイン・ドライブ・この端末への保存（自動保存・控え）・PDF・セルフチェックはしない。学生の原稿にも触れない。
  * 原稿はこの画面の中（メモリ）だけに置き、「管理ページに戻して反映」で、ひな形にして管理ページへ渡す（bridge.ts）
  */
@@ -99,11 +100,11 @@ export function TemplateApp() {
   )
 }
 
-/** 書いているのが「本文に入る文」の段落か（札と、書く欄の字の色を変える） */
+/** 書いているのが「書き出しの文」の段落か（札と、書く欄の字の色を変える） */
 const editingPrefilled = (snap: EditorSnapshot | null) => snap?.editingKind === 'paragraph' && !!snap.editingId && !!findParagraph(snap.report, snap.editingId)?.prefilled
 
 /**
- * 書いている段落の左の余白の札（「ここに書くこと」・「本文に入る文」・抄録は「書き出しの例」）。
+ * 書いている段落の左の余白の札（「ここに書くこと」・「書き出しの文」・抄録は「書き出しの例」）。
  * 紙面の段落の札（index.css の「ひな形を作る画面」）は、書いている間は段落ごと隠れるので、書く欄の横に同じ札を出す
  */
 function EditingTag({ snap, stage }: { snap: EditorSnapshot | null; stage: React.RefObject<HTMLElement | null> }) {
@@ -132,7 +133,61 @@ function EditingTag({ snap, stage }: { snap: EditorSnapshot | null; stage: React
   const [left, top] = at.split(',').map(Number)
   return (
     <div className={`tpl-editing-tag${editingPrefilled(snap) ? ' text' : ''}`} style={{ left, top }} aria-hidden="true">
-      {kind === 'abstractParagraph' ? '書き出しの例' : editingPrefilled(snap) ? '本文に入る文' : 'ここに書くこと'}
+      {kind === 'abstractParagraph' ? '書き出しの例' : editingPrefilled(snap) ? '書き出しの文' : 'ここに書くこと'}
+    </div>
+  )
+}
+
+/**
+ * 「書き出しの文」の段落を書いている間、書く欄の下に出す「続きの説明」の欄（学生には、書き出しのあとに薄い字で出る。mockups/v111 案B。
+ * 依頼者 2026-11-05：書き出しの文は本文の最初の文。その続きに何を書くかを、同じ段落の中で薄い字で示す）。
+ * 欄を押しても、書く欄は閉じずに待つ（overlayEditor の KEEP_OPEN）。Enter か、欄から離れたときに、ひな形に入れる
+ */
+function ContinueField({ editor, snap, stage }: { editor: ReportEditor; snap: EditorSnapshot | null; stage: React.RefObject<HTMLElement | null> }) {
+  const id = editingPrefilled(snap) ? snap!.editingId : null
+  const saved = id ? (findParagraph(snap!.report, id)?.hint ?? '') : ''
+  const [text, setText] = useState(saved)
+  const [at, setAt] = useState<string | null>(null)
+  // 書く段落が変わったら（ひな形に入れたら）、その段落の説明にする
+  useEffect(() => setText(saved), [id, saved])
+  useEffect(() => {
+    if (!id) return
+    // 書く欄は、書くにつれて大きさ・位置が変わるので、少しずつ見直す（EditingTag と同じ）
+    const place = () => {
+      const r = document.querySelector<HTMLElement>('.overlay-editor')?.getBoundingClientRect()
+      const s = stage.current?.getBoundingClientRect()
+      const shown = r && s && r.width > 0 && r.bottom >= s.top && r.bottom <= s.bottom - 60
+      setAt(shown ? `${Math.round(r.left)},${Math.round(r.bottom)},${Math.round(r.width)}` : null)
+    }
+    const frame = requestAnimationFrame(place)
+    const timer = window.setInterval(place, 150)
+    return () => {
+      cancelAnimationFrame(frame)
+      clearInterval(timer)
+      setAt(null)
+    }
+  }, [id, stage])
+  if (!id || !at) return null
+  const [left, top, width] = at.split(',').map(Number)
+  const apply = () => editor.setContinuation(id, text)
+  return (
+    <div className="tpl-continue" style={{ left, top, width: Math.max(320, Math.min(width, 560)) }}>
+      <label>
+        <span>続きの説明（学生には、書き出しのあとに薄い字で出ます。なくてもかまいません）</span>
+        <input
+          value={text}
+          maxLength={LIMITS.hint}
+          placeholder="例：デザインのもとにした作品や時代を書く"
+          onChange={(e) => setText(e.target.value)}
+          onBlur={apply}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              apply()
+            }
+          }}
+        />
+      </label>
     </div>
   )
 }
@@ -350,9 +405,15 @@ function TemplateScreen({ init }: { init: InitPayload }) {
               学生には薄い字で出ます
             </li>
             <li>
-              <b className="k-text">「本文に入る文」</b>は、
+              <b className="k-text">「書き出しの文」</b>は、
               <br />
               そのまま学生の本文に入ります
+            </li>
+            {/* 書き出しの文の続きの説明（mockups/v111 案B） */}
+            <li>
+              書き出しの文の下の欄の説明は、
+              <br />
+              書き出しのあとに薄い字で出ます
             </li>
             <li>
               書いている段落の左の道具で、
@@ -414,6 +475,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
         </section>
       </aside>
       <EditingTag snap={snap} stage={stageRef} />
+      {ready && <ContinueField editor={editor} snap={snap} stage={stageRef} />}
     </div>
   )
 }

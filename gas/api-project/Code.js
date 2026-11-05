@@ -14,7 +14,7 @@
  *   （git には入れない。入っていなければスクリプト プロパティの PDF_FOLDER_ID）。未設定なら、何もせずに「未設定」と返す
  * - 送った人は、学生のツールのログインの許可（アクセストークン）を Google に確かめる（このツールの OAuth クライアント・大学のアカウント・確かめ済みのアドレス）。
  *   学生のアカウント（@ より前が学籍番号の形）なら、表紙の学籍番号と同じであること。教職員のアカウントも、見本の原稿で試せるように通す
- * - フォルダの中に、コースごとのフォルダを作り（なければ）、学生ごとに1つのファイルを置く。送るたびに中身を新しい版にする（前の版はドライブに残る）
+ * - フォルダの中に、年度のフォルダ（「2026年度」）、その中にコースごとのフォルダを作り（なければ。依頼者 2026-11-05）、学生ごとに1つのファイルを置く。送るたびに中身を新しい版にする（前の版はドライブに残る）
  * - ファイル名は提出の決まりと同じ「学籍番号_氏名（空白を詰める）.pdf」（例：00ZZ0123_文化花子.pdf。学生が書き出す PDF と同じ名前）。
  *   教職員が試しに送った控えは、頭に「試し_」を付ける。ファイルの説明に、送った人のアドレスを書く
  * OAuth クライアント ID と大学のドメインも、ビルド時（.env の VITE_GOOGLE_CLIENT_ID・VITE_GOOGLE_DOMAIN）に入る
@@ -68,6 +68,22 @@ function setting_(value, key) {
   return value || PropertiesService.getScriptProperties().getProperty(key) || ''
 }
 
+/**
+ * PDF の控えのもとのフォルダの ID：管理ページの「詳細設定」で決めたもの（管理用スプレッドシートのシート「設定」の「PDF の控えのフォルダ」。
+ * 依頼者の選択 2026-11-05 mockups/v112 案A）。なければ、ビルド時に入った値・スクリプト プロパティ PDF_FOLDER_ID
+ */
+function pdfRootId_() {
+  try {
+    const sheet = SpreadsheetApp.openById(sheetId_()).getSheetByName('設定')
+    const row = sheet ? sheet.getDataRange().getValues().slice(1).find((r) => String(r[0]) === 'PDF の控えのフォルダ') : null
+    const id = row ? String(row[1] || '').trim() : ''
+    if (id) return id
+  } catch (err) {
+    console.error('設定のシートを読めませんでした：' + String(err && err.message ? err.message : err))
+  }
+  return setting_(PDF_FOLDER_ID, 'PDF_FOLDER_ID')
+}
+
 /** 最初に1回だけ実行して、スプレッドシートを読む権限を承認する */
 function authorize() {
   Logger.log('読み込めました：' + SpreadsheetApp.openById(sheetId_()).getName())
@@ -82,7 +98,7 @@ function authorizePdfCopy() {
   authorize()
   // 外部への接続（ログインの確かめに使う）の権限を承認するため、1回つないでみる（答えは使わない）
   UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=authorize-check', { muteHttpExceptions: true })
-  const folderId = setting_(PDF_FOLDER_ID, 'PDF_FOLDER_ID')
+  const folderId = pdfRootId_()
   if (!folderId) {
     Logger.log('PDF の控えを置くフォルダは未設定です（gas/pdf-folder.local.json に書いて配り直すか、スクリプト プロパティ PDF_FOLDER_ID に入れる）')
     return
@@ -181,7 +197,7 @@ function parseRequest_(e) {
 
 /** PDF の控えを置く。断るときは { ok: false, error }（ドライブなどの思いがけないエラーは投げる） */
 function pdfCopy_(request) {
-  const folderId = setting_(PDF_FOLDER_ID, 'PDF_FOLDER_ID')
+  const folderId = pdfRootId_()
   if (!folderId) return { ok: false, error: 'PDF の控えを置くフォルダが未設定' }
   const clientId = setting_(CLIENT_ID, 'GOOGLE_CLIENT_ID')
   const domain = setting_(DOMAIN, 'GOOGLE_DOMAIN').toLowerCase()
@@ -227,7 +243,7 @@ function pdfCopy_(request) {
   // 学生ごとに1つのファイル（年度と学籍番号。教職員はアドレスごと。学生のファイルを上書きしないように）
   const key = year + ':' + (accountId || 'staff:' + email)
   const description = '卒業制作報告書ツールから送られた PDF\n送った人：' + email + '\n送った日時：' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
-  const fileId = savePdf_(folderId, courseName, fileName, key, Utilities.newBlob(bytes, 'application/pdf', fileName), description)
+  const fileId = savePdf_(folderId, year, courseName, fileName, key, Utilities.newBlob(bytes, 'application/pdf', fileName), description)
   // 学生の名簿にも、最後に送った PDF の控えを書く（点検表の「最新 PDF」。docs/設計_許可の仕組み.md）。
   // 名簿に書けなくても、PDF の控えは置けているので ok を返す（くわしいことは、ここの記録にだけ）
   try {
@@ -320,8 +336,13 @@ function listFiles_(q) {
   return (res && res.files) || []
 }
 
-/** フォルダ（rootId）の中の、コースのフォルダ（なければ作る） */
-function courseFolder_(rootId, name) {
+/** 年度のフォルダの名前（PDF の控えのフォルダの中に、年度 → コースの順にフォルダを作る：依頼者 2026-11-05。管理ページの点検表も同じ） */
+function yearFolderName_(year) {
+  return String(year) + '年度'
+}
+
+/** フォルダ（rootId）の中の、name のフォルダ（なければ作る） */
+function folderIn_(rootId, name) {
   const find = () => listFiles_('name = ' + q_(name) + ' and ' + q_(rootId) + ' in parents and mimeType = ' + q_(FOLDER_MIME) + ' and trashed = false')[0]
   const found = find()
   if (found) return found.id
@@ -341,11 +362,13 @@ function courseFolder_(rootId, name) {
  * 控えを置く。前に送ったこの学生のファイル（印 reportKey。どのコースのフォルダにあっても。なければ同じ名前のファイル）があれば、
  * その中身を新しい版にする（ドライブが前の版を残す。名前・置き場所も今のものにする）。なければ、コースのフォルダに作る
  */
-function savePdf_(rootId, courseName, fileName, key, blob, description) {
+function savePdf_(rootId, year, courseName, fileName, key, blob, description) {
   const root = Drive.Files.get(rootId, { fields: 'id,mimeType,trashed', supportsAllDrives: true })
   if (!root || root.mimeType !== FOLDER_MIME || root.trashed) throw new Error('PDF の控えを置くフォルダが見つかりません')
-  const courseId = courseFolder_(rootId, courseName)
-  const folders = listFiles_(q_(rootId) + ' in parents and mimeType = ' + q_(FOLDER_MIME) + ' and trashed = false').map((f) => f.id)
+  // 年度のフォルダの中の、コースのフォルダ（前に送ったファイルは、同じ年度のどのコースのフォルダにあっても探す）
+  const yearId = folderIn_(rootId, yearFolderName_(year))
+  const courseId = folderIn_(yearId, courseName)
+  const folders = listFiles_(q_(yearId) + ' in parents and mimeType = ' + q_(FOLDER_MIME) + ' and trashed = false').map((f) => f.id)
   if (folders.indexOf(courseId) < 0) folders.push(courseId)
   const inFolders = '(' + folders.map((id) => q_(id) + ' in parents').join(' or ') + ')'
   const file =
@@ -480,10 +503,10 @@ function feedback_(request) {
 
 /** 画面の写真を、PDF の控えのフォルダの中の「届いた声の画面」に置く（フォルダが未設定・置けないときは、その旨の文字） */
 function saveScreen_(base64, id) {
-  const rootId = setting_(PDF_FOLDER_ID, 'PDF_FOLDER_ID')
+  const rootId = pdfRootId_()
   if (!rootId) return '（写真を置くフォルダが未設定）'
   try {
-    const folderId = courseFolder_(rootId, FEEDBACK_SCREEN_FOLDER)
+    const folderId = folderIn_(rootId, FEEDBACK_SCREEN_FOLDER)
     const name = '届いた声_' + id + '.jpg'
     const file = Drive.Files.create({ name: name, parents: [folderId], mimeType: 'image/jpeg' }, Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', name), { supportsAllDrives: true, fields: 'id' })
     return 'https://drive.google.com/file/d/' + file.id + '/view'

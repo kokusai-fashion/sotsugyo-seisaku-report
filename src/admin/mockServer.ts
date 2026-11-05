@@ -1,8 +1,8 @@
 import { BUILD_ID } from '../app/newVersion'
 import { currentConfig, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
-import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type StudentEntry, type YearRow } from './server'
-import { applyNotices, applyPermissions, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, removedMemberMessage } from './serverRules'
+import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type PdfFolder, type StudentEntry, type YearRow } from './server'
+import { applyNotices, applyPermissions, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, folderIdFromLink, removedMemberMessage } from './serverRules'
 import { byKana, movedFlags } from './studentOrder'
 
 /**
@@ -97,6 +97,23 @@ function loadOrders(): Record<string, string[]> {
   }
   return {}
 }
+/**
+ * PDF の控えのもとのフォルダ（本番は管理用スプレッドシートのシート「設定」。mockups/v112 案A）。
+ * 試験用は ID と名前を覚える。ID に noaccess を含むフォルダは「編集できない」、gone を含むフォルダは「開けない」ことにする（自動テスト用）
+ */
+const PDF_FOLDER_KEY = 'sotsugyo-admin-mock-pdffolder'
+const DEFAULT_PDF_FOLDER = { id: 'mock-pdf-folder-0001', name: '卒業制作報告書　提出された PDF' }
+function loadPdfFolder(): { id: string; name: string } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PDF_FOLDER_KEY) ?? 'null') as { id: string; name: string } | null
+    if (saved && typeof saved.id === 'string') return saved
+  } catch {
+    // 壊れていたら、はじめのフォルダ
+  }
+  return DEFAULT_PDF_FOLDER
+}
+const folderInfo = (f: { id: string; name: string }): PdfFolder => ({ id: f.id, name: f.name, url: `https://drive.google.com/drive/folders/${f.id}` })
+
 /** 作った点検表（年度:コース → 場所）。本番は管理用スプレッドシートのシート「点検表」 */
 const SHEETS_KEY = 'sotsugyo-admin-mock-checksheets'
 function loadSheets(): Record<string, string> {
@@ -277,6 +294,24 @@ export function createMockServer(): AdminServer {
         if (edits.permissions && typeof edits.permissions === 'object' && Object.keys(edits.permissions).length) done.push(`先生の許可を保存（${applyPermissions(config, edits.permissions).join('・')}）`)
         return done.join('・') || '保存（変更なし）'
       })
+    },
+    async getPdfFolder() {
+      await wait()
+      requireAdmin(load())
+      return folderInfo(loadPdfFolder())
+    },
+    async setPdfFolder(link) {
+      await wait()
+      const store = load()
+      requireAdmin(store)
+      // 本番の setPdfFolder と同じ言葉で断る
+      const id = folderIdFromLink(link)
+      if (!id) throw new Error('フォルダのリンクを貼ってください（https://drive.google.com/drive/folders/… の形）')
+      if (id.includes('gone')) throw new Error('そのフォルダを開けません。リンクと、フォルダの共有を確かめてください')
+      if (id.includes('noaccess')) throw new Error('そのフォルダを編集できません。フォルダの持ち主に「編集者」にしてもらってください')
+      const folder = { id, name: `新しいフォルダ（${id.slice(0, 6)}…）` }
+      localStorage.setItem(PDF_FOLDER_KEY, JSON.stringify(folder))
+      return folderInfo(folder)
     },
     async ensureCheckSheet(year, courseId) {
       await wait()

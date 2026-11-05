@@ -192,7 +192,7 @@ export async function templateModeAdmin(browser, check) {
     screen.banner === 'ひな形を作っています：映画・舞台衣装デザイナー コース（学生の画面ではありません）' &&
       screen.title === 'このコースのひな形' &&
       screen.points ===
-        '学生と同じように、紙面に書きます|「ここに書くこと」は、学生には薄い字で出ます|「本文に入る文」は、そのまま学生の本文に入ります|書いている段落の左の道具で、切り替えられます|表紙・作品写真は、ひな形に入りません' &&
+        '学生と同じように、紙面に書きます|「ここに書くこと」は、学生には薄い字で出ます|「書き出しの文」は、そのまま学生の本文に入ります|書き出しの文の下の欄の説明は、書き出しのあとに薄い字で出ます|書いている段落の左の道具で、切り替えられます|表紙・作品写真は、ひな形に入りません' &&
       screen.buttons === '管理ページに戻して反映|閉じる|標準のひな形に戻す' &&
       screen.note === '学生に届くのは、管理ページで「保存して学生に反映」を押してから' &&
       !screen.gate &&
@@ -607,10 +607,10 @@ export async function templateModeAdmin(browser, check) {
 }
 
 /**
- * ひな形の段落を「本文に入る文」にする（依頼者の判断 2026-10-27：mockups/v70 案C）。admin.mjs から呼ぶ。
- * - 書いている段落の左の道具（「この段落」）に「ここに書くこと」「本文に入る文」。押すと切り替わり、同じ段落を書き続ける
- * - 本文に入る文：札は「本文に入る文」、字は黒。Enter で分けた後ろの段落も本文に入る文
- * - 戻して保存すると、ひな形の段落に text（本文に入る文）が入る。コースのカードの要約・前の作り方の窓にも出る
+ * ひな形の段落を「書き出しの文」にする（依頼者の判断 2026-10-27：mockups/v70 案C）。admin.mjs から呼ぶ。
+ * - 書いている段落の左の道具（「この段落」）に「ここに書くこと」「書き出しの文」。押すと切り替わり、同じ段落を書き続ける
+ * - 書き出しの文：札は「書き出しの文」、字は黒。Enter で分けた後ろの段落も書き出しの文
+ * - 戻して保存すると、ひな形の段落に text（書き出しの文）が入る。コースのカードの要約・前の作り方の窓にも出る
  */
 export async function templatePrefilledAdmin(browser, check) {
   const context = await browser.createBrowserContext()
@@ -658,10 +658,11 @@ export async function templatePrefilledAdmin(browser, check) {
         id: s.editingId,
         prefilled: !!block?.prefilled,
         hintOn: pressed('ここに書くこと'),
-        textOn: pressed('本文に入る文'),
+        textOn: pressed('書き出しの文'),
         tag: document.querySelector('.tpl-editing-tag')?.textContent ?? '',
         tagText: !!document.querySelector('.tpl-editing-tag.text'),
         color: document.querySelector('.overlay-editor') ? getComputedStyle(document.querySelector('.overlay-editor')).color : '',
+        field: !!document.querySelector('.tpl-continue'),
       }
     })
 
@@ -671,17 +672,17 @@ export async function templatePrefilledAdmin(browser, check) {
   await frame.waitForSelector('.overlay-editor', { visible: true })
   await sleep(400)
   const first = await state()
-  check('書いている段落の左の道具に「ここに書くこと」（押してある）と「本文に入る文」', first.id === pid && first.hintOn === 'true' && first.textOn === 'false' && first.tag === 'ここに書くこと', JSON.stringify(first))
+  check('書いている段落の左の道具に「ここに書くこと」（押してある）と「書き出しの文」', first.id === pid && first.hintOn === 'true' && first.textOn === 'false' && first.tag === 'ここに書くこと', JSON.stringify(first))
 
-  // ---- 「本文に入る文」を押す：切り替わり、同じ段落を書き続ける ----
-  await tool('本文に入る文')
+  // ---- 「書き出しの文」を押す：切り替わり、同じ段落を書き続ける ----
+  await tool('書き出しの文')
   await sleep(700)
   await ready()
   const on = await state()
   await page.screenshot({ path: `${OUT}/10-prefilled-tool.png`, captureBeyondViewport: false })
   check(
-    '「本文に入る文」を押すと、その段落が本文に入る文になり（札「本文に入る文」・字は黒）、同じ段落を書き続ける',
-    on.id === pid && on.prefilled && on.textOn === 'true' && on.hintOn === 'false' && on.tag === '本文に入る文' && on.tagText && on.color === 'rgb(0, 0, 0)',
+    '「書き出しの文」を押すと、その段落が書き出しの文になり（札「書き出しの文」・字は黒）、同じ段落を書き続ける',
+    on.id === pid && on.prefilled && on.textOn === 'true' && on.hintOn === 'false' && on.tag === '書き出しの文' && on.tagText && on.color === 'rgb(0, 0, 0)',
     JSON.stringify(on),
   )
   await page.keyboard.down('Control')
@@ -693,12 +694,38 @@ export async function templatePrefilledAdmin(browser, check) {
   await page.keyboard.type('二つ目の文', { delay: 10 })
   await sleep(300)
   const second = await state()
-  check('Enter で分けた後ろの段落も「本文に入る文」', second.id !== pid && second.prefilled && second.textOn === 'true', JSON.stringify(second))
+  check('Enter で分けた後ろの段落も「書き出しの文」', second.id !== pid && second.prefilled && second.textOn === 'true', JSON.stringify(second))
   await tool('ここに書くこと')
   await sleep(700)
   await ready()
   const back = await state()
-  check('「ここに書くこと」を押すと、説明（薄い字）に戻る', back.id === second.id && !back.prefilled && back.hintOn === 'true' && back.tag === 'ここに書くこと' && back.color === 'rgb(95, 107, 149)', JSON.stringify(back))
+  check('「ここに書くこと」を押すと、説明（薄い字）に戻る（続きの説明の欄は出ない）', back.id === second.id && !back.prefilled && back.hintOn === 'true' && back.tag === 'ここに書くこと' && back.color === 'rgb(95, 107, 149)' && !back.field, JSON.stringify(back))
+
+  // ---- 書き出しの文の続きの説明（mockups/v111 案B。依頼者 2026-11-05）：書いている書き出しの文の下に「続きの説明」の欄 ----
+  await frame.evaluate((id) => window.__editor.openWhenReady(id, 0), pid)
+  await frame.waitForSelector('.tpl-continue input', { visible: true, timeout: 10000 })
+  await sleep(300)
+  const field = await frame.evaluate(() => {
+    const e = document.querySelector('.overlay-editor').getBoundingClientRect()
+    const f = document.querySelector('.tpl-continue').getBoundingClientRect()
+    return { below: f.top >= e.bottom - 1, label: document.querySelector('.tpl-continue span').textContent, value: document.querySelector('.tpl-continue input').value }
+  })
+  await frame.click('.tpl-continue input')
+  await page.keyboard.type('デザインのもとにした作品や時代を書く', { delay: 5 })
+  await page.keyboard.press('Enter')
+  await sleep(700)
+  await ready()
+  const cont = await frame.evaluate((id) => {
+    const s = window.__editor.getSnapshot()
+    const b = s.report.body.flatMap((c) => c.blocks).find((x) => x.id === id)
+    return { editing: s.editingId, hint: b.hint, prefilled: !!b.prefilled, field: !!document.querySelector('.tpl-continue') }
+  }, pid)
+  await page.screenshot({ path: `${OUT}/10b-continuation-field.png`, captureBeyondViewport: false })
+  check(
+    '書き出しの文を書いていると、すぐ下に「続きの説明」の欄。書いて Enter で、その段落の続きの説明になる（書く欄は閉じない）',
+    field.below && field.label.startsWith('続きの説明') && field.value === '' && cont.editing === pid && cont.hint === 'デザインのもとにした作品や時代を書く' && cont.prefilled && cont.field,
+    JSON.stringify({ field, cont }),
+  )
 
   // ---- 書き終えた紙面：札と字の色 ----
   await frame.evaluate(() => window.__editor.finishEditing())
@@ -706,11 +733,11 @@ export async function templatePrefilledAdmin(browser, check) {
   await ready()
   const paper = await frame.evaluate((ids) => {
     const p = (id) => document.querySelector(`.page-viewport.front section.body p[data-block-id="${id}"]`)
-    return ids.map((id) => ({ tag: getComputedStyle(p(id), '::before').content, color: getComputedStyle(p(id)).color }))
+    return ids.map((id) => ({ tag: getComputedStyle(p(id), '::before').content, color: getComputedStyle(p(id)).color, after: getComputedStyle(p(id), '::after').content }))
   }, [pid, second.id])
   check(
-    '紙面の札：本文に入る文は「本文に入る文」（字は紙面のふつうの色）、説明は「ここに書くこと」（薄い字）',
-    paper[0].tag === '"本文に入る文"' && paper[0].color !== 'rgb(95, 107, 149)' && paper[1].tag === '"ここに書くこと"' && paper[1].color === 'rgb(95, 107, 149)',
+    '紙面の札：書き出しの文は「書き出しの文」（字は紙面のふつうの色。続きの説明が後ろに出る）、説明は「ここに書くこと」（薄い字）',
+    paper[0].tag === '"書き出しの文"' && paper[0].color !== 'rgb(95, 107, 149)' && paper[0].after === '"デザインのもとにした作品や時代を書く"' && paper[1].tag === '"ここに書くこと"' && paper[1].color === 'rgb(95, 107, 149)' && paper[1].after === 'none',
     JSON.stringify(paper),
   )
   await page.screenshot({ path: `${OUT}/11-prefilled-paper.png`, captureBeyondViewport: false })
@@ -731,16 +758,16 @@ export async function templatePrefilledAdmin(browser, check) {
   await page.evaluate(() => [...document.querySelectorAll('.tpl-foot button')].find((b) => b.textContent === 'やめる').click())
   await sleep(300)
   check(
-    'カードの要約に「本文に入る文1」。前の作り方の窓にも「本文に入る文」の行と「＋ 本文に入る文」',
-    summary.includes('・本文に入る文1') && oldRows.rows.includes('本文に入る文:本報告書は、試験の文である。') && oldRows.rows.includes('説明:二つ目の文') && oldRows.adds.includes('＋ 本文に入る文'),
+    'カードの要約に「書き出しの文1」。前の作り方の窓にも「書き出しの文」の行と「＋ 書き出しの文」',
+    summary.includes('・書き出しの文1') && oldRows.rows.includes('書き出しの文:本報告書は、試験の文である。') && oldRows.rows.includes('説明:二つ目の文') && oldRows.adds.includes('＋ 書き出しの文'),
     JSON.stringify({ summary, ...oldRows }),
   )
   await page.evaluate(() => [...document.querySelectorAll('.dirty-bar button')].find((b) => b.textContent.includes('保存して学生に反映')).click())
   await page.waitForFunction(() => !document.querySelector('.dirty-bar'), { timeout: 10000 })
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sotsugyo-admin-mock')).years[0].config.courses[0].template.slice(2, 4))
   check(
-    '保存すると、ひな形の段落に本文に入る文（text）が入る（説明は空）。後ろの段落は説明のまま',
-    JSON.stringify(saved) === JSON.stringify([{ type: 'paragraph', hint: '', text: '本報告書は、試験の文である。' }, { type: 'paragraph', hint: '二つ目の文' }]),
+    '保存すると、ひな形の段落に書き出しの文（text）と続きの説明（hint）が入る。後ろの段落は説明のまま',
+    JSON.stringify(saved) === JSON.stringify([{ type: 'paragraph', hint: 'デザインのもとにした作品や時代を書く', text: '本報告書は、試験の文である。' }, { type: 'paragraph', hint: '二つ目の文' }]),
     JSON.stringify(saved),
   )
   await context.close()

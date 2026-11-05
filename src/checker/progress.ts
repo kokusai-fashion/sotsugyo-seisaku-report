@@ -2,6 +2,7 @@ import type { YearConfig } from '../config'
 import type { LayoutInfo } from '../layout/measure'
 import { photoCount } from '../model/photos'
 import type { ParagraphBlock, Report } from '../model/types'
+import { untouchedStarter } from '../model/starter'
 import { abstractCapacity, abstractCharCount, type Area, type ReportFinding } from './reportChecks'
 
 /**
@@ -59,7 +60,7 @@ export function notYetTester(ctx: ProgressContext): (f: ReportFinding) => boolea
   let previous: ParagraphBlock | null = null
   for (const b of blocks) {
     if (b.type === 'paragraph') previous = b
-    const unwritten = !!previous?.hint && blank(previous)
+    const unwritten = !!previous?.hint && (blank(previous) || untouchedStarter(previous))
     if (b.type === 'figureRow' && unwritten) b.figures.forEach((f) => beforeUnwritten.add(f.id))
     if (b.type === 'table' && unwritten) beforeUnwritten.add(b.id)
   }

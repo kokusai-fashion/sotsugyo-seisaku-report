@@ -255,7 +255,7 @@ const COPIED_STYLES = ['fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 
  * .direct-bar：スマホで紙面に直接書くの、キーボードの上の道具（app/Phone.tsx）。
  * .shape-panel・.table-shape：「表の形を整える」の窓（パソコン）と、下から出る欄（スマホ。app/tableShape.tsx。選んでいる間も、書いていたセルを覚えておく）
  */
-const KEEP_OPEN = '.palette, .es-tools, .table-size, .direct-bar, .shape-panel, .table-shape'
+const KEEP_OPEN = '.palette, .es-tools, .table-size, .direct-bar, .shape-panel, .table-shape, .tpl-continue'
 /** 書く欄を開き直すときも、フォーカスを動かさない所（「表の形を整える」の窓・欄。キーボードで選び続けられるように） */
 const STAY_FOCUS = '.shape-panel, .table-shape'
 

@@ -395,7 +395,7 @@ body.reordering iframe { pointer-events: none; }
 .tpl-modal .row input { min-width: 0; padding: 6px 4px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 15px; }
 .tpl-modal .row input:focus { outline: 2px solid var(--accent); background: #fff; }
 .tpl-modal .row.paragraph input { color: #5f6675; font-size: 14px; }
-/* 本文に入る文（学生の本文にそのまま入る字。説明の薄い字と分ける。mockups/v70） */
+/* 書き出しの文（学生の本文にそのまま入る字。説明の薄い字と分ける。mockups/v70） */
 .tpl-modal .row.paragraph.text input { color: var(--ink); }
 .tpl-modal .row.paragraph.text .kind { color: #23408e; }
 .tpl-modal .row .acts { display: flex; gap: 2px; }
@@ -686,3 +686,15 @@ button.busy:disabled { opacity: 1; cursor: progress; }
   /* ボタンは窓の下に留める（長い一覧の下までスクロールしなくても押せる） */
   .so-modal .so-foot { position: sticky; bottom: -20px; z-index: 4; margin: 14px -22px -20px; padding: 10px 22px 16px; border-top: 1px solid var(--line); background: #fff; }
 }
+
+/* PDF の控えのフォルダ（詳細設定のいちばん上。mockups/v112 案A） */
+.pdf-folder .card-h small { font-size: 13px; font-weight: 400; color: #6b7280; }
+.pdf-folder .pf-now { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.pdf-folder .pf-now a { color: var(--accent); white-space: nowrap; }
+.pdf-folder .pf-tree { font-size: 13px; line-height: 1.8; background: #f6f7f9; border-radius: 8px; padding: 6px 12px; }
+.pdf-folder .pf-tree .d1 { padding-left: 1em; }
+.pdf-folder .pf-tree .d2 { padding-left: 2.6em; }
+.pdf-folder .pf-change { display: flex; gap: 8px; }
+.pdf-folder .pf-change .in { flex: 1; min-width: 0; }
+.pdf-folder .pf-ok { margin-top: 6px; color: #1e6b34; font-size: 13px; }
+.pdf-folder .pf-error { margin-top: 6px; color: var(--error); font-size: 13px; }

@@ -1,6 +1,6 @@
 // 先生がひな形を作る画面（mockups/v44 案A）で入れた改ページと、ふつうの表（見出しの行）が、学生の新しい原稿に出るかを確かめる（smoke.mjs から呼ぶ）。
 // 映画・舞台衣装デザイナー コースのひな形の「制作過程」の説明の後ろに、改ページと表（部位・寸法・メモ、中身2行）を入れ、
-// 最初の大見出しのすぐ下に本文に入る文（mockups/v70）を入れた設定で、学生がコースを選んで始める。
+// 最初の大見出しのすぐ下に書き出しの文（mockups/v70）を入れた設定で、学生がコースを選んで始める。
 // 画面の写真は poc-output/template-mode/ に置く
 import { mkdirSync, readFileSync } from 'node:fs'
 import { answerConfirms } from './confirmUi.mjs'
@@ -12,8 +12,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /** 先生が本文に入れておく文（ひな形の段落の text。mockups/v70 案C） */
 const PREFILLED = '本報告書は、2026年度の卒業制作において、筆者が担当した衣装の制作についてまとめたものである。'
+/** 書き出しの文と、その続きの説明（mockups/v111 案B。依頼者 2026-11-05） */
+const STARTER = 'この衣装のデザインは、'
+const CONTINUATION = 'デザインのもとにした作品や時代を書く'
 
-/** 自動テストの設定（config-fixture.json）の衣装コースに、2026年度の初期値のひな形と、表・改ページ・本文に入る文（最初の大見出しのすぐ下）を入れる */
+/** 自動テストの設定（config-fixture.json）の衣装コースに、2026年度の初期値のひな形と、表・改ページ・書き出しの文（最初の大見出しのすぐ下）を入れる */
 function configWithTemplate() {
   const config = JSON.parse(readFileSync(new URL('./config-fixture.json', import.meta.url), 'utf8'))
   const base = JSON.parse(readFileSync(new URL('../../src/config/2026.json', import.meta.url), 'utf8'))
@@ -22,7 +25,7 @@ function configWithTemplate() {
   for (const block of film.template) {
     if (block.type === 'chapter' && block.title === 'まとめ') template.push({ type: 'pageBreak' }, { type: 'table', caption: '寸法表', header: ['部位', '寸法', 'メモ'], rows: 2 })
     template.push(block)
-    if (block.type === 'chapter' && template.filter((b) => b.type === 'chapter').length === 1) template.push({ type: 'paragraph', hint: '', text: PREFILLED })
+    if (block.type === 'chapter' && template.filter((b) => b.type === 'chapter').length === 1) template.push({ type: 'paragraph', hint: '', text: PREFILLED }, { type: 'paragraph', hint: CONTINUATION, text: STARTER })
   }
   for (const c of config.courses) delete c.notice
   Object.assign(config.courses.find((c) => c.id === 'film-stage-costume'), { template, abstractExample: film.abstractExample })
@@ -97,7 +100,7 @@ export async function templateStudentPc(browser, check) {
     JSON.stringify(made),
   )
   check(
-    '先生が「本文に入る文」にした段落は、学生の新しい原稿に字のまま入る（説明・印は付かない）',
+    '先生が「書き出しの文」にした段落は、学生の新しい原稿に字のまま入る（説明・印は付かない）',
     made.prefilled?.text === PREFILLED && made.prefilled.hint === null && made.prefilled.mark === null,
     JSON.stringify(made.prefilled),
   )
@@ -107,7 +110,7 @@ export async function templateStudentPc(browser, check) {
     const p = document.querySelector(`.page-viewport.front section.body p[data-block-id="${id}"]`)
     return p ? { text: p.textContent, prefilledAttr: p.hasAttribute('data-prefilled') } : null
   })
-  check('学生の紙面に、本文に入る文がふつうの字で出る', prefilledPaper?.text === PREFILLED && !prefilledPaper.prefilledAttr, JSON.stringify(prefilledPaper))
+  check('学生の紙面に、書き出しの文がふつうの字で出る', prefilledPaper?.text === PREFILLED && !prefilledPaper.prefilledAttr, JSON.stringify(prefilledPaper))
   // 改ページのあるページと、表のあるページを、見開きで並べて見る
   await page.evaluate((id) => {
     window.__editor.setView('spread')
@@ -141,6 +144,49 @@ export async function templateStudentPc(browser, check) {
     JSON.stringify({ ...paper, tablePage: made.tablePage, breakPage: made.breakPage, lastPage: made.lastPage }),
   )
   // ひな形のままの原稿は、書き始めていない（コースを変えても確かめずに入れ替わる）
-  check('ひな形のままの原稿は「書き始めていない」とみなす（表・改ページ・本文に入る文が入っていても）', !(await page.evaluate(() => window.__editor.bodyWritten())))
+  check('ひな形のままの原稿は「書き始めていない」とみなす（表・改ページ・書き出しの文が入っていても）', !(await page.evaluate(() => window.__editor.bodyWritten())))
+
+  // ---- 書き出しの文と続きの説明（mockups/v111 案B）：書き出しのあとに説明が薄く出て、「まだ書いていない段落」に数える。続きを書くと消える ----
+  const starterOf = () =>
+    page.evaluate(() => {
+      const s = window.__editor.getSnapshot()
+      const b = s.report.body[0].blocks[1]
+      const p = document.querySelector(`.page-viewport.front section.body p[data-block-id="${b.id}"]`)
+      return {
+        id: b.id,
+        text: b.content.map((n) => n.text ?? '').join(''),
+        hint: b.hint ?? null,
+        marked: b.starter !== undefined,
+        after: p ? getComputedStyle(p, '::after').content : null,
+        color: p ? getComputedStyle(p).color : null,
+        notYet: s.findings.some((f) => f.ruleId === 'paragraph-empty' && f.blockId === b.id),
+        others: s.findings.filter((f) => f.blockId === b.id && f.ruleId !== 'paragraph-empty').map((f) => f.ruleId),
+      }
+    })
+  await page.evaluate(() => {
+    window.__editor.setView('zoom')
+    const id = window.__editor.getSnapshot().report.body[0].blocks[1].id
+    return window.__editor.goToPage(window.__editor.pageOfBlock(id), 'none')
+  })
+  await ready()
+  await sleep(500)
+  const st0 = await starterOf()
+  await page.screenshot({ path: `${OUT}/5c-student-starter.png`, captureBeyondViewport: false })
+  check(
+    '書き出しの文の段落：字は書き出しのまま、そのあとに続きの説明が（ ）で薄く出る。「まだ書いていない段落」に数え、ほかの指摘は出さない',
+    st0.text === STARTER && st0.hint === CONTINUATION && st0.marked && st0.after === `"（${CONTINUATION}）"` && st0.color !== 'rgb(95, 107, 149)' && st0.notYet && st0.others.length === 0,
+    JSON.stringify(st0),
+  )
+  // 続きを書く（書き出しのすぐ後ろから）
+  await page.evaluate((id) => window.__editor.openWhenReady(id, 100), st0.id)
+  await page.waitForSelector('.overlay-editor', { visible: true })
+  await sleep(300)
+  await page.keyboard.press('End')
+  await page.keyboard.type('中世の船乗りの服をもとにした。', { delay: 10 })
+  await page.evaluate(() => window.__editor.finishEditing())
+  await ready()
+  await sleep(600)
+  const st1 = await starterOf()
+  check('続きを書くと、続きの説明は消え、「まだ書いていない段落」にも数えない', st1.text === STARTER + '中世の船乗りの服をもとにした。' && st1.after === 'none' && !st1.notYet, JSON.stringify(st1))
   await context.close()
 }

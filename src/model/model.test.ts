@@ -62,7 +62,7 @@ describe('下書きのひな形', () => {
     expect(body.map((c) => [c.title, c.blocks.length])).toEqual([['', 1], ['A', 1], ['B', 1]])
   })
 
-  it('ひな形の本文に入る文の「表1」「（図1）」は、ひな形の表・図へのリンクにする（ない番号は文字のまま）', () => {
+  it('ひな形の書き出しの文の「表1」「（図1）」は、ひな形の表・図へのリンクにする（ない番号は文字のまま）', () => {
     const body = bodyFromTemplate([
       { type: 'chapter', title: 'A' },
       { type: 'paragraph', hint: '', text: 'デザイン画を示す（図1）。' },

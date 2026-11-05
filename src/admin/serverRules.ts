@@ -34,13 +34,10 @@ export function cleanTemplate(template: unknown, courseName: string): TemplateBl
     // 段落の説明は空でもよい（大見出し・中見出し・図・表の名前は空にしない）
     if (key !== 'hint' && !text.trim()) throw new Error(row + 'の名前が空です')
     const out: Record<string, unknown> = { type, [key]: text }
-    // 段落の本文に入る文（学生の本文にそのまま入る。空なら持たない。mockups/v70）
+    // 段落の書き出しの文（学生の本文にそのまま入る。空なら持たない。mockups/v70）。説明（hint）は、書き出しの文の続きの説明として残す（mockups/v111 案B）
     if (type === 'paragraph' && block.text !== undefined) {
       const fixed = checkText(block.text, LIMITS.text, label + 'の' + templateRowName(i, 'text', block.text))
-      if (fixed.trim()) {
-        out.hint = ''
-        out.text = fixed
-      }
+      if (fixed.trim()) out.text = fixed
     }
     if (type === 'table') cleanTable(block, out, row)
     return out as unknown as TemplateBlock
@@ -193,4 +190,12 @@ export function removedMemberMessage(email: string): string {
 export function changedMessage(updatedBy: string, user: string): string {
   const who = String(updatedBy || '').toLowerCase() === String(user || '').toLowerCase() ? '別のタブかウィンドウで（' + updatedBy + ' で）' : 'ほかの人（' + updatedBy + '）が'
   return 'この画面を開いたあとに、' + who + 'この年度の設定を保存しました。そのまま保存すると、その変更が消えてしまうため、保存しませんでした。ページを読み込み直してから、もう一度変更してください'
+}
+
+/** 貼られたフォルダのリンク（…/folders/ID・?id=ID）か ID から、ID を取り出す（取れなければ ''。本番の folderIdFromLink_ と同じ） */
+export function folderIdFromLink(text: string): string {
+  const t = String(text || '').trim()
+  const m = /\/folders\/([\w-]{10,})/.exec(t) || /[?&]id=([\w-]{10,})/.exec(t)
+  if (m) return m[1]
+  return /^[\w-]{10,}$/.test(t) ? t : ''
 }

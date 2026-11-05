@@ -44,8 +44,8 @@ const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+$/
 
 /** 下書きのひな形の部品の種類と、その呼び名（管理ページのひな形の窓と同じ。改ページ・ふつうの表は mockups/v44 で足した） */
 const BLOCK_TYPES = ['chapter', 'subheading', 'paragraph', 'figure', 'materialTable', 'pageBreak', 'table']
-// text：本文に入る文の段落の呼び名（行の種類ではない。mockups/v70）
-const BLOCK_LABELS = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表', text: '本文に入る文' }
+// text：書き出しの文の段落の呼び名（行の種類ではない。mockups/v70）
+const BLOCK_LABELS = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表', text: '書き出しの文' }
 /** 文字数・数の上限（学生のツールの src/config/validate.ts の LIMITS と同じ値にする。tableColumns・tableRows：ひな形の表の列の数と、見出しの下の行の数） */
 const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
 
@@ -284,7 +284,7 @@ function applyPermissions_(config, permissions) {
 
 /**
  * 下書きのひな形を確かめ、決まった項目だけの形にして返す。崩れていたら（種類が決まったもの以外、
- * 名前や説明・本文に入る文が文字でない・長すぎる、名前が空、先頭が大見出しでない）エラーにする。
+ * 名前や説明・書き出しの文が文字でない・長すぎる、名前が空、先頭が大見出しでない）エラーにする。
  * 学生のツールが崩れたひな形で止まらないように（学生のツールの src/config/validate.ts の templateProblems と同じ決まり）
  */
 function cleanTemplate_(template, courseName) {
@@ -304,13 +304,10 @@ function cleanTemplate_(template, courseName) {
     out[key] = text
     // 小見出し（（1））は、中見出しに level: 3 の印（見出しを大・中・小の3つにした：依頼者の選択 2026-11-03）
     if (block.type === 'subheading' && block.level === 3) out.level = 3
-    // 段落の本文に入る文（学生の本文にそのまま入る。空なら持たない。mockups/v70）
+    // 段落の書き出しの文（学生の本文にそのまま入る。空なら持たない。mockups/v70）。説明（hint）は、書き出しの文の続きの説明として残す（mockups/v111 案B）
     if (block.type === 'paragraph' && block.text !== undefined) {
       const fixed = checkText_(block.text, LIMITS.text, label + 'の' + rowName_(i, 'text', block.text))
-      if (fixed.trim()) {
-        out.hint = ''
-        out.text = fixed
-      }
+      if (fixed.trim()) out.text = fixed
     }
     if (block.type === 'table') cleanTable_(block, out, row)
     return out
@@ -1394,18 +1391,102 @@ function cleanName_(value, max) {
     .slice(0, max)
 }
 
-/** PDF の控えのフォルダの中の、コースのフォルダ（配信の窓口の pdfCopy と同じ名前。なければ作る） */
-function courseFolder_(courseName) {
-  const rootId = String(PDF_FOLDER_ID || PropertiesService.getScriptProperties().getProperty('PDF_FOLDER_ID') || '').trim()
+/**
+ * PDF の控えのフォルダの中の、年度のフォルダ（「2026年度」）の中の、コースのフォルダ（配信の窓口の pdfCopy と同じ名前。なければ作る。
+ * 年度ごとに分ける：依頼者 2026-11-05）
+ */
+function courseFolder_(year, courseName) {
+  const rootId = pdfRootId_()
   if (!rootId) throw new Error('PDF の控えを置くフォルダが決まっていないため、点検表を作れません。管理者に知らせてください')
-  const root = DriveApp.getFolderById(rootId)
-  const name = cleanName_(courseName, 80) || 'コース未設定'
-  const found = root.getFoldersByName(name)
+  const yearFolder = childFolder_(DriveApp.getFolderById(rootId), String(Number(year)) + '年度')
+  return childFolder_(yearFolder, cleanName_(courseName, 80) || 'コース未設定')
+}
+
+// ---- PDF の控えのもとのフォルダ（管理ページの「詳細設定」で変える。依頼者の選択 2026-11-05 mockups/v112 案A） ----
+/** 年度にかかわらない設定のシート（項目・値。配信の窓口も読む） */
+const SHEET_SETTINGS = '設定'
+const SETTINGS_HEADER = ['項目', '値', '変えた日時', '変えた人']
+/** 設定のシートの、PDF の控えのもとのフォルダの項目（値はフォルダの ID） */
+const SETTING_PDF_FOLDER = 'PDF の控えのフォルダ'
+
+/** 設定のシートの値（なければ ''） */
+function readSetting_(key) {
+  const sheet = adminBook_().getSheetByName(SHEET_SETTINGS)
+  if (!sheet) return ''
+  const row = sheet.getDataRange().getValues().slice(1).find((r) => String(r[0]) === key)
+  return row ? String(row[1] || '').trim() : ''
+}
+
+/** PDF の控えのもとのフォルダの ID（管理ページで決めたもの。なければ、配るときに入れたもの・スクリプト プロパティ） */
+function pdfRootId_() {
+  return readSetting_(SETTING_PDF_FOLDER) || String(PDF_FOLDER_ID || PropertiesService.getScriptProperties().getProperty('PDF_FOLDER_ID') || '').trim()
+}
+
+/** 貼られたフォルダのリンク（…/folders/ID・?id=ID）か ID から、ID を取り出す（取れなければ ''） */
+function folderIdFromLink_(text) {
+  const t = String(text || '').trim()
+  const m = /\/folders\/([\w-]{10,})/.exec(t) || /[?&]id=([\w-]{10,})/.exec(t)
+  if (m) return m[1]
+  return /^[\w-]{10,}$/.test(t) ? t : ''
+}
+
+/** 管理者：PDF の控えのもとのフォルダ（名前・場所。開けなければ error） */
+function getPdfFolder() {
+  requireAdmin_()
+  return pdfFolderInfo_()
+}
+
+function pdfFolderInfo_() {
+  const id = pdfRootId_()
+  if (!id) return { id: '', name: null, url: '', error: 'まだ決まっていません' }
+  const url = 'https://drive.google.com/drive/folders/' + id
+  try {
+    const folder = DriveApp.getFolderById(id)
+    if (folder.isTrashed()) return { id: id, name: folder.getName(), url: url, error: 'ごみ箱に入っています' }
+    return { id: id, name: folder.getName(), url: url }
+  } catch (err) {
+    return { id: id, name: null, url: url, error: 'このフォルダを開けません（消えた・見る権限がない）' }
+  }
+}
+
+/**
+ * 管理者：PDF の控えのもとのフォルダを変える（貼られたリンク）。変えたあとに届く控えと、作る点検表が、新しいフォルダの年度・コースのフォルダに入る。
+ * 今までの控え・点検表は、元のフォルダに残る（動かさない）
+ */
+function setPdfFolder(link) {
+  const user = requireAdmin_()
+  const id = folderIdFromLink_(link)
+  if (!id) throw new Error('フォルダのリンクを貼ってください（https://drive.google.com/drive/folders/… の形）')
+  let folder
+  try {
+    folder = DriveApp.getFolderById(id)
+    folder.getName()
+  } catch (err) {
+    throw new Error('そのフォルダを開けません。リンクと、フォルダの共有を確かめてください')
+  }
+  if (folder.isTrashed()) throw new Error('そのフォルダはごみ箱に入っています')
+  const access = folder.getAccess(user)
+  if (access !== DriveApp.Permission.OWNER && access !== DriveApp.Permission.EDIT) throw new Error('そのフォルダを編集できません。フォルダの持ち主に「編集者」にしてもらってください')
+  withLock_(() => {
+    const sheet = sheetWithHeader_(SHEET_SETTINGS, SETTINGS_HEADER)
+    const rows = sheet.getDataRange().getValues()
+    const at = rows.findIndex((r, i) => i > 0 && String(r[0]) === SETTING_PDF_FOLDER)
+    const row = [SETTING_PDF_FOLDER, id, new Date(), user]
+    if (at > 0) sheet.getRange(at + 1, 1, 1, row.length).setValues([row.map(cell_)])
+    else appendRow_(sheet, row)
+  })
+  appendMemberHistory_(user, 'PDF の控えのフォルダを変更：' + folder.getName())
+  return pdfFolderInfo_()
+}
+
+/** フォルダ（parent）の中の、name のフォルダ（ごみ箱のものは使わない。なければ作る） */
+function childFolder_(parent, name) {
+  const found = parent.getFoldersByName(name)
   while (found.hasNext()) {
     const folder = found.next()
     if (!folder.isTrashed()) return folder
   }
-  return root.createFolder(name)
+  return parent.createFolder(name)
 }
 
 /** 点検表のスプレッドシートを使えるか（ごみ箱に入れた・消した・見られないときは false） */
@@ -1443,7 +1524,7 @@ function ensureCheckSheet(year, courseId) {
   const id = withLock_(() => {
     const found = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
     if (found && usableSheet_(found.id)) return found.id
-    const folder = courseFolder_(course.name)
+    const folder = courseFolder_(year, course.name)
     const book = SpreadsheetApp.create(checkSheetTitle_(year, course))
     const sheet = book.getSheets()[0]
     sheet.setName(CHECK_TAB)
@@ -2038,7 +2119,7 @@ function setupCheckSheets() {
     throw new Error('setupCheckSheets は、管理ページをデプロイした人が、Apps Script のエディタから実行してください（ログイン中：' + (me || '不明') + '）')
   }
   rememberAdminBook_()
-  const rootId = String(PDF_FOLDER_ID || PropertiesService.getScriptProperties().getProperty('PDF_FOLDER_ID') || '').trim()
+  const rootId = pdfRootId_()
   Logger.log(rootId ? '点検表を置くフォルダ（PDF の控え）：' + DriveApp.getFolderById(rootId).getName() : 'PDF の控えのフォルダが未設定のため、点検表は作れません（gas/pdf-folder.local.json に書いて配り直すか、スクリプト プロパティ PDF_FOLDER_ID に入れる）')
   ScriptApp.getProjectTriggers()
     .filter((t) => t.getHandlerFunction() === 'syncCheckSheets')

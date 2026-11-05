@@ -1843,7 +1843,7 @@ await withEdge(async (browser) => {
 
   // 下書きのひな形を、学生と同じ紙面で作る画面（mockups/v44 案A。scripts/e2e/templateMode.mjs）
   await templateModeAdmin(browser, check)
-  // ひな形の段落を「本文に入る文」にする（mockups/v70 案C。scripts/e2e/templateMode.mjs）
+  // ひな形の段落を「書き出しの文」にする（mockups/v70 案C。scripts/e2e/templateMode.mjs）
   await templatePrefilledAdmin(browser, check)
   // 先生の試し（2026-10-21）の直し：新年度を作ったあと上へ・次の年度があるときの言葉・年度を替えたら知らせを消す・公開の確かめ・お知らせの欄の高さ（scripts/e2e/trialFixesAdmin.mjs）
   await trialFixesAdmin(browser, check)

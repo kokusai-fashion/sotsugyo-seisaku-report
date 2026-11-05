@@ -13,6 +13,7 @@ import { swatchColumn, unusedRows } from '../model/table'
 import { charCount, checkText, DEFAULT_WORD_CHECKS, EMOJI_TITLE, findEmoji, type TextFinding } from './textRules'
 import type { Severity } from './types'
 import { abstractAwayFromBody } from './abstractSource'
+import { untouchedStarter } from '../model/starter'
 
 /**
  * 報告書全体のセルフチェック。
@@ -117,6 +118,9 @@ export function checkReportDetailed(
   if (typing && end !== null && editables(report).some((e) => e.id === typing.id && e.kind === 'paragraph' && e.text === typing.text)) {
     all = all.filter((f) => !(f.ruleId === 'machine-dependent' && f.blockId === typing.id && f.end !== undefined && f.end <= end))
   }
+  // 書き出しの文のままの段落（続きを、まだ書いていない）には、「まだ書いていない段落」だけを出す（書きかけの字への「文末に「。」」などは、書いてから）
+  const starters = new Set(report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'paragraph' && untouchedStarter(b) ? [b.id] : [])))
+  if (starters.size) all = all.filter((f) => !(f.blockId && starters.has(f.blockId) && f.ruleId !== 'paragraph-empty'))
   const keys = new Set(report.acknowledged ?? [])
   return { findings: all.filter((f) => !f.key || !keys.has(f.key)), acknowledged: all.filter((f) => f.key && keys.has(f.key)) }
 }
@@ -455,10 +459,10 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
     }
   }
 
-  // 書き忘れ：まだ何も書いていない段落（ひな形の「書くことの説明」だけが残っている段落）。
+  // 書き忘れ：まだ何も書いていない段落（ひな形の「書くことの説明」だけが残っている段落・ひな形の書き出しの文のままの段落：mockups/v111）。
   // 説明のない空の段落（Enter を押して何も書かなかったときなどに残るもの）は、学生が「削除」で消す（指摘を押すとその段落が開き、道具・書く欄に「削除」が出る）
   for (const block of report.body.flatMap((c) => c.blocks)) {
-    if (block.type === 'paragraph' && !contentToText(block.content, num).trim()) {
+    if (block.type === 'paragraph' && (!contentToText(block.content, num).trim() || untouchedStarter(block))) {
       findings.push({
         ruleId: 'paragraph-empty',
         severity: 'warning',
@@ -530,7 +534,7 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
       for (let i = at - 1; i >= 0; i--) {
         const x = chapter.blocks[i]
         if (x.type === 'pageBreak') break
-        if (x.type === 'paragraph' && x.hint && !contentToText(x.content, num).trim()) return true
+        if (x.type === 'paragraph' && x.hint && (!contentToText(x.content, num).trim() || untouchedStarter(x))) return true
       }
       return false
     }

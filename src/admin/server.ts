@@ -41,6 +41,17 @@ export interface AdminState {
   checkSheets?: CheckSheetLink[]
 }
 
+/**
+ * PDF の控えのもとのフォルダ（管理者だけ。管理ページの「詳細設定」。依頼者の選択 2026-11-05 mockups/v112 案A）。
+ * この中に、年度のフォルダ、その中にコースのフォルダが自動でできる。name：フォルダの名前（開けなければ null。そのときは error）
+ */
+export interface PdfFolder {
+  id: string
+  name: string | null
+  url: string
+  error?: string
+}
+
 /** コースの点検表の場所 */
 export interface CheckSheetLink {
   year: number
@@ -107,6 +118,10 @@ export interface AdminServer {
    * もうあれば、すぐ場所を返す（gas/admin-project の ensureCheckSheet。依頼者の選択 2026-11-04）
    */
   ensureCheckSheet(year: number, courseId: string): Promise<{ url: string }>
+  /** 管理者：PDF の控えのもとのフォルダ */
+  getPdfFolder(): Promise<PdfFolder>
+  /** 管理者：PDF の控えのもとのフォルダを変える（貼られたリンク）。返り値は変えたあとのフォルダ */
+  setPdfFolder(link: string): Promise<PdfFolder>
   /** 「学生の並びを直す」の窓の一覧（点検表の並び） */
   listStudents(year: number, courseId: string): Promise<StudentEntry[]>
   /** 「この並びにする」（studentIds が null なら、ふりがなの順に戻す）。返り値は直したあとの一覧 */
@@ -206,6 +221,8 @@ function appsScriptServer(): AdminServer {
     ensureCheckSheet: (year, courseId) => call('ensureCheckSheet', year, courseId),
     listStudents: (year, courseId) => call('listStudents', year, courseId),
     saveStudentOrder: (year, courseId, studentIds) => call('saveStudentOrder', year, courseId, studentIds),
+    getPdfFolder: () => call('getPdfFolder'),
+    setPdfFolder: (link) => call('setPdfFolder', link),
   }
 }
 

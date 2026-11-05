@@ -272,8 +272,8 @@ describe('管理ページとのやり取り（postMessage）', () => {
   })
 })
 
-// ひな形の段落を「本文に入る文」にできる（依頼者の判断 2026-10-27：mockups/v70 案C。字は学生の本文にそのまま入る）
-describe('ひな形の本文に入る文', () => {
+// ひな形の段落を「書き出しの文」にできる（依頼者の判断 2026-10-27：mockups/v70 案C。字は学生の本文にそのまま入る）
+describe('ひな形の書き出しの文', () => {
   const TEXT = '本報告書は、2026年度の卒業制作において、筆者が担当した舞台衣装の制作についてまとめたものである。'
   const CHAPTER: TemplateBlock = { type: 'chapter', title: '企画・立案' }
   const WITH_TEXT: TemplateBlock[] = [CHAPTER, { type: 'paragraph', hint: '', text: TEXT }, { type: 'subheading', title: '担当衣装' }, { type: 'paragraph', hint: '担当した衣装を書く' }]
@@ -287,14 +287,14 @@ describe('ひな形の本文に入る文', () => {
     expect(hint.hint).toBe('担当した衣装を書く')
   })
 
-  it('ひな形のままなら、本文に入る文があっても「書き始めていない」（コースを変えるときに聞かない）', () => {
+  it('ひな形のままなら、書き出しの文があっても「書き始めていない」（コースを変えるときに聞かない）', () => {
     const withText = { ...config, courses: [{ ...FILM, template: WITH_TEXT }] }
     const report = createReport(withText, FILM.id)
     expect(bodyWritten(report, withText)).toBe(false)
     expect(bodyWritten(setText(report, report.body[0].blocks[0].id, '書き直した'), withText)).toBe(true)
   })
 
-  it('ひな形を作る画面では「本文に入る文」の印が付き、戻すと同じひな形になる', () => {
+  it('ひな形を作る画面では「書き出しの文」の印が付き、戻すと同じひな形になる', () => {
     const [text, , hint] = templateBody(WITH_TEXT)[0].blocks as ParagraphBlock[]
     expect(text.prefilled).toBe(true)
     expect(contentToText(text.content, numbering(templateReport(config, FILM.id, WITH_TEXT, '')))).toBe(TEXT)
@@ -302,7 +302,7 @@ describe('ひな形の本文に入る文', () => {
     expect(roundTrip(WITH_TEXT).template).toEqual(WITH_TEXT)
   })
 
-  it('切り替え：印を外すと字は説明に、付けると本文に入る文に。印を付けた空の段落は、説明のない空の段落', () => {
+  it('切り替え：印を外すと字は説明に、付けると書き出しの文に。印を付けた空の段落は、説明のない空の段落', () => {
     const report = templateReport(config, FILM.id, WITH_TEXT, '')
     const [textId, , hintId] = report.body[0].blocks.map((b) => b.id)
     expect(templateFromReport(setPrefilled(report, textId, false)).template[1]).toEqual({ type: 'paragraph', hint: TEXT })
@@ -311,7 +311,7 @@ describe('ひな形の本文に入る文', () => {
     expect(templateFromReport(setText(report, textId, '')).template[1]).toEqual({ type: 'paragraph', hint: '' })
   })
 
-  it('字を直しても印は残り、Enter で分けた後ろの段落も「本文に入る文」（説明の段落は、今までどおり説明）', () => {
+  it('字を直しても印は残り、Enter で分けた後ろの段落も「書き出しの文」（説明の段落は、今までどおり説明）', () => {
     const report = templateReport(config, FILM.id, WITH_TEXT, '')
     const [textId, , hintId] = report.body[0].blocks.map((b) => b.id)
     const edited = setText(report, textId, '書き直した文。')
@@ -327,22 +327,22 @@ describe('ひな形の本文に入る文', () => {
     ])
   })
 
-  it('長すぎる・形の崩れた本文に入る文は、ひな形を作る画面・学生のツール・管理ページのサーバーで断る（500字まで）', () => {
+  it('長すぎる・形の崩れた書き出しの文は、ひな形を作る画面・学生のツール・管理ページのサーバーで断る（500字まで）', () => {
     const long = 'あ'.repeat(LIMITS.text + 1)
     const report = templateReport(config, FILM.id, [CHAPTER, { type: 'paragraph', hint: '', text: long }], '')
-    expect(templateIssues(templateFromReport(report)).map((i) => i.text)).toEqual(['「Ⅰ．」の中の本文に入る文が長すぎます（500字まで。今は501字）'])
+    expect(templateIssues(templateFromReport(report)).map((i) => i.text)).toEqual(['「Ⅰ．」の中の書き出しの文が長すぎます（500字まで。今は501字）'])
     expect(templateProblems(WITH_TEXT)).toEqual([])
-    expect(templateProblems([CHAPTER, { type: 'paragraph', hint: '', text: 3 } as unknown as TemplateBlock])).toEqual(['の2行目の本文に入る文の形が正しくありません'])
+    expect(templateProblems([CHAPTER, { type: 'paragraph', hint: '', text: 3 } as unknown as TemplateBlock])).toEqual(['の2行目の書き出しの文の形が正しくありません'])
     const head = `「${'あ'.repeat(12)}…」`
-    expect(templateProblems([CHAPTER, { type: 'paragraph', hint: '', text: long }])).toEqual([`の2行目の本文に入る文${head}が長すぎます（500字まで。今は501字）`])
-    // サーバーは、本文に入る文があれば説明を空にし、空白だけの本文に入る文は持たない
-    expect(cleanTemplate([CHAPTER, { type: 'paragraph', hint: '説明', text: TEXT }], '衣装')).toEqual([CHAPTER, { type: 'paragraph', hint: '', text: TEXT }])
+    expect(templateProblems([CHAPTER, { type: 'paragraph', hint: '', text: long }])).toEqual([`の2行目の書き出しの文${head}が長すぎます（500字まで。今は501字）`])
+    // サーバーは、書き出しの文があっても説明を残し（続きの説明：mockups/v111 案B）、空白だけの書き出しの文は持たない
+    expect(cleanTemplate([CHAPTER, { type: 'paragraph', hint: '説明', text: TEXT }], '衣装')).toEqual([CHAPTER, { type: 'paragraph', hint: '説明', text: TEXT }])
     expect(cleanTemplate([CHAPTER, { type: 'paragraph', hint: '説明', text: ' ' }], '衣装')).toEqual([CHAPTER, { type: 'paragraph', hint: '説明' }])
-    expect(() => cleanTemplate([CHAPTER, { type: 'paragraph', hint: '', text: long }], '衣装')).toThrow(`「衣装」のひな形の2行目の本文に入る文${head}が長すぎます（500字まで。今は501字）`)
+    expect(() => cleanTemplate([CHAPTER, { type: 'paragraph', hint: '', text: long }], '衣装')).toThrow(`「衣装」のひな形の2行目の書き出しの文${head}が長すぎます（500字まで。今は501字）`)
   })
 
-  it('コースのカードの要約：説明と本文に入る文を分けて数える（本文に入る文がなければ、今までどおり）', () => {
-    expect(templateSummary({ ...FILM, template: WITH_TEXT })).toBe('大見出し1・中見出し1・説明1・本文に入る文1')
+  it('コースのカードの要約：説明と書き出しの文を分けて数える（書き出しの文がなければ、今までどおり）', () => {
+    expect(templateSummary({ ...FILM, template: WITH_TEXT })).toBe('大見出し1・中見出し1・説明1・書き出しの文1')
     expect(templateSummary({ ...FILM, template: DEFAULT_TEMPLATE })).toBe('大見出し3・中見出し0・説明3')
   })
 })

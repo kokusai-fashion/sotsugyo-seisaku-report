@@ -14,14 +14,14 @@ import { useReorder } from './useReorder'
 
 /**
  * コースの「下書きのひな形」を編集する画面（mockups/v8 案1：コースのカードから開く）。
- * 左で本文の組み立て（大見出し・中見出し・書くことの説明・本文に入る文・図の枠・素材表）を並べ、右で学生が最初に見る本文を確かめる。
+ * 左で本文の組み立て（大見出し・中見出し・書くことの説明・書き出しの文・図の枠・素材表）を並べ、右で学生が最初に見る本文を確かめる。
  * mockups/v44 からは、学生と同じ紙面で作る画面（TemplateOverlay.tsx）がふつうの作り方で、この窓は「前の作り方で直す」から開く予備。
  * 改ページ・ふつうの表（新しい画面で作ったもの）も消さずに残し、並べ替え・削除・表のタイトルの直しはできる（表の見出しの行は新しい画面で直す）
  */
 
-/** 行の種類の名前（text：本文に入る文の段落。mockups/v70） */
-const KIND_LABELS: Record<TemplateRowKind, string> = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', text: '本文に入る文', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
-/** 行の種類（段落は、本文に入る文の項目を持てば text） */
+/** 行の種類の名前（text：書き出しの文の段落。mockups/v70） */
+const KIND_LABELS: Record<TemplateRowKind, string> = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', text: '書き出しの文', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
+/** 行の種類（段落は、書き出しの文の項目を持てば text） */
 const kindOf = (b: TemplateBlock): TemplateRowKind => (b.type === 'paragraph' && b.text !== undefined ? 'text' : b.type)
 const ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ', 'Ⅸ', 'Ⅹ']
 const SMALL = ['ⅰ', 'ⅱ', 'ⅲ', 'ⅳ', 'ⅴ', 'ⅵ', 'ⅶ', 'ⅷ', 'ⅸ', 'ⅹ']
@@ -79,7 +79,7 @@ function problemsOf(blocks: TemplateBlock[], abstractExample: string): Problem[]
     const kind = kindOf(b)
     const empty = b.type === 'chapter' || b.type === 'subheading' ? !b.title.trim() : b.type === 'figure' || b.type === 'materialTable' || b.type === 'table' ? !b.caption.trim() : false
     if (empty) push(`${i + 1}行目の${kindLabel(b)}の名前が空です`)
-    // 本文に入る文は、空にしない（空の段落なら「説明」の行を空のまま使う）
+    // 書き出しの文は、空にしない（空の段落なら「説明」の行を空のまま使う）
     if (kind === 'text' && !textOf(b).trim()) push(`${i + 1}行目の${KIND_LABELS[kind]}が空です`)
     const max = kind === 'paragraph' ? LIMITS.hint : kind === 'text' ? LIMITS.text : LIMITS.name
     // 短い文は「3行目の説明が長すぎます（…）」（行の書き出し「…」を外す）
@@ -178,9 +178,10 @@ function startBlocks(template: unknown): TemplateBlock[] {
   return template.flatMap((b: unknown) => {
     const type = b && typeof b === 'object' ? (b as { type?: unknown }).type : undefined
     if (typeof type !== 'string' || !Object.prototype.hasOwnProperty.call(NEW_BLOCKS, type)) return []
-    // 本文に入る文（字があるときだけ。空なら説明の行）
+    // 書き出しの文（字があるときだけ。空なら説明の行）。続きの説明（mockups/v111 案B）は、この窓では直さないが、なくさずに持つ
     const fixed = type === 'paragraph' ? (b as { text?: unknown }).text : undefined
-    if (typeof fixed === 'string' && fixed.trim()) return [{ ...NEW_BLOCKS.text, text: fixed } as TemplateBlock]
+    const continuation = type === 'paragraph' ? (b as { hint?: unknown }).hint : undefined
+    if (typeof fixed === 'string' && fixed.trim()) return [{ ...NEW_BLOCKS.text, hint: typeof continuation === 'string' ? continuation : '', text: fixed } as TemplateBlock]
     const text: unknown = type === 'paragraph' ? (b as { hint?: unknown }).hint : textOf(b as TemplateBlock)
     const base = type === 'table' ? { ...NEW_BLOCKS.table, ...(b as object) } : NEW_BLOCKS[type as TemplateBlock['type']]
     return [withText(base as TemplateBlock, typeof text === 'string' ? text : '')]

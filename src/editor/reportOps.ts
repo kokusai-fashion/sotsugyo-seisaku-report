@@ -160,12 +160,13 @@ export function withPeriod(text: string): string {
 }
 
 /** 段落を作り直すときに持ち続けるもの */
-type Keep = Pick<ParagraphBlock, 'hint' | 'prefilled'>
+type Keep = Pick<ParagraphBlock, 'hint' | 'prefilled' | 'starter'>
 
 /**
  * 段落を作る。keep.hint：ひな形の「ここに何を書くか」（書き換えても持ち続ける。空の段落を開いて、何も書かずに閉じたときに、
  * 説明が消えていたため。説明が出るのは空のときだけなので、書いてある段落では見えない）。
- * keep.prefilled：ひな形を作る画面の「本文に入る文」の印（書き換えても持ち続ける。mockups/v70）
+ * keep.prefilled：ひな形を作る画面の「書き出しの文」の印（書き換えても持ち続ける。mockups/v70）。
+ * keep.starter：ひな形の書き出しの文の、はじめの字の印（書き換えても持ち続ける。字が同じに戻れば、また続きの説明を出す。mockups/v111）
  */
 function paragraph(id: string, text: string, num?: Numbering, keep?: Keep): ParagraphBlock {
   const normalized = normalizeParagraph(text)
@@ -175,10 +176,11 @@ function paragraph(id: string, text: string, num?: Numbering, keep?: Keep): Para
     content: num ? textToContent(normalized, num) : [{ type: 'text', text: normalized }],
     ...(keep?.hint ? { hint: keep.hint } : {}),
     ...(keep?.prefilled ? { prefilled: true as const } : {}),
+    ...(keep?.starter !== undefined ? { starter: keep.starter } : {}),
   }
 }
 
-/** Enter・貼り付けで分けた後ろの段落が、前の段落から引き継ぐもの（本文に入る文の印だけ。説明は前の段落に残す） */
+/** Enter・貼り付けで分けた後ろの段落が、前の段落から引き継ぐもの（書き出しの文の印だけ。説明・続きの説明は前の段落に残す） */
 const sameKind = (b: ParagraphBlock): Keep => ({ prefilled: b.prefilled })
 
 // ---- 編集できる文字列の一覧 ----
@@ -293,7 +295,7 @@ export function split(report: Report, id: string, before: string, after: string,
     const labels = attached.flatMap((a) => (a.type === 'figureRow' ? a.figures.map((f) => `図${num.numbers.get(f.id)}`) : [`表${num.numbers.get(a.id)}`]))
     const keepWithBefore = attached.length > 0 && after.length > 0 && !labels.some((l) => after.includes(l))
     const blocks = [...chapter.blocks]
-    // 分けた前の段落の終わりに「。」がなければ付ける（ひな形の説明は、前の段落に残す。本文に入る文の印は、後ろの段落も引き継ぐ）
+    // 分けた前の段落の終わりに「。」がなければ付ける（ひな形の説明は、前の段落に残す。書き出しの文の印は、後ろの段落も引き継ぐ）
     const first = paragraph(b.id, ended(before), num, b)
     const second = paragraph(created, after, num, sameKind(b))
     if (keepWithBefore) blocks.splice(i, end - i, first, ...attached, second)
@@ -630,16 +632,31 @@ export function findParagraph(report: Report, id: string): ParagraphBlock | unde
 }
 
 /**
- * ひな形を作る画面：本文の段落を「本文に入る文」（on）か「ここに書くこと」の説明にする（mockups/v70 案C）。
- * 段落でない・すでにそうなっていれば、同じ原稿
+ * ひな形を作る画面：本文の段落を「書き出しの文」（on）か「ここに書くこと」の説明にする（mockups/v70 案C）。
+ * 「ここに書くこと」にしたら、続きの説明は外す（説明は段落の字になる）。段落でない・すでにそうなっていれば、同じ原稿
  */
 export function setPrefilled(report: Report, id: string, on: boolean): Report {
   const p = findParagraph(report, id)
   if (!p || !!p.prefilled === on) return report
   return mapBody(report, (b): BodyBlock => {
     if (b !== p) return b
-    const { prefilled: _dropped, ...rest } = p
+    const { prefilled: _dropped, hint: _continuation, ...rest } = p
     return on ? { ...rest, prefilled: true } : rest
+  })
+}
+
+/**
+ * ひな形を作る画面：書き出しの文の段落の、続きの説明（学生には、書き出しのあとに薄い字で出る。空なら外す。mockups/v111 案B）。
+ * 書き出しの文でない段落・同じ説明なら、同じ原稿
+ */
+export function setContinuation(report: Report, id: string, text: string): Report {
+  const p = findParagraph(report, id)
+  const next = text.trim()
+  if (!p || !p.prefilled || (p.hint ?? '') === next) return report
+  return mapBody(report, (b): BodyBlock => {
+    if (b !== p) return b
+    const { hint: _old, ...rest } = p
+    return next ? { ...rest, hint: next } : rest
   })
 }
 

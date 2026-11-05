@@ -1,3 +1,4 @@
+import { untouchedStarter } from '../model/starter'
 import { colWidthsOf, equalColumnWidths } from '../model/table'
 import type { BodyBlock, Chapter, Figure, TableBlock, TableCell } from '../model/types'
 import { textWidthMm } from './pageGeometry'
@@ -144,9 +145,12 @@ function renderBlock(block: BodyBlock, numbers: Map<string, number>, tableIds: S
         .join('')
       // 空の段落には、ひな形の「ここに何を書くか」の説明（なければ操作の案内）を薄く出す（画面だけ）
       const placeholder = block.hint ? `（${block.hint}）` : '（クリックして文章を入力）'
-      // ひな形を作る画面の「本文に入る文」の印（札と字の色を変える：index.css。学生の原稿には付かない）
+      // ひな形を作る画面の「書き出しの文」の印（札と字の色を変える：index.css。学生の原稿には付かない）
       const prefilled = block.prefilled ? ' data-prefilled=""' : ''
-      return `<p data-block-id="${escapeHtml(block.id)}" data-placeholder="${escapeHtml(placeholder)}"${prefilled}>${text}</p>`
+      // 書き出しの文の続きの説明（書き出しのあとに薄く出す。画面だけ：index.css。mockups/v111 案B）。学生の原稿では書き出しのままのあいだだけ、
+      // ひな形を作る画面では、いつも（説明は、ほかの「ここに書くこと」と同じく、かっこなし）
+      const continuation = block.hint && text && (block.prefilled || untouchedStarter(block)) ? ` data-continue="${escapeHtml(block.prefilled ? block.hint : `（${block.hint}）`)}"` : ''
+      return `<p data-block-id="${escapeHtml(block.id)}" data-placeholder="${escapeHtml(placeholder)}"${prefilled}${continuation}>${text}</p>`
     }
     case 'figureRow': {
       // 図のまとまり：2枚ずつの段に分けて並べる（最後の段が1枚なら中央）

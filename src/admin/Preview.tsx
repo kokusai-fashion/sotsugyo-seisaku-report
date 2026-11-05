@@ -38,6 +38,7 @@ function sampleReport(config: YearConfig, courseId: string): Report {
 export const TEMPLATE_CONTENT_CSS = `
 [data-block-id]:empty::before { content: attr(data-placeholder); color: #9aa1ad; }
 p[data-block-id]:empty::before { color: #8a90a0; }
+[data-block-id][data-continue]::after { content: attr(data-continue); color: #8a90a0; }
 .figure-slot { margin: 0 auto; outline: 1px dashed #b9b9b9; background: repeating-linear-gradient(45deg, #f6f6f6 0 8px, #efefef 8px 16px); display: grid; place-items: center; }
 .figure-slot::before { content: '（学生が写真を入れる枠）'; color: #9a9a9a; font-family: 'BIZ UDPGothic', sans-serif; font-size: 10pt; }
 td [data-block-id]:empty::before { content: '（学生が書く）'; }

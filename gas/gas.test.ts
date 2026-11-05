@@ -233,6 +233,8 @@ interface DriveItem {
   content?: string
   /** 中身の版の数（新しく作ると1、中身を新しくするたびに増える） */
   versions: number
+  /** ログイン中の人が見るだけのフォルダ（DriveApp の getAccess が VIEW） */
+  viewOnly?: boolean
 }
 
 /** ドライブの高度なサービス（Drive API v3）の簡易版。先生のフォルダ（root-folder）だけがある */
@@ -317,6 +319,7 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
         return { hasNext: () => list.length > 0, next: () => folderOf(list.shift()!.id) }
       },
       createFolder: (name: string) => folderOf(drive.api.Files.create({ name, mimeType: FOLDER, parents: [id] }, null).id),
+      getAccess: () => (item.viewOnly ? 'VIEW' : 'EDIT'),
     }
   }
   /** 入力規則・条件付き書式を組み立てる部品（本物と同じ呼び方。中身は確かめられる形で残す） */
@@ -366,6 +369,7 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
       ProtectionType: { RANGE: 'RANGE', SHEET: 'SHEET' },
     },
     DriveApp: {
+      Permission: { OWNER: 'OWNER', EDIT: 'EDIT', VIEW: 'VIEW' },
       getFolderById: folderOf,
       getFileById: (id: string) => {
         const item = drive.items.get(id)
@@ -1019,7 +1023,7 @@ describe('管理ページ（admin-project）', () => {
       [chapter, { type: 'table', caption: ' ', header: ['a'] }],
       [chapter, { type: 'table', caption: 3, header: ['a'] }],
       [{ type: 'pageBreak' }, chapter],
-      // 段落の本文に入る文（mockups/v70）
+      // 段落の書き出しの文（mockups/v70）
       [chapter, { type: 'paragraph', hint: '説明', text: '本報告書は、衣装の制作をまとめたものである。' }],
       [chapter, { type: 'paragraph', hint: '説明', text: '  ' }],
       [chapter, { type: 'paragraph', hint: '', text: 3 }],
@@ -1186,13 +1190,14 @@ describe('PDF の控え（api-project の doPost）', () => {
     expect(logs.some((l) => rejected.some((t) => l.includes(t)))).toBe(false)
   })
 
-  it('学生：コースのフォルダを作り、提出の決まりと同じ「学籍番号_氏名（空白を詰める）.pdf」で置く。2回目からは同じファイルの新しい版（ファイルは1つ）', () => {
+  it('学生：年度のフォルダの中にコースのフォルダを作り、提出の決まりと同じ「学籍番号_氏名（空白を詰める）.pdf」で置く。2回目からは同じファイルの新しい版（ファイルは1つ）', () => {
     const api = setup()
     const token = tokenOf('00zz0123@example.ac.jp')
     expect(post(api, request(token))).toEqual({ ok: true })
-    expect(drive.folders().map((f) => `${f.name}<${drive.nameOf(f.parents[0])}`)).toEqual([`${FILM.name}<先生のフォルダ`])
+    // 年度 → コースの順（依頼者 2026-11-05：年度ごとに分ける）
+    expect(drive.folders().map((f) => `${f.name}<${drive.nameOf(f.parents[0])}`)).toEqual(['2026年度<先生のフォルダ', `${FILM.name}<2026年度`])
     const [first] = drive.pdfs()
-    expect(first).toMatchObject({ name: '00ZZ0123_文化花子.pdf', parents: [drive.folders()[0].id], appProperties: { reportKey: '2026:00ZZ0123' }, versions: 1 })
+    expect(first).toMatchObject({ name: '00ZZ0123_文化花子.pdf', parents: [drive.folders()[1].id], appProperties: { reportKey: '2026:00ZZ0123' }, versions: 1 })
     expect(first.content).toContain('%PDF-1.4\n1\n')
     expect(first.description).toContain('送った人：00zz0123@example.ac.jp')
     // もう一度書き出した（氏名も直した）：同じファイルの中身を新しい版にし、名前も今のものにする
@@ -1202,7 +1207,7 @@ describe('PDF の控え（api-project の doPost）', () => {
     expect(drive.pdfs()[0].content).toContain('%PDF-1.4\n2\n')
     // 同じコースの別の学生：同じコースのフォルダに、別のファイル
     expect(post(api, request(tokenOf('00zz0456@example.ac.jp'), { studentId: '00zz0456', name: '衣装　次郎' }))).toEqual({ ok: true })
-    expect(drive.folders()).toHaveLength(1)
+    expect(drive.folders()).toHaveLength(2)
     expect(drive.pdfs().map((f) => f.name)).toEqual(['00ZZ0123_文化花子子.pdf', '00ZZ0456_衣装次郎.pdf'])
   })
 
@@ -1254,7 +1259,8 @@ describe('PDF の控え（api-project の doPost）', () => {
 
   it('前の形の名前（氏名_学籍番号_年度卒業制作報告書.pdf）で置いた控えも、印（reportKey）で見つけて新しい版にし、今の名前に直す（ファイルは1つのまま）', () => {
     const api = setup()
-    const course = drive.api.Files.create({ name: FILM.name, mimeType: FOLDER, parents: ['root-folder'] }, null)
+    const yearFolder = drive.api.Files.create({ name: '2026年度', mimeType: FOLDER, parents: ['root-folder'] }, null)
+    const course = drive.api.Files.create({ name: FILM.name, mimeType: FOLDER, parents: [yearFolder.id] }, null)
     const old = drive.api.Files.create({ name: '文化花子_00ZZ0123_2026年度卒業制作報告書.pdf', mimeType: 'application/pdf', parents: [course.id], appProperties: { reportKey: '2026:00ZZ0123' } }, { bytes: [...Buffer.from('%PDF-old')] })
     expect(post(api, request(tokenOf('00zz0123@example.ac.jp')))).toEqual({ ok: true })
     expect(drive.pdfs()).toHaveLength(1)
@@ -1292,12 +1298,13 @@ describe('PDF の控え（api-project の doPost）', () => {
     expect(drive.pdfs()[0].parents).toHaveLength(1)
     post(api, request(token, { courseId: 'no-such-course' }))
     expect(drive.nameOf(drive.pdfs()[0].parents[0])).toBe('コース未設定')
-    expect(drive.folders().map((f) => f.name).sort()).toEqual([FILM.name, other.name, 'コース未設定'].sort())
+    expect(drive.folders().map((f) => f.name).sort()).toEqual(['2026年度', FILM.name, other.name, 'コース未設定'].sort())
   })
 
   it('同じ名前のファイルが前からあれば（印がない）、そのファイルを新しい版にする。フォルダが見つからなければ、くわしいこと（ID）は返さない', () => {
     const api = setup()
-    const course = drive.api.Files.create({ name: FILM.name, mimeType: FOLDER, parents: ['root-folder'] }, null)
+    const yearFolder = drive.api.Files.create({ name: '2026年度', mimeType: FOLDER, parents: ['root-folder'] }, null)
+    const course = drive.api.Files.create({ name: FILM.name, mimeType: FOLDER, parents: [yearFolder.id] }, null)
     drive.api.Files.create({ name: '00ZZ0123_文化花子.pdf', mimeType: 'application/pdf', parents: [course.id] }, { bytes: [...Buffer.from('%PDF-old')] })
     expect(post(api, request(tokenOf('00zz0123@example.ac.jp')))).toEqual({ ok: true })
     expect(drive.pdfs()).toHaveLength(1)
@@ -1307,6 +1314,30 @@ describe('PDF の控え（api-project の doPost）', () => {
     const body = post(api, request(tokenOf('00zz0123@example.ac.jp')))
     expect(body).toEqual({ ok: false, error: 'PDF の控えを保存できませんでした（ドライブのエラー）' })
     expect(JSON.stringify(body)).not.toContain('root-folder')
+  })
+
+  it('もとのフォルダは管理ページ（詳細設定。管理者だけ）で変えられる：変えると、控えは新しいフォルダの年度・コースに入る。リンクでない・開けない・編集できないフォルダは断る（mockups/v112 案A）', () => {
+    const api = setup()
+    const admin = load('admin-project', { values: { PDF_FOLDER_ID: 'root-folder' } })
+    // はじめは、配るときに入れたフォルダ
+    expect(admin.getPdfFolder()).toMatchObject({ id: 'root-folder', name: '先生のフォルダ', url: 'https://drive.google.com/drive/folders/root-folder' })
+    const folder = (id: string, name: string, more: Partial<DriveItem> = {}) => drive.items.set(id, { id, name, mimeType: FOLDER, parents: ['my-drive'], trashed: false, versions: 0, ...more })
+    folder('new-folder-0123456789', '新しい控え')
+    folder('view-folder-0123456789', '見るだけ', { viewOnly: true })
+    expect(() => admin.setPdfFolder('メモ')).toThrow(/フォルダのリンクを貼ってください/)
+    expect(() => admin.setPdfFolder('https://drive.google.com/drive/folders/no-such-folder-0123')).toThrow(/そのフォルダを開けません/)
+    expect(() => admin.setPdfFolder('https://drive.google.com/drive/folders/view-folder-0123456789')).toThrow(/そのフォルダを編集できません/)
+    user = 'sensei@example.ac.jp'
+    expect(() => admin.setPdfFolder('https://drive.google.com/drive/folders/new-folder-0123456789')).toThrow(/管理者だけ/)
+    user = 'kato@example.ac.jp'
+    expect(admin.setPdfFolder('https://drive.google.com/drive/folders/new-folder-0123456789?usp=sharing')).toMatchObject({ id: 'new-folder-0123456789', name: '新しい控え' })
+    expect(sheetRows('設定')[1].slice(0, 2)).toEqual(['PDF の控えのフォルダ', 'new-folder-0123456789'])
+    expect(sheetRows('変更履歴').some((r) => r[3] === 'PDF の控えのフォルダを変更：新しい控え')).toBe(true)
+    // 配信の窓口：これからの控えは、新しいフォルダの年度・コースに入る
+    expect(post(api, request(tokenOf('00zz0123@example.ac.jp')))).toEqual({ ok: true })
+    const course = drive.items.get(drive.pdfs()[0].parents[0])!
+    const year = drive.items.get(course.parents[0])!
+    expect([year.parents[0], year.name, course.name]).toEqual(['new-folder-0123456789', '2026年度', FILM.name])
   })
 
   it('authorizePdfCopy（エディタで1回実行して承認する）：スプレッドシートを読み、外部につなぎ、フォルダの名前を出す（未設定なら、そう出す）', () => {
@@ -1638,7 +1669,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(roster().find((r) => r[2] === 'staff:sensei@example.ac.jp')!.slice(3, 5)).toEqual(['見本', '花子'])
   })
 
-  it('ensureCheckSheet：PDF の控えのコースのフォルダに点検表を作り、ID を覚え、編集の仕掛けを付けて名簿から写す（上に案内の1行。2回目は同じ点検表）', () => {
+  it('ensureCheckSheet：PDF の控えの年度・コースのフォルダに点検表を作り、ID を覚え、編集の仕掛けを付けて名簿から写す（上に案内の1行。2回目は同じ点検表）', () => {
     const a = setup()
     for (const i of [3, 0, 1]) register(a, i)
     user = 'sensei@example.ac.jp'
@@ -1648,9 +1679,11 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(sheetRows('点検表')[1].slice(0, 2)).toEqual([2026, FILM.id])
     expect(result).toEqual({ url: `https://docs.google.com/spreadsheets/d/${id}/edit` })
     expect(book().name).toBe('2026年度 点検表（映画・舞台衣装デザイナー コース）')
-    // 置き場所：PDF の控えのフォルダの中の、コースのフォルダ（PDF の控えと同じ名前）
+    // 置き場所：PDF の控えのフォルダの中の、年度のフォルダの中の、コースのフォルダ（PDF の控えと同じ名前。依頼者 2026-11-05）
+    const yearFolder = drive.folders().find((f) => f.name === '2026年度')!
+    expect(yearFolder.parents).toEqual(['root-folder'])
     const folder = drive.folders().find((f) => f.name === FILM.name)!
-    expect(folder.parents).toEqual(['root-folder'])
+    expect(folder.parents).toEqual([yearFolder.id])
     expect(drive.items.get(id)!.parents).toEqual([folder.id])
     expect(triggers).toEqual([{ handler: 'onCheckSheetEdit', kind: 'edit', source: id }])
     // いちばん上は案内の1行（小さな灰色の字）、見出しは2行目。見出しの行まで固定。ふりがなの順

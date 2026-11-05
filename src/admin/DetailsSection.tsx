@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { PageMargins, YearConfig } from '../config'
 import { DEFAULT_MARGINS } from '../layout/pageGeometry'
+import { server, type PdfFolder } from './server'
 import { NumberInput, OptionalNumberInput, Row, SectionHead, TextInput } from './ui'
 
 /**
@@ -12,6 +13,93 @@ const MARGINS_HINT = '1ページ38字×38行のまま、字の間と行の間で
 /** 学籍番号の形式の説明（何に使うか・空のときどうなるか。依頼者から「この欄は何か」と聞かれた 2026-10-22） */
 const STUDENT_ID_HINT = '学籍番号の形の決まりです。学生がログインした大学のアカウント（wu22fa0001@… など）から学籍番号を読み取るとき（学生か先生かの見分けにも使います）と、表紙に打った学籍番号を確かめるときに使います。空なら、ツールに入っている形（数字2桁・英字2〜3字・数字3〜4桁）で読み取り、表紙の学籍番号は確かめません。'
 
+/**
+ * PDF の控えのもとのフォルダ（どの年度にも共通。依頼者の選択 2026-11-05 mockups/v112 案A）。
+ * この中に、年度のフォルダ、その中にコースのフォルダが自動でできる（控えと点検表）。フォルダを変えると、これから届く控えと作る点検表が新しいフォルダに入る。
+ * 年度の設定ではないので、「保存して学生に反映」ではなく、この欄の「このフォルダにする」ですぐ変わる
+ */
+function PdfFolderCard() {
+  const [folder, setFolder] = useState<PdfFolder | null>(null)
+  const [link, setLink] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  useEffect(() => {
+    let alive = true
+    server.getPdfFolder().then(
+      (f) => alive && setFolder(f),
+      (e: Error) => alive && setMessage({ ok: false, text: e.message }),
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
+  const apply = async () => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const f = await server.setPdfFolder(link)
+      setFolder(f)
+      setLink('')
+      setMessage({ ok: true, text: `「${f.name ?? f.id}」にしました。これから届く控えと、これから作る点検表は、このフォルダに入ります` })
+    } catch (e) {
+      setMessage({ ok: false, text: (e as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+  const year = new Date().getFullYear()
+  return (
+    <div className="card pdf-folder">
+      <h2 className="card-h">
+        PDF の控えのフォルダ<small>どの年度にも共通</small>
+      </h2>
+      <div className="grid">
+        <Row label="今のフォルダ" hint="学生が書き出した PDF の控えと、コースの点検表が入ります。見られるのは、このフォルダを共有している人だけです。">
+          {folder ? (
+            <span className="pf-now">
+              <b>{folder.name ?? '（名前を読めません）'}</b>
+              {folder.url && (
+                <a href={folder.url} target="_blank" rel="noreferrer">
+                  ドライブで開く ↗
+                </a>
+              )}
+              {folder.error && <span className="pf-error">{folder.error}</span>}
+            </span>
+          ) : (
+            <span className="pf-now">読み込んでいます…</span>
+          )}
+        </Row>
+        <Row label="中のつくり" sub="自動でできます">
+          <div className="pf-tree">
+            <div>📁 {folder?.name ?? 'PDF の控えのフォルダ'}</div>
+            <div className="d1">└ 📁 {year}年度</div>
+            <div className="d2">└ 📁 コースごと（控え・点検表）</div>
+          </div>
+        </Row>
+        <Row
+          label="フォルダを変える"
+          htmlFor="d-pdfFolder"
+          hint={
+            <>
+              変えると、これから届く控えと、これから作る点検表が、新しいフォルダに入ります。今までのものは、元のフォルダに残ります。
+              <br />
+              このツールを設置したアカウントが編集できるフォルダにしてください。
+            </>
+          }
+        >
+          <span className="pf-change">
+            <input id="d-pdfFolder" className="in" type="text" value={link} placeholder="新しいフォルダのリンクを貼る" onChange={(e) => setLink(e.target.value)} />
+            <button className="btn sub" disabled={busy || !link.trim()} onClick={apply}>
+              {busy ? '確かめています…' : 'このフォルダにする'}
+            </button>
+          </span>
+          {message && <div className={message.ok ? 'pf-ok' : 'pf-error'}>{message.text}</div>}
+        </Row>
+      </div>
+    </div>
+  )
+}
+
 export function DetailsSection({ draft, set, changed, notices }: { draft: YearConfig; set: (patch: Partial<YearConfig>) => void; changed: (path: string) => boolean; notices?: ReactNode }) {
   const off = draft.driveSave === 'off'
   // 入れている途中の値（範囲の外でも）をそのまま見せる。省略は、はじめの値
@@ -22,6 +110,7 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
     <>
       <SectionHead title="詳細設定" lead="ふだんは変えません。手順書が変わったときや、Google の障害のときに使います。" />
       {notices}
+      <PdfFolderCard />
       <div className="card">
         <h2 className="card-h">Google の障害のとき</h2>
         <div className="grid">
