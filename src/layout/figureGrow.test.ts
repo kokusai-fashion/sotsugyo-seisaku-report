@@ -37,7 +37,7 @@ describe('改ページ・章の終わりの直前の図を、下の空きに合�
   })
 
   it('まだ写真を入れていない枠（ひな形の図の枠）は、下が空いていても大きくしない（依頼者の判断 2026-11-05）', () => {
-    const empty: Chapter = { ...chapter('pageBreak'), blocks: chapter('pageBreak').blocks.map((b) => (b.type === 'figureRow' ? { ...b, figures: [{ id: 'f1', caption: 'デザイン画' }] } : b)) }
+    const empty: Chapter = { ...chapter('pageBreak'), blocks: chapter('pageBreak').blocks.map((b) => (b.type === 'figureRow' ? { ...b, figures: [{ id: 'f1', imageId: '', caption: 'デザイン画' }] } : b)) }
     expect(decideFigureGrowth(layout([at(0, 120, 177)], [[size(60, 45)]]), [empty], new Set(), {}, new Set(), new Set())).toEqual({})
   })
 
