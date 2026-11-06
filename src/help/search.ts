@@ -107,6 +107,9 @@ function searchWith(topics: HelpTopic[], terms: string[]): { terms: string[]; hi
     const found = terms.filter((t) => has(all, t))
     if (!found.length) return
     const inTitle = found.filter((t) => has(title, t))
+    // よく使われる言い方（words）に入れた言葉は、その項目で答えるつもりの言葉なので、少し前に出す
+    // （「目次」：Word の項目にも「目次の Word」が出るが、目次は自動という答えは書き方の項目。2026-11-06）
+    const inWords = found.filter((t) => has(normalize(topic.words ?? ''), t))
     let line: HelpLine = lines[0] ?? { text: '' }
     let best = -1
     for (const l of lines) {
@@ -116,7 +119,7 @@ function searchWith(topics: HelpTopic[], terms: string[]): { terms: string[]; hi
     }
     const seen = `${title} ${lineText(line)}`
     const hidden = found.filter((t) => !has(seen, t))
-    scored.push({ topic, found, line, hidden, score: found.length * 100 + inTitle.length * 10, order })
+    scored.push({ topic, found, line, hidden, score: found.length * 100 + inTitle.length * 10 + inWords.length, order })
   })
   scored.sort((a, b) => b.score - a.score || a.order - b.order)
   return { terms, hits: scored.map(({ topic, found, line, hidden }) => ({ topic, found, line, hidden })) }

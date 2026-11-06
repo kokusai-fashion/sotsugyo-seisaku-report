@@ -1,6 +1,7 @@
 // 動画 1：はじめ方（ログイン〜表紙）（パソコン）
 // Google の確認の画面は録れない（ログインは偽物。本物の Google にはつながない）ので、字幕で伝える。
 // 終わりに、右上の「≡ メニュー」（使い方・バックアップ・Word の読み込み）を開いて、「使い方」を見せる（2026-10-20 の画面）
+// 2026-11-06：氏名は、はじめての案内の「氏名」の段で、姓・名・ふりがな（セイ・メイ）の4つの欄に入れる形にした（2026-11-04 からのツール）
 export const meta = {
   number: '1',
   label: 'はじめ方（ログイン〜表紙）',
@@ -11,7 +12,8 @@ export const meta = {
     consent: 'Google の確認の画面では、ドライブの項目にチェックを入れて「続行」を押します',
     course: 'はじめに、自分のコースを選びます',
     word: 'Word で書き始めていなければ、「いいえ、ここから書き始める」を押します',
-    name: '学籍番号は自動で入ります。氏名を入力して、Enter を押します',
+    name: '学籍番号は自動で入ります。氏名は、姓と名を入れます',
+    kana: 'ふりがなはカタカナで入れます。表紙には出ず、先生が名前の順に並べるのに使います',
     subtitle: '続けて、サブタイトルを入力します',
     done: 'これで表紙ができました。「閉じる」を押します',
     tour: '初めて使うときは、画面の各部分の案内が出ます。「次へ」を押して順に見ます',
@@ -62,13 +64,28 @@ export async function run({ page, rec, h }) {
     const tip = await h.rectOf(page, '.g-tip')
     return h.union(spot, tip)
   }
-  // 学籍番号は、ログインしたアカウント（00zz0123@…）から自動で入っている。案内は氏名から
-  const nameFocus = await field('basic:name')
-  rec.mark('name', { focus: h.union(nameFocus, await h.blockRect(page, 'basic:studentId')) })
-  await h.sleep(3000)
-  await h.typeSlow(page, '文化　花子')
-  await h.sleep(800)
-  await page.keyboard.press('Enter')
+  // 学籍番号は、ログインしたアカウント（00zz0123@…）から自動で入っている。案内は氏名から（姓・名・セイ・メイの4つの欄）
+  await page.waitForSelector('.guide.step-name .name-fields input', { timeout: 30000 })
+  await h.ready(page)
+  await h.sleep(400)
+  const nameFields = async () => h.union(await h.rectOf(page, '.g-tip'), await h.rectOf(page, '.guide .name-fields'))
+  rec.mark('name', { focus: h.union(await nameFields(), await h.blockRect(page, 'basic:studentId')) })
+  await h.sleep(2400)
+  for (const [cls, text] of [['nf-familyName', '文化'], ['nf-givenName', '花子']]) {
+    await h.clickEl(page, `.guide .${cls} input`)
+    await h.typeSlow(page, text)
+    await h.sleep(300)
+  }
+  await h.sleep(500)
+  rec.mark('kana', { focus: h.union(await h.rectOf(page, '.g-tip'), await h.rectOf(page, '.guide .nf-note')) })
+  await h.sleep(1800)
+  for (const [cls, text] of [['nf-familyKana', 'ブンカ'], ['nf-givenKana', 'ハナコ']]) {
+    await h.clickEl(page, `.guide .${cls} input`)
+    await h.typeSlow(page, text)
+    await h.sleep(300)
+  }
+  await h.sleep(700)
+  await h.clickEl(page, '.guide.step-name .g-actions .primary', null, { pause: 500 })
   rec.mark('subtitle', { focus: await field('basic:subtitleInput') })
   await h.sleep(1000)
   await h.typeSlow(page, 'シンドバッド')

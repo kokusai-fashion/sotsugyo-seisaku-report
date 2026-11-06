@@ -13,7 +13,7 @@ const FFPROBE = FFMPEG.replace(/ffmpeg(\.exe)?$/, 'ffprobe$1')
 const IN = 'poc-output/video/out'
 const OUT = 'public/help/videos'
 /** 動画の番号と、置くときの名前（src/help/videos.ts の file と同じ） */
-const FILES = { 1: '1-start', 2: '2-body', 3: '3-table-photos', 4: '4-check', 5: '5-pdf', 6: '6-phone' }
+const FILES = { 1: '1-start', 2: '2-body', 3: '3-table-photos', 4: '4-check', 5: '5-pdf', 6: '6-phone', 7: '7-word', 8: '8-abstract', 9: '9-figref', 10: '10-t-template', 11: '11-t-check' }
 
 /** 置き直す動画の番号（書かなければ全部） */
 const ONLY = process.argv.slice(2).map(Number)
@@ -25,7 +25,10 @@ const run = (cmd, args) => {
 }
 
 for (const src of readdirSync(IN).filter((f) => f.endsWith('.mp4'))) {
-  const n = Number(src.split('_')[0])
+  // 学生向けの動画の場面（07_・09_ など、0 で始まる番号）は、使い方の動画ではない（7・9 と取り違えていた：2026-11-06）
+  const head = src.split('_')[0]
+  if (!/^[1-9][0-9]*$/.test(head)) continue
+  const n = Number(head)
   const name = FILES[n]
   if (!name || (ONLY.length && !ONLY.includes(n))) continue
   const from = join(IN, src)

@@ -13,12 +13,19 @@ export interface HelpVideo {
 }
 
 export const HELP_VIDEOS: HelpVideo[] = [
-  { number: 1, title: 'はじめ方（ログイン〜表紙）', file: '1-start', seconds: 64 },
+  { number: 1, title: 'はじめ方（ログイン〜表紙）', file: '1-start', seconds: 73 },
   { number: 2, title: '本文を書く・図を入れる', file: '2-body', seconds: 83 },
-  { number: 3, title: '表・作品写真', file: '3-table-photos', seconds: 74 },
-  { number: 4, title: 'セルフチェックで直す', file: '4-check', seconds: 44 },
-  { number: 5, title: 'PDF を書き出す', file: '5-pdf', seconds: 60 },
+  { number: 3, title: '表・作品写真', file: '3-table-photos', seconds: 79 },
+  { number: 4, title: 'セルフチェックで直す', file: '4-check', seconds: 45 },
+  { number: 5, title: 'PDF を書き出す', file: '5-pdf', seconds: 62 },
   { number: 6, title: 'スマホで書く', file: '6-phone', seconds: 65, phone: true },
+  // 足した3本（依頼者 2026-11-06：「使い方」に動画を足す）。1・3・4・5 も同じ日に、今の画面（氏名の4つの欄・詰めた右の欄など）で撮り直した
+  { number: 7, title: 'Word からの移し方', file: '7-word', seconds: 68 },
+  { number: 8, title: '抄録を書く', file: '8-abstract', seconds: 36 },
+  { number: 9, title: '先に「（図1）」と書いてから図を入れる', file: '9-figref', seconds: 32 },
+  // 管理ページの使い方の動画（先生向けの動画のために撮った短い動画に、題名と字幕を付けたもの。scripts/video/admin-help-videos.mjs で作る：2026-11-06）
+  { number: 10, title: 'ひな形を作る', file: '10-t-template', seconds: 38 },
+  { number: 11, title: '点検表と先生の許可', file: '11-t-check', seconds: 51 },
 ]
 
 /** 項目に入れた動画（番号の順） */
