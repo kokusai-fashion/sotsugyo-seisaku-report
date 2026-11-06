@@ -27,6 +27,7 @@ import { pathToFileURL } from 'node:url'
 import QRCode from 'qrcode'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { showPhoneKeyboard } from './phoneKeyboard.mjs'
+import { withLiveCourseOrder } from './e2e/shotConfig.mjs'
 
 // ほかの確かめと同時に動かしても Edge がぶつからないよう、別のポートを使う（edge.mjs は読み込んだときにポートを決めるので、先に決める）
 process.env.EDGE_PORT ??= '9364'
@@ -1445,7 +1446,8 @@ for (const g of TARGETS) if (!existsSync(g.html)) throw new Error(`${g.html} が
 await withEdge(async (browser) => {
   if (!pdfOnly) {
     console.log('画面の画像を撮ります')
-    const config = JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8'))
+    // コースの並びは本番の順（scripts/e2e/shotConfig.mjs）
+    const config = withLiveCourseOrder(JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8')))
     // 試験用の設定の「（自動テスト用）」のお知らせは写さない
     for (const c of config.courses) delete c.notice
     // 本番の年度の設定には「AI に聞くのリンク」があるので、メニューと使い方の欄の「使い方を AI に聞く」も写す（リンクの先は仮のもの）

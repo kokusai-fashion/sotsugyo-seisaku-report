@@ -10,7 +10,7 @@
   "commonTitle": "卒業イベント「シンドバッド」について",
   "cover": {
     "titleLabel": "制作題目",
-    "heading": "卒業制作"
+    "heading": "卒業制作報告書"
   },
   "faculty": "国際文化学部",
   "courses": [
@@ -55,7 +55,7 @@
     "maxLines": 23,
     "openingExample": "本制作報告書は、",
     "minChars": 600,
-    "heading": "卒業制作　抄録",
+    "heading": "卒業制作報告書　抄録",
     "maxChars": 900
   }
 }

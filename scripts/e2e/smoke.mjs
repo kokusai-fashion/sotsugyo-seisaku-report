@@ -2339,7 +2339,7 @@ await withEdge(async (browser) => {
   const naDoc = await getDocument({ url: `${OUT}/no-abstract.pdf`, verbosity: 0 }).promise
   let naText = ''
   for (let n = 1; n <= naDoc.numPages; n++) naText += (await (await naDoc.getPage(n)).getTextContent()).items.map((it) => it.str).join('')
-  check('抄録を書き始める前は、PDF に抄録のページが入らない（画面には残る）', naDoc.numPages === s.layout.kinds.length - 1 && !/卒業制作\s*抄録/.test(naText) && s.layout.kinds.includes('abstract'), `${naDoc.numPages} / ${s.layout.kinds.length}ページ`)
+  check('抄録を書き始める前は、PDF に抄録のページが入らない（画面には残る）', naDoc.numPages === s.layout.kinds.length - 1 && !/卒業制作報告書\s*抄録/.test(naText) && s.layout.kinds.includes('abstract'), `${naDoc.numPages} / ${s.layout.kinds.length}ページ`)
 
   // ---- 直すところ・まだのところが残っていても、PDF は書き出せる（PDF は1つだけ。下書きの PDF と3つのチェックはなくした：依頼者の判断 2026-10-19） ----
   // 文末に「。」がない段落を作る（補助の指摘のエラー）

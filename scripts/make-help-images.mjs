@@ -16,6 +16,7 @@
 //   管理ページ：年度の設定・変更があるときの下の帯・コース・ひな形を作る画面・書き方のチェック・先生の登録・詳細設定・新年度の準備・先生の画面
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { showPhoneKeyboard } from './phoneKeyboard.mjs'
+import { withLiveCourseOrder } from './e2e/shotConfig.mjs'
 
 process.env.EDGE_PORT ??= '9403'
 const { withEdge } = await import('./poc/edge.mjs')
@@ -37,7 +38,8 @@ const PC = { width: 1440, height: 900, deviceScaleFactor: 2 }
 const PHONE = { width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true }
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'
 const STUDENT_EMAIL = '00zz0123@bunka-wu.ac.jp'
-const config = JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8'))
+// コースの並びは本番の順（scripts/e2e/shotConfig.mjs）
+const config = withLiveCourseOrder(JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8')))
 // 試験用の設定の「（自動テスト用）」のお知らせは写さない
 for (const c of config.courses) delete c.notice
 // 本番の年度の設定には「AI に聞くのリンク」があるので、メニューと使い方の欄の「使い方を AI に聞く」も写す（リンクの先は仮のもの）

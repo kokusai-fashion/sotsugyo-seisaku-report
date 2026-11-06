@@ -6,13 +6,15 @@
 import { readFileSync } from 'node:fs'
 import { showPhoneKeyboard } from '../phoneKeyboard.mjs'
 import { sleep } from './recorder.mjs'
+import { withLiveCourseOrder } from '../e2e/shotConfig.mjs'
 
 const { fakeDrive, routeGoogle } = await import('../e2e/fakeGoogle.mjs')
 const { sinbadSample, setupSinbad } = await import('../e2e/sampleSinbad.mjs')
 const { closeGuide } = await import('../e2e/nameStep.mjs')
 
 const APP = process.env.APP_URL ?? 'http://localhost:5173'
-const config = JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8'))
+// コースの並びは本番の順（scripts/e2e/shotConfig.mjs）
+const config = withLiveCourseOrder(JSON.parse(readFileSync('scripts/e2e/config-fixture.json', 'utf8')))
 for (const c of config.courses) delete c.notice
 
 /**
