@@ -1,9 +1,9 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it, vi } from 'vitest'
-import { currentConfig, type YearConfig } from '../config'
+import { currentConfig, type TemplateBlock, type YearConfig } from '../config'
 import { validateConfig } from '../config/validate'
 import { checkReport } from '../checker/reportChecks'
-import { applyCourseTemplate, bodyFromTemplate, bodyWritten, courseTemplate, DEFAULT_TEMPLATE } from './template'
+import { applyCourseTemplate, bodyFromTemplate, bodyWritten, chapterTitles, courseTemplate, DEFAULT_TEMPLATE, isDefaultTemplate, standardTemplate } from './template'
 import { backupFileName, BackupFormatError, createBackup, readBackup } from './backup'
 import { demoReport } from './demoReport'
 import { fitFigureSize, printDpi } from './images'
@@ -55,6 +55,18 @@ describe('下書きのひな形', () => {
   it('ひな形のないコースは、標準のひな形を使う', () => {
     expect(courseTemplate(twoCourses, 'plain')).toBe(DEFAULT_TEMPLATE)
     expect(courseTemplate(twoCourses, 'other')).toHaveLength(2)
+  })
+
+  it('管理者が標準のひな形を直していれば、ひな形のないコースはそれを使う（崩れていれば、はじめの形：mockups/v116）', () => {
+    const standard: TemplateBlock[] = [{ type: 'chapter', title: '制作の概要' }, { type: 'paragraph', hint: '何を作ったかを書く' }]
+    expect(courseTemplate({ ...twoCourses, standardTemplate: standard }, 'plain')).toBe(standard)
+    expect(courseTemplate({ ...twoCourses, standardTemplate: standard }, 'other')).toHaveLength(2)
+    expect(createReport({ ...twoCourses, standardTemplate: standard }).body.map((c) => c.title)).toEqual(['制作の概要'])
+    expect(courseTemplate({ ...twoCourses, standardTemplate: [{ type: 'chapter', title: '' }] }, 'plain')).toBe(DEFAULT_TEMPLATE)
+    expect(courseTemplate({ ...twoCourses, standardTemplate: [] }, 'plain')).toBe(DEFAULT_TEMPLATE)
+    expect(chapterTitles(standardTemplate(currentConfig))).toBe('企画・立案／制作過程／まとめ')
+    expect(isDefaultTemplate(JSON.parse(JSON.stringify(DEFAULT_TEMPLATE)))).toBe(true)
+    expect(isDefaultTemplate(standard)).toBe(false)
   })
 
   it('大見出しより前の部品はまとめ、中身のない大見出しには空の段落を入れる', () => {

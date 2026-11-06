@@ -1241,6 +1241,9 @@ async function adminShots(browser) {
 
   // ---- 詳細設定：Google の障害のとき（学生のドライブ保存の切り替え） ----
   await nav(page, '詳細設定')
+  // 上に「標準のひな形」「PDF の控えのフォルダ」の欄があるので、写す欄を画面の真ん中に（make-help-images.mjs と同じ）
+  await page.evaluate(() => [...document.querySelectorAll('.content .card')].find((c) => c.textContent.includes('Google の障害のとき'))?.scrollIntoView({ block: 'center' }))
+  await sleep(300)
   await page.mouse.move(5, 5)
   await capture(page, 'g-admin-switch', pad(await page.evaluate(rectOf, '.content .card', 'Google の障害のとき'), 10), [
     { n: 1, box: await page.evaluate(rectOf, '.drive-switch .seg2 button', '止める'), at: 'r' },

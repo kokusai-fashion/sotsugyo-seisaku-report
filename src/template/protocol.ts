@@ -34,6 +34,11 @@ export interface InitPayload {
   config: YearConfig
   /** 年度の状態（右の欄の「学生に届くのは…」の言葉を変える） */
   status: TemplateYearStatus
+  /**
+   * 標準のひな形を直す（管理者だけ。詳細設定から：mockups/v116 案B）。template は標準のひな形、abstractExample は空で渡し、
+   * 書いた書き出し例は年度の共通の書き出し例になる。ない・false はコースのひな形
+   */
+  standard?: boolean
 }
 
 export interface InitMessage {
@@ -97,10 +102,10 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 /** 受け取った init の中身の形を確かめる（崩れていたら null） */
 export function readInitPayload(raw: unknown): InitPayload | null {
   if (!isObj(raw)) return null
-  const { courseId, courseName, template, abstractExample, config, status } = raw
+  const { courseId, courseName, template, abstractExample, config, status, standard } = raw
   if (typeof courseId !== 'string' || typeof courseName !== 'string' || !Array.isArray(template) || typeof abstractExample !== 'string' || !isObj(config)) return null
   if (status !== '公開中' && status !== '準備中' && status !== '終了') return null
-  return { courseId, courseName: courseName.slice(0, 200), template: template as TemplateBlock[], abstractExample, config: config as unknown as YearConfig, status }
+  return { courseId, courseName: courseName.slice(0, 200), template: template as TemplateBlock[], abstractExample, config: config as unknown as YearConfig, status, ...(standard === true ? { standard: true } : {}) }
 }
 
 /** 管理ページが受け取ったひな形の問題（なければ空。保存のときのサーバーと同じ決まり：templateProblems。ふつうはツールが先に確かめるので起きない） */

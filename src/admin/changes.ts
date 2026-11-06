@@ -25,6 +25,7 @@ const TOP_LABELS: [string, string][] = [
 ]
 const WORDS_LABEL: [string, string] = ['wordChecks', '書き間違えやすい語']
 const DETAIL_LABELS: [string, string][] = [
+  ['standardTemplate', '標準のひな形'],
   ['driveSave', '学生のドライブ保存'],
   ['reportName', '報告書の名前'],
   ['cover.heading', '表紙の見出し'],
@@ -86,6 +87,8 @@ function normTop(key: string, value: unknown): unknown {
   // ページの余白：省略は、はじめの値（上下 25mm・左右 30mm）と同じ
   if (key.startsWith('margins.') && value === undefined) return DEFAULT_MARGINS[key.slice(8) as keyof typeof DEFAULT_MARGINS]
   if (key === 'wordChecks') return words(value)
+  // 標準のひな形：空の一覧は「直していない」と同じ
+  if (key === 'standardTemplate') return Array.isArray(value) && value.length === 0 ? undefined : value
   return value
 }
 

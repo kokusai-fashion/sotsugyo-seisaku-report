@@ -6,7 +6,7 @@ import { LIMITS, templateRowName, tooLong, type TemplateRowKind } from '../confi
 import { bodyContentHtml } from '../layout/bodyHtml'
 import { pageMargins, type PageMargins } from '../layout/pageGeometry'
 import { reportCss } from '../layout/reportCss'
-import { bodyFromTemplate, DEFAULT_TEMPLATE } from '../model/template'
+import { bodyFromTemplate, chapterTitles, standardTemplate } from '../model/template'
 import { useConfirm } from './confirm'
 import { TEMPLATE_CONTENT_CSS } from './Preview'
 import { useLeaveGuard } from './useLeaveGuard'
@@ -170,11 +170,11 @@ let keyCounter = 0
 const withKeys = (list: TemplateBlock[]) => list.map((block) => ({ key: ++keyCounter, block }))
 
 /**
- * 編集を始めるひな形（ないときは標準のひな形）。崩れたひな形でも画面が止まらないよう、知らない種類の部品は外し、名前や説明は文字にそろえる。
+ * 編集を始めるひな形（ないときは、その年度の標準のひな形：standard）。崩れたひな形でも画面が止まらないよう、知らない種類の部品は外し、名前や説明は文字にそろえる。
  * ふつうの表は、見出しの行などの項目もそのまま残す（この窓では、タイトルだけを直す）
  */
-function startBlocks(template: unknown): TemplateBlock[] {
-  if (!Array.isArray(template) || template.length === 0) return DEFAULT_TEMPLATE
+function startBlocks(template: unknown, standard: TemplateBlock[]): TemplateBlock[] {
+  if (!Array.isArray(template) || template.length === 0) return standard
   return template.flatMap((b: unknown) => {
     const type = b && typeof b === 'object' ? (b as { type?: unknown }).type : undefined
     if (typeof type !== 'string' || !Object.prototype.hasOwnProperty.call(NEW_BLOCKS, type)) return []
@@ -189,7 +189,8 @@ function startBlocks(template: unknown): TemplateBlock[] {
 }
 
 export function TemplateEditor({ course, config, footNote, onApply, onClose }: Props) {
-  const [rows, setRows] = useState(() => withKeys(startBlocks(course.template)))
+  const standard = standardTemplate(config)
+  const [rows, setRows] = useState(() => withKeys(startBlocks(course.template, standard)))
   const [abstractExample, setAbstractExample] = useState(course.abstractExample ?? '')
   const [selected, setSelected] = useState(0)
   const [focusKey, setFocusKey] = useState<number | null>(null)
@@ -197,7 +198,7 @@ export function TemplateEditor({ course, config, footNote, onApply, onClose }: P
   const nums = numbers(blocks)
   const problems = problemsOf(blocks, abstractExample)
   // 開いたときの内容（直したかどうかを見るため）
-  const [initial] = useState(() => JSON.stringify([startBlocks(course.template), course.abstractExample ?? '']))
+  const [initial] = useState(() => JSON.stringify([startBlocks(course.template, standard), course.abstractExample ?? '']))
   const changed = JSON.stringify([blocks, abstractExample]) !== initial
   // 直して「反映する」を押していないあいだは、タブを閉じる・読み込み直すときに確かめる
   useLeaveGuard(changed)
@@ -278,8 +279,8 @@ export function TemplateEditor({ course, config, footNote, onApply, onClose }: P
               <button
                 className="link"
                 onClick={async () => {
-                  if (await ask('標準のひな形（企画・立案／制作過程／まとめ）に戻しますか？', { ok: '標準に戻す' })) {
-                    setRows(withKeys(DEFAULT_TEMPLATE))
+                  if (await ask(`標準のひな形（${chapterTitles(standard)}）に戻しますか？`, { ok: '標準に戻す' })) {
+                    setRows(withKeys(standard))
                     setSelected(0)
                   }
                 }}

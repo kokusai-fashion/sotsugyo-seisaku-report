@@ -1060,8 +1060,14 @@ describe('管理ページ（admin-project）', () => {
       { ...initialConfig, courses: [{ ...course, permission: { abstract: 'yes' } }] },
       { ...initialConfig, courses: [{ ...course, permission: [] }] },
       { ...initialConfig, courses: [{ ...course, permission: 'x' }] },
+      // 標準のひな形（管理者が詳細設定で直す：mockups/v116 案B）
+      { ...initialConfig, standardTemplate: [{ type: 'chapter', title: '概要' }, { type: 'paragraph', hint: '概要を書く' }] },
+      { ...initialConfig, standardTemplate: [{ type: 'chapter', title: '' }] },
+      { ...initialConfig, standardTemplate: 'x' },
+      { ...initialConfig, standardTemplate: null },
     ]
     for (const c of configs) expect(outcome(() => rules.checkConfig(c))).toBe(outcome(() => gas.checkConfig_(c)))
+    expect(outcome(() => gas.checkConfig_({ ...initialConfig, standardTemplate: [{ type: 'chapter', title: '' }] }))).toContain('標準のひな形の')
     for (const p of [{ [course.id]: { abstract: true } }, { [course.id]: { abstract: false, final: false } }, { [course.id]: null }, { [course.id]: { final: 1 } }, { [course.id]: 'x' }, { nothing: { abstract: true } }]) {
       const a = JSON.parse(JSON.stringify(initialConfig))
       const b = JSON.parse(JSON.stringify(initialConfig))

@@ -161,6 +161,17 @@ describe('崩れた設定（管理ページのサーバーを通らずに書か�
   })
 })
 
+describe('標準のひな形（mockups/v116 案B）', () => {
+  it('崩れていれば、詳細設定の誤り。学生のツールでは外して、はじめの形を使う', () => {
+    const broken = { ...currentConfig, standardTemplate: [{ type: 'chapter' as const, title: '' }] }
+    expect(validateConfig(broken).filter((p) => p.field === 'standardTemplate').map((p) => p.message)).toEqual(['標準のひな形に、名前が空の大見出しがあります'])
+    expect(repairConfig(broken).standardTemplate).toBeUndefined()
+    const good = { ...currentConfig, standardTemplate: [{ type: 'chapter' as const, title: '概要' }] }
+    expect(validateConfig(good).some((p) => p.field === 'standardTemplate')).toBe(false)
+    expect(repairConfig(good).standardTemplate).toEqual(good.standardTemplate)
+  })
+})
+
 describe('作品写真のページ数の上限（mockups/v38：枚数の上限 maxImages をやめた）', () => {
   it('空（null）は上限なし。入れるなら1以上の整数（0・小数・文字はエラー）', () => {
     const errorsOf = (maxPages: unknown) => validateConfig({ ...currentConfig, workPhotos: { maxPages } as never }).filter((p) => p.field === 'workPhotos.maxPages' && p.severity === 'error')

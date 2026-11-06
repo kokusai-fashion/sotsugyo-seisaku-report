@@ -7,7 +7,7 @@ import { HelpView } from '../help/HelpView'
 import { TEACHER_TOPICS } from '../help/helpTopics'
 import { ADMIN_GUIDE_URL, TEACHER_GUIDE_URL, TEACHER_HELP_IMAGES } from '../help/links'
 import { halfDigits } from '../layout/document'
-import { DEFAULT_TEMPLATE } from '../model/template'
+import { isDefaultTemplate, standardTemplate } from '../model/template'
 import { AdminIcon } from './adminIcons'
 import { AdminNewVersion } from './AdminNewVersion'
 import { courseChanged, courseName, fieldChanged, listChanges, mergeEdits, sameConfig, shortChanges, describeChanges, type Change, type ChangeSection } from './changes'
@@ -21,7 +21,7 @@ import { newYearSteps, type NewYearStep } from './newYearSteps'
 import { Preview } from './Preview'
 import { checkSheetUrls, isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type PermissionSet, type TemplateSet, type YearRow } from './server'
 import { TemplateEditor } from './TemplateEditor'
-import { TemplateOverlay } from './TemplateOverlay'
+import { STANDARD_COURSE, TemplateOverlay } from './TemplateOverlay'
 import { TrialSection } from './TrialSection'
 import { FeedbackSection } from './FeedbackSection'
 import { TEMPLATE_RECEIVED } from './templateText'
@@ -149,7 +149,7 @@ function MessageBox({ message }: { message: Notice }) {
 }
 
 /** 詳細設定の欄の誤りの名前（validate.ts の field） */
-const DETAILS_FIELDS = ['reportName', 'university', 'faculty', 'department', 'cover.heading', 'cover.titleLabel', 'abstract.heading', 'abstract.chars', 'abstract.lines', 'body.minPages', 'workPhotos.maxPages', 'studentIdPattern', 'margins']
+const DETAILS_FIELDS = ['standardTemplate', 'reportName', 'university', 'faculty', 'department', 'cover.heading', 'cover.titleLabel', 'abstract.heading', 'abstract.chars', 'abstract.lines', 'body.minPages', 'workPhotos.maxPages', 'studentIdPattern', 'margins']
 // 「コース」は「コースごとの設定」に（何をする所か分かるように：依頼者の要望 2026-11-02）
 const SECTION_TITLES = { year: '年度の設定', course: 'コースごとの設定', words: '書き方のチェック', details: '詳細設定' } as const
 
@@ -538,7 +538,7 @@ function CoverStage({ config, course }: { config: YearConfig; course: Course | u
           </span>
         </span>
       </div>
-      <Preview config={config} courseId={course?.id ?? ''} template={course?.template?.length ? course.template : DEFAULT_TEMPLATE} />
+      <Preview config={config} courseId={course?.id ?? ''} template={course?.template?.length ? course.template : standardTemplate(config)} />
     </>
   )
 }
@@ -601,6 +601,8 @@ export function AdminApp() {
   const [editingTemplate, setEditingTemplate] = useState<number | null>(null)
   /** ひな形を作る画面（学生と同じ紙面。管理ページの上に重ねて開く：mockups/v44 案A）を開いているコース */
   const [templateScreen, setTemplateScreen] = useState<number | null>(null)
+  /** 標準のひな形を直す画面を開いている（詳細設定から。管理者だけ：mockups/v116 案B） */
+  const [standardScreen, setStandardScreen] = useState(false)
   /** ひな形を受け取ったときの短い知らせ（数秒で消える） */
   const [newYear, setNewYear] = useState('')
   /** 「？ 使い方」の欄を開いている */
@@ -1055,7 +1057,7 @@ export function AdminApp() {
         }}
       />
     )
-  else content = <DetailsSection draft={draft} set={set} changed={changed} notices={notices} />
+  else content = <DetailsSection draft={draft} set={set} changed={changed} notices={notices} onOpenStandard={() => setStandardScreen(true)} />
 
   return (
     <div className={`admin${help ? ' help-on' : ''}${dirty ? ' has-bar' : ''}${phone && phoneList ? ' phone-list' : ''}`}>
@@ -1104,6 +1106,21 @@ export function AdminApp() {
             setCourse(templateScreen, { ...draft.courses[templateScreen], template, abstractExample })
             setTemplateScreen(null)
             // 受け取った知らせは、ほかの知らせと同じ見出しの下の緑の枠に（前は上の真ん中に浮かせていて、コースの「閉じる」に重なった：mockups/v49 J）
+            setMessage({ kind: 'ok', text: `${TEMPLATE_RECEIVED}。${deliveryNote(row.status, 'admin')}` })
+          }}
+        />
+      )}
+      {standardScreen && (
+        <TemplateOverlay
+          course={{ ...STANDARD_COURSE, template: draft.standardTemplate }}
+          standard
+          config={draft}
+          status={row.status}
+          onClose={() => setStandardScreen(false)}
+          onApply={(template, abstractExample) => {
+            // はじめの形と同じなら、年度の設定には持たない（「直していない」に戻る）。書き出し例を書いたら、年度の共通の書き出し例にする
+            set({ standardTemplate: isDefaultTemplate(template) ? undefined : template, ...(abstractExample ? { abstract: { ...draft.abstract, openingExample: abstractExample } } : {}) })
+            setStandardScreen(false)
             setMessage({ kind: 'ok', text: `${TEMPLATE_RECEIVED}。${deliveryNote(row.status, 'admin')}` })
           }}
         />
@@ -1352,7 +1369,7 @@ function TeacherView({
                     学生が最初に見る本文<span className="nb">（{courseName(shownCourse)} コース）</span>
                   </span>
                 </div>
-                <Preview config={draft} courseId={shownCourse.id} template={shownCourse.template?.length ? shownCourse.template : DEFAULT_TEMPLATE} startAtBody />
+                <Preview config={draft} courseId={shownCourse.id} template={shownCourse.template?.length ? shownCourse.template : standardTemplate(draft)} startAtBody />
               </>
             ) : null
           }

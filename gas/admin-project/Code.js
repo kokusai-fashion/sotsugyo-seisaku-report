@@ -287,8 +287,9 @@ function applyPermissions_(config, permissions) {
  * 名前や説明・書き出しの文が文字でない・長すぎる、名前が空、先頭が大見出しでない）エラーにする。
  * 学生のツールが崩れたひな形で止まらないように（学生のツールの src/config/validate.ts の templateProblems と同じ決まり）
  */
-function cleanTemplate_(template, courseName) {
-  const label = '「' + courseName + '」のひな形'
+function cleanTemplate_(template, courseName, wholeLabel) {
+  // 標準のひな形は、名前ごと渡す（wholeLabel：「標準のひな形」）
+  const label = wholeLabel || '「' + courseName + '」のひな形'
   if (!Array.isArray(template)) throw new Error(label + 'の形が正しくありません')
   if (template.length > LIMITS.blocks) throw new Error(label + 'の部品が多すぎます（' + LIMITS.blocks + '個まで）')
   const cleaned = template.map((block, i) => {
@@ -823,6 +824,8 @@ function checkConfig_(config) {
     if (course.permission !== undefined && course.permission !== null) checkPermission_(course.permission, name)
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords_(config.wordChecks)
+  // 標準のひな形（管理者が「詳細設定」で直したもの。ないときは、ツールに入っている標準のひな形）
+  if (config.standardTemplate !== undefined && config.standardTemplate !== null) cleanTemplate_(config.standardTemplate, '', '標準のひな形')
   if (JSON.stringify(config).length > 45000) throw new Error('設定が大きすぎます')
 }
 

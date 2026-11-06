@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs'
 import { withEdge } from '../poc/edge.mjs'
 import { answerConfirms } from './confirmUi.mjs'
 import { templateModeAdmin, templatePrefilledAdmin } from './templateMode.mjs'
+import { standardTemplateAdmin } from './standardTemplate.mjs'
 import { trialFixesAdmin } from './trialFixesAdmin.mjs'
 import { trialModeAdmin } from './trialMode.mjs'
 
@@ -1849,6 +1850,8 @@ await withEdge(async (browser) => {
   await templateModeAdmin(browser, check)
   // ひな形の段落を「書き出しの文」にする（mockups/v70 案C。scripts/e2e/templateMode.mjs）
   await templatePrefilledAdmin(browser, check)
+  // 標準のひな形を、管理者が詳細設定で直す（依頼者 2026-11-06：mockups/v116 案B。scripts/e2e/standardTemplate.mjs）
+  await standardTemplateAdmin(browser, check)
   // 先生の試し（2026-10-21）の直し：新年度を作ったあと上へ・次の年度があるときの言葉・年度を替えたら知らせを消す・公開の確かめ・お知らせの欄の高さ（scripts/e2e/trialFixesAdmin.mjs）
   await trialFixesAdmin(browser, check)
   // 学生の画面を試す（お試し。依頼者の選択 2026-10-22 案1。scripts/e2e/trialMode.mjs）

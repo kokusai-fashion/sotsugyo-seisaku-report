@@ -134,3 +134,12 @@ describe('作品写真のページ数の上限（mockups/v38）', () => {
     expect(describeChanges(old, { ...currentConfig, workPhotos: { maxPages: 3 } })).toEqual(['作品写真のページ数の上限'])
   })
 })
+
+describe('標準のひな形（mockups/v116 案B）', () => {
+  it('直すと「標準のひな形」（詳細設定）。空の一覧は、直していないのと同じ', () => {
+    const changed = { ...base, standardTemplate: [{ type: 'chapter' as const, title: '概要' }] }
+    expect(listChanges(base, changed)).toEqual([{ label: '標準のひな形', section: 'details' }])
+    expect(sameConfig(base, { ...base, standardTemplate: [] })).toBe(true)
+    expect(describeChanges(changed, base)).toEqual(['標準のひな形'])
+  })
+})

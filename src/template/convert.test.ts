@@ -8,7 +8,7 @@ import { numbering, contentToText, setPrefilled, setText, split } from '../edito
 import { createReport } from '../model/newReport'
 import { bodyFromTemplate, bodyWritten, DEFAULT_TEMPLATE } from '../model/template'
 import type { ParagraphBlock, Report, TableBlock } from '../model/types'
-import { abstractPlaceholder, templateBody, templateFromReport, templateIssues, templateReport } from './convert'
+import { abstractPlaceholder, templateBody, templateConfig, templateFromReport, templateIssues, templateReport, usableTemplate } from './convert'
 import { isAllowedParentOrigin, newNonce, NONCE_PATTERN, readInitPayload, receivedProblems, templateToolUrls } from './protocol'
 
 const config = currentConfig
@@ -222,6 +222,18 @@ describe('「管理ページに戻して反映」の前の確かめ', () => {
     expect(issues([])).toEqual([{ id: null, text: '大見出しを1つ以上入れてください' }])
     const many = Array.from({ length: 101 }, () => ({ type: 'chapter', title: 'A' }) as TemplateBlock)
     expect(issues(many)).toEqual([{ id: null, text: '見出し・説明・図表・改ページが多すぎます（あわせて100個まで。今は101個）' }])
+  })
+})
+
+describe('標準のひな形（mockups/v116 案B）', () => {
+  it('ひな形を作る画面に渡した設定の標準のひな形を、ひな形のないコースの下敷きにする', () => {
+    const standard: TemplateBlock[] = [{ type: 'chapter', title: '制作の概要' }, { type: 'paragraph', hint: '何を作ったかを書く' }]
+    const config = templateConfig({ config: { ...currentConfig, standardTemplate: standard }, courseId: currentConfig.courses[0].id, courseName: '衣装' })
+    expect(config.standardTemplate).toEqual(standard)
+    expect(usableTemplate([], config)).toEqual(standard)
+    expect(usableTemplate([], templateConfig({ config: currentConfig, courseId: currentConfig.courses[0].id, courseName: '衣装' }))).toBe(DEFAULT_TEMPLATE)
+    expect(readInitPayload({ courseId: 'standard-template', courseName: '（コース名）', template: [], abstractExample: '', config: currentConfig, status: '公開中', standard: true })?.standard).toBe(true)
+    expect(readInitPayload({ courseId: 'a', courseName: 'a', template: [], abstractExample: '', config: currentConfig, status: '公開中', standard: 'yes' })?.standard).toBeUndefined()
   })
 })
 

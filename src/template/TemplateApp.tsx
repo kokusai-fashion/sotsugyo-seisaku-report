@@ -11,7 +11,7 @@ import { UndoBar } from '../app/UndoBar'
 import { panelStyle } from '../app/usePanelWidths'
 import { useUndoNotice } from '../app/useUndoNotice'
 import { useNarrow, useWheelPaging } from '../app/uiShared'
-import { DEFAULT_TEMPLATE } from '../model/template'
+import { chapterTitles, DEFAULT_TEMPLATE, standardTemplate } from '../model/template'
 import { LIMITS } from '../config/validate'
 import { inFrame, initPayload, onInit, sendToAdmin } from './bridge'
 import { templateBody, templateConfig, templateFromReport, templateIssues, templateReport, usableTemplate, type TemplateIssue, type TemplateResult } from './convert'
@@ -44,12 +44,15 @@ const DELIVERY: Record<TemplateYearStatus, [string, string]> = {
 /** ひな形に入らないページ（表紙・作品写真）。ページの一覧で薄くし、札を付ける */
 const excluded = (kind: PageKind) => kind === 'cover' || kind === 'photos'
 
+/** 作っているひな形の名前（コースのひな形は「〇〇 コース」。標準のひな形：mockups/v116 案B） */
+const targetName = (init: InitPayload) => (init.standard ? '標準のひな形' : `${init.courseName || '（名前のないコース）'} コース`)
+
 /** いちばん上の帯（学生の画面ではないと、ひと目で分かるように） */
-function Banner({ courseName }: { courseName: string | null }) {
+function Banner({ init }: { init: InitPayload | null }) {
   return (
     <div className="tpl-banner" role="note">
       {Icon.template}
-      <b>{courseName === null ? 'ひな形を作る画面' : `ひな形を作っています：${courseName || '（名前のないコース）'} コース`}</b>
+      <b>{init === null ? 'ひな形を作る画面' : `ひな形を作っています：${targetName(init)}`}</b>
       <span>（学生の画面ではありません）</span>
     </div>
   )
@@ -67,7 +70,7 @@ export function TemplateApp() {
   }, [])
   return (
     <div className="tpl-mode">
-      <Banner courseName={init ? init.courseName : null} />
+      <Banner init={init} />
       {!init ? (
         <div className="tpl-wait" role="status">
           {late || !inFrame() ? (
@@ -216,7 +219,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
   useEffect(() => {
     if (started.current) return
     started.current = true
-    const report = templateReport(config, init.courseId, usableTemplate(init.template), init.abstractExample)
+    const report = templateReport(config, init.courseId, usableTemplate(init.template, config), init.abstractExample)
     startKey.current = resultKey(templateFromReport(report))
     const ed: ReportEditor = new ReportEditor(
       stageRef.current!,
@@ -236,7 +239,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
           // 直すところを出しているときは、直したら出し直す（全部直したら消える）
           setIssues((shown) => (shown ? templateIssues(result) : shown))
         },
-        onCourseClick: () => ed.showNotice('コースは、管理ページで開いたコースです'),
+        onCourseClick: () => ed.showNotice(init.standard ? '標準のひな形は、ひな形を作っていないコースに出ます' : 'コースは、管理ページで開いたコースです'),
         onReferencesClick: () => {},
         onTocClick: (point) => setTocPoint(point),
         pickImage: async () => null,
@@ -322,12 +325,17 @@ function TemplateScreen({ init }: { init: InitPayload }) {
     editor?.commitEditing()
     sendToAdmin({ type: 'cancel' })
   }
-  /** 「標準のひな形に戻す」（本文だけ。抄録の書き出し例はそのまま。「元に戻す」で戻せる） */
+  /**
+   * 「標準のひな形に戻す」（本文だけ。抄録の書き出し例はそのまま。「元に戻す」で戻せる）。
+   * コースのひな形は、その年度の標準のひな形に。標準のひな形を直しているときは「はじめの形に戻す」で、ツールに入っている形に
+   */
+  const resetTo = init.standard ? DEFAULT_TEMPLATE : standardTemplate(config)
+  const resetName = init.standard ? 'はじめの形' : '標準のひな形'
   const reset = () => {
     setAskReset(false)
     if (!editor) return
-    editor.update((r) => ({ ...r, body: templateBody(DEFAULT_TEMPLATE) }))
-    editor.showNotice('標準のひな形に戻しました（「元に戻す」で戻せます）')
+    editor.update((r) => ({ ...r, body: templateBody(resetTo) }))
+    editor.showNotice(`${resetName}に戻しました（「元に戻す」で戻せます）`)
     const body = editor.pageOfArea('body')
     if (body >= 0) void editor.goToPage(body, 'none')
   }
@@ -380,7 +388,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
           </div>
         )}
       </main>
-      <aside className="side tpl-side" aria-label="このコースのひな形">
+      <aside className="side tpl-side" aria-label={init.standard ? '標準のひな形' : 'このコースのひな形'}>
         <header className="side-head">
           <div className="brand-row">
             <span className="mark">卒</span>
@@ -393,9 +401,9 @@ function TemplateScreen({ init }: { init: InitPayload }) {
         <section className="tpl-panel">
           <h2>
             {Icon.template}
-            このコースのひな形
+            {init.standard ? '標準のひな形' : 'このコースのひな形'}
           </h2>
-          <p className="tpl-course">{init.courseName || '（名前のないコース）'} コース</p>
+          <p className="tpl-course">{init.standard ? 'ひな形を作っていないコースに出ます' : targetName(init)}</p>
           <ul className="tpl-points">
             <li>学生と同じように、紙面に書きます</li>
             {/* 段落の2つの種類と切り替え方（mockups/v70 案C。言葉の切れ目で折り返す） */}
@@ -455,8 +463,10 @@ function TemplateScreen({ init }: { init: InitPayload }) {
               <span>{l2}</span>
             </p>
             {askReset ? (
-              <div className="tpl-reset-ask" role="group" aria-label="標準のひな形に戻すか">
-                <span>本文を、標準のひな形（企画・立案／制作過程／まとめ）に戻しますか？</span>
+              <div className="tpl-reset-ask" role="group" aria-label={`${resetName}に戻すか`}>
+                <span>
+                  本文を、{resetName}（{chapterTitles(resetTo)}）に戻しますか？
+                </span>
                 <span className="btns">
                   <button className="tpl-sub sm" onClick={() => setAskReset(false)}>
                     やめる
@@ -468,7 +478,7 @@ function TemplateScreen({ init }: { init: InitPayload }) {
               </div>
             ) : (
               <button className="tpl-link" disabled={!ready} onClick={() => setAskReset(true)}>
-                標準のひな形に戻す
+                {resetName}に戻す
               </button>
             )}
           </div>

@@ -4,7 +4,7 @@ import { contentToText, numbering } from '../editor/reportOps'
 import { chapterLabel, minorHeadingLabel, subheadingLabel } from '../layout/bodyHtml'
 import { createReport } from '../model/newReport'
 import { colWidthsOf, isPlainMaterialTable } from '../model/table'
-import { bodyFromTemplate, DEFAULT_TEMPLATE, emptyParagraph } from '../model/template'
+import { bodyFromTemplate, DEFAULT_TEMPLATE, emptyParagraph, standardTemplate } from '../model/template'
 import type { Chapter, ParagraphBlock, Report, TableBlock } from '../model/types'
 import type { InitPayload } from './protocol'
 
@@ -35,6 +35,8 @@ export function templateConfig(payload: Pick<InitPayload, 'config' | 'courseId' 
     if (isObj(value)) merged[key] = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, isObj(got) && same(got[k], v) ? got[k] : v]))
     else merged[key] = same(got, value) ? got : value
   }
+  // 標準のひな形（初期値にない項目なので、そのまま渡す。崩れていれば repairConfig が外す）
+  if (Array.isArray(raw.standardTemplate)) merged.standardTemplate = raw.standardTemplate
   const found = Array.isArray(raw.courses) ? raw.courses.find((c) => isObj(c) && c.id === payload.courseId) : undefined
   const c: Record<string, unknown> = isObj(found) ? found : {}
   const course: Course = {
@@ -46,9 +48,9 @@ export function templateConfig(payload: Pick<InitPayload, 'config' | 'courseId' 
   return repairConfig({ ...(merged as unknown as YearConfig), courses: [course] })
 }
 
-/** 受け取ったひな形（空・形が崩れていれば標準のひな形。学生のツールと同じ：model/template.ts の courseTemplate） */
-export function usableTemplate(template: TemplateBlock[]): TemplateBlock[] {
-  return template.length > 0 && templateProblems(template).length === 0 ? template : DEFAULT_TEMPLATE
+/** 受け取ったひな形（空・形が崩れていれば、その年度の標準のひな形。学生のツールと同じ：model/template.ts の courseTemplate） */
+export function usableTemplate(template: TemplateBlock[], config: Pick<YearConfig, 'standardTemplate'>): TemplateBlock[] {
+  return template.length > 0 && templateProblems(template).length === 0 ? template : standardTemplate(config)
 }
 
 /** 抄録の書き出し例が空のとき、学生に出る例（年度の設定の書き出し例）を、ひな形を作る画面で薄く出す */

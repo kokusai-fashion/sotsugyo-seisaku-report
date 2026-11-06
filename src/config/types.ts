@@ -69,6 +69,11 @@ export interface YearConfig {
   studentIdPattern: string | null
   courses: Course[]
   /**
+   * 標準のひな形（ひな形を作っていないコースに出す）。管理者だけが「詳細設定」のいちばん下の欄で直す（依頼者 2026-11-06：mockups/v116 案B のあと、いちばん下に）。
+   * 省略・空・形が崩れているときは、ツールに入っている標準のひな形（model/template.ts の DEFAULT_TEMPLATE）
+   */
+  standardTemplate?: TemplateBlock[]
+  /**
    * 学生のドライブ保存。省略・required はログイン必須（ふだん）。off は止める（Google の障害や大学の設定変更で、
    * 学生がログインできないとき。学生はログインせずに書け、原稿はその端末にだけ保存される）
    */

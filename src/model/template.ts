@@ -7,10 +7,10 @@ import type { BodyBlock, Chapter, ParagraphBlock, Report } from './types'
 
 /**
  * 下書きのひな形。コースごとに管理ページで決め、学生が最初に見る本文の組み立てになる。
- * ひな形を決めていないコースは、標準のひな形を使う。
+ * ひな形を決めていないコースは、標準のひな形を使う（管理者が「詳細設定」で直せる。直していなければ DEFAULT_TEMPLATE）。
  */
 
-/** 標準のひな形（コースのひな形が決まっていないとき） */
+/** ツールに入っている標準のひな形（はじめの形。年度の設定で標準のひな形を直していないとき） */
 export const DEFAULT_TEMPLATE: TemplateBlock[] = [
   { type: 'chapter', title: '企画・立案' },
   { type: 'paragraph', hint: '制作の目的とテーマ、自分が担当した内容を書く' },
@@ -27,10 +27,27 @@ export function emptyParagraph(hint?: string): ParagraphBlock {
   return { type: 'paragraph', id: newId('p'), content: [{ type: 'text', text: '' }], ...(hint ? { hint } : {}) }
 }
 
+const usable = (template: unknown): template is TemplateBlock[] => Array.isArray(template) && template.length > 0 && templateProblems(template).length === 0
+
+/** その年度の標準のひな形（管理者が直したもの。直していない・形が崩れていれば、はじめの形） */
+export function standardTemplate(config: Pick<YearConfig, 'standardTemplate'>): TemplateBlock[] {
+  return usable(config.standardTemplate) ? config.standardTemplate : DEFAULT_TEMPLATE
+}
+
+/** 標準のひな形の大見出しを「／」でつないだもの（例：企画・立案／制作過程／まとめ） */
+export function chapterTitles(template: TemplateBlock[]): string {
+  return template.flatMap((b) => (b.type === 'chapter' ? [b.title] : [])).join('／')
+}
+
+/** はじめの形と同じか（同じなら、年度の設定には持たない） */
+export function isDefaultTemplate(template: TemplateBlock[]): boolean {
+  return JSON.stringify(template) === JSON.stringify(DEFAULT_TEMPLATE)
+}
+
 /** そのコースのひな形（なければ標準のひな形。形が崩れていても標準のひな形） */
 export function courseTemplate(config: YearConfig, courseId: string): TemplateBlock[] {
   const template = findCourse(config, courseId)?.template
-  return Array.isArray(template) && template.length > 0 && templateProblems(template).length === 0 ? template : DEFAULT_TEMPLATE
+  return usable(template) ? template : standardTemplate(config)
 }
 
 /** 部品の文字の項目（崩れたひな形で、項目がない・文字でないときは空） */

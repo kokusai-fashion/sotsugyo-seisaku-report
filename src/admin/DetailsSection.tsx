@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { PageMargins, YearConfig } from '../config'
 import { DEFAULT_MARGINS } from '../layout/pageGeometry'
+import { chapterTitles, DEFAULT_TEMPLATE, standardTemplate } from '../model/template'
 import { AdminIcon } from './adminIcons'
+import { courseName } from './changes'
 import { server, type PdfFolder } from './server'
 import { NumberInput, OptionalNumberInput, Row, SectionHead, TextInput } from './ui'
 
@@ -102,7 +104,51 @@ function PdfFolderCard() {
   )
 }
 
-export function DetailsSection({ draft, set, changed, notices }: { draft: YearConfig; set: (patch: Partial<YearConfig>) => void; changed: (path: string) => boolean; notices?: ReactNode }) {
+/**
+ * 標準のひな形（ひな形を作っていないコースに出る。管理者だけが直す：依頼者 2026-11-06 mockups/v116 案B のあと、詳細設定のいちばん下に）。
+ * 直すのは、コースのひな形と同じ「ひな形を作る画面」（TemplateOverlay の standard）。年度の設定なので「保存」で学生に届く
+ */
+function StandardTemplateCard({ draft, changed, onOpen }: { draft: YearConfig; changed: boolean; onOpen: () => void }) {
+  const template = standardTemplate(draft)
+  const users = draft.courses.filter((c) => !c.hidden && !c.template?.length).map((c) => `${courseName(c)} コース`)
+  return (
+    <div className="card std-template">
+      <h2 className="card-h">
+        <span className="set-ic t-template">{AdminIcon.template}</span>標準のひな形<small>ひな形を作っていないコースに出ます</small>
+      </h2>
+      <div className="grid">
+        <Row label="今の組み立て" changed={changed} field="standardTemplate" hint={template === DEFAULT_TEMPLATE ? 'はじめの形のままです' : 'この年度で直してあります（ひな形を作る画面の「はじめの形に戻す」で戻せます）'}>
+          <div className="plain">
+            <b>{chapterTitles(template)}</b>
+          </div>
+        </Row>
+        <Row label="使っているコース">
+          <div className="plain">{users.length ? users.join('、') : '今はありません（どのコースも、ひな形を作っています）'}</div>
+        </Row>
+        <Row label="直す" hint="コースのひな形と同じ画面で直します。すでに書き始めた学生の原稿は変わりません。">
+          <button className="btn sub sm std-open" onClick={onOpen}>
+            {AdminIcon.template}ひな形を作る画面を開く
+          </button>
+        </Row>
+      </div>
+    </div>
+  )
+}
+
+export function DetailsSection({
+  draft,
+  set,
+  changed,
+  notices,
+  onOpenStandard,
+}: {
+  draft: YearConfig
+  set: (patch: Partial<YearConfig>) => void
+  changed: (path: string) => boolean
+  notices?: ReactNode
+  /** 標準のひな形を直す画面を開く */
+  onOpenStandard: () => void
+}) {
   const off = draft.driveSave === 'off'
   // 入れている途中の値（範囲の外でも）をそのまま見せる。省略は、はじめの値
   const margins: PageMargins = { ...DEFAULT_MARGINS, ...draft.margins }
@@ -230,6 +276,8 @@ export function DetailsSection({ draft, set, changed, notices }: { draft: YearCo
           </Row>
         </div>
       </div>
+      {/* いちばん下（めったに直さない。上の「Google の障害のとき」を押し下げない：依頼者 2026-11-06） */}
+      <StandardTemplateCard draft={draft} changed={changed('standardTemplate')} onOpen={onOpenStandard} />
     </>
   )
 }

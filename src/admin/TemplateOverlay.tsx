@@ -13,7 +13,8 @@ import { Waiting } from './Wait'
  * - 受け取るのは、ツールの場所（toolOrigin）の、この iframe から来た、開くたびに作る合言葉（nonce）の付いた知らせだけ
  * - 「管理ページに戻して反映」：受け取ったひな形を確かめてから、今の「反映する」と同じく、まだ保存していない変更にする（onApply）
  * - 「閉じる」・「×」：ツールで直していたら、確かめてから閉じる
- * 開けない（ツールの場所につながらないなど）ときは、前の作り方の窓（TemplateEditor.tsx）で直せる
+ * 開けない（ツールの場所につながらないなど）ときは、前の作り方の窓（TemplateEditor.tsx）で直せる。
+ * 標準のひな形（standard。管理者が詳細設定から：mockups/v116 案B）も、この画面で直す（前の作り方の窓はない）
  */
 
 /**
@@ -30,17 +31,23 @@ const RESEND_MS = 500
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 
 interface Props {
+  /** ひな形を作るコース（標準のひな形のときは、紙面を組むための仮のコース：STANDARD_COURSE） */
   course: Course
+  /** 標準のひな形を直す（ひな形を作っていないコースに出るもの） */
+  standard?: boolean
   /** 管理ページの、まだ保存していない変更も入った年度の設定（表紙・抄録を組むため） */
   config: YearConfig
   status: TemplateYearStatus
   onApply: (template: TemplateBlock[], abstractExample: string) => void
   onClose: () => void
-  /** 「前の作り方で直す」（開けなかったとき） */
-  onFallback: () => void
+  /** 「前の作り方で直す」（開けなかったとき。標準のひな形にはない） */
+  onFallback?: () => void
 }
 
-export function TemplateOverlay({ course, config, status, onApply, onClose, onFallback }: Props) {
+/** 標準のひな形を直すときの、紙面を組むための仮のコース（表紙・抄録には「（コース名） コース」と出る） */
+export const STANDARD_COURSE: Course = { id: 'standard-template', name: '（コース名）', advisors: [], subtitleTemplate: '―{input}―' }
+
+export function TemplateOverlay({ course, standard = false, config, status, onApply, onClose, onFallback }: Props) {
   const [nonce] = useState(newNonce)
   const { src, origin } = useMemo(() => templateToolUrls(TOOL_URL), [])
   const frame = useRef<HTMLIFrameElement>(null)
@@ -63,6 +70,7 @@ export function TemplateOverlay({ course, config, status, onApply, onClose, onFa
         abstractExample: course.abstractExample ?? '',
         config: { ...config, courses: [own] },
         status,
+        ...(standard ? { standard: true } : {}),
       } satisfies InitPayload),
     )
   })
@@ -121,11 +129,11 @@ export function TemplateOverlay({ course, config, status, onApply, onClose, onFa
 
   const dialogRef = useRef<HTMLDivElement>(null)
   useDialogFocus(dialogRef, close)
-  const name = courseName(course)
+  const name = standard ? '標準のひな形' : `${courseName(course)} コース`
   return (
     <div className="tpl-overlay">
-      <div className="tpl-window" role="dialog" aria-modal="true" aria-label={`${name} コースのひな形を作る画面`} ref={dialogRef}>
-        <iframe ref={frame} src={src} title={`ひな形を作る画面（${name} コース）`} data-autofocus onLoad={sendInit} />
+      <div className="tpl-window" role="dialog" aria-modal="true" aria-label={standard ? '標準のひな形を直す画面' : `${name}のひな形を作る画面`} ref={dialogRef}>
+        <iframe ref={frame} src={src} title={`ひな形を作る画面（${name}）`} data-autofocus onLoad={sendInit} />
         {phase !== 'ready' && (
           <div className="tpl-opening" role="status">
             {phase === 'loading' ? (
@@ -134,14 +142,16 @@ export function TemplateOverlay({ course, config, status, onApply, onClose, onFa
               <div className="tpl-failed">
                 <b>ひな形を作る画面を開けませんでした</b>
                 <span>インターネットにつながっているかを確かめて、もう一度開いてください。</span>
-                <span>開けないときは、前の作り方で直せます。</span>
+                {onFallback && <span>開けないときは、前の作り方で直せます。</span>}
                 <div className="row-buttons">
                   <button className="btn" onClick={onClose}>
                     閉じる
                   </button>
-                  <button className="btn primary" onClick={onFallback}>
-                    前の作り方で直す
-                  </button>
+                  {onFallback && (
+                    <button className="btn primary" onClick={onFallback}>
+                      前の作り方で直す
+                    </button>
+                  )}
                 </div>
               </div>
             )}

@@ -254,6 +254,9 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
     }
   }
 
+  // 標準のひな形（管理者が直したもの。ないときは、ツールに入っている標準のひな形を使うので、なくてもよい）
+  if (config.standardTemplate !== undefined && config.standardTemplate !== null) for (const p of templateProblems(config.standardTemplate)) error('standardTemplate', `標準のひな形${p}`)
+
   if (!Array.isArray(config.courses)) {
     error('courses', 'コースの一覧の形が正しくありません')
     return problems
@@ -303,7 +306,7 @@ function courseProblems(course: Course): string[] {
 
 /**
  * 学生のツールで使うために、設定のうち崩れた部分だけを外す（設定全体は捨てない）。
- *   - コースの下書きのひな形が崩れていたら、そのコースは標準のひな形にする
+ *   - コースの下書きのひな形が崩れていたら、そのコースは標準のひな形にする（標準のひな形が崩れていたら、はじめの形にする）
  *   - 抄録の書き出し例・お知らせが崩れていたら、出さない
  *   - 書き間違えやすい語は、形の崩れた行だけを外す（一覧そのものが崩れていたら、ツールに入っている一覧を使う）
  *   - 作品写真のページ数の上限がない（前の版の設定。枚数の上限 maxImages は使わない）・崩れていたら、上限なし
@@ -325,6 +328,7 @@ export function repairConfig(config: YearConfig): YearConfig {
   const words: unknown = config.wordChecks
   const wordChecks = words === undefined || words === null ? undefined : Array.isArray(words) ? (words.slice(0, LIMITS.words).filter((w) => !wordShapeProblem(w)) as WordCheck[]) : undefined
   const repaired: YearConfig = { ...config, courses }
+  if (config.standardTemplate !== undefined && config.standardTemplate !== null && templateProblems(config.standardTemplate).length > 0) delete repaired.standardTemplate
   // 本文：前の版の設定の画像の目安（imagesPerPageGuide）は使わない（依頼者の判断 2026-10-27。管理ページの「画像の目安」ごと外した）
   if (isObject(config.body) && 'imagesPerPageGuide' in config.body) {
     const { imagesPerPageGuide: _dropped, ...body } = config.body as YearConfig['body'] & { imagesPerPageGuide?: unknown }
