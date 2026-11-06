@@ -260,6 +260,11 @@ describe('図を入れる（書いている位置に（図n）、段落の下に
     expect(ops.addFigureForRef(base(), 'pa', fig('f1'), 1).body[0].blocks.map((b) => b.type)).toEqual(['paragraph', 'figureRow', 'paragraph'])
   })
 
+  it('書いた番号が図の順と違って直したときの知らせは、書いたままの形で前と後を示す（mockups/v115 案A）', () => {
+    expect(ops.renumberedRefNotice('（図5）', 4)).toBe('書いた「（図5）」を「（図4）」に直しました（図の番号は、図の順に付きます）')
+    expect(ops.renumberedRefNotice('図１２', 3)).toBe('書いた「図１２」を「図3」に直しました（図の番号は、図の順に付きます）')
+  })
+
   it('文末の「。」の直後で入れると「〜（図1）。」になり、段落のすぐ下に図が入る', () => {
     let r = ops.insertRef(base(), 'pa', 8, 'f1')
     r = ops.addFigureBelow(r, 'pa', fig('f1'))

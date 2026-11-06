@@ -3892,6 +3892,8 @@ export class ReportEditor {
 
   /** 紙面に出るのを待っている、入れたばかりの図・表のタイトル（id）と、その間に出す知らせの番号（startWaiting） */
   private waitingFor: { id: string; noticeId: number } | null = null
+  /** 「図を入れています…」が終わってから出す知らせ（手で書いた番号を直した：renumberedRefNotice） */
+  private noticeAfterWaiting: string | null = null
 
   /** 入れたばかりの図・表のタイトルの書く欄を、紙面に出るまで見せずに待たせ、画面の下に「図を入れています…」を出す */
   private startWaiting(id: string, what: '図' | '表'): void {
@@ -3907,6 +3909,9 @@ export class ReportEditor {
     this.waitingFor = null
     if (this.overlay.blockId === waiting.id) this.overlay.setWaiting(false)
     if (this.notice?.notice.id === waiting.noticeId) this.notice = null
+    const after = this.noticeAfterWaiting
+    this.noticeAfterWaiting = null
+    if (after) this.showNotice(after)
     // 待つ間に書くのをやめた（スマホの「完了」など）：図が別のページに出たら、そのページを見せる（前は前のページのままだった：試し 2026-10-26）
     if (this.overlay.blockId !== waiting.id) {
       const page = this.pageOfBlock(waiting.id)
@@ -5229,7 +5234,8 @@ export class ReportEditor {
     if (this.overlay.blockId === blockId) this.commitAsParagraph()
     else if (this.overlay.blockId) this.commitForChange()
     const paragraph = ops.findParagraph(this.report, blockId)
-    if (!paragraph || !/^[（(]?\s*図/.test(ops.contentToText(paragraph.content, ops.numbering(this.report)).slice(start, end))) return
+    const written = paragraph ? ops.contentToText(paragraph.content, ops.numbering(this.report)).slice(start, end) : ''
+    if (!paragraph || !/^[（(]?\s*図/.test(written)) return
     const typedNumber = this.typedRefNumber(blockId, start, end)
     this.marker.hidden = true
     this.selectionBar.hideFigureChip()
@@ -5254,10 +5260,19 @@ export class ReportEditor {
     this.pushHistory(this.report)
     let near: InsertNear = { id: blockId, place: 'after' }
     const linked = ops.linkRefRange(this.report, blockId, start, end, figure.id)
-    if (linked) this.report = ops.linkWrittenRefsElsewhere(ops.addFigureForRef(linked, blockId, figure, typedNumber), blockId, figure.id)
+    let renumbered: string | null = null
+    if (linked) {
+      this.report = ops.linkWrittenRefsElsewhere(ops.addFigureForRef(linked, blockId, figure, typedNumber), blockId, figure.id)
+      // 書いた番号と、入れた図の番号（図の順）が違う：書いた番号を直したことを、画面の下に知らせる（mockups/v115 案A）
+      const n = ops.numbering(this.report).numbers.get(figure.id)
+      if (typedNumber && n && n !== typedNumber) renumbered = ops.renumberedRefNotice(written, n)
+    }
     // 写真を選ぶ間に段落が変わって、書いた番号が見つからない：「図を入れる」と同じく、その文の終わりに（図n）を入れる
     else near = this.placeObject(blockId, end, figure.id, { type: 'figureRow', id: ops.newId('r'), figures: [figure] }, (r) => ops.addFigureBelow(r, blockId, figure))
     this.reopenAfterRender(figure.id, 0, near)
+    // 「図を入れています…」を出している間は、それが終わってから出す（同じ所に出すので、先に出すと上書きされる）
+    if (renumbered && this.waitingFor) this.noticeAfterWaiting = renumbered
+    else if (renumbered) this.showNotice(renumbered)
     if (typed && this.overlay.blockId === figure.id) this.overlay.insertText(typed)
   }
 

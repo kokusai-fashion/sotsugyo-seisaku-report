@@ -765,6 +765,14 @@ export function addFigureForRef(report: Report, paragraphId: string, figure: Fig
   return numbering(after).numbers.get(figure.id) === typed ? after : below
 }
 
+/**
+ * 手で書いた「（図n）」から図を入れたら、図の順で番号が n でなかった（書いた番号は自動で直る）ときの、画面の下の知らせ
+ * （「（図5）」と打ったのに何も言わずに「（図4）」になると、学生が打ち間違いに気づかない：依頼者の選択 2026-11-06 mockups/v115 案A）
+ */
+export function renumberedRefNotice(written: string, n: number): string {
+  return `書いた「${written}」を「${written.replace(/[0-9０-９]+/, String(n))}」に直しました（図の番号は、図の順に付きます）`
+}
+
 /** 手で書いた「（図n）」の n（「（図３）」も 3。なければ null） */
 export function typedFigureNumber(text: string): number | null {
   const m = text.normalize('NFKC').match(/図\s*(\d+)/)

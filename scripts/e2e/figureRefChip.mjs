@@ -61,6 +61,8 @@ const chip = (page) => page.evaluate(() => { const c = document.querySelector('.
 /** 段落の中身（文字と、図表へのつながり） */
 const content = (page, id) => page.evaluate((id) => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).find((b) => b.id === id)?.content, id)
 const missing = (page, id) => page.evaluate((id) => window.__editor.getSnapshot().findings.filter((f) => f.ruleId === 'reference-missing' && f.blockId === id).map((f) => f.title), id)
+/** 画面の下の知らせ（「段落を削除しました」などと同じ所） */
+const toast = (page) => page.evaluate(() => document.querySelector('.undo-toast')?.textContent ?? '')
 const figureIds = (page) => page.evaluate(() => window.__editor.getSnapshot().report.body.flatMap((c) => c.blocks).flatMap((b) => (b.type === 'figureRow' ? b.figures.map((f) => f.id) : [])))
 
 await withEdge(async (browser) => {
@@ -133,6 +135,7 @@ await withEdge(async (browser) => {
       JSON.stringify({ fid, editing, after, p11 }),
     )
     check('つながったので、「（図4）」のエラーは消える', (await missing(page, 'p11')).length === 0, JSON.stringify(await missing(page, 'p11')))
+    check('書いた番号のまま（図4）なので、「直しました」の知らせは出さない', !(await toast(page)).includes('直しました'), await toast(page))
     // 元に戻すで、図を入れる前（書いた「（図4）」の文字）に戻る（1回目は、図のタイトルに打った字が戻る）
     for (let i = 0; i < 3 && (await figureIds(page)).includes(fid); i++) {
       await page.evaluate(() => window.__editor.undo())
@@ -157,6 +160,9 @@ await withEdge(async (browser) => {
     const [chooser2] = await Promise.all([page.waitForFileChooser({ timeout: 10000 }), page.evaluate(() => [...document.querySelectorAll('.issue')].find((e) => e.textContent.includes('（図9）')).querySelector('.add-figure').click())])
     await chooser2.accept([pngPath])
     await page.waitForFunction(() => window.__editor.getSnapshot().editingId?.startsWith('f-'), { timeout: 30000 })
+    await wait(400)
+    const renumbered = await toast(page)
+    check('書いた「（図9）」が「（図4）」に直ったことを、画面の下に知らせる（図のタイトルを書いている間も出す。mockups/v115 案A）', renumbered.includes('書いた「（図9）」を「（図4）」に直しました'), renumbered)
     await page.keyboard.press('Escape')
     await settle(page, ready)
     const fid2 = (await figureIds(page)).find((x) => !before2.includes(x))
@@ -181,6 +187,25 @@ await withEdge(async (browser) => {
     await wait(600)
     const c = await chip(page)
     check('スマホ：カーソルが「（図4）」の中にあるとき、「図4を入れる」を出す', c?.label === '図4を入れる', JSON.stringify(c))
+    // 番号の飛んだ「（図6）」（図は3枚）：入れると図4になり、直したことを画面の下に知らせる（mockups/v115 案A）
+    await page.evaluate(() => window.__editor.getSnapshot().editingId && document.querySelector('.overlay-editor')?.blur())
+    const text6 = '帯は、からし色の布を幅15cmの筒に縫い、腰に二重に巻いた（図6）。'
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '完了')?.click())
+    await settle(page, ready)
+    await setText(page, 'p11', text6)
+    await settle(page, ready)
+    await editAt(page, ready, 'p11', text6.indexOf('（図6）') + 2)
+    await wait(600)
+    const c6 = await chip(page)
+    check('スマホ：番号の飛んだ「（図6）」にも、入れたら付く番号で「図4を入れる」を出す', c6?.label === '図4を入れる', JSON.stringify(c6))
+    if (c6) {
+      const [chooser3] = await Promise.all([page.waitForFileChooser({ timeout: 10000 }), page.tap('.figure-chip')])
+      await chooser3.accept([pngPath])
+      await page.waitForFunction(() => window.__editor.getSnapshot().editingId?.startsWith('f-'), { timeout: 30000 })
+      await settle(page, ready)
+      const shown6 = await toast(page)
+      check('スマホ：書いた「（図6）」を「（図4）」に直したことを、画面の下に知らせる', shown6.includes('書いた「（図6）」を「（図4）」に直しました'), shown6)
+    }
     await context.close()
   }
 })
