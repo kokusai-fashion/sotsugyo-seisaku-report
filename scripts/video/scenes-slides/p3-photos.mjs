@@ -74,7 +74,8 @@ export async function run({ page, rec, h }) {
   await page.waitForSelector('.trim-modal .trim-handle.se', { timeout: 20000 })
   await h.sleep(1500)
   const se = await h.centerOf(page, '.trim-modal .trim-handle.se')
-  await h.swipe(page, { x: se.x, y: se.y }, { x: se.x - 70, y: se.y - 70 }, 900)
+  // 右下のつまみを左上へ（枠を小さくして、大きく写す）。前は、紙面の下の帯がつまみを隠していて、枠が動かなかった（2026-11-07 にツールを直した）
+  await h.swipe(page, { x: se.x, y: se.y }, { x: se.x - 55, y: se.y - 55 }, 1300)
   await h.sleep(1400)
 
   rec.mark('apply')
