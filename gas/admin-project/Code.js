@@ -1026,7 +1026,8 @@ const ONE_BLOCK_MAX = 25
 const CHECK_SYNC_MINUTES = 10
 /** 先生ごとの「済み」の色（くすんだ淡い地と字。v107 案A。4人目からは繰り返し）と、「予定」の灰色の字 */
 const TEACHER_TONES = [
-  { bg: '#e6edf5', ink: '#30527a' },
+  // 1人目は薄赤（依頼者の選択 2026-11-07 案A。前の薄青は、回の列の見出しの薄青と似ていた）
+  { bg: '#f8e1e4', ink: '#8a3442' },
   { bg: '#e7efe6', ink: '#3d6342' },
   { bg: '#f2ece0', ink: '#7a5a2c' },
 ]
@@ -1802,8 +1803,8 @@ function syncCheckSheet_(entry, course, roster) {
 
   // 見た目と守り（並べ方・人数・見出し・先生が変わったときだけ）
   const props = PropertiesService.getScriptProperties()
-  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで。5：見出しを役目ごとの色に・氏名を折り返す。6：案内を2行に）
-  const signature = JSON.stringify({ v: 6, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
+  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで。5：見出しを役目ごとの色に・氏名を折り返す。6：案内を2行に。7：1人目の先生の色を薄赤に）
+  const signature = JSON.stringify({ v: 7, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
     formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh)
     props.setProperty('checkLayout:' + entry.id, signature)

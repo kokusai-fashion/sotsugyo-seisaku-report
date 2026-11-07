@@ -1751,7 +1751,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     admin().ensureCheckSheet(2026, FILM.id)
     // 前の版で作った点検表のふり：1行目は前の文・灰色の小さな字、見た目の決まりは前の版（v2）
     tab().getRange(1, 1).setValue(OLD_TOP_NOTE).setFontSize(9).setFontColor('#7a8088').setFontWeight(null).setBackground(null)
-    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":6', '{"v":3'))
+    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":7', '{"v":3'))
     admin().syncCheckSheets()
     expect(tab().rows[0][0]).toBe(TOP_NOTE)
     expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
@@ -1804,7 +1804,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(t.cols[col('1回目')].hidden).toBeFalsy()
     // 済みは先生ごとの淡い色（4人目からは繰り返し）、予定は灰色の字、知らせの赤と灰色
     const rule = (when: string, text: string) => t.rules.find((r) => r.when === when && r.text === text)
-    expect(rule('equal', '梶田 済み')).toMatchObject({ background: '#e6edf5', color: '#30527a' })
+    expect(rule('equal', '梶田 済み')).toMatchObject({ background: '#f8e1e4', color: '#8a3442' })
     expect(rule('equal', '佐藤 済み')).toMatchObject({ background: '#e7efe6', color: '#3d6342' })
     expect(rule('equal', '加藤 済み')).toMatchObject({ background: '#f2ece0', color: '#7a5a2c' })
     expect(rule('contains', '予定')).toMatchObject({ color: '#a0a5ad' })
@@ -1840,7 +1840,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     admin().saveYear({ ...config, courses: [{ ...config.courses[0], advisors: ['山本　太郎', '中村　花'] }] })
     admin().syncCheckSheets()
     expect(t.fmtAt(2, col('1回目')).validation).toEqual({ kind: 'list', list: ['山本 予定', '山本 済み', '中村 予定', '中村 済み'], allowInvalid: true })
-    expect(t.rules.find((r) => r.text === '山本 済み')).toMatchObject({ background: '#e6edf5' })
+    expect(t.rules.find((r) => r.text === '山本 済み')).toMatchObject({ background: '#f8e1e4' })
     expect(t.protections).toHaveLength(11)
   })
 
