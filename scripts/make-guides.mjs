@@ -1208,13 +1208,21 @@ async function adminShots(browser) {
     ])
   }
 
-  // ---- コース（開いたコースのカード：ひな形を作る画面を開く・お知らせ） ----
+  // ---- コース（コースの画面：ひな形を作る画面を開く・お知らせ） ----
   await nav(page, 'コースごとの設定')
-  // はじめは閉じているので、いちばん上のコースを開く（2026-11-02 から。最後に開いていたコースを覚える）
+  // はじめはコースの一覧なので、いちばん上のコースを押して、そのコースの画面に入る（2026-11-07 から。最後に入っていたコースを覚える）
   await page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
   await page.waitForSelector('.course.open .tpl-open')
+  await page.evaluate(() => document.querySelector('.content')?.scrollTo(0, 0))
   await page.mouse.move(5, 5)
-  await capture(page, 'g-admin-course', pad(await page.evaluate(rectOf, '.course.open'), 10), [
+  // 写す所：上の「‹ コースの一覧」から、ひな形の行の下まで（コース名の見出しも入れる）
+  const courseTop = await page.evaluate(() => {
+    const top = document.querySelector('.course-back').getBoundingClientRect()
+    const card = document.querySelector('.course.open').getBoundingClientRect()
+    const tpl = document.querySelector('.course.open .tpl-open').closest('.set-row').getBoundingClientRect()
+    return { x: card.left, y: top.top, w: card.width, h: tpl.bottom - top.top }
+  })
+  await capture(page, 'g-admin-course', pad(courseTop, 10), [
     { n: 1, box: await page.evaluate(rectOf, '.course.open .tpl-open'), at: 'r' },
     { n: 2, box: await page.evaluate(rectOf, '.course.open textarea.notice'), at: 'l' },
   ])
@@ -1297,18 +1305,20 @@ async function adminShots(browser) {
   // 先生用の手引きでは、画像の横に手順を並べるので、画面を小さめ（1180×640）にして、コースのカードのすぐ下に帯が来るようにする
   const TEACHER = { width: 1180, height: 640, deviceScaleFactor: 2 }
   const t = await openAdmin(browser, { as: 'teacher', viewport: TEACHER })
-  // 先生の画面も、はじめはどのコースも閉じている（2026-11-02 から）。いちばん上のコースを開いて撮る
-  await t.page.waitForSelector('.course .open-btn')
+  // 先生の画面も、はじめはコースの一覧（2026-11-07 から）。いちばん上のコースを押して、そのコースの画面に入って撮る
+  await t.page.waitForSelector('.course .open-btn, .course.open')
   await t.page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
   await t.page.waitForSelector('.course.open textarea.notice')
   await setValue(await t.page.$('.course.open textarea.notice'), '夏休み明けの初回授業時に、第1回目の途中点検を提出してください。')
   await t.page.waitForSelector('.dirty-bar')
   await unfocus(t.page)
-  // コースの欄を絵の並びにして（mockups/v114 案C）欄が高くなったので、お知らせの行を上に寄せて、ひな形の「ひな形を作る画面を開く」まで見せる
+  // コースの画面の上（コース名の見出し）から、ひな形の「ひな形を作る画面を開く」まで見せる（画面が低いので、ひな形の行が下の帯に隠れない所まで動かす）
   await t.page.evaluate(() => {
     const c = document.querySelector('.content')
-    const row = document.querySelector('.course.open textarea.notice').closest('.set-row')
-    c.scrollTop += row.getBoundingClientRect().top - c.getBoundingClientRect().top - 16
+    c.scrollTop = 0
+    const row = document.querySelector('.course.open .tpl-open').closest('.set-row').getBoundingClientRect()
+    const bar = document.querySelector('.dirty-bar').getBoundingClientRect()
+    c.scrollTop = Math.max(0, row.bottom - bar.top + 10)
   })
   await t.page.mouse.move(5, 5)
   await hideMockBadge(t.page)
