@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { FigureCrop, PhotoPosition } from '../model/types'
 import { MAX_PHOTO_ZOOM } from '../model/photos'
 import { Modal } from './dialogs'
@@ -177,7 +178,9 @@ export function TrimDialog({ target, onClose }: { target: TrimTarget; onClose: (
   }
 
   const px = box ? { left: rect.x * box.w, top: rect.y * box.h, width: rect.w * box.w, height: rect.h * box.h } : null
-  return (
+  // 画面全体の上に出す。スマホの下の道具（.sel-bar）の中に置くと、紙面の下の帯「指でずらして、トリミングを調整」が窓の上に重なり、
+  // 枠の下の角のつまみをつかめなかった（学生向けの動画で見つけた。2026-11-07）
+  return createPortal(
     <Modal title={`トリミング（${target.label}）`} className="trim-modal" onClose={onClose}>
       <p className="lead">白い枠の中が、紙面に入ります。枠をつかんで動かし、角のつまみで大きさを変えます。</p>
       {target.kind === 'figure' && (
@@ -215,7 +218,8 @@ export function TrimDialog({ target, onClose }: { target: TrimTarget; onClose: (
           これで決める
         </button>
       </div>
-    </Modal>
+    </Modal>,
+    document.body,
   )
 }
 

@@ -91,6 +91,63 @@ await withEdge(async (browser) => {
   check('枠を小さくして決めると、写真が大きく写る（倍率が原稿に入り、紙面の写真が大きくなる）', (photo.position?.zoom ?? 1) > 1.1 && /transform:\s*scale\(/.test(photo.style), JSON.stringify(photo))
 
   await context.close()
+
+  // ---- スマホ：作品写真のトリミング ----
+  // 紙面の下の帯「指でずらして、トリミングを調整」が、トリミングの窓の上に重なり、枠の下の角のつまみをつかめなかった（学生向けの動画で見つけた。2026-11-07）
+  const phoneContext = await browser.createBrowserContext()
+  const phone = await phoneContext.newPage()
+  phone.on('pageerror', (e) => console.log('pageerror:', e.message))
+  await phone.evaluateOnNewDocument(TIPS_DONE)
+  await phone.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')
+  await phone.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+  await stubConfig(phone)
+  await answerConfirms(phone, () => true)
+  await phone.goto(`${APP}/?nodrive`, { waitUntil: 'networkidle0', timeout: 90000 })
+  const phoneReady = () => phone.waitForFunction(() => { const s = window.__editor?.getSnapshot(); return s?.layout && !s.rendering && !s.turning && !document.querySelector('.loading') }, { timeout: 120000 })
+  await phoneReady()
+  await phone.waitForSelector('.guide.step-course .g-opts button', { timeout: 60000 })
+  await phone.evaluate(() => document.querySelector('.g-opts button').click())
+  await phone.waitForSelector('.guide.step-word .g-word-opt.no')
+  await phone.evaluate(() => document.querySelector('.g-word-opt.no').click())
+  await phone.waitForSelector('.guide .g-later')
+  await phone.evaluate(() => document.querySelector('.guide .g-later').click())
+  await phoneReady()
+  await phone.evaluate(setupWriting)
+  await wait(600)
+  await phoneReady()
+  await phone.evaluate(() => window.__editor.goToPage(window.__editor.getSnapshot().layout.kinds.indexOf('photos'), 'none'))
+  await phoneReady()
+  await phone.evaluate(() => window.__editor.select({ kind: 'photos', page: 0, index: 0 }))
+  await wait(600)
+  const bandShown = await phone.evaluate(() => !!document.querySelector('.photo-move-band'))
+  await phone.evaluate(() => [...document.querySelectorAll('.sel-bar .tb')].find((b) => b.textContent.includes('トリミング'))?.click())
+  await phone.waitForSelector('.trim-modal .trim-handle.se', { timeout: 10000 }).catch(() => {})
+  await wait(400)
+  // 4つの角のつまみが、どれも窓のいちばん上に出ている（指で押した所に、ほかのものがない）
+  const handles = await phone.evaluate(() =>
+    [...document.querySelectorAll('.trim-modal .trim-handle')].map((h) => {
+      const r = h.getBoundingClientRect()
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return { corner: [...h.classList].find((c) => c !== 'trim-handle'), y: Math.round(r.top), onTop: top === h, hit: top?.className ?? null }
+    }),
+  )
+  check('スマホ：写真を選ぶと、紙面の下に「指でずらして、トリミングを調整」の帯が出る', bandShown)
+  check('スマホ：トリミングの窓の4つの角のつまみが、帯に隠れず、指でつかめる', handles.length === 4 && handles.every((h) => h.onTop), JSON.stringify(handles))
+  // 右下のつまみを、指で左上へ動かす（枠を小さくする＝大きく写す）
+  const se = await phone.evaluate(() => { const r = document.querySelector('.trim-handle.se').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+  const before = await phone.evaluate(() => { const r = document.querySelector('.trim-frame').getBoundingClientRect(); return { w: r.width, h: r.height } })
+  await phone.touchscreen.touchStart(se.x, se.y)
+  for (let i = 1; i <= 8; i++) await phone.touchscreen.touchMove(se.x - i * 10, se.y - i * 10)
+  await phone.touchscreen.touchEnd()
+  await wait(200)
+  const after = await phone.evaluate(() => { const r = document.querySelector('.trim-frame').getBoundingClientRect(); return { w: r.width, h: r.height } })
+  check('スマホ：右下のつまみを指で動かすと、枠が小さくなる', after.w < before.w - 20 && after.h < before.h - 20, JSON.stringify({ before, after }))
+  await phone.evaluate(() => document.querySelector('.trim-apply').click())
+  await wait(1200)
+  await phoneReady()
+  const phonePhoto = await phone.evaluate(() => window.__editor.getSnapshot().report.workPhotos[0].positions?.[0])
+  check('スマホ：「これで決める」で、写真が大きく写る（倍率が原稿に入る）', (phonePhoto?.zoom ?? 1) > 1.1, JSON.stringify(phonePhoto))
+  await phoneContext.close()
 })
 
 const passed = results.filter(Boolean).length
