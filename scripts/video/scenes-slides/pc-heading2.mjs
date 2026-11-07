@@ -21,6 +21,9 @@ export async function prepare({ page, h }) {
   await h.ready(page)
   // 1章の後ろを外したので、抄録に「本文にない内容かもしれない文がある」が出る。動画の話と関係がないので、確認済みにしておく
   await h.acknowledgeAbstract(page)
+  // 目次の行に矢印を乗せたときに出る「→ 見出しへ」の札は、この動画では出さない（見出しが目次に入ったことを見せる場面で、札が目立った：依頼者 2026-11-07）。
+  // 行の地がうすく色づくのはそのまま
+  await page.addStyleTag({ content: '.page-viewport .toc [data-toc-target]:hover > span:first-child::after, .page-viewport .toc [data-toc-target]:focus-visible > span:first-child::after { content: none !important; }' })
   await h.goToBlock(page, 'p1')
 }
 
@@ -115,8 +118,12 @@ export async function run({ page, rec, h }) {
 
   // 5. 目次のページ：入れた見出しの行を指す
   await page.keyboard.press('Escape')
+  // Esc のあと、段落に「キーボードで選んだ印」の黄色い枠が出る。押していないので、すぐ消す（依頼者 2026-11-07：黄色い枠が出て見え方がおかしい）
+  await page.evaluate(() => document.activeElement?.blur())
   await h.sleep(400)
   rec.mark('a_toc', view)
+  // ページを替える前に、矢印を左の道具（「大見出し」のボタンの所）へよける。前は、残った矢印の下の目次の行（iii．）がうすく色づいた（2026-11-07）
+  await h.moveTo(page, center(big).x, center(big).y)
   await page.evaluate(() => window.__editor.goToPage(window.__editor.pageOfArea('toc'), 'fade'))
   await h.sleep(700)
   await h.ready(page)
