@@ -1047,8 +1047,12 @@ const PROTECT_NOTE = 'ツールが書く列です（並べ替えは管理ペー�
  */
 const BROKEN_NOTE = '並びが崩れています'
 /** 点検表のいちばん上の案内の1行（小さな灰色の字。見出しの行と一緒に固定して守る。依頼者 2026-11-04） */
-const CHECK_TOP_NOTE = '並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
-const TOP_NOTE_INK = '#7a8088'
+const CHECK_TOP_NOTE = '⚠ 並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
+/** 前の案内の文（今ある点検表の1行目がこれなら、今の文に書き換える） */
+const OLD_TOP_NOTES = ['並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）']
+/** 案内の行：薄い黄色の帯に、濃い茶色の太字（依頼者の選択 2026-11-07 案B。前の小さな灰色の字では気づかれにくかった） */
+const TOP_NOTE_INK = '#5c3b00'
+const TOP_NOTE_FILL = '#fff1c2'
 
 /** 見出しの名前（空白・改行を除く。「最新\nPDF」→「最新PDF」） */
 function headName_(value) {
@@ -1774,7 +1778,8 @@ function syncCheckSheet_(entry, course, roster) {
 
   // 見た目と守り（並べ方・人数・見出し・先生が変わったときだけ）
   const props = PropertiesService.getScriptProperties()
-  const signature = JSON.stringify({ v: 2, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
+  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07）
+  const signature = JSON.stringify({ v: 3, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
     formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh)
     props.setProperty('checkLayout:' + entry.id, signature)
@@ -1787,7 +1792,7 @@ function headerRowOf_(values) {
   return -1
 }
 
-/** 新しい点検表の上の2行：案内の1行（小さな灰色の字）と、1段目の見出し */
+/** 新しい点検表の上の2行：案内の1行（黄色の帯）と、1段目の見出し */
 function writeSheetHead_(sheet) {
   const head = checkTemplate_()
   sheet.getRange(1, 1).setValue(CHECK_TOP_NOTE)
@@ -1903,8 +1908,16 @@ function writeValue_(kind, value) {
 function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh) {
   sheet.setFrozenRows(h + 1)
   sheet.setRowHeight(h + 1, 36)
-  // 案内の行（見出しの上。小さな灰色の字で、1段目の左から）
-  if (h > 0) sheet.getRange(1, 1).setFontSize(9).setFontColor(TOP_NOTE_INK).setFontWeight(null).setHorizontalAlignment('left').setWrap(false)
+  // 案内の行（見出しの上）：表の幅（使っている最後の段の右の列まで）を薄い黄色の帯にし、1段目の左から濃い茶色の太字で（依頼者の選択 2026-11-07 案B）
+  if (h > 0) {
+    const shown = blocks.slice(0, Math.max(1, layout.blocks))
+    const width = Math.max(header.length, shown[shown.length - 1].end + 1)
+    const note = sheet.getRange(1, 1)
+    if (OLD_TOP_NOTES.indexOf(String(note.getValue())) >= 0) note.setValue(CHECK_TOP_NOTE)
+    sheet.getRange(1, 1, 1, width).setBackground(TOP_NOTE_FILL)
+    note.setFontSize(12).setFontColor(TOP_NOTE_INK).setFontWeight('bold').setHorizontalAlignment('left').setVerticalAlignment('middle').setWrap(false)
+    sheet.setRowHeight(1, 28)
+  }
   const checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build()
   const choices = []
   surnames.forEach((t) => choices.push(t + ' 予定', t + ' 済み'))

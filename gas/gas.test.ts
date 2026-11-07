@@ -1502,7 +1502,8 @@ describe('届いた声（api-project の doPost・admin-project の一覧と状�
 describe('先生の許可の仕組み（学生の名簿・点検表。docs/設計_許可の仕組み.md）', () => {
   const CLIENT = 'client-1.apps.googleusercontent.com'
   const FILM = initialConfig.courses[0]
-  const TOP_NOTE = '並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
+  const TOP_NOTE = '⚠ 並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
+  const OLD_TOP_NOTE = '並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
   const PROTECT_NOTE = 'ツールが書く列です（並べ替えは管理ページの「学生の並びを直す」から）'
   /** 学生（名前はすべて作り物）：姓・名・セイ・メイ */
   const PEOPLE: [string, string, string, string][] = [
@@ -1692,10 +1693,12 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(folder.parents).toEqual([yearFolder.id])
     expect(drive.items.get(id)!.parents).toEqual([folder.id])
     expect(triggers).toEqual([{ handler: 'onCheckSheetEdit', kind: 'edit', source: id }])
-    // いちばん上は案内の1行（小さな灰色の字）、見出しは2行目。見出しの行まで固定。ふりがなの順
+    // いちばん上は案内の1行（薄い黄色の帯に、濃い茶色の太字：依頼者の選択 2026-11-07 案B）、見出しは2行目。見出しの行まで固定。ふりがなの順
     const rows = tab().rows
     expect(rows[0][0]).toBe(TOP_NOTE)
-    expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 9, color: '#7a8088', bold: false })
+    expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
+    // 帯は表の幅まで（「知らせ」の列の上も）
+    expect(tab().fmtAt(0, 11).background).toBe('#fff1c2')
     expect(rows[1].slice(0, 15).map(norm)).toEqual(['番号', '氏名', '最新PDF', '1回目', '2回目', '3回目', '抄録', '4回目', '抄録許可', '最終提出可', '教務提出', '知らせ', '学籍番号', '抄録許可の記録', '最終提出可の記録'])
     expect(tab().frozen).toBe(2)
     expect(rows.slice(2).map((r) => [r[0], r[1], r[11], r[12]])).toEqual([
@@ -1729,6 +1732,22 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(sheetRows('点検表')).toHaveLength(2)
     expect(sheetRows('点検表')[1][2]).toBe('book2')
     expect(triggers.map((t) => t.source)).toEqual(['book2'])
+  })
+
+  it('前の案内の文（小さな灰色の字）のままの点検表は、次に写すときに、今の文と黄色の帯に直す', () => {
+    setup()
+    admin().ensureCheckSheet(2026, FILM.id)
+    // 前の版で作った点検表のふり：1行目は前の文・灰色の小さな字、見た目の決まりは前の版（v2）
+    tab().getRange(1, 1).setValue(OLD_TOP_NOTE).setFontSize(9).setFontColor('#7a8088').setFontWeight(null).setBackground(null)
+    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":3', '{"v":2'))
+    admin().syncCheckSheets()
+    expect(tab().rows[0][0]).toBe(TOP_NOTE)
+    expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
+    // 先生が書き換えた案内は、そのまま（前の文のときだけ直す）
+    tab().getRange(1, 1).setValue('コースの先生のメモ')
+    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, 'old')
+    admin().syncCheckSheets()
+    expect(tab().rows[0][0]).toBe('コースの先生のメモ')
   })
 
   it('まだだれも登録していなくても、点検表は案内・見出し・見た目・守りを整えて開ける', () => {
