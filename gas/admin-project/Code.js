@@ -1016,8 +1016,6 @@ const CHECK_TAB = '点検表'
 const CHECK_COLUMNS = { no: '番号', name: '氏名', pdf: '最新PDF', abstractOk: '抄録許可', finalOk: '最終提出可', kyomu: '教務提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
 /** 新しく作る点検表の見出しの字（mockups/v106・v107。狭い列は2行に） */
 const CHECK_HEAD_TEXT = { no: '番号', name: '氏名', pdf: '最新\nPDF', abstractOk: '抄録\n許可', finalOk: '最終\n提出可', kyomu: '教務\n提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
-/** 回の列のはじめの名前 */
-const DEFAULT_ROUNDS = ['1回目', '2回目', '3回目', '抄録', '4回目']
 /** 先生が書く列（行が動いても、学生と一緒に動かす）。回の列も先生が書く */
 const TEACHER_COLUMNS = ['abstractOk', 'finalOk', 'kyomu', 'abstractRec', 'finalRec']
 /** 見えない列（行を見つける印と、許可の記録） */
@@ -1033,8 +1031,11 @@ const TEACHER_TONES = [
   { bg: '#f2ece0', ink: '#7a5a2c' },
 ]
 const PLAN_INK = '#a0a5ad'
-/** 見出しと列の色（v107 案A：ツールが入れる列は灰色、許可の列はうすい黄色） */
-const CHECK_COLORS = { head: '#f1f3f4', toolHead: '#e8eaed', toolCell: '#f3f4f6', permHead: '#f6efd2', permCell: '#fcf9ee', warnInk: '#c5221f', warnBg: '#fce8e6', dimInk: '#80868b' }
+/**
+ * 見出しと列の色（v107 案A：ツールが入れる列は灰色、許可の列はうすい黄色）。見出しは役目ごとに淡い色と濃い字で分ける
+ * （依頼者の選択 2026-11-07 案A。前はどれも灰色に近く、違いが分かりにくかった）：ツールが書く列は灰色・点検の回は青・許可は黄色・教務提出は緑
+ */
+const CHECK_COLORS = { toolHead: '#dadce0', toolInk: '#3c4043', roundHead: '#d6e4f5', roundInk: '#1f3f6b', permHead: '#f8dc8c', permInk: '#5c3b00', kyomuHead: '#d3ead6', kyomuInk: '#1e5b2a', toolCell: '#f3f4f6', permCell: '#fcf9ee', warnInk: '#c5221f', warnBg: '#fce8e6', dimInk: '#80868b' }
 /** 列の幅（px。見本の狭い列に合わせる） */
 const CHECK_WIDTHS = { no: 36, name: 96, pdf: 48, round: 76, abstractOk: 44, finalOk: 48, kyomu: 44, note: 80, key: 90, abstractRec: 160, finalRec: 160, gap: 12 }
 /** ツールが書く列（守る列。先生が書けるのは、回の列と ✓ の列だけ） */
@@ -1078,7 +1079,10 @@ function columnKind_(name) {
   return keys.find((k) => CHECK_COLUMNS[k] === name) || 'round'
 }
 
-/** 新しい点検表の1段の見出し */
+/** 回の列のはじめの名前（1回目〜4回目のあとに抄録：依頼者 2026-11-07。前は「3回目・抄録・4回目」の順） */
+const DEFAULT_ROUNDS = ['1回目', '2回目', '3回目', '4回目', '抄録']
+
+/** 新しい点検表の1段の見出し：回の列のあとに、許可の2列（右に2つ並べる）・教務提出・知らせ */
 function checkTemplate_() {
   const t = CHECK_HEAD_TEXT
   return [t.no, t.name, t.pdf].concat(DEFAULT_ROUNDS, [t.abstractOk, t.finalOk, t.kyomu, t.note, t.key, t.abstractRec, t.finalRec])
@@ -1790,8 +1794,8 @@ function syncCheckSheet_(entry, course, roster) {
 
   // 見た目と守り（並べ方・人数・見出し・先生が変わったときだけ）
   const props = PropertiesService.getScriptProperties()
-  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで）
-  const signature = JSON.stringify({ v: 4, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
+  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで。5：見出しを役目ごとの色に・氏名を折り返す）
+  const signature = JSON.stringify({ v: 5, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
     formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh)
     props.setProperty('checkLayout:' + entry.id, signature)
@@ -1934,15 +1938,17 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
     const filled = Math.max(0, Math.min(layout.perBlock, layout.count - bi * layout.perBlock))
     blockColumns_(header, b).forEach((x) => {
       const kind = x.kind
-      const tool = kind === 'no' || kind === 'pdf' || kind === 'note'
+      const tool = kind === 'no' || kind === 'name' || kind === 'pdf' || kind === 'note'
       const perm = kind === 'abstractOk' || kind === 'finalOk'
+      const role = kind === 'round' ? 'round' : perm ? 'perm' : kind === 'kyomu' ? 'kyomu' : 'tool'
       sheet
         .getRange(h + 1, x.col + 1)
         .setFontWeight('bold')
         .setWrap(true)
         .setHorizontalAlignment('center')
         .setVerticalAlignment('middle')
-        .setBackground(tool ? CHECK_COLORS.toolHead : perm ? CHECK_COLORS.permHead : CHECK_COLORS.head)
+        .setBackground(CHECK_COLORS[role + 'Head'])
+        .setFontColor(CHECK_COLORS[role + 'Ink'])
       sheet.setColumnWidth(x.col + 1, CHECK_WIDTHS[kind] || CHECK_WIDTHS.round)
       if (HIDDEN_COLUMNS.indexOf(kind) >= 0) sheet.hideColumns(x.col + 1)
       else if (fresh.indexOf(bi) >= 0) sheet.showColumns(x.col + 1)
@@ -1953,6 +1959,8 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
         cells.setBackground(tool ? CHECK_COLORS.toolCell : perm ? CHECK_COLORS.permCell : null)
         cells.setDataValidation(perm || kind === 'kyomu' ? checkbox : kind === 'round' ? dropdown : null)
         cells.setHorizontalAlignment(kind === 'name' || kind === 'note' ? 'left' : kind === 'no' ? 'right' : 'center')
+        // 長い氏名（留学生など）は折り返す：その学生の行だけ2行の高さになる（依頼者の選択 2026-11-07 案1。前は列の幅で切れた）。行の中の字は上下の真ん中に
+        cells.setVerticalAlignment('middle').setWrap(kind === 'name')
         cells.setFontWeight(kind === 'name' ? 'bold' : null)
         if (kind === 'key') cells.setNumberFormat('@')
         if (kind === 'round') roundRanges.push(cells)

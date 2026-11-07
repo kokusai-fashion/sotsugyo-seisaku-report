@@ -16,6 +16,7 @@ interface CellFormat {
   numberFormat?: string
   fontSize?: number
   color?: string
+  wrap?: boolean
 }
 /** 守った範囲（Protection の簡易版） */
 interface FakeProtection {
@@ -155,7 +156,7 @@ class FakeSheet {
       setFontWeight: (w: string | null) => (each((f) => (f.bold = w === 'bold')), range),
       setFontSize: (n: number) => (each((f) => (f.fontSize = n)), range),
       setFontColor: (c: string) => (each((f) => (f.color = c)), range),
-      setWrap: () => range,
+      setWrap: (on: boolean) => (each((f) => (f.wrap = on)), range),
       setHorizontalAlignment: () => range,
       setVerticalAlignment: () => range,
       // 守ると、はじめは共有している人（先生）も書ける（本物と同じ。ツールが外す）
@@ -1709,7 +1710,8 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(band.length).toBeGreaterThan(15)
     expect(bandPx).toBeGreaterThanOrEqual(54 * 16)
     expect(bandPx - band[band.length - 1]).toBeLessThan(54 * 16 + 12)
-    expect(rows[1].slice(0, 15).map(norm)).toEqual(['番号', '氏名', '最新PDF', '1回目', '2回目', '3回目', '抄録', '4回目', '抄録許可', '最終提出可', '教務提出', '知らせ', '学籍番号', '抄録許可の記録', '最終提出可の記録'])
+    // 回の列は1回目〜4回目のあとに抄録。許可の2列はそのあとに並べる（依頼者 2026-11-07）
+    expect(rows[1].slice(0, 15).map(norm)).toEqual(['番号', '氏名', '最新PDF', '1回目', '2回目', '3回目', '4回目', '抄録', '抄録許可', '最終提出可', '教務提出', '知らせ', '学籍番号', '抄録許可の記録', '最終提出可の記録'])
     expect(tab().frozen).toBe(2)
     expect(rows.slice(2).map((r) => [r[0], r[1], r[11], r[12]])).toEqual([
       [1, '青木　美咲', 'PDF まだ', '00ZZ0100'],
@@ -1749,7 +1751,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     admin().ensureCheckSheet(2026, FILM.id)
     // 前の版で作った点検表のふり：1行目は前の文・灰色の小さな字、見た目の決まりは前の版（v2）
     tab().getRange(1, 1).setValue(OLD_TOP_NOTE).setFontSize(9).setFontColor('#7a8088').setFontWeight(null).setBackground(null)
-    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":4', '{"v":3'))
+    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":5', '{"v":3'))
     admin().syncCheckSheets()
     expect(tab().rows[0][0]).toBe(TOP_NOTE)
     expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
@@ -1774,7 +1776,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(books.size).toBe(0)
   })
 
-  it('点検表の見た目（v107 案A）と守り：✓ の箱・指導教員の名字のプルダウンと色・隠す列。ツールの列と上の2行は、デプロイした人だけが書ける', () => {
+  it('点検表の見た目（v107 案A・見出しは役目ごとの色 2026-11-07 案A）と守り：✓ の箱・指導教員の名字のプルダウンと色・隠す列。ツールの列と上の2行は、デプロイした人だけが書ける', () => {
     const a = setup()
     for (const i of [0, 1, 2]) register(a, i)
     admin().ensureCheckSheet(2026, FILM.id)
@@ -1782,10 +1784,17 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     const { header } = layoutOf()
     const col = (name: string) => header.indexOf(name)
     expect(t.fmtAt(2, col('抄録許可'))).toMatchObject({ validation: { kind: 'checkbox' }, background: '#fcf9ee' })
-    expect(t.fmtAt(1, col('抄録許可')).background).toBe('#f6efd2')
+    // 見出しは役目ごとに淡い色と濃い字：ツールが書く列は灰色・点検の回は青・許可は黄色・教務提出は緑
+    expect(t.fmtAt(1, col('抄録許可'))).toMatchObject({ background: '#f8dc8c', color: '#5c3b00' })
+    expect(t.fmtAt(1, col('最終提出可'))).toMatchObject({ background: '#f8dc8c', color: '#5c3b00' })
+    expect(t.fmtAt(1, col('1回目'))).toMatchObject({ background: '#d6e4f5', color: '#1f3f6b' })
+    expect(t.fmtAt(1, col('教務提出'))).toMatchObject({ background: '#d3ead6', color: '#1e5b2a' })
+    for (const tool of ['番号', '氏名', '知らせ']) expect(t.fmtAt(1, col(tool)), tool).toMatchObject({ background: '#dadce0', color: '#3c4043' })
     expect(t.fmtAt(2, col('教務提出')).validation).toEqual({ kind: 'checkbox' })
     expect(t.fmtAt(2, col('番号')).background).toBe('#f3f4f6')
-    expect(t.fmtAt(1, col('知らせ')).background).toBe('#e8eaed')
+    // 氏名の列も灰色（ツールが書く）。長い氏名は折り返す（その行だけ高くなる）。ほかの列は折り返さない
+    expect(t.fmtAt(2, col('氏名'))).toMatchObject({ background: '#f3f4f6', wrap: true, bold: true })
+    expect(t.fmtAt(2, col('1回目')).wrap).toBe(false)
     for (const round of ['1回目', '2回目', '3回目', '抄録', '4回目']) {
       expect(t.fmtAt(4, col(round)).validation).toEqual({ kind: 'list', list: ['梶田 予定', '梶田 済み', '佐藤 予定', '佐藤 済み', '加藤 予定', '加藤 済み'], allowInvalid: true })
     }
@@ -1859,8 +1868,8 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
           { label: '1回目', teacher: '梶田', state: 'done' },
           { label: '2回目', teacher: '佐藤', state: 'plan' },
           { label: '3回目', teacher: '中間発表', state: 'done' },
-          { label: '抄録', teacher: '', state: '' },
           { label: '4回目', teacher: '', state: '' },
+          { label: '抄録', teacher: '', state: '' },
         ],
         abstractOk: { at: '2026-12-15T03:00:00.000Z', by: '梶田' },
         finalOk: { at: '', by: '' },
@@ -1873,7 +1882,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     // 先生が回の列を足した・名前を変えた（見出しのある列は、どれも回の列）
     const { h, header } = layoutOf()
     tab().rows[h][header.indexOf('4回目')] = '最終\n確認'
-    expect(status(a, 0).row.rounds.at(-1)).toEqual({ label: '最終 確認', teacher: '', state: '' })
+    expect(status(a, 0).row.rounds.at(-2)).toEqual({ label: '最終 確認', teacher: '', state: '' })
     // 学生が氏名を直すと、点検表の氏名もすぐ直る（ずれた行とみなさない）
     expect(register(a, 0, { givenName: '美咲子' })).toEqual({ ok: true })
     expect(sheetStudents()[idOf(0)].cells['氏名']).toBe('青木　美咲子')
@@ -2004,9 +2013,9 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     // 2段目のはじめの学生（1段目にはない「4回目」）
     setCell(idOf(13), '4回目', '加藤 済み')
     setCell(idOf(13), '抄録許可', true)
-    expect(status(a, 0).row.rounds.map((r: { label: string }) => r.label)).toEqual(['1回目', '2回目', '中間', '3回目', '抄録', '最終 確認'])
+    expect(status(a, 0).row.rounds.map((r: { label: string }) => r.label)).toEqual(['1回目', '2回目', '中間', '3回目', '最終 確認', '抄録'])
     expect(status(a, 0).row.rounds[2]).toEqual({ label: '中間', teacher: '梶田', state: 'done' })
-    expect(status(a, 13).row.rounds.map((r: { label: string }) => r.label)).toEqual(['1回目', '2回目', '3回目', '抄録', '4回目'])
+    expect(status(a, 13).row.rounds.map((r: { label: string }) => r.label)).toEqual(['1回目', '2回目', '3回目', '4回目', '抄録'])
     // 写しても、先生の書いた中身はそのまま。足した回の列にもプルダウン。回の列の見出しは守らない
     admin().syncCheckSheets()
     let s = sheetStudents()
@@ -2023,7 +2032,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(s[idOf(13)]).toMatchObject({ block: 0, cells: { 番号: 14, 最終確認: '加藤 済み', 中間: '', 抄録許可: true } })
     expect(s[idOf(0)].cells).toMatchObject({ 中間: '梶田 済み', 最終確認: '佐藤 予定' })
     expect(s[idOf(26)]).toMatchObject({ block: 1, cells: { 番号: 27 } })
-    expect(status(api(), 13).row.rounds.at(-1)).toEqual({ label: '最終 確認', teacher: '加藤', state: 'done' })
+    expect(status(api(), 13).row.rounds.at(-2)).toEqual({ label: '最終 確認', teacher: '加藤', state: 'done' })
     // 回の列の対応（同じ名前はそのまま、名前の違う列は、同じ名前の列のあいだで順に組にする。足しただけの列は組にしない）
     const g = admin()
     expect({ ...g.alignRounds_(['1', '2', '3', '抄', '4'], ['1', '2', '中', '3', '抄', '最']) }).toEqual({ '1': '1', '2': '2', '3': '3', 抄: '抄', 最: '4' })
