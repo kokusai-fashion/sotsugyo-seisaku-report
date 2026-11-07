@@ -122,6 +122,9 @@ export function Row({
 }
 
 /** 区切りの見出しと、その下の説明 */
+/** 説明の文の中の「⋮⋮」：行の左のつまみと同じ見た目にする（文の字のままだと、2つの点々が「：：」に見えた：依頼者 2026-11-07） */
+export const GripMark = () => <span className="grip-mark">⋮⋮</span>
+
 export function SectionHead({ title, lead }: { title: string; lead?: ReactNode }) {
   return (
     <>

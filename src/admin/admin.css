@@ -243,6 +243,8 @@ textarea.in.notice { field-sizing: content; min-height: calc(2lh + 14px); max-he
 /* 並べ替えのつまみ（カードの左上。つかんで上下に動かす） */
 .grip { flex: none; width: 22px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; color: #8f96a3; font-size: 15px; line-height: 1; letter-spacing: -1px; cursor: grab; touch-action: none; }
 .grip:hover { background: var(--bg); color: var(--accent); }
+/* 説明の文の中の「⋮⋮」（ui.tsx の GripMark）：つまみ（.grip）と同じ色・大きさ・字の間 */
+.grip-mark { color: #8f96a3; font-size: 13px; letter-spacing: -1px; }
 .grip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--accent); }
 body.reordering, body.reordering * { cursor: grabbing !important; user-select: none; }
 body.reordering iframe { pointer-events: none; }

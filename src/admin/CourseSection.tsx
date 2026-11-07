@@ -6,7 +6,7 @@ import { server } from './server'
 import { StudentOrderDialog } from './StudentOrderDialog'
 import { endsWithCourse, joinSubtitle, splitSubtitle, subtitleExample } from './subtitleText'
 import { templateSummary } from './templateText'
-import { Chip, FieldProblems, Row, SectionHead } from './ui'
+import { Chip, FieldProblems, GripMark, Row, SectionHead } from './ui'
 import { usePhone } from './usePhone'
 import { useReorder } from './useReorder'
 import { useSlow } from './useWait'
@@ -66,7 +66,7 @@ export function CourseSection({ draft, base, teacher = false, openId, onOpen, on
   const shown = draft.courses.map((c, i) => ({ c, i })).filter(({ c }) => !teacher || !c.hidden)
   return (
     <>
-      <SectionHead title="コースごとの設定" lead={teacher ? 'コースを開いて、お知らせとひな形を直します。' : '学生が最初に選ぶコースです。開いて直します。並べ替えは ⋮⋮ をドラッグします。'} />
+      <SectionHead title="コースごとの設定" lead={teacher ? 'コースを開いて、お知らせとひな形を直します。' : <>学生が最初に選ぶコースです。開いて直します。並べ替えは <GripMark /> をドラッグします。</>} />
       {notices}
       <div className="course-list" ref={listRef}>
         {shown.map(({ c, i }) => (

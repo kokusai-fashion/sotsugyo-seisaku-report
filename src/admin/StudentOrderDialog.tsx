@@ -7,6 +7,7 @@ import { server, type StudentEntry } from './server'
 import { byKana, isKanaOrder, movedFlags, studentIdLabel } from './studentOrder'
 import { useReorder } from './useReorder'
 import { useSlow } from './useWait'
+import { GripMark } from './ui'
 import { SlowNote, Waiting } from './Wait'
 
 /**
@@ -61,7 +62,7 @@ export function StudentOrderDialog({ year, course, onClose, onSaved }: { year: n
   // 窓は body の直下に出す（コースの欄の中に置くと、スクロールする入れ物の中に閉じ込められることがあるため）
   return createPortal(
     <Modal title={`学生の並び（${courseName(course)} コース）`} onClose={onClose} className="so-modal">
-      <p className="lead">ふりがなの順に自動で並んでいます。⋮⋮ をドラッグするか、▲▼ で動かします。この並びが点検表の順になります。</p>
+      <p className="lead">ふりがなの順に自動で並んでいます。<GripMark /> をドラッグするか、▲▼ で動かします。この並びが点検表の順になります。</p>
       {loadError ? (
         <p className="so-error">{loadError}</p>
       ) : !list ? (
