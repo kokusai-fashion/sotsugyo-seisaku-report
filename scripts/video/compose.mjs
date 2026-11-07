@@ -470,8 +470,11 @@ await withEdge(async (browser) => {
       const plan = planTimeline({ anchors, durs: clips.map((c) => c.to - c.from), srcEnd, cuts })
       times = Array.from({ length: Math.round(plan.end * FPS) }, (_, n) => plan.at(n / FPS))
       writeFileSync(join('poc-output/video-narration', name, 'placed.json'), JSON.stringify({ end: plan.end, clips: clips.map((c, i) => ({ ...c, at: plan.outs[i] })) }, null, 2))
+    } else if (process.env.TIMES_FILE) {
+      // コマごとの録画の時刻を、ほかで決めたもの（スライドの動画を、声の句に合わせて組み直す：スライド/scripts/heading-sync.mjs。2026-11-07）
+      times = JSON.parse(readFileSync(process.env.TIMES_FILE, 'utf8')).times
     }
-    const { total, report } = await page.evaluate(setup, { meta, viewport, marks: timeline.marks, frames: timeline.frames, mouse: timeline.mouse, duration: timeline.duration, fps: FPS, title: narr ? 0 : TITLE, tail: narr ? 0 : TAIL, times, noCaptions: !!process.env.NO_CAPTIONS })
+    const { total, report } = await page.evaluate(setup, { meta, viewport, marks: timeline.marks, frames: timeline.frames, mouse: timeline.mouse, duration: timeline.duration, fps: FPS, title: times ? 0 : TITLE, tail: times ? 0 : TAIL, times, noCaptions: !!process.env.NO_CAPTIONS })
     console.log(name)
     for (const c of report) console.log(`  字幕 ${c.name}：${c.lines.join(' ／ ')}${c.lonely ? '　← 1字だけの行があります' : ''}`)
     if (process.env.CAPTIONS_ONLY) continue
