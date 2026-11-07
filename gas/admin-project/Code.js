@@ -1047,24 +1047,32 @@ const PROTECT_NOTE = 'ツールが書く列です（並べ替えは管理ペー�
  * 先生が行の中身を確かめて、その行の許可の ✓（抄録許可・最終提出可）を入れ直すと消える（onCheckSheetEdit。知らせの列は守ってあり、先生は直接は消せないため）
  */
 const BROKEN_NOTE = '並びが崩れています'
-/** 点検表のいちばん上の案内の1行（小さな灰色の字。見出しの行と一緒に固定して守る。依頼者 2026-11-04） */
-const CHECK_TOP_NOTE = '⚠ 並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
+/**
+ * 点検表のいちばん上の案内（1つのセルに2行。見出しの行と一緒に固定して守る。依頼者 2026-11-04）。
+ * 2行目は回の列のこと（コースごとに変えられる、と点検表の上で分かるように：依頼者の選択 2026-11-07 案1）
+ */
+const CHECK_TOP_NOTE = '⚠ 並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）\n✎ 青い見出しの列（点検の回）は、コースごとに名前を変えたり、列を足したり消したりできます'
 /** 前の案内の文（今ある点検表の1行目がこれなら、今の文に書き換える） */
-const OLD_TOP_NOTES = ['並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）']
+const OLD_TOP_NOTES = [
+  '並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）',
+  '⚠ 並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）',
+]
 /** 案内の行：薄い黄色の帯に、濃い茶色の太字（依頼者の選択 2026-11-07 案B。前の小さな灰色の字では気づかれにくかった） */
 const TOP_NOTE_INK = '#5c3b00'
 const TOP_NOTE_FILL = '#fff1c2'
 const TOP_NOTE_SIZE = 12
 
 /**
- * 案内の文の幅（ピクセルの見積もり：全角の字は文字の大きさ1つぶん、半角は半分、左のすき間）。
- * 本物より少し多め（12 ポイントの今の文は、画面で約 846 ピクセル・見積もり 872）
+ * 案内の文の幅（ピクセルの見積もり。いちばん長い行：全角の字は文字の大きさ1つぶん、半角は半分、左のすき間）。
+ * 本物より少し多め（12 ポイントの1行目は、画面で約 846 ピクセル・見積もり 872）
  */
 function noteWidthPx_(text, pt) {
   const em = (pt * 4) / 3
-  let px = 4
-  for (const ch of String(text)) px += ch.codePointAt(0) > 0xff ? em : em / 2
-  return px
+  return Math.max.apply(null, String(text).split('\n').map((line) => {
+    let px = 4
+    for (const ch of line) px += ch.codePointAt(0) > 0xff ? em : em / 2
+    return px
+  }))
 }
 
 /** 見出しの名前（空白・改行を除く。「最新\nPDF」→「最新PDF」） */
@@ -1794,8 +1802,8 @@ function syncCheckSheet_(entry, course, roster) {
 
   // 見た目と守り（並べ方・人数・見出し・先生が変わったときだけ）
   const props = PropertiesService.getScriptProperties()
-  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで。5：見出しを役目ごとの色に・氏名を折り返す）
-  const signature = JSON.stringify({ v: 5, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
+  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで。5：見出しを役目ごとの色に・氏名を折り返す。6：案内を2行に）
+  const signature = JSON.stringify({ v: 6, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
     formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh)
     props.setProperty('checkLayout:' + entry.id, signature)
@@ -1993,7 +2001,8 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
     while (px < need && width < sheet.getMaxColumns()) px += seen(++width)
     sheet.getRange(1, 1, 1, width).setBackground(TOP_NOTE_FILL)
     note.setFontSize(TOP_NOTE_SIZE).setFontColor(TOP_NOTE_INK).setFontWeight('bold').setHorizontalAlignment('left').setVerticalAlignment('middle').setWrap(false)
-    sheet.setRowHeight(1, 28)
+    // 行の高さは、案内の行の数に合わせる（1行 28・2行 48）
+    sheet.setRowHeight(1, 8 + 20 * String(note.getValue()).split('\n').length)
   }
   // 守り：前にツールが付けた守りを外して、付け直す（列・段が変わったときに、今の列に合わせる）。
   // 行ごとは守らない（白い回の列のところに、先生が列を足せるように：依頼者の選択 2026-11-04）

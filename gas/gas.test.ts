@@ -1507,7 +1507,7 @@ describe('届いた声（api-project の doPost・admin-project の一覧と状�
 describe('先生の許可の仕組み（学生の名簿・点検表。docs/設計_許可の仕組み.md）', () => {
   const CLIENT = 'client-1.apps.googleusercontent.com'
   const FILM = initialConfig.courses[0]
-  const TOP_NOTE = '⚠ 並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
+  const TOP_NOTE = '⚠ 並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）\n✎ 青い見出しの列（点検の回）は、コースごとに名前を変えたり、列を足したり消したりできます'
   const OLD_TOP_NOTE = '並びを直すときは、管理ページの「コースごとの設定」→「学生の並びを直す」から（灰色の列はツールが書きます）'
   const PROTECT_NOTE = 'ツールが書く列です（並べ替えは管理ページの「学生の並びを直す」から）'
   /** 学生（名前はすべて作り物）：姓・名・セイ・メイ */
@@ -1751,7 +1751,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     admin().ensureCheckSheet(2026, FILM.id)
     // 前の版で作った点検表のふり：1行目は前の文・灰色の小さな字、見た目の決まりは前の版（v2）
     tab().getRange(1, 1).setValue(OLD_TOP_NOTE).setFontSize(9).setFontColor('#7a8088').setFontWeight(null).setBackground(null)
-    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":5', '{"v":3'))
+    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":6', '{"v":3'))
     admin().syncCheckSheets()
     expect(tab().rows[0][0]).toBe(TOP_NOTE)
     expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
