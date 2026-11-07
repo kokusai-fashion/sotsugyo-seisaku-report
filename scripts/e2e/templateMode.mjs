@@ -577,7 +577,7 @@ export async function templateModeAdmin(browser, check) {
   await recordTemplateFrame(teacher)
   await teacher.setViewport({ width: 1366, height: 768 })
   await teacher.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
-  await teacher.waitForSelector('.course .open-btn')
+  await teacher.waitForSelector('.course .open-btn, .course.open')
   await teacher.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await teacher.waitForSelector('.course.open .tpl-open')
   const tframe = await openScreen(teacher)

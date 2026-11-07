@@ -548,7 +548,7 @@ await withEdge(async (browser) => {
   await teacher.setViewport({ width: 1440, height: 900 })
   await teacher.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
   // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からの確かめは、いちばん上のコースを開いて
-  await teacher.waitForSelector('.course .open-btn')
+  await teacher.waitForSelector('.course .open-btn, .course.open')
   await teacher.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await sleep(200)
   await teacher.waitForSelector('.admin .content')
@@ -701,7 +701,7 @@ await withEdge(async (browser) => {
   )
   await page.reload({ waitUntil: 'networkidle0' })
   await page.waitForSelector('.admin .content')
-  check('読み込み直すと、さっきの区切り（コース）のまま開く（区切りは、このタブのあいだ覚えておく）', (await sectionTitle(page)) === 'コースごとの設定' && (await navItems(page)).includes('コースごとの設定／お知らせ・ひな形＊'))
+  check('読み込み直すと、さっきの区切り（コース）のまま開く（区切りは、このタブのあいだ覚えておく）', ((await sectionTitle(page)) === 'コースごとの設定' || !!(await page.$('.course.page'))) && (await navItems(page)).includes('コースごとの設定／お知らせ・ひな形＊'))
   await nav(page, '年度の設定')
 
   // 新年度を作る → 準備中 → 公開
@@ -970,9 +970,11 @@ await withEdge(async (browser) => {
   const fxSaved = () => fx.evaluate(() => JSON.parse(localStorage.getItem('sotsugyo-admin-mock')).years.find((y) => y.year === 2026).config)
   const fxDirty = () => fx.evaluate(() => !!document.querySelector('.dirty-bar'))
   const fxClick = (text) => fx.evaluate((text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text)).click(), text)
+  const fxSavedAt = () => fx.evaluate(() => JSON.parse(localStorage.getItem('sotsugyo-admin-mock')).years.find((y) => y.year === 2026).updatedAt)
   const fxSave = async () => {
+    const before = await fxSavedAt()
     await fxClick('保存して学生に反映')
-    await fx.waitForFunction(() => document.querySelector('.message.ok'), { timeout: 10000 })
+    await fx.waitForFunction((b) => JSON.parse(localStorage.getItem('sotsugyo-admin-mock')).years.find((y) => y.year === 2026).updatedAt !== b && document.querySelector('.message.ok'), { timeout: 10000 }, before)
   }
   await nav(fx, 'コースごとの設定')
   const openCard = '.course.open'
@@ -1087,7 +1089,7 @@ await withEdge(async (browser) => {
   await teacherFx.setViewport({ width: 1366, height: 768 })
   await teacherFx.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
   // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からの確かめは、いちばん上のコースを開いて
-  await teacherFx.waitForSelector('.course .open-btn')
+  await teacherFx.waitForSelector('.course .open-btn, .course.open')
   await teacherFx.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await sleep(200)
   await teacherFx.waitForSelector('.admin .content')
@@ -1101,6 +1103,9 @@ await withEdge(async (browser) => {
   )
 
   // ---- 4. コースの並べ替え：「↑ 上へ」「↓ 下へ」はなくし、左上のつまみ（⋮⋮）をつかんで動かす ----
+  // 並べ替えはコースの一覧で（コースの画面に入っていたら「‹ コースの一覧」で戻る：2026-11-07 案1）
+  await fx.evaluate(() => document.querySelector('.course-back')?.click())
+  await sleep(200)
   const gripInfo = await fx.evaluate(() => {
     const card = document.querySelector('.course-list > .course')
     const g = card.querySelector('.crow > .grip:first-child')
@@ -1125,13 +1130,18 @@ await withEdge(async (browser) => {
   const A = '映画・舞台衣装デザイナー'
   const B = '試験二'
   const C = '試験三'
+  // 「コースを追加」で、足したコースの画面に入る。名前を入れて「‹ コースの一覧」で戻る
+  const entered = []
   for (const name of [B, C]) {
     await fx.evaluate(() => [...document.querySelectorAll('.content button.add')].find((b) => b.textContent.includes('コースを追加')).click())
     await sleep(200)
     await fx.type('.course.open .in.name', name)
+    entered.push(await fx.evaluate(() => (document.querySelectorAll('.content .course').length === 1 ? document.querySelector('.content .sec-h').textContent : '')))
+    await fx.evaluate(() => document.querySelector('.course-back').click())
+    await sleep(200)
   }
   const courseNames = () => fx.evaluate(() => [...document.querySelectorAll('.course-list > .course .cname')].map((e) => e.textContent.replace(/ コース$/, '')).join('|'))
-  check('「コースを追加」で足したコースは、開いた形で一覧の最後に入る（ほかのコースは閉じる）', (await courseNames()) === `${A}|${B}|${C}` && (await fx.$$('.course.open')).length === 1 && (await fx.evaluate(() => document.querySelector('.course.open .cname').textContent)) === `${C} コース`, await courseNames())
+  check('「コースを追加」で、足したコースの画面に入り（ほかのコースは出さない）、一覧に戻ると最後に入っている', (await courseNames()) === `${A}|${B}|${C}` && entered.join('|') === `${B} コース|${C} コース`, JSON.stringify({ names: await courseNames(), entered }))
   const cardBox = (i, sel) =>
     fx.evaluate(
       (i, sel) => {
@@ -1143,7 +1153,7 @@ await withEdge(async (browser) => {
       sel,
     )
   const live = () => fx.evaluate(() => document.querySelector('.content .sr-only[aria-live]').textContent.replace(/​/g, ''))
-  // マウス：いちばん下（試験三。開いている）のつまみをつかんで、2番目のコースの上半分まで動かす
+  // マウス：いちばん下（試験三）のつまみをつかんで、2番目のコースの上半分まで動かす
   await fx.evaluate(() => (document.querySelector('.content').scrollTop = 0))
   await sleep(200)
   const gripC = await cardBox(2, '.grip')
@@ -1171,9 +1181,14 @@ await withEdge(async (browser) => {
     midDrag.dragging === 2 && midDrag.grabbing && midDrag.line !== null && Math.abs(midDrag.line - midDrag.between) <= 2 && afterMouse.order === `${A}|${C}|${B}` && !afterMouse.line && afterMouse.live === '2番目に移しました',
     JSON.stringify({ midDrag, afterMouse }),
   )
-  // 区切りの下の端の近くまで動かすと、中身がスクロールし、いちばん下まで運べる（開いたコースは長い）
+  // 区切りの下の端の近くまで動かすと、中身がスクロールし、いちばん下まで運べる。
+  // 一覧は1コース1行で短い（2026-11-07 案1）ので、画面を低くして、中身があふれる形で確かめる
+  const tall = fx.viewport()
+  await fx.setViewport({ ...tall, height: 460 })
+  await sleep(300)
   await fx.evaluate(() => (document.querySelector('.content').scrollTop = 0))
   await sleep(200)
+  const maxScroll = await fx.evaluate(() => { const c = document.querySelector('.content'); return c.scrollHeight - c.clientHeight })
   const gripA = await cardBox(0, '.grip')
   const contentBottom = await fx.evaluate(() => document.querySelector('.content').getBoundingClientRect().bottom)
   await fx.mouse.move(gripA.x, gripA.y)
@@ -1183,7 +1198,9 @@ await withEdge(async (browser) => {
   const scrolledBy = await fx.evaluate(() => document.querySelector('.content').scrollTop)
   await fx.mouse.up()
   await sleep(250)
-  check('つかんだまま区切りの下の端の近くまで動かすと、中身がスクロールし、いちばん下まで運べる', scrolledBy > 150 && (await courseNames()) === `${C}|${B}|${A}`, `${scrolledBy} / ${await courseNames()}`)
+  check('つかんだまま区切りの下の端の近くまで動かすと、中身がスクロールし、いちばん下まで運べる', maxScroll > 40 && scrolledBy >= maxScroll - 2 && (await courseNames()) === `${C}|${B}|${A}`, `${scrolledBy}/${maxScroll} / ${await courseNames()}`)
+  await fx.setViewport(tall)
+  await sleep(300)
   // 指（タッチ）でも動かせる：2番目（試験二）を、3番目の下半分まで
   await fx.evaluate(() => document.querySelectorAll('.course-list > .course')[1].scrollIntoView({ block: 'start' }))
   await sleep(200)
@@ -1216,6 +1233,8 @@ await withEdge(async (browser) => {
   await sleep(150)
   await fx.evaluate(() => document.querySelector('.course.open .toggle-label input').click())
   await sleep(100)
+  await fx.evaluate(() => document.querySelector('.course-back').click())
+  await sleep(150)
   await (await fx.$$('.course-list > .course .grip'))[2].focus()
   await fx.keyboard.press('ArrowUp')
   await sleep(150)
@@ -1579,7 +1598,8 @@ await withEdge(async (browser) => {
     await nav(vb, title)
     await sleep(250)
     const s = await shownSections()
-    switched.push(s.heads.length === 1 && s.heads[0] === head && s.current.join() === title && s.preview === preview ? 'ok' : JSON.stringify(s))
+    const headOk = s.heads[0] === head || (key === 'course' && / コース$/.test(s.heads[0] ?? '') && !!(await vb.$('.course.page')))
+    switched.push(s.heads.length === 1 && headOk && s.current.join() === title && s.preview === preview ? 'ok' : JSON.stringify(s))
     for (const [vp, tag] of [
       [{ width: 1366, height: 768 }, '1366'],
       [{ width: 1920, height: 1080 }, '1920'],
@@ -1597,10 +1617,10 @@ await withEdge(async (browser) => {
   await vb.keyboard.press('Enter')
   await sleep(200)
   const keyNav = await shownSections()
-  check('左の見出しはキーボードでも使える（Tab で次の区切りへ、Enter で開く）', keyNav.heads[0] === 'コースごとの設定' && keyNav.current.join() === 'コースごとの設定', JSON.stringify(keyNav))
+  check('左の見出しはキーボードでも使える（Tab で次の区切りへ、Enter で開く）', keyNav.current.join() === 'コースごとの設定' && !!(await vb.$('.course-list, .course.page')), JSON.stringify(keyNav))
   await vb.reload({ waitUntil: 'networkidle0' })
   await vb.waitForSelector('.admin .content')
-  check('読み込み直しても、選んでいた区切り（コース）から開く', (await shownSections()).heads[0] === 'コースごとの設定')
+  check('読み込み直しても、選んでいた区切り（コース）から開く', (await shownSections()).current.join() === 'コースごとの設定' && !!(await vb.$('.course-list, .course.page')))
 
   // 保存していない変更（公開中の年度）：画面の下に帯と保存のボタン、直した欄に「変更あり」、左の見出しに数
   const barState = () =>
@@ -1638,7 +1658,7 @@ await withEdge(async (browser) => {
   )
   await nav(vb, 'コースごとの設定')
   await (await vb.$('.course.open textarea.notice')).type('中間発表は12月4日（金）です')
-  await vb.evaluate(() => document.querySelector('.course.open .open-btn').click())
+  await vb.evaluate(() => document.querySelector('.course-back').click())
   await sleep(200)
   const two = await barState()
   const courseChip = await vb.evaluate(() => [...document.querySelectorAll('.course-list > .course')].map((c) => [...c.querySelectorAll('.chip')].map((x) => x.textContent).join('・')))
@@ -1716,7 +1736,7 @@ await withEdge(async (browser) => {
   const titleDone = (await stepState()).steps[0]
   const draftBar = await barState()
   await clickStep('コース')
-  const toCourse = await vb.evaluate(() => ({ section: document.querySelector('.sec-h')?.textContent, open: document.querySelector('.course.open .cname')?.textContent, focus: document.activeElement?.classList.contains('notice') && !!document.activeElement.closest('.course.open') }))
+  const toCourse = await vb.evaluate(() => ({ section: document.querySelector('.sec-h')?.textContent, page: document.querySelector('.course.page')?.dataset.courseId, focus: document.activeElement?.classList.contains('notice') && !!document.activeElement.closest('.course.open') }))
   await nav(vb, '年度の設定')
   await clickStep('確かめる')
   const toCheck = await active()
@@ -1724,7 +1744,7 @@ await withEdge(async (browser) => {
   const toPublish = await active()
   check(
     '手順を押すと、直す所へ移る（題目・締切は「年度の設定」のその欄へ、コースは前の年度のままのお知らせへ、確かめるは確認の一覧へ、公開は「この年度を学生に公開」へ）',
-    toDeadline.id === 'y-deadline' && toTitle.id === 'y-commonTitle' && toCourse.section === 'コースごとの設定' && toCourse.open === '映画・舞台衣装デザイナー コース' && toCourse.focus && toCheck.cls.includes('problems') && toCheck.section === '年度の設定' && toPublish.id === 'publish-btn',
+    toDeadline.id === 'y-deadline' && toTitle.id === 'y-commonTitle' && toCourse.section === '映画・舞台衣装デザイナー コース' && !!toCourse.page && toCourse.focus && toCheck.cls.includes('problems') && toCheck.section === '年度の設定' && toPublish.id === 'publish-btn',
     JSON.stringify({ toDeadline, toTitle, toCourse, toCheck, toPublish }),
   )
   check('題目を直すと、手順の「題目」は済み（「直しました」）になる', titleDone === 'done:題目:直しました', titleDone)
@@ -1778,7 +1798,7 @@ await withEdge(async (browser) => {
   await tv.setViewport({ width: 1366, height: 768 })
   await tv.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
   // 「コースごとの設定」は、はじめどのコースも閉じている（2026-11-02 から）。前からの確かめは、いちばん上のコースを開いて
-  await tv.waitForSelector('.course .open-btn')
+  await tv.waitForSelector('.course .open-btn, .course.open')
   await tv.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn')?.click())
   await sleep(200)
   await tv.waitForSelector('.admin .content')

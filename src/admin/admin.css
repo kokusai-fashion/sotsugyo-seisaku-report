@@ -226,14 +226,26 @@ textarea.in.notice { field-sizing: content; min-height: calc(2lh + 14px); max-he
 .steps li.now b { color: var(--accent); }
 .next-year .btn, .delete-year .btn { margin-top: 2px; }
 
-/* ---- コース（1行ずつに閉じ、「開く」でその行の中に全部の欄を出す） ---- */
+/* ---- コース：一覧は1コース1行。押すと、そのコースの設定の画面に入る（依頼者の選択 2026-11-07 案1） ---- */
 .course-list { position: relative; display: grid; gap: 10px; }
 .course { min-width: 0; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
-.course.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.course:has(> .crow > .open-btn:hover) { border-color: var(--accent); }
+/* 一覧の1行の、押す所（つまみ以外の全体）。右に「›」 */
+.crow > .open-btn { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.crow > .open-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.open-btn .ctext { min-width: 0; }
+.open-btn .cgo { font-size: 26px; line-height: 1; color: var(--muted); }
+.open-btn:hover .cgo { color: var(--accent); }
+/* コースの設定の画面：枠はなし（区切りの中身そのもの）。上に「‹ コースの一覧」 */
+.course.page { background: none; border: 0; border-radius: 0; }
+.course.page > .cbody { padding: 0; border-top: 0; }
+.course-back { display: inline-flex; align-items: center; gap: 4px; justify-self: start; margin: -6px 0 -8px; padding: 4px 10px 4px 4px; border: 0; border-radius: 8px; background: none; color: var(--accent); font: inherit; font-size: 15px; cursor: pointer; }
+.course-back span { font-size: 22px; line-height: 1; margin-top: -3px; }
+.course-back:hover { background: var(--accent-soft); }
 .course.hidden-course { background: #f7f8fa; }
 .course.dragging { opacity: 0.55; border-style: dashed; border-color: var(--accent); }
-.crow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 4px 10px; padding: 10px 12px 10px 8px; }
-.crow.nogrip { grid-template-columns: minmax(0, 1fr) auto; padding-left: 16px; }
+.crow { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 4px 10px; padding: 10px 12px 10px 8px; }
+.crow.nogrip { grid-template-columns: minmax(0, 1fr); padding-left: 16px; }
 .cname { display: block; font-size: 16px; }
 .adv { display: block; font-size: 14px; color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

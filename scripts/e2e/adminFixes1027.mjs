@@ -369,6 +369,9 @@ await withEdge(async (browser) => {
     check('スマホ：区切りを開いてから「戻る」を押すと、一覧へ戻る（管理ページの外へ出ない）', back.url.endsWith('/admin.html') && back.list, JSON.stringify(back))
     await nav(page, 'コースごとの設定')
     await wait(400)
+    // コースの画面では、上の戻る所は「‹ コースの一覧」（2026-11-07 案1）。コースの一覧に戻ってから「‹ 管理ページの一覧」
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('コースの一覧') && !b.textContent.includes('管理ページ') && b.offsetParent !== null)?.click())
+    await wait(400)
     await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('管理ページの一覧') && b.offsetParent !== null)?.click())
     await wait(400)
     const listAgain = await page.evaluate(() => !!document.querySelector('.admin.phone-list'))

@@ -13,7 +13,9 @@ import { useSlow } from './useWait'
 import { SlowNote, Waiting } from './Wait'
 
 /**
- * 「コースごとの設定」の区切り（mockups/v43 案B。はじめは閉じたまま、この端末で最後に開いていたコースを開く：useOpenCourse。コースは1行ずつに閉じておき、「開く」で、その行の中に全部の欄を出す）。
+ * 「コースごとの設定」の区切り。はじめはコースの一覧（1コース1行）で、押すと、そのコースの設定の画面に入る（ほかのコースは出さない）。
+ * 「‹ コースの一覧」で戻る（依頼者の選択 2026-11-07 案1。前は一覧の中でその場で広げていて、縦に長く見づらかった）。
+ * この端末で最後に入っていたコースを覚えておき、次に管理ページを開いたときは、そのコースの画面から始める（useOpenCourse）。
  * 管理者：コース名（欄の外に「コース」）・指導教員・お知らせ・ひな形・サブタイトル（「―」は欄の外）。並べ替えは ⋮⋮ をドラッグ。
  * 先生（teacher）：指導教員（見るだけ）・お知らせ・ひな形だけ。学生に表示しないコースは出さない。
  * 先生の許可・点検表（「点検表を開く」「学生の並びを直す」）は、管理者と先生の両方（依頼者の選択 2026-11-04。mockups/v103）
@@ -64,9 +66,45 @@ export function CourseSection({ draft, base, teacher = false, openId, onOpen, on
   const listRef = useRef<HTMLDivElement>(null)
   const order = useReorder(listRef, teacher ? 0 : draft.courses.length, (from, to) => onMove?.(from, to), '.course')
   const shown = draft.courses.map((c, i) => ({ c, i })).filter(({ c }) => !teacher || !c.hidden)
+  // スマホは「‹ コースの一覧」を、画面のいちばん上の戻る所に出す（AdminApp の Work。戻る所が2つ並ばないように）
+  const phone = usePhone()
+  const current = shown.find(({ c }) => c.id === openId)
+  if (current) {
+    const { c, i } = current
+    const advisors = c.advisors.filter((a) => a.trim())
+    return (
+      <>
+        {!phone && (
+          <button type="button" className="course-back" onClick={() => onOpen(null)}>
+            <span aria-hidden="true">‹</span>コースの一覧
+          </button>
+        )}
+        <SectionHead title={`${courseName(c)} コース`} lead={`指導教員：${advisors.join('、') || 'まだいません'}`} />
+        {notices}
+        <CourseItem
+          course={c}
+          base={base}
+          draft={draft}
+          teacher={teacher}
+          open
+          onToggle={() => onOpen(null)}
+          onFocus={() => onFocusCourse(c.id)}
+          onChange={(course) => setCourse(i, course)}
+          grip={null}
+          dragging={false}
+          published={!!publishedIds?.has(c.id)}
+          onRemove={() => onRemove?.(i)}
+          onOpenTemplate={() => onOpenTemplate(i)}
+          onEditTemplate={() => onEditTemplate(i)}
+          field={`courses.${i}`}
+          checkSheetUrl={checkSheets?.[c.id]}
+        />
+      </>
+    )
+  }
   return (
     <>
-      <SectionHead title="コースごとの設定" lead={teacher ? 'コースを開いて、お知らせとひな形を直します。' : <>学生が最初に選ぶコースです。開いて直します。並べ替えは <GripMark /> をドラッグします。</>} />
+      <SectionHead title="コースごとの設定" lead={teacher ? 'コースを押して、お知らせとひな形を直します。' : <>学生が最初に選ぶコースです。押すと、そのコースの設定に入ります。並べ替えは <GripMark /> をドラッグします。</>} />
       {notices}
       <div className="course-list" ref={listRef}>
         {shown.map(({ c, i }) => (
@@ -76,8 +114,8 @@ export function CourseSection({ draft, base, teacher = false, openId, onOpen, on
             base={base}
             draft={draft}
             teacher={teacher}
-            open={openId === c.id}
-            onToggle={() => onOpen(openId === c.id ? null : c.id)}
+            open={false}
+            onToggle={() => onOpen(c.id)}
             onFocus={() => onFocusCourse(c.id)}
             onChange={(course) => setCourse(i, course)}
             grip={teacher ? null : order.gripProps(i, c.id)}
@@ -146,123 +184,128 @@ function CourseItem({
   // スマホは見本が右になく、「見本を見る」で開く（mockups/v68 案C）
   const phone = usePhone()
   const advisors = course.advisors.filter((a) => a.trim())
-  return (
-    <div className={`course${open ? ' open' : ''}${course.hidden ? ' hidden-course' : ''}${dragging ? ' dragging' : ''}`} data-course-id={course.id} onFocus={onFocus} onClick={onFocus}>
-      <div className={`crow${grip ? "" : " nogrip"}`}>
-        {/* 並べ替えのつまみ（カードの左上）。つかんで上下に動かす。キーボードでは ↑・↓ */}
-        {grip && (
-          <button className="grip" {...grip}>
-            ⋮⋮
-          </button>
-        )}
-        <div className="cmain">
-          <b className="cname">{courseName(course)} コース</b>
-          <span className="adv">指導教員：{advisors.join('、') || 'まだいません'}</span>
-          {!open && (
-            <span className="chips">
-              {changed() && <Chip kind="chg">変更あり</Chip>}
-              {course.hidden && <Chip kind="off">学生に表示しない</Chip>}
-              {course.notice?.trim() ? (
-                <Chip kind="acc">
-                  {AdminIcon.notice}お知らせあり
-                </Chip>
-              ) : (
-                <Chip>お知らせなし</Chip>
-              )}
-              {course.template?.length ? (
-                <Chip kind="acc">
-                  {AdminIcon.template}独自のひな形
-                </Chip>
-              ) : (
-                <Chip>標準のひな形</Chip>
-              )}
+  // 一覧の1行：押すと、そのコースの設定の画面に入る（つまみ以外は、どこを押してもよい）
+  if (!open)
+    return (
+      <div className={`course${course.hidden ? ' hidden-course' : ''}${dragging ? ' dragging' : ''}`} data-course-id={course.id}>
+        <div className={`crow${grip ? '' : ' nogrip'}`}>
+          {/* 並べ替えのつまみ（カードの左上）。つかんで上下に動かす。キーボードでは ↑・↓ */}
+          {grip && (
+            <button className="grip" {...grip}>
+              ⋮⋮
+            </button>
+          )}
+          <button type="button" className="cmain open-btn" onClick={onToggle} onFocus={onFocus}>
+            <span className="ctext">
+              <b className="cname">{courseName(course)} コース</b>
+              <span className="adv">指導教員：{advisors.join('、') || 'まだいません'}</span>
+              <span className="chips">
+                {changed() && <Chip kind="chg">変更あり</Chip>}
+                {course.hidden && <Chip kind="off">学生に表示しない</Chip>}
+                {course.notice?.trim() ? (
+                  <Chip kind="acc">
+                    {AdminIcon.notice}お知らせあり
+                  </Chip>
+                ) : (
+                  <Chip>お知らせなし</Chip>
+                )}
+                {course.template?.length ? (
+                  <Chip kind="acc">
+                    {AdminIcon.template}独自のひな形
+                  </Chip>
+                ) : (
+                  <Chip>標準のひな形</Chip>
+                )}
+              </span>
             </span>
-          )}
+            <span className="cgo" aria-hidden="true">
+              ›
+            </span>
+          </button>
         </div>
-        <button className="btn sub sm open-btn" aria-expanded={open} aria-controls={open ? bodyId : undefined} onClick={onToggle}>
-          {open ? '閉じる' : '開く'}
-        </button>
       </div>
-      {open && (
-        <div className="cbody" id={bodyId}>
-          {/* 絵・名前・1行の説明・右のスイッチの並び（mockups/v114 案C）。2つのまとまりに分ける */}
-          <div className="set-group">このコースの学生に出すもの</div>
-          <div className="grid set-list">
-            {teacher ? (
-              <Row label="指導教員" hint="変えるときは、管理者に頼んでください" icon={AdminIcon.people} tone="t-people">
-                <div className="plain">{advisors.join('、') || 'まだいません'}</div>
-              </Row>
-            ) : (
-              <>
-                <NameRow course={course} changed={changed('name') || changed('hidden')} onChange={onChange} />
-                <AdvisorRow course={course} changed={changed('advisors')} onChange={onChange} />
-              </>
-            )}
-            <Row label="お知らせ" sub="任意" htmlFor={`c-${course.id}-notice`} hint={NOTICE_HINT} changed={changed('notice')} icon={AdminIcon.notice} tone="t-notice">
-              {/* 書いてから消したときは「お知らせなし」に戻す（空の文字のまま残すと、保存していない変更があるように見えるため） */}
-              <textarea id={`c-${course.id}-notice`} className="in notice" rows={teacher ? 3 : 2} value={course.notice ?? ''} placeholder={NOTICE_EXAMPLE} onChange={(e) => onChange({ ...course, notice: e.target.value || undefined })} />
+    )
+  // コースの設定の画面（コース名と指導教員は、区切りの見出しに出す）
+  return (
+    <div className="course open page" data-course-id={course.id} onFocus={onFocus} onClick={onFocus}>
+      <div className="cbody" id={bodyId}>
+        {/* 絵・名前・1行の説明・右のスイッチの並び（mockups/v114 案C）。2つのまとまりに分ける */}
+        <div className="set-group">このコースの学生に出すもの</div>
+        <div className="grid set-list">
+          {teacher ? (
+            <Row label="指導教員" hint="変えるときは、管理者に頼んでください" icon={AdminIcon.people} tone="t-people">
+              <div className="plain">{advisors.join('、') || 'まだいません'}</div>
             </Row>
-            <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined} icon={AdminIcon.template} tone="t-template">
-              <div className={`tpl-line${course.template?.length ? '' : ' default'}`}>
-                {/* 作ってあるかだけを出す（中身の数の一覧を見て決めることはないため。言葉は「作成済み」「未作成（標準のひな形）」：依頼者 2026-11-05）。数の一覧は、重ねると出る */}
-                <b className={`tpl-state${course.template?.length ? ' on' : ''}`} title={templateSummary(course)}>
-                  {course.template?.length ? (
-                    <>
-                      {AdminIcon.done}
-                      作成済み
-                    </>
-                  ) : (
-                    '未作成（標準のひな形）'
-                  )}
-                </b>
-                {/* 学生と同じ紙面で作る画面を、管理ページの上に重ねて開く（mockups/v44 案A）。開けないときの予備に、前の窓も残す */}
-                <span className="tpl-acts">
-                  <button className="btn sub sm tpl-open" onClick={onOpenTemplate}>
-                    {AdminIcon.template}ひな形を作る画面を開く
-                  </button>
-                  <button className="link tpl-old" onClick={onEditTemplate}>
-                    前の作り方で直す
-                  </button>
-                </span>
-              </div>
-            </Row>
-            {!teacher && <SubtitleRow course={course} changed={changed('subtitleTemplate')} onChange={onChange} />}
-          </div>
-          <div className="set-group">コースで選べること</div>
-          <div className="grid set-list">
-            {/* 表の空の行（コースごとに決める：依頼者の選択 2026-10-22 案1）。先生は見るだけ（変えるときは管理者に頼む） */}
-            {teacher ? (
-              <Row label="表の空の行" hint="変えるときは、管理者に頼んでください" icon={AdminIcon.table} tone="t-table">
-                <div className="plain">{course.blankRowsOk ? '使わない行は、空のままでよい' : '空の行も、空いている所に数える'}</div>
-              </Row>
-            ) : (
-              <Row label="表の空の行" htmlFor={`c-${course.id}-blankrows`} hint={BLANK_ROWS_HINT} changed={changed('blankRowsOk')} icon={AdminIcon.table} tone="t-table">
-                <label className="toggle-label" data-on="使う" data-off="使わない">
-                  <input id={`c-${course.id}-blankrows`} type="checkbox" role="switch" checked={course.blankRowsOk === true} onChange={(e) => onChange({ ...course, blankRowsOk: e.target.checked || undefined })} />
-                  使わない行は、空のままでよい
-                </label>
-              </Row>
-            )}
-            {/* 先生の許可（コースごと。管理者もそのコースの先生も切り替えられる：依頼者の選択 2026-11-04。mockups/v103 ①） */}
-            <PermissionRow course={course} changed={changed('permission')} onChange={onChange} />
-            {/* 点検表（コースごとの Google スプレッドシート）と、学生の並びを直す窓（mockups/v103 案1） */}
-            <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} url={checkSheetUrl} />
-          </div>
-          {/* このコースの誤り・確認（指導教員がいない・4名以上など）は、コースの欄の下に（上の枠に出すと、打っている間に欄がずれた：mockups/v49 G） */}
-          <FieldProblems field={field} />
-          {!teacher && (
-            <div className="cfoot">
-              {published ? (
-                <span>公開したことのあるコースは、消せません。「学生に表示」を外します。</span>
-              ) : (
-                <button className="btn sm danger" onClick={onRemove}>
-                  このコースを削除
-                </button>
-              )}
-            </div>
+          ) : (
+            <>
+              <NameRow course={course} changed={changed('name') || changed('hidden')} onChange={onChange} />
+              <AdvisorRow course={course} changed={changed('advisors')} onChange={onChange} />
+            </>
           )}
+          <Row label="お知らせ" sub="任意" htmlFor={`c-${course.id}-notice`} hint={NOTICE_HINT} changed={changed('notice')} icon={AdminIcon.notice} tone="t-notice">
+            {/* 書いてから消したときは「お知らせなし」に戻す（空の文字のまま残すと、保存していない変更があるように見えるため） */}
+            <textarea id={`c-${course.id}-notice`} className="in notice" rows={teacher ? 3 : 2} value={course.notice ?? ''} placeholder={NOTICE_EXAMPLE} onChange={(e) => onChange({ ...course, notice: e.target.value || undefined })} />
+          </Row>
+          <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined} icon={AdminIcon.template} tone="t-template">
+            <div className={`tpl-line${course.template?.length ? '' : ' default'}`}>
+              {/* 作ってあるかだけを出す（中身の数の一覧を見て決めることはないため。言葉は「作成済み」「未作成（標準のひな形）」：依頼者 2026-11-05）。数の一覧は、重ねると出る */}
+              <b className={`tpl-state${course.template?.length ? ' on' : ''}`} title={templateSummary(course)}>
+                {course.template?.length ? (
+                  <>
+                    {AdminIcon.done}
+                    作成済み
+                  </>
+                ) : (
+                  '未作成（標準のひな形）'
+                )}
+              </b>
+              {/* 学生と同じ紙面で作る画面を、管理ページの上に重ねて開く（mockups/v44 案A）。開けないときの予備に、前の窓も残す */}
+              <span className="tpl-acts">
+                <button className="btn sub sm tpl-open" onClick={onOpenTemplate}>
+                  {AdminIcon.template}ひな形を作る画面を開く
+                </button>
+                <button className="link tpl-old" onClick={onEditTemplate}>
+                  前の作り方で直す
+                </button>
+              </span>
+            </div>
+          </Row>
+          {!teacher && <SubtitleRow course={course} changed={changed('subtitleTemplate')} onChange={onChange} />}
         </div>
-      )}
+        <div className="set-group">コースで選べること</div>
+        <div className="grid set-list">
+          {/* 表の空の行（コースごとに決める：依頼者の選択 2026-10-22 案1）。先生は見るだけ（変えるときは管理者に頼む） */}
+          {teacher ? (
+            <Row label="表の空の行" hint="変えるときは、管理者に頼んでください" icon={AdminIcon.table} tone="t-table">
+              <div className="plain">{course.blankRowsOk ? '使わない行は、空のままでよい' : '空の行も、空いている所に数える'}</div>
+            </Row>
+          ) : (
+            <Row label="表の空の行" htmlFor={`c-${course.id}-blankrows`} hint={BLANK_ROWS_HINT} changed={changed('blankRowsOk')} icon={AdminIcon.table} tone="t-table">
+              <label className="toggle-label" data-on="使う" data-off="使わない">
+                <input id={`c-${course.id}-blankrows`} type="checkbox" role="switch" checked={course.blankRowsOk === true} onChange={(e) => onChange({ ...course, blankRowsOk: e.target.checked || undefined })} />
+                使わない行は、空のままでよい
+              </label>
+            </Row>
+          )}
+          {/* 先生の許可（コースごと。管理者もそのコースの先生も切り替えられる：依頼者の選択 2026-11-04。mockups/v103 ①） */}
+          <PermissionRow course={course} changed={changed('permission')} onChange={onChange} />
+          {/* 点検表（コースごとの Google スプレッドシート）と、学生の並びを直す窓（mockups/v103 案1） */}
+          <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} url={checkSheetUrl} />
+        </div>
+        {/* このコースの誤り・確認（指導教員がいない・4名以上など）は、コースの欄の下に（上の枠に出すと、打っている間に欄がずれた：mockups/v49 G） */}
+        <FieldProblems field={field} />
+        {!teacher && (
+          <div className="cfoot">
+            {published ? (
+              <span>公開したことのあるコースは、消せません。「学生に表示」を外します。</span>
+            ) : (
+              <button className="btn sm danger" onClick={onRemove}>
+                このコースを削除
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

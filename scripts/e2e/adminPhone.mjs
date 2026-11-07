@@ -60,7 +60,8 @@ await withEdge(async (browser) => {
     const titles = await page.evaluate(() => [...document.querySelectorAll('.side-nav button')].map((b) => b.querySelector('.nt b').firstChild.textContent.trim()))
     const over = []
     for (const t of titles) {
-      if (!(await visible(page, '.side-nav'))) await tap(page, '.phone-back')
+      // コースの画面では、上の戻る所は「‹ コースの一覧」（2026-11-07 案1）。区切りの一覧が出るまで戻る
+      for (let i = 0; i < 3 && !(await visible(page, '.side-nav')); i++) await tap(page, '.phone-back')
       await tap(page, '.side-nav button', t)
       const state = { t, list: await visible(page, '.side-nav'), back: await visible(page, '.phone-back'), head: await page.evaluate(() => document.querySelector('.content .sec-h')?.textContent ?? ''), over: await overflow(page) }
       if (state.list || !state.back || state.over > 0) over.push(state)

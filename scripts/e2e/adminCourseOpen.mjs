@@ -1,5 +1,6 @@
-// 管理ページの「コースごとの設定」（前の「コース」。依頼者の要望 2026-11-02）：はじめはどのコースも閉じたまま。
-// この端末で最後に開いていたコースを覚えておき、次に開いたときは、そのコースを開いた形で始める（閉じていれば閉じたまま）。管理者・先生の画面とも
+// 管理ページの「コースごとの設定」：はじめはコースの一覧（1コース1行）。押すと、そのコースの設定の画面に入り、ほかのコースは出さない。
+// 「‹ コースの一覧」で戻る（依頼者の選択 2026-11-07 案1。前は一覧の中でその場で広げていた）。
+// この端末で最後に入っていたコースを覚えておき、次に開いたときは、そのコースの画面から始める（一覧に戻っていれば一覧から）。管理者・先生の画面とも
 // これだけを流すときは node scripts/e2e/run.mjs adminCourseOpen
 import { withEdge } from '../poc/edge.mjs'
 
@@ -25,16 +26,20 @@ const nav = async (page, title) => {
   await page.evaluate((title) => [...document.querySelectorAll('.side-nav button')].find((b) => b.querySelector('.nt b')?.firstChild?.textContent.trim() === title).click(), title)
   await wait(300)
 }
-/** 開いているコースの名前（閉じていれば null）と、コースの数 */
-const courses = (page) => page.evaluate(() => ({ open: [...document.querySelectorAll('.course.open')].map((c) => c.querySelector('.cname, input')?.textContent || c.querySelector('input')?.value || c.dataset.courseId), ids: [...document.querySelectorAll('.course')].map((c) => c.dataset.courseId), openIds: [...document.querySelectorAll('.course.open')].map((c) => c.dataset.courseId) }))
-const toggle = async (page, id) => {
-  await page.evaluate((id) => document.querySelector(`.course[data-course-id="${id}"] .open-btn`).click(), id)
-  await wait(300)
-}
+/** 今の見え方：区切りの見出し・一覧のコース・入っているコース（なければ null）・「‹ コースの一覧」があるか */
+const state = (page) =>
+  page.evaluate(() => ({
+    head: document.querySelector('.content .sec-h')?.textContent ?? '',
+    ids: [...document.querySelectorAll('.course-list .course')].map((c) => c.dataset.courseId),
+    page: document.querySelector('.course.page')?.dataset.courseId ?? null,
+    courses: document.querySelectorAll('.content .course').length,
+    back: !!document.querySelector('.course-back'),
+  }))
 const reopen = async (page) => {
   await page.reload({ waitUntil: 'networkidle0' })
   await page.waitForSelector('.side-nav')
   await wait(300)
+  if (!(await page.$('.course-list, .course.page'))) await nav(page, 'コースごとの設定')
 }
 
 await withEdge(async (browser) => {
@@ -44,22 +49,27 @@ await withEdge(async (browser) => {
     const page = await open(context, { teacher })
     check(`${who}：左の見出しは「コース」ではなく「コースごとの設定」`, (await navTitles(page)).includes('コースごとの設定') && !(await navTitles(page)).includes('コース'), JSON.stringify(await navTitles(page)))
     await nav(page, 'コースごとの設定')
-    const head = await page.evaluate(() => document.querySelector('.content .sec-h')?.textContent ?? '')
-    let c = await courses(page)
-    check(`${who}：区切りの見出しも「コースごとの設定」。はじめは、どのコースも閉じている（いちばん上も開かない）`, head === 'コースごとの設定' && c.ids.length >= 1 && c.openIds.length === 0, JSON.stringify({ head, c }))
-    // コースを開いて、読み込み直す → そのコースが開いた形で始まる（試験用の設定のコースは、いちばん下のもの）
-    const second = c.ids.at(-1)
-    await toggle(page, second)
+    let s = await state(page)
+    check(`${who}：はじめはコースの一覧（見出しは「コースごとの設定」。どのコースにも入っていない）`, s.head === 'コースごとの設定' && s.ids.length >= 1 && s.page === null && !s.back, JSON.stringify(s))
+    // コースを押す → そのコースの画面（見出しはコース名。ほかのコースは出さない。上に「‹ コースの一覧」）
+    const last = s.ids.at(-1)
+    const name = await page.evaluate((id) => document.querySelector(`.course[data-course-id="${id}"] .cname`).textContent, last)
+    await page.evaluate((id) => document.querySelector(`.course[data-course-id="${id}"] .open-btn`).click(), last)
+    await wait(300)
+    s = await state(page)
+    check(`${who}：コースを押すと、そのコースの画面に入る（見出しはコース名・ほかのコースは出さない・上に「‹ コースの一覧」）`, s.page === last && s.head === name && s.courses === 1 && s.ids.length === 0 && s.back, JSON.stringify({ ...s, name }))
+    // 読み込み直す → そのコースの画面から始まる
     await reopen(page)
-    if ((await page.evaluate(() => document.querySelector('.content .sec-h')?.textContent)) !== 'コースごとの設定') await nav(page, 'コースごとの設定')
-    c = await courses(page)
-    check(`${who}：開いていたコースを覚えていて、次に開くと、そのコースが開いた形で始まる`, c.openIds.join() === second, JSON.stringify(c))
-    // 閉じて、読み込み直す → 閉じたまま
-    await toggle(page, second)
+    s = await state(page)
+    check(`${who}：入っていたコースを覚えていて、次に開くと、そのコースの画面から始まる`, s.page === last && s.head === name, JSON.stringify(s))
+    // 「‹ コースの一覧」で戻る → 一覧。読み込み直しても一覧のまま
+    await page.click('.course-back')
+    await wait(300)
+    s = await state(page)
+    check(`${who}：「‹ コースの一覧」で一覧に戻る`, s.page === null && s.head === 'コースごとの設定' && s.ids.includes(last), JSON.stringify(s))
     await reopen(page)
-    if ((await page.evaluate(() => document.querySelector('.content .sec-h')?.textContent)) !== 'コースごとの設定') await nav(page, 'コースごとの設定')
-    c = await courses(page)
-    check(`${who}：閉じてから読み込み直すと、閉じたまま始まる`, c.openIds.length === 0, JSON.stringify(c))
+    s = await state(page)
+    check(`${who}：一覧に戻ってから読み込み直すと、一覧から始まる`, s.page === null && s.head === 'コースごとの設定', JSON.stringify(s))
     await context.close()
   }
 })

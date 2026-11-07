@@ -465,7 +465,15 @@ function DirtyBar({ changes, row, teacher, busy, onSave, onShow }: { changes: st
  * 区切りの中身と見本を並べる所。見本のある区切りは、中身と見本の境目をつかんで中身の幅を変えられる（useFormWidth.ts）。
  * 保存などでサーバーを待つ間は、中身を触れなくする（終わると、サーバーから返った内容に置き換わり、その間に書いた分が消えるため）
  */
-function Work({ content, stage, locked, formWidth, onBack }: { content: ReactNode; stage: ReactNode | null; locked: boolean; formWidth: ReturnType<typeof useFormWidth>; onBack?: () => void }) {
+/** 区切りの中身を、いちばん上から見せる（コースの画面に入った・一覧に戻ったとき。PC は中身の欄が、スマホはページがスクロールする） */
+function showFromTop() {
+  requestAnimationFrame(() => {
+    document.querySelector('.content')?.scrollTo(0, 0)
+    window.scrollTo(0, 0)
+  })
+}
+
+function Work({ content, stage, locked, formWidth, onBack, backLabel = '管理ページの一覧' }: { content: ReactNode; stage: ReactNode | null; locked: boolean; formWidth: ReturnType<typeof useFormWidth>; onBack?: () => void; backLabel?: string }) {
   // スマホ：見本は「見本を見る」で、画面いっぱいに開く（mockups/v68 案C）
   const [preview, setPreview] = useState(false)
   /** 見本を開く前に見ていた位置（閉じたら戻す。前はページのいちばん上に戻り、余白の欄などを探し直した：管理ページの試し 2026-10-27） */
@@ -476,7 +484,8 @@ function Work({ content, stage, locked, formWidth, onBack }: { content: ReactNod
         {/* スマホ：区切りの一覧へ戻る・見本を見る（並ぶ位置は admin.css。見出しと説明の下に「見本を見る」） */}
         {onBack && (
           <button className="phone-back" onClick={onBack}>
-            <span aria-hidden="true">‹</span>管理ページの一覧
+            <span aria-hidden="true">‹</span>
+            {backLabel}
           </button>
         )}
         {onBack && stage && (
@@ -841,6 +850,12 @@ export function AdminApp() {
   const counts = countBySection(changes)
   const openId = openCourseId
   const shownCourse = draft.courses.find((c) => c.id === (previewCourse ?? openId)) ?? draft.courses[0]
+  /** コースの設定の画面に入る（null：コースの一覧に戻る）。入ったコースを見本にも出す */
+  const enterCourse = (id: string | null) => {
+    setOpenCourse(id)
+    if (id) setPreviewCourse(id)
+    showFromTop()
+  }
 
   const save = async () => {
     // 公開中の年度と、終了した年度（その年度に書き始めた学生が今も読む）は、エラーがあると学生のツールで使えないので保存しない
@@ -1002,10 +1017,7 @@ export function AdminApp() {
         draft={draft}
         base={row.config}
         openId={openId}
-        onOpen={(id) => {
-          setOpenCourse(id)
-          if (id) setPreviewCourse(id)
-        }}
+        onOpen={enterCourse}
         onFocusCourse={setPreviewCourse}
         setCourse={setCourse}
         onMove={(from, to) =>
@@ -1082,7 +1094,8 @@ export function AdminApp() {
         <Work
           formWidth={formWidth}
           locked={busy !== null}
-          onBack={phone ? backToList : undefined}
+          onBack={phone ? (section === 'course' && openId ? () => enterCourse(null) : backToList) : undefined}
+          backLabel={section === 'course' && openId ? 'コースの一覧' : undefined}
           content={content}
           stage={WITH_PREVIEW.includes(section) ? <CoverStage config={draft} course={shownCourse} /> : null}
         />
@@ -1252,6 +1265,12 @@ function TeacherView({
   // 開いているコース（はじめは、この端末で最後に開いていたコース：useOpenCourse）
   const [openId, setOpenCourse] = useOpenCourse(draft.courses.filter((c) => !c.hidden).map((c) => c.id))
   const [previewCourse, setPreviewCourse] = useState<string | null>(null)
+  /** コースの設定の画面に入る（null：コースの一覧に戻る）。入ったコースを見本にも出す */
+  const enterCourse = (id: string | null) => {
+    setOpenCourse(id)
+    if (id) setPreviewCourse(id)
+    showFromTop()
+  }
   const [showChanges, setShowChanges] = useState(false)
   /** 「？ 使い方」の欄を開いている */
   const [help, setHelp] = useState(false)
@@ -1333,7 +1352,8 @@ function TeacherView({
         <Work
           formWidth={formWidth}
           locked={busy !== null}
-          onBack={phone ? backToList : undefined}
+          onBack={phone ? (section === 'course' && openId ? () => enterCourse(null) : backToList) : undefined}
+          backLabel={section === 'course' && openId ? 'コースの一覧' : undefined}
           content={
             section === 'course' ? (
                 <CourseSection
@@ -1341,10 +1361,7 @@ function TeacherView({
                   base={row.config}
                   teacher
                   openId={openId}
-                  onOpen={(id) => {
-                    setOpenCourse(id)
-                    if (id) setPreviewCourse(id)
-                  }}
+                  onOpen={enterCourse}
                   onFocusCourse={setPreviewCourse}
                   setCourse={(i, c) => setDraft({ ...draft, courses: draft.courses.map((x, j) => (j === i ? c : x)) })}
                   onOpenTemplate={setTemplateScreen}
