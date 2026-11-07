@@ -1053,6 +1053,18 @@ const OLD_TOP_NOTES = ['並びを直すときは、管理ページの「コー�
 /** 案内の行：薄い黄色の帯に、濃い茶色の太字（依頼者の選択 2026-11-07 案B。前の小さな灰色の字では気づかれにくかった） */
 const TOP_NOTE_INK = '#5c3b00'
 const TOP_NOTE_FILL = '#fff1c2'
+const TOP_NOTE_SIZE = 12
+
+/**
+ * 案内の文の幅（ピクセルの見積もり：全角の字は文字の大きさ1つぶん、半角は半分、左のすき間）。
+ * 本物より少し多め（12 ポイントの今の文は、画面で約 846 ピクセル・見積もり 872）
+ */
+function noteWidthPx_(text, pt) {
+  const em = (pt * 4) / 3
+  let px = 4
+  for (const ch of String(text)) px += ch.codePointAt(0) > 0xff ? em : em / 2
+  return px
+}
 
 /** 見出しの名前（空白・改行を除く。「最新\nPDF」→「最新PDF」） */
 function headName_(value) {
@@ -1778,8 +1790,8 @@ function syncCheckSheet_(entry, course, roster) {
 
   // 見た目と守り（並べ方・人数・見出し・先生が変わったときだけ）
   const props = PropertiesService.getScriptProperties()
-  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07）
-  const signature = JSON.stringify({ v: 3, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
+  // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで）
+  const signature = JSON.stringify({ v: 4, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
     formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh)
     props.setProperty('checkLayout:' + entry.id, signature)
@@ -1908,16 +1920,6 @@ function writeValue_(kind, value) {
 function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh) {
   sheet.setFrozenRows(h + 1)
   sheet.setRowHeight(h + 1, 36)
-  // 案内の行（見出しの上）：表の幅（使っている最後の段の右の列まで）を薄い黄色の帯にし、1段目の左から濃い茶色の太字で（依頼者の選択 2026-11-07 案B）
-  if (h > 0) {
-    const shown = blocks.slice(0, Math.max(1, layout.blocks))
-    const width = Math.max(header.length, shown[shown.length - 1].end + 1)
-    const note = sheet.getRange(1, 1)
-    if (OLD_TOP_NOTES.indexOf(String(note.getValue())) >= 0) note.setValue(CHECK_TOP_NOTE)
-    sheet.getRange(1, 1, 1, width).setBackground(TOP_NOTE_FILL)
-    note.setFontSize(12).setFontColor(TOP_NOTE_INK).setFontWeight('bold').setHorizontalAlignment('left').setVerticalAlignment('middle').setWrap(false)
-    sheet.setRowHeight(1, 28)
-  }
   const checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build()
   const choices = []
   surnames.forEach((t) => choices.push(t + ' 予定', t + ' 済み'))
@@ -1968,6 +1970,23 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
       }
     }
   })
+  // 案内の行（見出しの上）：薄い黄色の帯にし、1段目の左から濃い茶色の太字で（依頼者の選択 2026-11-07 案B）。
+  // 帯は表の幅（使っている最後の段の右の列まで）。文字が表より長いときは、文字の終わりの先の列まで伸ばす（表の幅だけでは、文字が帯からはみ出した）。
+  // 列の幅で測るので、列を整えたあとに塗る
+  if (h > 0) {
+    const shown = blocks.slice(0, Math.max(1, layout.blocks))
+    let width = Math.max(header.length, shown[shown.length - 1].end + 1)
+    const note = sheet.getRange(1, 1)
+    if (OLD_TOP_NOTES.indexOf(String(note.getValue())) >= 0) note.setValue(CHECK_TOP_NOTE)
+    const need = noteWidthPx_(note.getValue(), TOP_NOTE_SIZE)
+    const seen = (c) => (sheet.isColumnHiddenByUser(c) ? 0 : sheet.getColumnWidth(c))
+    let px = 0
+    for (let c = 1; c <= width; c++) px += seen(c)
+    while (px < need && width < sheet.getMaxColumns()) px += seen(++width)
+    sheet.getRange(1, 1, 1, width).setBackground(TOP_NOTE_FILL)
+    note.setFontSize(TOP_NOTE_SIZE).setFontColor(TOP_NOTE_INK).setFontWeight('bold').setHorizontalAlignment('left').setVerticalAlignment('middle').setWrap(false)
+    sheet.setRowHeight(1, 28)
+  }
   // 守り：前にツールが付けた守りを外して、付け直す（列・段が変わったときに、今の列に合わせる）。
   // 行ごとは守らない（白い回の列のところに、先生が列を足せるように：依頼者の選択 2026-11-04）
   sheet

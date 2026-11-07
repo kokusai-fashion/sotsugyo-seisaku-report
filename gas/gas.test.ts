@@ -104,6 +104,10 @@ class FakeSheet {
   setFrozenRows = (n: number) => void (this.frozen = n)
   setRowHeight = () => {}
   setColumnWidth = (c: number, w: number) => void (this.colAt(c - 1).width = w)
+  /** 幅を決めていない列は 100（スプレッドシートの初めの幅） */
+  getColumnWidth = (c: number) => this.colAt(c - 1).width ?? 100
+  isColumnHiddenByUser = (c: number) => !!this.colAt(c - 1).hidden
+  getMaxColumns = () => Math.max(26, this.width())
   hideColumns = (c: number) => void (this.colAt(c - 1).hidden = true)
   showColumns = (c: number) => void (this.colAt(c - 1).hidden = false)
   setName = (n: string) => {
@@ -1697,8 +1701,14 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     const rows = tab().rows
     expect(rows[0][0]).toBe(TOP_NOTE)
     expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
-    // 帯は表の幅まで（「知らせ」の列の上も）
+    // 帯は表の幅まで（「知らせ」の列の上も）。この表では文字のほうが長いので、文字の終わりの先の列まで伸びる
+    // （全角 54 字 × 12 ポイント ≒ 864 ピクセル。隠した列は数えない。伸ばしすぎない：最後の列を除くと文字に届かない）
     expect(tab().fmtAt(0, 11).background).toBe('#fff1c2')
+    const band = tab().fmts[0].map((f, c) => (f.background === '#fff1c2' && !tab().cols[c]?.hidden ? (tab().cols[c]?.width ?? 100) : 0))
+    const bandPx = band.reduce((a, b) => a + b, 0)
+    expect(band.length).toBeGreaterThan(15)
+    expect(bandPx).toBeGreaterThanOrEqual(54 * 16)
+    expect(bandPx - band[band.length - 1]).toBeLessThan(54 * 16 + 12)
     expect(rows[1].slice(0, 15).map(norm)).toEqual(['番号', '氏名', '最新PDF', '1回目', '2回目', '3回目', '抄録', '4回目', '抄録許可', '最終提出可', '教務提出', '知らせ', '学籍番号', '抄録許可の記録', '最終提出可の記録'])
     expect(tab().frozen).toBe(2)
     expect(rows.slice(2).map((r) => [r[0], r[1], r[11], r[12]])).toEqual([
@@ -1739,7 +1749,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     admin().ensureCheckSheet(2026, FILM.id)
     // 前の版で作った点検表のふり：1行目は前の文・灰色の小さな字、見た目の決まりは前の版（v2）
     tab().getRange(1, 1).setValue(OLD_TOP_NOTE).setFontSize(9).setFontColor('#7a8088').setFontWeight(null).setBackground(null)
-    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":3', '{"v":2'))
+    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":4', '{"v":3'))
     admin().syncCheckSheets()
     expect(tab().rows[0][0]).toBe(TOP_NOTE)
     expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
