@@ -1105,6 +1105,15 @@ const TEACHER_TONES = [
 ]
 const PLAN_INK = '#a0a5ad'
 /**
+ * 所属の列の色（所属ごとの淡い地と濃い字。登録した順に、青灰・藤色・水色。4つ目からは繰り返し）。依頼者の選択 2026-11-09 mockups/v121 案A：
+ * 所属の列のセルだけを塗る（回の列の先生の色（薄赤・緑・砂色）や、見出しの色とまぎれない色）
+ */
+const GROUP_TONES = [
+  { bg: '#d7e1f2', ink: '#2d4470' },
+  { bg: '#e5d9f2', ink: '#56377c' },
+  { bg: '#cfeaec', ink: '#1b5a5e' },
+]
+/**
  * 見出しと列の色（v107 案A：ツールが入れる列は灰色、許可の列はうすい黄色）。見出しは役目ごとに淡い色と濃い字で分ける
  * （依頼者の選択 2026-11-07 案A。前はどれも灰色に近く、違いが分かりにくかった）：ツールが書く列は灰色・点検の回は青・許可は黄色・教務提出は緑
  */
@@ -1991,9 +2000,19 @@ function syncCheckSheet_(entry, course, roster) {
     }
     return out
   })
-  const signature = JSON.stringify({ v: 8, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames, edges: edges })
+  // 所属の色（段ごと、行ごとの所属の番号。選んでいない学生・学生のいない行は -1）
+  const groupList = courseGroups_(course)
+  const tones = blocks.slice(0, layout.blocks).map((b, bi) => {
+    const out = []
+    for (let r = 0; r < layout.perBlock; r++) {
+      const st = students[bi * layout.perBlock + r]
+      out.push(wantGroup && st ? groupList.indexOf(st.group) : -1)
+    }
+    return out
+  })
+  const signature = JSON.stringify({ v: 8, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames, edges: edges, tones: tones })
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
-    formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh, edges)
+    formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh, edges, tones)
     props.setProperty('checkLayout:' + entry.id, signature)
   }
 }
@@ -2119,7 +2138,7 @@ function writeValue_(kind, value) {
  * いちばん上の案内の行と見出しの行は固定する。ツールが書く列（見出しから下まで。すき間の列も）・✓ の列の見出し・案内の行のはじめの3列は、
  * デプロイした人だけが書けるように守る（作り直す）。白い回の列は、見出しも中身も守らない（先生がコースで自由に足す・消す・名前を変える）
  */
-function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh, edges) {
+function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh, edges, tones) {
   sheet.setFrozenRows(h + 1)
   sheet.setRowHeight(h + 1, 36)
   const checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build()
@@ -2160,6 +2179,15 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
         // 長い氏名（留学生など）は折り返す：その学生の行だけ2行の高さになる（依頼者の選択 2026-11-07 案1。前は列の幅で切れた）。行の中の字は上下の真ん中に
         cells.setVerticalAlignment('middle').setWrap(kind === 'name' || kind === 'group')
         cells.setFontWeight(kind === 'name' ? 'bold' : null)
+        // 所属の列：所属ごとの淡い地と濃い字（mockups/v121 案A）。選んでいない学生は、ほかのツールの列と同じ灰色
+        if (kind === 'group') {
+          const each = ((tones && tones[bi]) || []).slice(0, filled)
+          while (each.length < filled) each.push(-1)
+          const tone = (g) => (g >= 0 ? GROUP_TONES[g % GROUP_TONES.length] : null)
+          cells.setBackgrounds(each.map((g) => [tone(g) ? tone(g).bg : CHECK_COLORS.toolCell]))
+          cells.setFontColors(each.map((g) => [tone(g) ? tone(g).ink : CHECK_COLORS.toolInk]))
+          cells.setFontWeight('bold')
+        }
         if (kind === 'key') cells.setNumberFormat('@')
         if (kind === 'round') roundRanges.push(cells)
         if (kind === 'note') noteRanges.push(cells)

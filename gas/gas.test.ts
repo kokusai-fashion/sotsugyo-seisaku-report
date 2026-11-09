@@ -176,6 +176,14 @@ class FakeSheet {
         return this.getProtections().at(-1)!
       },
       setBackground: (b: string | null) => (each((f) => (f.background = b)), range),
+      setBackgrounds: (bs: (string | null)[][]) => {
+        for (let i = 0; i < numRows; i++) for (let j = 0; j < numCols; j++) this.fmtAt(row - 1 + i, col - 1 + j).background = bs[i][j]
+        return range
+      },
+      setFontColors: (cs: string[][]) => {
+        for (let i = 0; i < numRows; i++) for (let j = 0; j < numCols; j++) this.fmtAt(row - 1 + i, col - 1 + j).color = cs[i][j]
+        return range
+      },
       setDataValidation: (v: Validation | null) => (each((f) => (f.validation = v)), range),
       setNumberFormat: (n: string) => (each((f) => (f.numberFormat = n)), range),
       setValue: (v: Cell) => (this.put(row - 1, col - 1, this.written(v)), range),
@@ -2117,6 +2125,11 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(tab().fmtAt(s[idOf(1)].row, 0).borderTop).toBe('SOLID_MEDIUM')
     expect(tab().fmtAt(s[idOf(25)].row, 0).borderTop).toBe('SOLID_MEDIUM')
     expect(tab().fmtAt(s[idOf(2)].row, 0).borderTop ?? null).toBeNull()
+    // 所属の列だけ、所属ごとの淡い地と濃い字（mockups/v121 案A）。選んでいない学生は灰色
+    const g = s[idOf(0)].col('所属')
+    expect([idOf(0), idOf(1), idOf(25)].map((k) => tab().fmtAt(s[k].row, g).background)).toEqual(['#d7e1f2', '#e5d9f2', '#f3f4f6'])
+    expect(tab().fmtAt(s[idOf(1)].row, g)).toMatchObject({ color: '#56377c', bold: true })
+    expect(tab().fmtAt(s[idOf(1)].row, s[idOf(1)].col('氏名')).background).toBe('#f3f4f6')
 
     // 先生が直す：学生0 を②班に（名簿の所属と日時。学生のツールは、点検表の様子を聞いたときに受け取る）
     admin().saveStudentOrder(2026, FILM.id, null, { [idOf(0)]: '②班' })
