@@ -39,6 +39,10 @@
       ol: 'left:calc(0% - ' + away + ' - var(--mkout));top:' + cy + '%',
     }[x.at]
   }
+  /** 画像の中の位置（%）を、縁の線の内側の位置にして、枠のすき間のぶん外へ出す */
+  function inner(p) {
+    return 'calc(var(--imgb) + (100% - 2 * var(--imgb)) * ' + f(p / 100) + ' - var(--hlpad))'
+  }
   var figures = document.querySelectorAll('figure[data-shot]')
   for (var i = 0; i < figures.length; i++) {
     var fig = figures[i]
@@ -72,7 +76,10 @@
     var html = '<img src="' + BASE + name + '.jpg" alt="' + (fig.getAttribute('aria-label') || '') + '"' + (crop < 1 ? ' style="height:' + f(100 / crop) + '%"' : '') + '>'
     marks.forEach(function (x) {
       if (hl.indexOf(x.n) >= 0)
-        html += '<span class="hl" style="left:calc(' + x.box.x + '% - 0.6mm);top:calc(' + x.box.y + '% - 0.6mm);width:calc(' + x.box.w + '% + 1.2mm);height:calc(' + x.box.h + '% + 1.2mm)"></span>'
+        // 画像は縁の線（--imgb）の内側に描かれるので、枠もその内側の位置で囲む（縁の線のぶん、小さな印から枠がずれていた：依頼者 2026-11-10）。
+        // 枠と部品のすき間は --hlpad、角の丸みは --hlr（図の style で変えられる。小さな丸い印は、丸く囲む）
+        html +=
+          '<span class="hl" style="left:' + inner(x.box.x, 'x') + ';top:' + inner(x.box.y, 'y') + ';width:calc((100% - 2 * var(--imgb)) * ' + f(x.box.w / 100) + ' + 2 * var(--hlpad));height:calc((100% - 2 * var(--imgb)) * ' + f(x.box.h / 100) + ' + 2 * var(--hlpad))"></span>'
     })
     var shown = marks.filter(function (x) {
       return (!badges || badges.indexOf(x.n) >= 0) && x.box.y < 100

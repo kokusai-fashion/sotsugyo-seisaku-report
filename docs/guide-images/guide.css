@@ -38,7 +38,10 @@ b, strong { font-weight: 700; }
 .shot.sm { --mkr: 2.4mm; }
 .shot.sm .mk { width: 4.8mm; height: 4.8mm; font-size: 9pt; }
 .t .shot .mk { background: var(--sky); }
-.shot .hl { position: absolute; z-index: 1; pointer-events: none; border: 0.55mm solid var(--ink); border-radius: 1.2mm; }
+/* --imgb：画像の縁の線の太さ（下の .shot > img と同じ。線のない画像は 0）。--hlpad・--hlr：枠で囲むときのすき間と角の丸み（guide.js） */
+.shot { --imgb: 0.3mm; --hlpad: 0.6mm; --hlr: 1.2mm; }
+.shot.flat, .phone .shot { --imgb: 0mm; }
+.shot .hl { position: absolute; z-index: 1; pointer-events: none; border: 0.55mm solid var(--ink); border-radius: var(--hlr); }
 .shot .ld { position: absolute; z-index: 1; height: 0.4mm; margin-top: -0.2mm; background: var(--ink); }
 /* 画像を置く台（灰色の地に、画像を真ん中に） */
 .stage { display: grid; place-items: center; padding: 2.4mm; background: var(--gray); }
