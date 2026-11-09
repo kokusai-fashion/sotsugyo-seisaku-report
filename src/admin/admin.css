@@ -838,6 +838,7 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .ck-url code { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; background: #f3f5f8; border-radius: 6px; padding: 5px 8px; font-size: 12px; color: #445; }
 .ck-url button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; }
 .ck-pop small { color: #667; font-size: 12px; }
+.ck-pop small a { color: var(--accent); text-underline-offset: 3px; }
 .ck-filter { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 13.5px; }
 .ck-grp { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ck-grp .k { color: #667; font-weight: 600; }
@@ -995,5 +996,6 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
 .pf-other:disabled { opacity: 0.5; cursor: default; }
 /* スマホの一覧：区切りのボタンの「›」を、左下の「氏名と担当コース」には付けない */
 .side-nav .me .profile-link::after { content: none !important; }
+.side-nav .me .home-link { margin-top: 2px; color: var(--accent); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
 .member-list small.prof { color: #3c4250; }
 .member-list small.prof.none { color: var(--muted); }

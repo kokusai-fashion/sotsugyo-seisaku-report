@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>v133 ホーム画面に置く入口のページ</title>
+<!-- 管理ページ・点検表をホーム画面に置くための入口のページ（GitHub Pages）の見本（依頼者 2026-11-10：「入口のページを作る」）。
+     node scripts/mockup-v133-home-entry.mjs → mockups/v133/v133-home-entry.png -->
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udmincho/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/700.css" />
+<style>
+  :root { --ink: #26262b; --muted: #6b6b73; --line: #e2ded6; --nando: #1f6273; --kaki: #9a5434; --navy: #2f3e75; --accent: #1e3a8a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 32px 32px; width: 1180px; background: #f3f1ec; color: var(--ink); font-family: 'BIZ UDPGothic', sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .lead { font-size: 14px; color: var(--muted); margin: 0 0 18px; line-height: 1.7; }
+  h2.sec { font-size: 16px; margin: 22px 0 10px; }
+  .row { display: grid; grid-template-columns: 330px 330px 1fr; gap: 20px; align-items: start; }
+  .cap { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  /* スマホの画面 */
+  .phone { width: 330px; border-radius: 26px; background: #fff; border: 8px solid #1d1d22; overflow: hidden; }
+  .bar { height: 30px; background: #f1f1f4; border-bottom: 1px solid #e3e3e8; font-size: 10.5px; color: #555; display: flex; align-items: center; justify-content: center; }
+  .page { padding: 22px 18px 20px; display: grid; gap: 14px; justify-items: center; text-align: center; }
+  .kick { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; }
+  .page h3 { margin: 0; font-size: 22px; }
+  .page p { margin: 0; font-size: 13.5px; line-height: 1.7; }
+  .how { width: 100%; text-align: left; background: #f6f5f1; border-radius: 12px; padding: 12px 14px; font-size: 12.5px; line-height: 1.7; }
+  .how b { display: block; font-size: 13px; margin-bottom: 4px; }
+  .how div + div { margin-top: 6px; }
+  .how em { font-style: normal; font-weight: 700; }
+  .go { width: 100%; border: 0; border-radius: 12px; padding: 13px; font: 700 15px 'BIZ UDPGothic', sans-serif; color: #fff; }
+  .small { font-size: 11.5px !important; color: var(--muted); }
+  .other { font-size: 12.5px; color: var(--accent); text-decoration: underline; }
+  /* アイコン */
+  .icon { width: 180px; height: 180px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .icon .k { font-family: 'BIZ UDMincho', serif; line-height: 1; font-size: 84px; color: #fff; }
+  .icon .s { font-family: 'BIZ UDPGothic', sans-serif; font-weight: 700; line-height: 1; font-size: 30px; letter-spacing: 0.12em; padding-left: 0.12em; margin-top: 10px; color: #fff; }
+  .page .icon { zoom: 0.5; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  /* 丸く切り抜く形（Android）。字は真ん中に小さめ */
+  .icon.round { border-radius: 50%; }
+  .icon.round .k { font-size: 68px; }
+  .icon.round .s { font-size: 25px; margin-top: 8px; }
+  .icon.stu .k { font-size: 96px; }
+  .icon.stu.round .k { font-size: 96px; }
+  .home { border-radius: 18px; padding: 16px 10px 14px; background: linear-gradient(160deg, #3c3c42, #6d6d74 55%, #a5a5ab); display: grid; grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
+  .home.ios { background: linear-gradient(160deg, #5b6c8f, #8c7fa3 60%, #b49b8e); }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .app .ic { width: 60px; height: 60px; display: grid; place-items: center; }
+  .app .ic .icon { zoom: 0.3333; }
+  .home.ios .ic .icon { border-radius: 42px; }
+  .app .lbl { width: 84px; text-align: center; color: #fff; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+  .homes { display: grid; gap: 10px; }
+  /* 管理ページの中の入口へのリンク */
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .card { background: #fff; border-radius: 14px; padding: 16px 18px; border: 1px solid var(--line); display: grid; gap: 12px; align-content: start; }
+  .card h3 { font-size: 16px; margin: 0; display: flex; gap: 8px; align-items: baseline; }
+  .card h3 .rec { padding: 2px 9px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 12px; }
+  .card .note { font-size: 13px; line-height: 1.6; margin: 0; color: #444; }
+  .shots { display: grid; grid-template-columns: 190px 1fr; gap: 12px; align-items: start; }
+  .nav-foot { background: #f7f7fa; border: 1px solid #e4e4ea; border-radius: 10px; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: #444; display: grid; gap: 2px; }
+  .nav-foot b { font-size: 12.5px; color: var(--ink); }
+  .nav-foot .lk { color: var(--accent); text-decoration: underline; }
+  .nav-foot .new { background: #fff3c4; border-radius: 4px; padding: 0 3px; margin: 0 -3px; }
+  .pop { background: #fff; border: 1px solid #d9dbe3; border-radius: 10px; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: #444; box-shadow: 0 4px 14px rgba(0,0,0,0.08); display: grid; gap: 5px; }
+  .pop b { font-size: 12.5px; color: var(--ink); }
+  .pop code { font-size: 10px; background: #f3f4f7; border-radius: 4px; padding: 3px 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
+  .pop .new { background: #fff3c4; border-radius: 4px; padding: 2px 4px; }
+  .pop .new a { color: var(--accent); text-decoration: underline; }
+  .pop .gone { text-decoration: line-through; color: #a0a0a8; }
+  .dim { opacity: 0.45; }
+</style>
+</head>
+<body>
+  <h1>v133 ホーム画面に置く「入口のページ」</h1>
+  <p class="lead">管理ページ用と点検表用の2つの入口のページを、学生のツールと同じ場所（GitHub）に置きます。ホーム画面にはこのページから置きます。<br />
+    置いたアイコンを押すと、入口のページを通って、すぐ管理ページ（点検表）が開きます。ログインは今までどおりです。</p>
+
+  <h2 class="sec">1. 入口のページ（スマホでふつうに開いたとき）</h2>
+  <div class="row">
+    <div>
+      <p class="cap">管理ページ用</p>
+      <div class="phone">
+        <div class="bar">kokusai-fashion.github.io/…/kanri/</div>
+        <div class="page">
+          <span class="kick">卒業制作報告書</span>
+          <div class="icon" style="background:var(--nando)"><span class="k">卒</span><span class="s">管理</span></div>
+          <h3>管理ページ</h3>
+          <p>このページをホーム画面に置くと、<br />アイコンを押すだけで開けます。</p>
+          <div class="how">
+            <b>ホーム画面への置き方</b>
+            <div><em>iPhone：</em>共有 →「ホーム画面に追加」→「Web アプリとして開く」はオフにして「追加」</div>
+            <div><em>Android：</em>右上の「⋮」→「ホーム画面に追加」→「追加」</div>
+          </div>
+          <button class="go" style="background:var(--nando)">管理ページを開く</button>
+          <span class="other">点検表を置くときは、こちら</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="cap">点検表用</p>
+      <div class="phone">
+        <div class="bar">kokusai-fashion.github.io/…/tenken/</div>
+        <div class="page">
+          <span class="kick">卒業制作報告書</span>
+          <div class="icon" style="background:var(--kaki)"><span class="k">卒</span><span class="s">点検</span></div>
+          <h3>点検表</h3>
+          <p>このページをホーム画面に置くと、<br />アイコンを押すだけで点検表が開きます。</p>
+          <div class="how">
+            <b>ホーム画面への置き方</b>
+            <div><em>iPhone：</em>共有 →「ホーム画面に追加」→「Web アプリとして開く」はオフにして「追加」</div>
+            <div><em>Android：</em>右上の「⋮」→「ホーム画面に追加」→「追加」</div>
+          </div>
+          <button class="go" style="background:var(--kaki)">点検表を開く</button>
+          <span class="other">管理ページを置くときは、こちら</span>
+        </div>
+      </div>
+    </div>
+    <div class="homes">
+      <p class="cap">置いたあとのホーム画面（Android）</p>
+      <div class="home">
+        <div class="app"><div class="ic"><div class="icon stu round" style="background:var(--navy)"><span class="k">卒</span></div></div><div class="lbl">卒制報告書</div></div>
+        <div class="app"><div class="ic"><div class="icon round" style="background:var(--nando)"><span class="k">卒</span><span class="s">管理</span></div></div><div class="lbl">卒制 管理</div></div>
+        <div class="app"><div class="ic"><div class="icon round" style="background:var(--kaki)"><span class="k">卒</span><span class="s">点検</span></div></div><div class="lbl">卒制 点検表</div></div>
+      </div>
+      <p class="cap">（iPhone）</p>
+      <div class="home ios">
+        <div class="app"><div class="ic"><div class="icon stu" style="background:var(--navy)"><span class="k">卒</span></div></div><div class="lbl">卒制報告書</div></div>
+        <div class="app"><div class="ic"><div class="icon" style="background:var(--nando)"><span class="k">卒</span><span class="s">管理</span></div></div><div class="lbl">卒制 管理</div></div>
+        <div class="app"><div class="ic"><div class="icon" style="background:var(--kaki)"><span class="k">卒</span><span class="s">点検</span></div></div><div class="lbl">卒制 点検表</div></div>
+      </div>
+      <p class="cap" style="line-height:1.6">名前ははじめから「卒制 管理」「卒制 点検表」と入ります。<br />学生のツールと同じく、色の丸いっぱいのアイコンになります。</p>
+    </div>
+  </div>
+
+  <h2 class="sec">2. 管理ページの中で、入口のページへのリンクをどこに出すか</h2>
+  <div class="opts">
+    <div class="card">
+      <h3>案A　左の下と、点検表の「この画面のリンク」<span class="rec">おすすめ</span></h3>
+      <div class="shots">
+        <div class="nav-foot">
+          <span class="dim">ログイン中</span>
+          <b>文化　太郎</b>
+          <span class="dim">sensei@example.ac.jp</span><span class="dim">（先生）</span>
+          <span class="lk">氏名と担当コース</span>
+          <span class="lk new">スマホのホーム画面に置く</span>
+        </div>
+        <div class="pop">
+          <b>この画面に直接入るリンク</b>
+          <span>ブックマークに入れておくと、1回押すだけで点検表が開きます。</span>
+          <code>https://script.google.com/a/macros/bunka-wu.ac.jp/s/…/exec?view=check</code>
+          <span class="new">スマホのホーム画面に置くときは、<a>入口のページ</a>から</span>
+        </div>
+      </div>
+      <p class="note">左の下（スマホは一覧のいちばん下）から管理ページ用、点検表の窓から点検表用の入口が開きます。どちらからでも、もう一方へ移れます。</p>
+    </div>
+    <div class="card">
+      <h3>案B　点検表の「この画面のリンク」だけ</h3>
+      <div class="shots">
+        <div class="nav-foot">
+          <span class="dim">ログイン中</span>
+          <b>文化　太郎</b>
+          <span class="dim">sensei@example.ac.jp</span><span class="dim">（先生）</span>
+          <span class="lk">氏名と担当コース</span>
+        </div>
+        <div class="pop">
+          <b>この画面に直接入るリンク</b>
+          <span>ブックマークに入れておくと、1回押すだけで点検表が開きます。</span>
+          <code>https://script.google.com/a/macros/bunka-wu.ac.jp/s/…/exec?view=check</code>
+          <span class="new">スマホのホーム画面に置くときは、<a>入口のページ</a>から</span>
+        </div>
+      </div>
+      <p class="note">左の下は今のまま。管理ページ用の入口へは、点検表用の入口の「管理ページを置くときは、こちら」から移ります（使い方の画面にも書きます）。</p>
+    </div>
+  </div>
+</body>
+</html>

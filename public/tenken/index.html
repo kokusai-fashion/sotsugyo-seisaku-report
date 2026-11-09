@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<!-- scripts/make-home-entries.mjs が作る（手で直さない）。ホーム画面に置く入口のページ（点検表） -->
+<title>点検表（ホーム画面に置く）｜卒業制作報告書</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="../icons/check-icon-192.png">
+<link rel="apple-touch-icon" href="../icons/check-touch-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="卒制 点検表">
+<meta name="theme-color" content="#9a5434">
+<script>
+  // ホーム画面のアイコンから開いたとき（?from=home）は、すぐ点検表へ（「戻る」や読み直しで来たときは移らない）
+  ;(function () {
+    var target = 'https://script.google.com/a/macros/bunka-wu.ac.jp/s/AKfycbyXJr_dyRKAGYWBGmV1HLYNHWurAaYZtiG_86hasP_23a-SmvIAgklpAPqszYO8ffygtw/exec?view=check'
+    var nav = window.performance && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null
+    var fresh = !nav || nav.type === 'navigate'
+    if (/(^|[?&])from=home(&|$)/.test(location.search.slice(1)) && fresh) {
+      document.documentElement.className = 'going'
+      location.replace(target)
+    } else if (!location.search && history.replaceState) {
+      // iPhone は、今の URL をホーム画面に置く。置いたアイコンから開いたときに、すぐ移れる URL にしておく（Android は manifest の start_url）
+      history.replaceState(null, '', '?from=home')
+    }
+  })()
+</script>
+<style>
+  :root { --c: #9a5434; --ink: #26262b; --muted: #6b6b73; }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: #fff; color: var(--ink); font-family: 'Hiragino Sans', 'Noto Sans JP', 'BIZ UDPGothic', 'Yu Gothic UI', 'Meiryo', sans-serif; }
+  main { max-width: 420px; margin: 0 auto; padding: 28px max(18px, env(safe-area-inset-right)) 36px max(18px, env(safe-area-inset-left)); display: grid; gap: 16px; justify-items: center; text-align: center; }
+  .kick { margin: 0; font-size: 13px; color: var(--muted); letter-spacing: 0.06em; }
+  .icon { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); }
+  h1 { margin: 0; font-size: 24px; }
+  p { margin: 0; font-size: 15px; line-height: 1.7; }
+  .how { width: 100%; text-align: left; background: #f6f5f1; border-radius: 12px; padding: 14px 16px; font-size: 14px; line-height: 1.75; }
+  .how h2 { margin: 0 0 4px; font-size: 15px; }
+  .how p { font-size: 14px; }
+  .how p + p { margin-top: 6px; }
+  .how .st { display: inline-block; }
+  .go { display: block; width: 100%; padding: 14px; border-radius: 12px; background: var(--c); color: #fff; font-size: 16px; font-weight: 700; text-decoration: none; }
+  .other { font-size: 14px; color: #1e3a8a; }
+  .opening { display: none; }
+  .going .info, .going .other { display: none; }
+  .going .opening { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <p class="kick">卒業制作報告書</p>
+  <img class="icon" src="../icons/check-icon-192.png" alt="" width="96" height="96">
+  <h1>点検表</h1>
+  <p class="opening">点検表を開いています…</p>
+  <p class="info">このページをホーム画面に置くと、<br>アイコンを押すだけで点検表が開きます。</p>
+  <section class="how info">
+    <h2>ホーム画面への置き方</h2>
+    <p><b>iPhone：</b><span class="st">共有</span> → <span class="st">「ホーム画面に追加」</span> → <span class="st">「Web アプリとして開く」はオフにして「追加」</span></p>
+    <p><b>Android：</b><span class="st">右上の「⋮」</span> → <span class="st">「ホーム画面に追加」</span> → <span class="st">「追加」</span></p>
+  </section>
+  <a class="go" href="https://script.google.com/a/macros/bunka-wu.ac.jp/s/AKfycbyXJr_dyRKAGYWBGmV1HLYNHWurAaYZtiG_86hasP_23a-SmvIAgklpAPqszYO8ffygtw/exec?view=check">点検表を開く</a>
+  <a class="other" href="../kanri/">管理ページを置くときは、こちら</a>
+</main>
+</body>
+</html>

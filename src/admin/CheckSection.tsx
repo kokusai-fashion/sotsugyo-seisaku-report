@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Course } from '../config'
+import { HOME_ENTRY_CHECK_URL } from '../help/links'
 import { AdminIcon } from './adminIcons'
 import { courseName } from './changes'
 import { assigned, CHECK_COURSE_KEY as COURSE_KEY, doneCount, leftCount, myBlocks, rotate, surnameOf } from './checkView'
@@ -344,14 +345,21 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
         {linkOpen && (
           <div className="ck-pop" role="dialog" aria-label="この画面のリンク">
             <b>この画面に直接入るリンク</b>
-            ブックマークや、スマホのホーム画面に置いておくと、1回押すだけで点検表が開きます。
+            ブックマークに入れておくと、1回押すだけで点検表が開きます。
             <span className="ck-url">
               <code tabIndex={0}>{link}</code>
               <button type="button" onClick={() => void copy()}>
                 {copied ? 'コピーしました' : 'コピー'}
               </button>
             </span>
-            <small>ホーム画面への置き方：iPhone は共有 →「ホーム画面に追加」、Android は右上の点3つ →「ホーム画面に追加」</small>
+            {/* ホーム画面には、入口のページから置く（点検表のアイコン・短い名前が付く：mockups/v133） */}
+            <small>
+              スマホのホーム画面に置くときは、
+              <a href={HOME_ENTRY_CHECK_URL} target="_blank" rel="noreferrer">
+                入口のページ
+              </a>
+              から
+            </small>
           </div>
         )}
       </span>

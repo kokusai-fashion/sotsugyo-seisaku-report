@@ -5,6 +5,8 @@
 // gas/admin-project/Code.js の doGet が setFaviconUrl で GitHub Pages の admin-icon-192.png を指す（パソコンのタブと、Android のホーム画面）
 // 点検表のアイコン（check-icon-*.png）は、柿渋の地に白い「卒」と「点検」（mockups/v131 の形・v132 ⑤ 柿渋。依頼者の選択 2026-11-10）。
 // 点検表に直接入るリンク（?view=check）で開いたときだけ、doGet がこちらを指す
+// ホーム画面に置く入口のページ（public/kanri/・public/tenken/：scripts/make-home-entries.mjs）には、
+// Android の丸い切り抜き用（*-maskable-512.png。字を小さめにして、切り抜いても欠けない）と iPhone 用（*-touch-icon-180.png）も作る（mockups/v133）
 // 使い方：node scripts/make-icons.mjs（Edge を使う。EDGE_PORT でポートを変えられる）
 import { mkdirSync, readFileSync } from 'node:fs'
 import { withEdge } from './poc/edge.mjs'
@@ -35,6 +37,11 @@ const ICONS = [
   // 点検表（「卒」と「点検」）
   { file: 'check-icon-512.png', size: 512, sub: { bg: CHECK, label: '点検' } },
   { file: 'check-icon-192.png', size: 192, sub: { bg: CHECK, label: '点検' } },
+  // 入口のページ用（Android の丸い切り抜き・iPhone）
+  { file: 'admin-icon-maskable-512.png', size: 512, sub: { bg: ADMIN, label: '管理', scale: 0.8 } },
+  { file: 'check-icon-maskable-512.png', size: 512, sub: { bg: CHECK, label: '点検', scale: 0.8 } },
+  { file: 'admin-touch-icon-180.png', size: 180, sub: { bg: ADMIN, label: '管理' } },
+  { file: 'check-touch-icon-180.png', size: 180, sub: { bg: CHECK, label: '点検' } },
 ]
 
 const html = (size, round) => `<!doctype html><html><head><style>
@@ -45,13 +52,13 @@ html, body { margin: 0; background: transparent; }
 </style></head><body><div class="icon"><span class="k">卒</span></div></body></html>`
 
 /** 管理ページ・点検表のアイコン：「卒」の下に「管理」「点検」（見本 v129 の 180px の絵と同じ割合。字は真ん中の約6割に収まる） */
-const subHtml = (size, { bg, label }) => `<!doctype html><html><head><style>
+const subHtml = (size, { bg, label, scale = 1 }) => `<!doctype html><html><head><style>
 @font-face { font-family: 'Mincho'; src: url(data:font/woff2;base64,${font}) format('woff2'); }
 @font-face { font-family: 'Gothic'; font-weight: 700; src: url(data:font/woff2;base64,${gothic}) format('woff2'); }
 html, body { margin: 0; background: transparent; }
 .icon { width: ${size}px; height: ${size}px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: ${bg}; }
-.k { color: #fff; font-family: 'Mincho'; font-size: ${Math.round(size * 0.467)}px; line-height: 1; }
-.s { color: #fff; font-family: 'Gothic'; font-weight: 700; font-size: ${Math.round(size * 0.167)}px; line-height: 1; letter-spacing: 0.12em; padding-left: 0.12em; margin-top: ${Math.round(size * 0.056)}px; }
+.k { color: #fff; font-family: 'Mincho'; font-size: ${Math.round(size * 0.467 * scale)}px; line-height: 1; }
+.s { color: #fff; font-family: 'Gothic'; font-weight: 700; font-size: ${Math.round(size * 0.167 * scale)}px; line-height: 1; letter-spacing: 0.12em; padding-left: 0.12em; margin-top: ${Math.round(size * 0.056 * scale)}px; }
 </style></head><body><div class="icon"><span class="k">卒</span><span class="s">${label}</span></div></body></html>`
 
 mkdirSync(OUT, { recursive: true })

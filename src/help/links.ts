@@ -17,3 +17,9 @@ export const TEACHER_GUIDE_URL = `${PAGES_URL}guides/teacher-guide.pdf`
 export const ADMIN_GUIDE_URL = `${PAGES_URL}guides/admin-guide.pdf`
 /** 管理ページ：使い方の画面の写真（学生用ツールといっしょに公開している public/help/） */
 export const TEACHER_HELP_IMAGES = `${PAGES_URL}help/`
+/**
+ * 管理ページ・点検表をスマホのホーム画面に置く入口のページ（public/kanri/・public/tenken/：scripts/make-home-entries.mjs。mockups/v133）。
+ * 管理ページは Apps Script から出すので、ホーム画面用のアイコン・短い名前は、この入口のページで付ける
+ */
+export const HOME_ENTRY_ADMIN_URL = `${PAGES_URL}kanri/`
+export const HOME_ENTRY_CHECK_URL = `${PAGES_URL}tenken/`

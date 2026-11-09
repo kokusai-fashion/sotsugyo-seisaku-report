@@ -5,7 +5,7 @@ import type { Course, WordCheck, YearConfig } from '../config'
 import { LIMITS, tooLong, validateConfig, type ConfigProblem } from '../config/validate'
 import { HelpView } from '../help/HelpView'
 import { TEACHER_TOPICS } from '../help/helpTopics'
-import { ADMIN_GUIDE_URL, TEACHER_GUIDE_URL, TEACHER_HELP_IMAGES } from '../help/links'
+import { ADMIN_GUIDE_URL, HOME_ENTRY_ADMIN_URL, TEACHER_GUIDE_URL, TEACHER_HELP_IMAGES } from '../help/links'
 import { halfDigits } from '../layout/document'
 import { isDefaultTemplate, standardTemplate } from '../model/template'
 import { AdminIcon } from './adminIcons'
@@ -463,6 +463,10 @@ function SideNav({
             氏名と担当コース
           </button>
         )}
+        {/* ホーム画面に置く入口のページ（管理ページ用。点検表用は、点検表の「この画面のリンク」から：mockups/v133 案A） */}
+        <a className="home-link" href={HOME_ENTRY_ADMIN_URL} target="_blank" rel="noreferrer">
+          スマホのホーム画面に置く
+        </a>
         {isMockServer && <span className="badge old">試験用サーバー</span>}
         <SourceLink />
       </div>
