@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>v131 点検表のアイコン</title>
+<!-- 点検表をホーム画面に置いたときのアイコンの案（依頼者 2026-11-10：「点検表専用のアイコンも作る」）。
+     形は管理ページのアイコン（v129 案C・v130 ③ 納戸色）と同じで、「管理」の代わりに「点検」。
+     node scripts/mockup-v131-check-icon.mjs → mockups/v131/v131-check-icon.png -->
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udmincho/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/700.css" />
+<style>
+  :root { --ink: #26262b; --muted: #6b6b73; --line: #e2ded6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 32px 32px; width: 1180px; background: #f3f1ec; color: var(--ink); font-family: 'BIZ UDPGothic', sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .lead { font-size: 14px; color: var(--muted); margin: 0 0 20px; line-height: 1.7; }
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .card { background: #fff; border-radius: 14px; padding: 16px 18px 16px; border: 1px solid var(--line); }
+  .card h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: baseline; gap: 8px; }
+  .card h2 small { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .card h2 .rec { padding: 2px 9px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+  .row { display: flex; align-items: center; gap: 16px; }
+  .icon { width: 180px; height: 180px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .icon .k { font-family: 'BIZ UDMincho', serif; line-height: 1; font-size: 84px; color: #fff; }
+  .icon .s { font-family: 'BIZ UDPGothic', sans-serif; font-weight: 700; line-height: 1; font-size: 30px; letter-spacing: 0.12em; padding-left: 0.12em; margin-top: 10px; color: #fff; }
+  .row > .icon { zoom: 0.7; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .stu .k { font-size: 96px; }
+  .home { flex: 1; border-radius: 14px; padding: 12px 8px 10px; background: linear-gradient(160deg, #5b6c8f, #8c7fa3 60%, #b49b8e); display: grid; grid-template-columns: repeat(3, 1fr); row-gap: 10px; }
+  .home.light { background: linear-gradient(160deg, #e9e4da, #f6f2ea 60%, #dfe6ee); }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .app .ic { width: 52px; height: 52px; border-radius: 12px; overflow: hidden; display: grid; place-items: center; }
+  .app .ic .icon { zoom: 0.2889; }
+  .app .lbl { width: 70px; text-align: center; color: #fff; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+  .home.light .lbl { color: #333; text-shadow: none; }
+  .note { font-size: 13px; margin: 10px 0 0; line-height: 1.6; color: #444; }
+  .box { margin-top: 20px; background: #fff; border-radius: 14px; padding: 14px 20px; border: 1px solid var(--line); font-size: 14px; line-height: 1.8; }
+  .box h3 { font-size: 15px; margin: 0 0 4px; }
+  .box ul { margin: 0; padding-left: 1.2em; }
+</style>
+</head>
+<body>
+  <h1>v131 点検表のアイコン</h1>
+  <p class="lead">形は管理ページのアイコンと同じで、下の字を「点検」にしました。地の色を4つ並べています。<br />
+    右の小さな見本は、左から学生のツール（紺）・管理ページ（納戸色）・点検表です。上は暗い壁紙、下は明るい壁紙です。</p>
+
+  <div class="cards">
+    <div class="card" data-c="#316745"><h2>① 千歳緑<small>ちとせみどり</small><span class="rec">おすすめ</span></h2><p class="note">管理ページ（納戸色）と並べても、色ですぐ分かる。落ち着いた色。</p></div>
+    <div class="card" data-c="#5d437e"><h2>② 江戸紫<small>えどむらさき</small></h2><p class="note">ほかのアプリにあまりない色で、見つけやすい。</p></div>
+    <div class="card" data-c="#6f4b3e"><h2>③ 焦茶<small>こげちゃ</small></h2><p class="note">やわらかい印象。暗い壁紙では少し沈む。</p></div>
+    <div class="card" data-c="#1f6273"><h2>④ 納戸色<small>管理ページと同じ色</small></h2><p class="note">同じ仲間だと分かる。並べると、違いは「点検」の字だけ。</p></div>
+  </div>
+
+  <div class="box">
+    <h3>覚えておいていただきたいこと</h3>
+    <ul>
+      <li>点検表のアイコンになるのは、点検表の「この画面のリンク」から開いて、ホーム画面に置いたときです（Android・パソコンのタブ）。</li>
+      <li>iPhone は、管理ページと同じく、画面を小さく写した絵になります。見本の名前は「卒制 点検表」と入れたときのものです。</li>
+    </ul>
+  </div>
+
+  <script>
+    const NANDO = '#1f6273'
+    const icon = (bg, s) =>
+      s
+        ? `<div class="icon" style="background:${bg}"><span class="k">卒</span><span class="s">${s}</span></div>`
+        : `<div class="icon stu" style="background:#2f3e75"><span class="k">卒</span></div>`
+    document.querySelectorAll('.card').forEach((card) => {
+      const c = card.dataset.c
+      const app = (ic, lbl) => `<div class="app"><div class="ic">${ic}</div><div class="lbl">${lbl}</div></div>`
+      const strip = (k) => `<div class="home ${k}">${app(icon('', ''), '卒制報告書')}${app(icon(NANDO, '管理'), '卒制 管理')}${app(icon(c, '点検'), '卒制 点検表')}</div>`
+      const row = document.createElement('div')
+      row.className = 'row'
+      row.innerHTML = `${icon(c, '点検')}<div style="flex:1;display:grid;gap:8px">${strip('')}${strip('light')}</div>`
+      card.querySelector('h2').after(row)
+    })
+  </script>
+</body>
+</html>

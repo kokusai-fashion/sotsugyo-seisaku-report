@@ -528,10 +528,14 @@ describe('管理ページ（admin-project）', () => {
     expect(() => load('admin-project').getTrialSample()).toThrow(/見本の原稿が入っていません/)
   })
 
-  it('管理ページのアイコンは、GitHub Pages に置いた画像を指す（パソコンのタブ・Android のホーム画面）', () => {
-    const url = load('admin-project').doGet().favicon
-    expect(url).toBe('https://kokusai-fashion.github.io/sotsugyo-seisaku-report/icons/admin-icon-192.png')
-    expect(existsSync(`public/${url.split('/sotsugyo-seisaku-report/')[1]}`)).toBe(true)
+  it('管理ページのアイコンは、GitHub Pages に置いた画像を指す（パソコンのタブ・Android のホーム画面。点検表に直接入るリンクなら点検表のアイコン）', () => {
+    const gas = load('admin-project')
+    const admin = gas.doGet({ parameter: {} }).favicon
+    const check = gas.doGet({ parameter: { view: 'check', course: 'film-stage-costume' } }).favicon
+    expect(gas.doGet().favicon).toBe(admin)
+    expect(admin).toBe('https://kokusai-fashion.github.io/sotsugyo-seisaku-report/icons/admin-icon-192.png')
+    expect(check).toBe('https://kokusai-fashion.github.io/sotsugyo-seisaku-report/icons/check-icon-192.png')
+    for (const url of [admin, check]) expect(existsSync(`public/${url.split('/sotsugyo-seisaku-report/')[1]}`)).toBe(true)
   })
 
   it('公開中の管理ページの版の印と場所を返す（開いたままの画面の「新しい版があります」。だれでも呼べる）', () => {

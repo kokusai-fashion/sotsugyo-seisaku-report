@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>v132 点検表のアイコン（ほかの色）</title>
+<!-- 点検表のアイコンの色の案・その2（依頼者 2026-11-10：v131 を見て「他の色も出してください」）。
+     node scripts/mockup-v132-check-icon-colors.mjs → mockups/v132/v132-check-icon-colors.png -->
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udmincho/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/700.css" />
+<style>
+  :root { --ink: #26262b; --muted: #6b6b73; --line: #e2ded6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 32px 32px; width: 1180px; background: #f3f1ec; color: var(--ink); font-family: 'BIZ UDPGothic', sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .lead { font-size: 14px; color: var(--muted); margin: 0 0 18px; line-height: 1.7; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .card { background: #fff; border-radius: 14px; padding: 14px 14px 12px; border: 1px solid var(--line); display: grid; gap: 10px; align-content: start; }
+  .card h2 { font-size: 15px; margin: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .card h2 small { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+  .card h2 .rec { padding: 1px 8px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 700; }
+  .big { display: flex; justify-content: center; }
+  .icon { width: 180px; height: 180px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .icon .k { font-family: 'BIZ UDMincho', serif; line-height: 1; font-size: 84px; color: #fff; }
+  .icon .s { font-family: 'BIZ UDPGothic', sans-serif; font-weight: 700; line-height: 1; font-size: 30px; letter-spacing: 0.12em; padding-left: 0.12em; margin-top: 10px; color: #fff; }
+  .big .icon { zoom: 0.6; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .stu .k { font-size: 96px; }
+  .home { border-radius: 12px; padding: 10px 4px 8px; background: linear-gradient(160deg, #5b6c8f, #8c7fa3 60%, #b49b8e); display: grid; grid-template-columns: repeat(3, 1fr); }
+  .home.light { background: linear-gradient(160deg, #e9e4da, #f6f2ea 60%, #dfe6ee); }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .app .ic { width: 48px; height: 48px; border-radius: 11px; overflow: hidden; display: grid; place-items: center; }
+  .app .ic .icon { zoom: 0.2667; }
+  .app .lbl { width: 64px; text-align: center; color: #fff; font-size: 10px; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+  .home.light .lbl { color: #333; text-shadow: none; }
+  .note { font-size: 12.5px; margin: 0; line-height: 1.55; color: #444; }
+</style>
+</head>
+<body>
+  <h1>v132 点検表のアイコン　ほかの色</h1>
+  <p class="lead">形は v131 と同じです（下の字は「点検」）。小さな見本は、左から学生のツール（紺）・管理ページ（納戸色）・点検表です。</p>
+  <div class="cards">
+    <div class="card" data-c="#9a5434"><h2>⑤ 柿渋<small>かきしぶ</small><span class="rec">おすすめ</span></h2><p class="note">あたたかい色で、青い2つと並べてすぐ分かる。赤ほど強くない。</p></div>
+    <div class="card" data-c="#8f3b2a"><h2>⑥ 弁柄<small>べんがら</small></h2><p class="note">赤茶。よく目立つが、少し「注意」の色にも見える。</p></div>
+    <div class="card" data-c="#8e354a"><h2>⑦ 蘇芳<small>すおう</small></h2><p class="note">赤紫。華やかで、ほかと重なりにくい。</p></div>
+    <div class="card" data-c="#7d2a35"><h2>⑧ えんじ<small>v130 の②</small></h2><p class="note">いちばん目立つ。赤なので、知らせの印にも見える。</p></div>
+    <div class="card" data-c="#8a6a1c"><h2>⑨ 黄土<small>おうど</small></h2><p class="note">明るく目立つ。白い字は少し細く見える。</p></div>
+    <div class="card" data-c="#4b6129"><h2>⑩ 松葉色<small>まつばいろ</small></h2><p class="note">黄みの緑。千歳緑より明るく、軽い印象。</p></div>
+    <div class="card" data-c="#4f4f9c"><h2>⑪ 桔梗<small>ききょう</small></h2><p class="note">青紫。学生のツールの紺と、少し近い。</p></div>
+    <div class="card" data-c="#3a3a40"><h2>⑫ 墨<small>すみ</small></h2><p class="note">きりっとした印象。暗い壁紙では少し沈む。</p></div>
+  </div>
+  <script>
+    const NANDO = '#1f6273'
+    const icon = (bg, s) =>
+      s
+        ? `<div class="icon" style="background:${bg}"><span class="k">卒</span><span class="s">${s}</span></div>`
+        : `<div class="icon stu" style="background:#2f3e75"><span class="k">卒</span></div>`
+    document.querySelectorAll('.card').forEach((card) => {
+      const c = card.dataset.c
+      const app = (ic, lbl) => `<div class="app"><div class="ic">${ic}</div><div class="lbl">${lbl}</div></div>`
+      const strip = (k) => `<div class="home ${k}">${app(icon('', ''), '卒制報告書')}${app(icon(NANDO, '管理'), '卒制 管理')}${app(icon(c, '点検'), '卒制 点検表')}</div>`
+      card.querySelector('h2').insertAdjacentHTML('afterend', `<div class="big">${icon(c, '点検')}</div>${strip('')}${strip('light')}`)
+    })
+  </script>
+</body>
+</html>

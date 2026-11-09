@@ -73,11 +73,14 @@ const PDF_FOLDER_ID = /*PDF_FOLDER_ID*/ ''
  * GitHub のリポジトリを移したら、ここも直す（docs/引き継ぎ手順.md）
  */
 const ADMIN_ICON_URL = 'https://kokusai-fashion.github.io/sotsugyo-seisaku-report/icons/admin-icon-192.png'
+/** 点検表に直接入るリンク（?view=check）で開いたときのアイコン（柿渋の地に「卒」と「点検」：依頼者の選択 2026-11-10） */
+const CHECK_ICON_URL = 'https://kokusai-fashion.github.io/sotsugyo-seisaku-report/icons/check-icon-192.png'
 
-function doGet() {
+function doGet(e) {
+  const check = !!(e && e.parameter && e.parameter.view === 'check')
   return HtmlService.createHtmlOutputFromFile('admin')
     .setTitle('卒業制作報告書 管理ページ')
-    .setFaviconUrl(ADMIN_ICON_URL)
+    .setFaviconUrl(check ? CHECK_ICON_URL : ADMIN_ICON_URL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
 }
 
