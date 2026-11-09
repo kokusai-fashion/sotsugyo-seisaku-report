@@ -182,6 +182,11 @@ await withEdge(async (browser) => {
     await page.evaluate(() => document.querySelector('.ck-panel .ck-tog').click())
     await page.waitForFunction(() => document.querySelector('.ck-panel .ck-tog')?.classList.contains('on'), { timeout: 10000 })
     check('カードを押すと右に記録。許可の切り替えも入る', true)
+    // 札の形の選ぶ欄（mockups/v127 案A）：2回目の先生を佐藤に替える（予定のまま）。名前は1回だけ
+    await page.select('.ck-panel select[aria-label="2回目の先生"]', '佐藤')
+    await page.waitForFunction(() => document.querySelector('.ck-panel select[aria-label="2回目の先生"]')?.closest('.ck-pchip').querySelector('.t')?.textContent === '佐藤 予定', { timeout: 10000 })
+    const prow = await page.evaluate(() => ({ chips: document.querySelectorAll('.ck-panel .ck-prow .ck-chip').length, text: document.querySelector('.ck-panel select[aria-label="2回目の先生"]').closest('.ck-prow').textContent }))
+    check('右の欄の回は、札の形の選ぶ欄とボタンだけ（名前は1回）。札から先生を替えられる', prow.chips === 0 && prow.text.includes('佐藤 予定') && prow.text.includes('済みにする'), JSON.stringify(prow))
     await shot(page, '04-card')
 
     // 担当の目線：前の回の残りは「まだの分」

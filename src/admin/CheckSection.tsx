@@ -168,7 +168,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     }
   }
 
-  const chip = (s: CheckStudent, r: number, opts: { button?: boolean } = {}) => {
+  const chip = (s: CheckStudent, r: number) => {
     const x = s.rounds[r]
     if (!x.teacher) return <span className="ck-none">—</span>
     const t = toneOf(x.teacher)
@@ -176,7 +176,6 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     const cls = x.state === 'done' ? 'ck-chip' : `ck-chip plan${x.teacher === myName ? ' me' : ''}`
     const style = x.state === 'done' ? { background: t.bg, color: t.ink } : undefined
     const busy = busyKey === `${s.key}:${view?.rounds[r]}`
-    if (opts.button === false) return <span className={cls} style={style}>{label}</span>
     return (
       <button type="button" className={`${cls}${busy ? ' busy' : ''}`} style={style} disabled={busy} onClick={() => toggle(s, r)} aria-label={`${s.name}の${view?.rounds[r]}：${label}（押すと${x.state === 'done' ? '予定に戻す' : '済みにする'}）`}>
         {label}
@@ -485,7 +484,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
       <div>
         <div className="lbl">点検の回</div>
         {view.rounds.map((l, r) => (
-          <RoundRow key={l} label={l} cell={pickedStudent.rounds[r]} teachers={view.teachers} myName={myName} busy={busyKey === `${pickedStudent.key}:${l}`} chip={chip(pickedStudent, r, { button: false })} onSet={(teacher, state) => void write(pickedStudent, { round: l, teacher, state })} />
+          <RoundRow key={l} label={l} cell={pickedStudent.rounds[r]} teachers={view.teachers} myName={myName} busy={busyKey === `${pickedStudent.key}:${l}`} tone={toneOf(pickedStudent.rounds[r].teacher)} onSet={(teacher, state) => void write(pickedStudent, { round: l, teacher, state })} />
         ))}
       </div>
       <div className="perm">
@@ -646,13 +645,21 @@ function FoldBox({ label, count, children }: { label: string; count: number; chi
 }
 
 /** カードの右の欄の、回ごとの1行（先生を選び直す・「済み」にする） */
-function RoundRow({ label, cell, teachers, myName, busy, chip, onSet }: { label: string; cell: CheckRound; teachers: string[]; myName: string; busy: boolean; chip: ReactNode; onSet: (teacher: string, state: CheckRound['state']) => void }) {
+/**
+ * カードの右の欄の、点検の回の1行（依頼者の選択 2026-11-09 mockups/v127 案A）：札の形の「先生を選ぶ欄」（押すと先生を選べる。済みは先生の色、予定は点線）と、
+ * 「済みにする」「予定に戻す」のボタン。前は札・選ぶ欄・ボタンの3つで、名前が2回出て、選ぶ欄の右端がボタンの下に隠れていた
+ */
+function RoundRow({ label, cell, teachers, myName, busy, tone, onSet }: { label: string; cell: CheckRound; teachers: string[]; myName: string; busy: boolean; tone: { bg: string; ink: string }; onSet: (teacher: string, state: CheckRound['state']) => void }) {
+  const done = cell.state === 'done'
+  const cls = !cell.teacher ? ' none' : done ? '' : ` plan${cell.teacher === myName ? ' me' : ''}`
   return (
     <div className="ck-prow">
       <span className="r">{label}</span>
-      <span className="c">
-        {chip}
-        <select aria-label={`${label}の先生`} value={cell.teacher} disabled={busy} onChange={(e) => onSet(e.target.value, e.target.value ? (cell.state === 'done' ? 'done' : 'plan') : '')}>
+      <span className={`ck-pchip${cls}${busy ? ' busy' : ''}`} style={cell.teacher && done ? { background: tone.bg, color: tone.ink } : undefined}>
+        <span className="t">{cell.teacher ? `${cell.teacher} ${done ? '済み' : '予定'}` : '先生を選ぶ'}</span>
+        <i aria-hidden="true">▾</i>
+        {/* 札の上に重ねた、見えない選ぶ欄（押すと先生の一覧） */}
+        <select aria-label={`${label}の先生`} value={cell.teacher} disabled={busy} onChange={(e) => onSet(e.target.value, e.target.value ? (done ? 'done' : 'plan') : '')}>
           <option value="">（なし）</option>
           {[...new Set([...teachers, cell.teacher].filter(Boolean))].map((t) => (
             <option key={t} value={t}>
