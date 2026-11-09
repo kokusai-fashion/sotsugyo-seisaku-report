@@ -372,6 +372,7 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
   }
   const context = createContext({
     SpreadsheetApp: {
+      flush: () => {},
       getActiveSpreadsheet: () => spreadsheet,
       openById: (id: string) => {
         opened++
@@ -2400,22 +2401,28 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     setup()
     for (let i = 0; i < 3; i++) register(api(), i)
     admin().ensureCheckSheet(2026, FILM.id)
-    expect(stored.has('checkLock')).toBe(false)
+    const KEY = `checkLock:2026:${FILM.id}`
+    expect(stored.has(KEY)).toBe(false)
     // 画面の書き込み（文書の鍵を使っていた所）が、本番と同じく getDocumentLock が null でも書ける
     admin().setCheckCell(2026, FILM.id, idOf(0), { round: '1回目', teacher: '梶田', state: 'done' })
     expect(sheetStudents()[idOf(0)].cells['1回目']).toBe('梶田 済み')
-    expect(stored.has('checkLock')).toBe(false)
+    expect(stored.has(KEY)).toBe(false)
     // ほかの書き込みの印が立っている間は、10分ごとの写しは何もしない（新しい学生は、まだ載らない）
     register(api(), 3)
-    stored.set('checkLock', JSON.stringify({ token: 'other', until: Date.now() + 60000 }))
+    stored.set(KEY, JSON.stringify({ token: 'other', until: Date.now() + 60000 }))
     admin().syncCheckSheets()
     expect(sheetStudents()[idOf(3)]).toBeUndefined()
-    expect(JSON.parse(stored.get('checkLock')!).token).toBe('other')
+    expect(JSON.parse(stored.get(KEY)!).token).toBe('other')
     // 印が切れていれば（途中で止まった実行の印）、写す
-    stored.set('checkLock', JSON.stringify({ token: 'other', until: Date.now() - 1 }))
+    stored.set(KEY, JSON.stringify({ token: 'other', until: Date.now() - 1 }))
     admin().syncCheckSheets()
     expect(sheetStudents()[idOf(3)]).toBeDefined()
-    expect(stored.has('checkLock')).toBe(false)
+    expect(stored.has(KEY)).toBe(false)
+    // ほかのコースの印は、このコースの写しを止めない
+    register(api(), 4)
+    stored.set('checkLock:2026:other-course', JSON.stringify({ token: 'other', until: Date.now() + 60000 }))
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(4)]).toBeDefined()
   })
 
   it('並び順で等分（checkSplit。依頼者の選択 2026-11-09「いつも等分し直す」）：所属のないコースは、点検表の並びを上から等分して 1班〜。人数が変わると分け直し、班が変わった学生には新しい班の割り振り。所属があれば等分しない', () => {

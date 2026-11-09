@@ -104,6 +104,8 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   const [creating, setCreating] = useState(false)
   const slow = useSlow(!view && !error)
 
+  // 保存したコースの設定のうち、点検表の中身に効くもの（変わったら読み直す：点検表の画面から保存したとき、表示が古いまま残った：2026-11-09 の点検）
+  const settingsKey = JSON.stringify([course?.groups ?? [], course?.checkSplit ?? 0, course?.checkById === true, course?.checkOneColumn === true, course?.advisors ?? []])
   useEffect(() => {
     if (!courseId) return
     let live = true
@@ -116,7 +118,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
     return () => {
       live = false
     }
-  }, [year, courseId, reload])
+  }, [year, courseId, reload, settingsKey])
 
   // スマホ：カードを押すと、記録の欄はカードの一覧の下に出るので、そこまで動かす（前は画面が動かず、出たことが分からなかった：2026-11-09 の点検）
   useEffect(() => {
@@ -139,6 +141,13 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       document.removeEventListener('mousedown', onDown)
     }
   }, [linkOpen])
+
+  /** 記録の欄を閉じる（スマホは、押したカードの所に戻る：欄はカードの一覧の下にあるため） */
+  const closePanel = () => {
+    const key = picked
+    setPicked(null)
+    if (phone && key) requestAnimationFrame(() => document.querySelector(`.ck-card[data-key="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'center' }))
+  }
 
   /** 1つの欄を書き、その学生の行を差し替える */
   const write = useCallback(
@@ -287,7 +296,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
                 {copied ? 'コピーしました' : 'コピー'}
               </button>
             </span>
-            <small>ホーム画面への置き方：iPhone は共有 →「ホーム画面に追加」、Android は ⋮ →「ホーム画面に追加」</small>
+            <small>ホーム画面への置き方：iPhone は共有 →「ホーム画面に追加」、Android は右上の点3つ →「ホーム画面に追加」</small>
           </div>
         )}
       </span>
@@ -329,7 +338,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       </div>
     )
 
-  if (sub === 'assign') return <div className="ck">{top}<AssignPanel view={view} year={year} courseId={courseId} onSaved={setView} /></div>
+  if (sub === 'assign') return <div className="ck">{top}<AssignPanel key={view.groups.join('\n')} view={view} year={year} courseId={courseId} onSaved={setView} /></div>
 
   // ---- 切り替え ----
   const filters = (
@@ -410,7 +419,13 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   const empty = !view.students.length ? <p className="ck-empty">まだ学生が載っていません。学生がツールでコースと氏名を入れると、10分ほどで載ります。</p> : null
   // 範囲が「自分の担当」なのに、このコースにまだ自分の担当が入っていない（全部済んだのではない）
   const noMine = scopeNow === 'mine' && !!myName && !view.students.some((x) => x.rounds.some((c) => c.teacher === myName))
-  const noMineNote = noMine ? <p className="ck-empty">このコースには、まだ自分の担当が入っていません（「担当の割り振り」で決めるか、「コース全体」で見てください）。</p> : null
+  // 所属で絞って、その所属に自分の担当がいない
+  const noMineHere = !noMine && scopeNow === 'mine' && !!myName && !!group && !shown.length
+  const noMineNote = noMine ? (
+    <p className="ck-empty">このコースには、まだ自分の担当が入っていません（「担当の割り振り」で決めるか、「コース全体」で見てください）。</p>
+  ) : noMineHere ? (
+    <p className="ck-empty">この所属には、自分の担当の学生がいません。</p>
+  ) : null
 
   // ---- 表 ----
   const tableView = () => {
@@ -468,7 +483,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   const cardOf = (s: CheckStudent) => {
     const t = groupTone(s.group)
     return (
-      <button type="button" key={s.key} className={`ck-card${picked === s.key ? ' sel' : ''}`} style={{ ['--g' as string]: t?.ink ?? '#c3c8d0' }} onClick={() => setPicked(picked === s.key ? null : s.key)}>
+      <button type="button" key={s.key} data-key={s.key} className={`ck-card${picked === s.key ? ' sel' : ''}`} style={{ ['--g' as string]: t?.ink ?? '#c3c8d0' }} onClick={() => setPicked(picked === s.key ? null : s.key)}>
         <span className="r1">
           <b>{s.name}</b>
           {note(s) ?? (s.pdf?.label ? <span className="ck-pdf">PDF {s.pdf.label}</span> : <span className="ck-warn gray">PDF まだ</span>)}
@@ -520,7 +535,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       <div className="hd">
         <b>{pickedStudent.name}</b>
         {gtag(pickedStudent.group)}
-        <button type="button" className="x" aria-label="閉じる" onClick={() => setPicked(null)}>
+        <button type="button" className="x" aria-label="閉じる" onClick={closePanel}>
           ×
         </button>
       </div>
@@ -574,7 +589,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
         </div>
         <div className="ck-cgrid">
           <div className="ck-col">
-            {!blocks.length && !noMine && <div className="ck-box ck-done">ここに出す学生はいません。{current === 'left' ? 'まだ済んでいない学生がいなくなりました。' : ''}</div>}
+            {!blocks.length && !noMine && !noMineHere && <div className="ck-box ck-done">ここに出す学生はいません。{current === 'left' ? 'まだ済んでいない学生がいなくなりました。' : ''}</div>}
             {blocks.map((b) =>
               b.kind === 'later' ? (
                 <FoldBox key={b.r} label={b.label} count={b.list.length}>
@@ -753,7 +768,10 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
         <p>担当の割り振りは、コースの学生を所属（制作グループなど）か班に分けると使えます。「コースごとの設定」の「所属」で、「学生が選ぶ」か「並び順で等分」を選んで保存してください。</p>
       </div>
     )
-  const set = (g: string, r: number, t: string) => setRows({ ...rows, [g]: rows[g].map((x, i) => (i === r ? t : x)) })
+  const set = (g: string, r: number, t: string) => {
+    setRows({ ...rows, [g]: (rows[g] ?? view.rounds.map(() => '')).map((x, i) => (i === r ? t : x)) })
+    setNote(null)
+  }
   const ranges = view.split
     ? view.groups.map((g) => {
         const list = view.students.filter((s) => s.group === g)
@@ -761,13 +779,14 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
       })
     : null
   const save = async () => {
-    if (!Object.values(rows).some((list) => list.some(Boolean))) return setNote({ ok: false, text: '先生がまだ選ばれていません。1回目から先生を選んでください。' })
+    const none = !Object.values(rows).some((list) => list.some(Boolean))
+    if (none && !view.assignment) return setNote({ ok: false, text: '先生がまだ選ばれていません。表で先生を選んでから押してください。' })
     setSaving(true)
     setNote(null)
     try {
       const next = await server.saveAssignment(year, courseId, { labels: view.rounds, rows })
       onSaved(next)
-      setNote({ ok: true, text: `点検表に入れました。「済み」の欄はそのままです。${view.split ? '人数が変わって班が変わった学生にも' : 'あとから所属を選んだ学生にも'}、10分ほどで入ります。` })
+      setNote({ ok: true, text: none ? '割り振りを空にしました。点検表に入っている「予定」は、そのままです。' : `点検表に入れました。「済み」の欄はそのままです。${view.split ? '人数が変わって班が変わった学生にも' : 'あとから所属を選んだ学生にも'}、10分ほどで入ります。` })
     } catch (e) {
       setNote({ ok: false, text: `入れられませんでした：${e instanceof Error ? e.message : String(e)}` })
     } finally {
@@ -804,7 +823,7 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
                     </small>
                   </td>
                   {view.rounds.map((l, r) => {
-                    const t = rows[g][r]
+                    const t = rows[g]?.[r] ?? ''
                     const i = view.teachers.indexOf(t)
                     const tt = i >= 0 ? TONES[i % TONES.length] : null
                     return (
@@ -827,15 +846,19 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
         </table>
       </div>
       <div className="ck-asfoot">
-        <button type="button" className="btn" onClick={() => setRows(rotate(view.groups, view.groups.map((g) => rows[g][0]), view.rounds.length))} disabled={view.groups.some((g) => !rows[g][0])}>
+        <button type="button" className="btn" onClick={() => setRows(rotate(view.groups, view.groups.map((g) => rows[g]?.[0] ?? ''), view.rounds.length))} disabled={view.groups.some((g) => !rows[g]?.[0])}>
           1回ずつずらして埋める
         </button>
         <button type="button" className={`btn primary${saving ? ' busy' : ''}`} disabled={saving} onClick={() => void save()}>
           {saving ? <Waiting text="入れています…" /> : '点検表に入れる'}
         </button>
+        {note && (
+          <p ref={(el) => el?.scrollIntoView({ block: 'nearest' })} className={`ck-asmsg ${note.ok ? 'ck-ok' : 'ck-error'}`} role="status">
+            {note.text}
+          </p>
+        )}
         <small>1回目の先生を選んで「1回ずつずらして埋める」を押すと、2回目からは、先生が1つ下の{view.split ? '班' : '所属'}へずれて回ります。「点検表に入れる」で、点検表の回の欄に「名字 予定」が入ります（「済み」の欄は書き換えません）。「—」にしても、もう入っている予定は消えません（消すときは、カードの右の欄で「—」）。{view.split ? '' : '所属をまだ選んでいない学生には入りません。'}</small>
       </div>
-      {note && <p className={note.ok ? 'ck-ok' : 'ck-error'}>{note.text}</p>}
     </>
   )
 }

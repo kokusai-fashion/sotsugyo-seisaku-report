@@ -152,7 +152,7 @@ await withEdge(async (browser) => {
     check('「1回ずつずらして埋める」で、2回目から1つずつずれる', grid[0].startsWith('梶田,加藤,佐藤') && grid[1].startsWith('佐藤,梶田,加藤') && grid[2].startsWith('加藤,佐藤,梶田'), grid.join(' / '))
     await shot(page, '02-assign')
     await click(page, '.btn', '点検表に入れる')
-    await page.waitForFunction(() => document.querySelector('.ck-ok')?.textContent.includes('点検表に入れました'), { timeout: 10000 })
+    await page.waitForFunction(() => document.querySelector('.ck-asmsg')?.textContent.includes('点検表に入れました'), { timeout: 10000 })
     await click(page, '.ck-btn', '点検にもどる')
     await page.waitForSelector('.ck-ta:not(.assign)', { timeout: 5000 })
     await wait(300)
@@ -195,6 +195,8 @@ await withEdge(async (browser) => {
     await click(page, '.ck-filter .ck-chips button', '自分の担当')
     await wait(300)
     const tabs = await page.evaluate(() => [...document.querySelectorAll('.ck-tabs button')].map((b) => b.textContent))
+    const tabsOverflow = await page.evaluate(() => { const t = document.querySelector('.ck-tabs'); return t.scrollHeight - t.clientHeight })
+    check('担当の目線のタブに、縦のスクロールの線が出ない', tabsOverflow <= 0 || (await page.evaluate(() => getComputedStyle(document.querySelector('.ck-tabs')).overflowY)) === 'hidden', String(tabsOverflow))
     check('担当の目線（自分の担当）：「まだの分」（始まった回の残り）と回ごとのタブ', tabs[0].startsWith('まだの分') && tabs.length === 1 + 5, tabs.join('|'))
     await shot(page, '05-mine')
 
@@ -314,6 +316,41 @@ await withEdge(async (browser) => {
     await page.waitForSelector('.ck-ta.assign', { timeout: 5000 })
     const note = await page.evaluate(() => document.querySelector('.ck-asnote')?.textContent ?? '')
     check('割り振りは「並び順で3等分」と出す', note.includes('並び順で3等分'), note)
+    await context.close()
+  }
+  {
+    const { context, page } = await open(browser, '')
+    const errors = []
+    page.on('pageerror', (e) => errors.push(e.message))
+    await nav(page, '点検表')
+    await page.waitForFunction(() => document.querySelector('.ck')?.textContent.includes('点検表を作る'), { timeout: 10000 })
+    await click(page, '.ck .btn.primary', '点検表を作る')
+    await page.waitForSelector('.ck-ta', { timeout: 10000 })
+    // コースごとの設定で、映画・舞台衣装の所属を「並び順で等分」（3）にして、保存しないまま点検表へ
+    await nav(page, 'コースごとの設定')
+    await page.waitForSelector(`.course[data-course-id="${FILM}"]`, { timeout: 10000 })
+    await page.evaluate((id) => {
+      const c = document.querySelector(`.course[data-course-id="${id}"]`)
+      if (!c.classList.contains('open')) c.querySelector('.open-btn').click()
+    }, FILM)
+    await page.waitForSelector('.course.open .group-mode', { timeout: 5000 })
+    await page.evaluate(() => [...document.querySelectorAll('.course.open .group-mode label')].find((l) => l.textContent === '並び順で等分').click())
+    await wait(200)
+    await nav(page, '点検表')
+    await page.waitForSelector('.ck-ta', { timeout: 10000 })
+    // 点検表の画面の見出しの「保存して学生に反映」で保存する
+    await page.evaluate(() => [...document.querySelectorAll('.save-group button, .dirty-bar button')].find((b) => b.offsetParent !== null && !b.disabled && b.textContent.includes('保存')).click())
+    const modal = await page.waitForSelector('.confirm-modal', { timeout: 3000 }).catch(() => null)
+    if (modal) await page.evaluate(() => document.querySelector('.confirm-modal [data-confirm="ok"]').click())
+    await page.waitForFunction(() => [...document.querySelectorAll('.ck-ta tr.gh')].some((tr) => tr.textContent.startsWith('1班')), { timeout: 10000 })
+    const heads = (await tableRows(page)).filter((r) => r.startsWith('#')).map((r) => r.replace(/\d+人$/, ''))
+    check('点検表の画面から等分の設定を保存すると、点検表を読み直して 1班・2班・3班', heads.join() === '#1班,#2班,#3班', heads.join())
+    await click(page, '.ck-btn', '担当の割り振り')
+    await page.waitForSelector('.ck-ta.assign', { timeout: 5000 })
+    for (let g = 0; g < 3; g++) await page.select(`.ck-ta.assign tbody tr:nth-child(${g + 1}) td:nth-child(2) select`, ['梶田', '佐藤', '加藤'][g])
+    await click(page, '.btn', '点検表に入れる')
+    await page.waitForFunction(() => document.querySelector('.ck-asmsg')?.textContent.includes('点検表に入れました'), { timeout: 10000 })
+    check('そのまま割り振っても、画面は落ちない（班の名前で入る）', errors.length === 0 && !!(await page.$('.ck')), errors.join(' / '))
     await context.close()
   }
   {

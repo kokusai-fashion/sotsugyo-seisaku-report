@@ -880,9 +880,11 @@ export function AdminApp() {
         required={profileRequired}
         onClose={() => setProfileOpen(false)}
         onDone={(p: Profile) => {
+          // 直したとき（はじめての登録でないとき）は、直接リンクの印を使い終わりにする（画面を作り直しても点検表に戻さない）。
+          // はじめての登録は、リンクから開いた点検表のまま（スマホで一覧に戻っていた：2026-11-09 の点検）
+          if (state.me?.courseId) setStartCheck(false)
           setState({ ...state, me: p })
           setProfileOpen(false)
-          setStartCheck(false)
           const c = state.years.flatMap((y) => y.config.courses).find((x) => x.id === p.courseId)
           setMessage({ kind: 'ok', text: `氏名と担当コースを登録しました：${p.name}（${c ? courseName(c) : ''} コース）` })
         }}
@@ -896,8 +898,12 @@ export function AdminApp() {
         <TeacherView
           key={state.me?.courseId ?? ''}
           startCheck={startCheck}
-          onProfile={() => {
-            if (dirty) return setMessage({ kind: 'ng', text: '保存していない変更があります。保存するか元に戻してから、「氏名と担当コース」を直してください' })
+          onProfile={async () => {
+            // 保存していない変更があれば、確かめの窓（どの区切り・スマホの一覧からでも見える）。破棄するときは、保存してある内容に戻してから開く
+            if (dirty) {
+              if (!(await ask('保存していない変更があります。破棄して「氏名と担当コース」を開きますか？（残すときは「やめる」を押して、先に保存してください）', { ok: '破棄して開く', danger: true }))) return
+              select(state, row.year)
+            }
             setProfileOpen(true)
           }}
           state={state}

@@ -1826,20 +1826,26 @@ function saveStudentOrder(year, courseId, studentIds, groups) {
   return studentList_(year, course)
 }
 
-/** 点検表を書く操作の印（スクリプト プロパティ）と、印が切れるまでの時間（Apps Script の1回の実行の上限の6分） */
+/** 点検表を書く操作の印（スクリプト プロパティ。点検表ごと：checkLock:年度:コース）と、印が切れるまでの時間（Apps Script の1回の実行の上限の6分） */
 const CHECK_LOCK_KEY = 'checkLock'
 const CHECK_LOCK_TTL = 6 * 60 * 1000
-/** 点検表をほかの人が書いているとき（待っても空かなかった）の言葉 */
-const CHECK_BUSY = '点検表を、ほかの先生か10分ごとの写しが書いています。少し待ってから、もう一度押してください'
+/** 点検表の画面から書くときに、ほかの書き込みを待つ時間 */
+const CHECK_WAIT = 60000
+/** 待っても空かなかったときの言葉 */
+const CHECK_BUSY = '点検表が混んでいます（ほかの書き込みや、10分ごとの写しの途中です）。少し待ってから、もう一度押してください'
+/** 点検表ごとの印の名前 */
+const checkLockKey_ = (year, courseId) => CHECK_LOCK_KEY + ':' + Number(year) + ':' + courseId
 
 /**
  * 点検表を書く操作どうしを、1つずつにする（10分ごとの写し・すぐの写し・点検表の画面の書き込み・割り振り）。
  * 前は文書の鍵（getDocumentLock）だったが、ウェブアプリ（管理ページ）から呼ぶと null になり、点検表の画面から書けなかった（2026-11-09 の点検で分かった）。
  * スクリプトの鍵は年度の設定の保存（withLock_）と共用で、写しの間（数十秒かかることがある）ずっと持つと保存を待たせるため、
  * スクリプトの鍵は、印を立てる・下ろす一瞬だけ持つ。印は CHECK_LOCK_TTL で切れる（途中で止まった実行の印が残っても、いつまでも待たない）。
- * waitMs まで待っても取れなければ、busy の言葉でエラーにする（busy がなければ、fn を呼ばずに undefined を返す）
+ * 印は点検表ごと（key。ほかのコースの写し・書き込みは待たない）。
+ * waitMs まで待っても取れなければ、busy の言葉でエラーにする（busy がなければ、fn を呼ばずに undefined を返す）。
+ * 印を下ろす前に SpreadsheetApp.flush で書き込みを確定する（ためてある書き込みの前に、次の写しが古い中身を読まないように：2026-11-09 の点検）
  */
-function withCheckLock_(waitMs, busy, fn) {
+function withCheckLock_(key, waitMs, busy, fn) {
   const props = PropertiesService.getScriptProperties()
   const token = Utilities.getUuid()
   const deadline = Date.now() + waitMs
@@ -1848,9 +1854,9 @@ function withCheckLock_(waitMs, busy, fn) {
     lock.waitLock(20000)
     let got = false
     try {
-      const held = parseJson_(props.getProperty(CHECK_LOCK_KEY) || '')
+      const held = parseJson_(props.getProperty(key) || '')
       if (!held || !(Number(held.until) > Date.now())) {
-        props.setProperty(CHECK_LOCK_KEY, JSON.stringify({ token: token, until: Date.now() + CHECK_LOCK_TTL }))
+        props.setProperty(key, JSON.stringify({ token: token, until: Date.now() + CHECK_LOCK_TTL }))
         got = true
       }
     } finally {
@@ -1866,13 +1872,19 @@ function withCheckLock_(waitMs, busy, fn) {
   try {
     return fn()
   } finally {
-    const lock = LockService.getScriptLock()
-    lock.waitLock(20000)
+    // 印を下ろせなくても（スクリプトの鍵が長く空かない）、書けた・断られた結果はそのまま返す（印は CHECK_LOCK_TTL で切れる）
     try {
-      const held = parseJson_(props.getProperty(CHECK_LOCK_KEY) || '')
-      if (held && held.token === token) props.deleteProperty(CHECK_LOCK_KEY)
-    } finally {
-      lock.releaseLock()
+      SpreadsheetApp.flush()
+      const lock = LockService.getScriptLock()
+      lock.waitLock(20000)
+      try {
+        const held = parseJson_(props.getProperty(key) || '')
+        if (held && held.token === token) props.deleteProperty(key)
+      } finally {
+        lock.releaseLock()
+      }
+    } catch (err) {
+      console.error('点検表の印を下ろせませんでした（' + key + '）：' + String(err && err.message ? err.message : err))
     }
   }
 }
@@ -1882,32 +1894,31 @@ function withCheckLock_(waitMs, busy, fn) {
  * ほかの写し・書き込みが動いているあいだは、何もしない（次の10分で写す）
  */
 function syncCheckSheets() {
-  withCheckLock_(1000, '', () => {
-    // 名簿のシートがまだない（だれも登録していない）ときも、点検表の見た目と守りは整える（学生のいる点検表は、syncCheckSheet_ が消さずに止まる）
-    const roster = readRoster_() || []
-    checkSheetEntries_().forEach((entry) => {
-      const found = yearConfig_(entry.year)
-      if (!found || !found.config || found.status === STATUS_ENDED) return
-      const course = courseOf_(found.config, entry.courseId)
-      if (!course) return
-      try {
-        syncCheckSheet_(entry, course, roster)
-      } catch (err) {
-        console.error('点検表（' + entry.year + '年度・' + course.name + '）を直せませんでした：' + String(err && err.message ? err.message : err))
-      }
-    })
+  // 名簿のシートがまだない（だれも登録していない）ときも、点検表の見た目と守りは整える（学生のいる点検表は、syncCheckSheet_ が消さずに止まる）
+  const roster = readRoster_() || []
+  checkSheetEntries_().forEach((entry) => {
+    const found = yearConfig_(entry.year)
+    if (!found || !found.config || found.status === STATUS_ENDED) return
+    const course = courseOf_(found.config, entry.courseId)
+    if (!course) return
+    try {
+      // 点検表ごとの印（ほかの書き込みの途中なら、この点検表は次の10分で写す）
+      withCheckLock_(checkLockKey_(entry.year, course.id), 1000, '', () => syncCheckSheet_(entry, course, roster))
+    } catch (err) {
+      console.error('点検表（' + entry.year + '年度・' + course.name + '）を直せませんでした：' + String(err && err.message ? err.message : err))
+    }
   })
 }
 
 /** 1つのコースの点検表を、今すぐ名簿から写す（点検表を開く・並びを直したとき。写せなくても、10分ごとの仕掛けがまた写す） */
 function syncNow_(year, courseId) {
   try {
-    withCheckLock_(30000, CHECK_BUSY, () => {
-      const entry = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === courseId)
-      const found = yearConfig_(year)
-      const course = found && courseOf_(found.config, courseId)
-      if (entry && course) syncCheckSheet_(entry, course, readRoster_() || [])
-    })
+    const entry = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === courseId)
+    const found = yearConfig_(year)
+    const course = found && courseOf_(found.config, courseId)
+    // 終わった年度の点検表は、もう直さない（10分ごとの写しと同じ）
+    if (!entry || !course || found.status === STATUS_ENDED) return
+    withCheckLock_(checkLockKey_(year, courseId), 30000, CHECK_BUSY, () => syncCheckSheet_(entry, course, readRoster_() || []))
   } catch (err) {
     console.error('点検表を直せませんでした：' + String(err && err.message ? err.message : err))
   }
@@ -2714,8 +2725,9 @@ function getCheckView(year, courseId) {
 function mySurname_(user, course) {
   const m = memberOf_(user)
   // 氏名を先に（メモにほかの先生の名字があっても、取り違えない：2026-11-09 の点検）
+  const surnames = advisorSurnames_(course.advisors)
   const own = m && m.name ? surnameOf_(m.name) : ''
-  return own || editorSurname_(user, m ? m.memo : '', advisorSurnames_(course.advisors))
+  return own && surnames.indexOf(own) >= 0 ? own : editorSurname_(user, m ? [m.name, m.memo].join(' ') : '', surnames)
 }
 
 /**
@@ -2727,7 +2739,7 @@ function setCheckCell(year, courseId, studentId, field) {
   const user = requireTeacher_()
   const course = requireCourse_(year, courseId)
   requireCourseAccess_(user, course.id)
-  withCheckLock_(30000, CHECK_BUSY, () => {
+  withCheckLock_(checkLockKey_(year, course.id), CHECK_WAIT, CHECK_BUSY, () => {
     const cs = openCheckSheet_(year, course.id)
     if (!cs) throw new Error('点検表がまだありません')
     const p = checkRows_(cs)[String(studentId)]
@@ -2779,7 +2791,7 @@ function saveAssignment(year, courseId, assignment) {
     })
   })
   const clean = { labels: a.labels.map((l) => String(l)), rows: rows }
-  const written = withCheckLock_(30000, CHECK_BUSY, () => {
+  const written = withCheckLock_(checkLockKey_(year, course.id), CHECK_WAIT, CHECK_BUSY, () => {
     PropertiesService.getScriptProperties().setProperty('assign:' + Number(year) + ':' + course.id, JSON.stringify(clean))
     return applyAssignment_(year, course, false)
   })

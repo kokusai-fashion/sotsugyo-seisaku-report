@@ -57,7 +57,7 @@ export function ProfileDialog({ courses, me, required, onDone, onClose }: { cour
               )
             })}
           </div>
-          <button type="button" className="pf-other" onClick={() => setTyping(true)}>
+          <button type="button" className="pf-other" disabled={busy} onClick={() => setTyping(true)}>
             一覧に名前がないとき
           </button>
         </>
@@ -65,11 +65,11 @@ export function ProfileDialog({ courses, me, required, onDone, onClose }: { cour
         <>
           <label className="f">
             <span className="l">氏名（姓と名の間に空白）</span>
-            <input className="in" value={name} maxLength={40} placeholder="例：文化　花子" onChange={(e) => setName(e.target.value)} />
+            <input className="in" disabled={busy} value={name} maxLength={40} placeholder="例：文化　花子" onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="f">
             <span className="l">担当のコース（1つ）</span>
-            <select className="in" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+            <select className="in" disabled={busy} value={courseId} onChange={(e) => setCourseId(e.target.value)}>
               <option value="">選んでください</option>
               {courses.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -79,7 +79,7 @@ export function ProfileDialog({ courses, me, required, onDone, onClose }: { cour
             </select>
           </label>
           {choices.length > 0 && (
-            <button type="button" className="pf-other" onClick={() => setTyping(false)}>
+            <button type="button" className="pf-other" disabled={busy} onClick={() => setTyping(false)}>
               一覧から選ぶ
             </button>
           )}

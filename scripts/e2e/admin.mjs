@@ -847,7 +847,7 @@ await withEdge(async (browser) => {
   check('キャンセルした役割の変更は保存されない', savedRole === '管理者', savedRole)
   // 役わりごとにできることは、絵と短い言葉の並びに（mockups/v114 案C を広げた）
   const membersLead = await page.evaluate(() => document.querySelector('.members .roles').textContent)
-  check('先生ができることの説明に、担当のコースの点検表・お知らせも入っている', membersLead.includes('担当のコースの点検表・「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます'), membersLead)
+  check('先生ができることの説明に、担当のコースの点検表・お知らせも入っている', membersLead.includes('担当のコースの点検表・「下書きのひな形」「お知らせ」・所属などと、「書き間違えやすい語」を直せます'), membersLead)
 
   // 変更履歴（左の見出しの区切り）
   await nav(page, '変更履歴')

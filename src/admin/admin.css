@@ -86,7 +86,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .side-nav .cnt { display: inline-block; vertical-align: 1px; margin-left: 6px; min-width: 22px; padding: 0 6px; border-radius: 999px; background: #c97f00; color: #fff; font-size: 13px; font-weight: 700; font-style: normal; text-align: center; line-height: 22px; }
 /* パソコン：変更の数の印は、絵の丸の右上に重ねる（区切りの名前の横だと、見出しが9つになって左の欄が狭くなったとき、印だけが次の行に落ちた：2026-11-09 の点検） */
 @media (min-width: 761px) {
-  .side-nav li button .cnt { position: absolute; left: 24px; top: 0; margin-left: 0; min-width: 21px; padding: 0 5px; font-size: 13px; line-height: 21px; box-shadow: 0 0 0 2px var(--panel); }
+  .side-nav li button .cnt { position: absolute; left: 21px; top: 0; margin-left: 0; min-width: 21px; padding: 0 5px; font-size: 13px; line-height: 21px; box-shadow: 0 0 0 2px var(--panel); }
 }
 .side-nav .me { margin-top: auto; padding: 14px 12px 0; display: grid; justify-items: start; gap: 2px; font-size: 13px; color: var(--muted); line-height: 1.6; overflow-wrap: break-word; }
 .side-nav .me .user { color: #3c4250; font-size: 13.5px; }
@@ -924,7 +924,7 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
 .ck-pchip.busy { opacity: 0.5; }
 .ck-pchip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ck-pchip select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
-.ck-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e3e6ec; overflow-x: auto; scrollbar-width: thin; }
+.ck-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e3e6ec; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
 .ck-tabs button { padding: 8px 16px; font-size: 14px; color: #556; border: 2px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: none; white-space: nowrap; }
 .ck-tabs button.on { background: #fff; border-color: #e3e6ec; margin-bottom: -2px; color: #1f3f6b; font-weight: 700; }
 .ck-tabs em { font-style: normal; display: inline-block; margin-left: 6px; background: #fce8e6; color: #c5221f; border-radius: 999px; padding: 0 7px; font-size: 12px; font-weight: 700; }
@@ -951,6 +951,7 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
 .ck-asnote small { color: #667; font-size: 12.5px; }
 .ck-asfoot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .ck-asfoot small { color: #667; font-size: 12.5px; line-height: 1.6; flex: 1 1 320px; }
+.ck-asfoot .ck-asmsg { flex: 1 1 100%; margin: 0; }
 .ck-error { color: var(--error); font-size: 14px; }
 .ck-ok { color: #1e6b34; font-size: 14px; }
 .ck-wait, .ck-empty { color: var(--muted); font-size: 14.5px; }
@@ -982,5 +983,10 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
 .pf-list button.on small { color: var(--accent); }
 .pf-other { margin-top: 10px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .profile-modal select.in { width: 100%; }
+/* はじめに入る名前の枠は、キーボードで動かしたときだけ（スマホで開くと、いちばん上の名前が選ばれているように見えた） */
+.pf-list button:focus:not(:focus-visible) { outline: none; }
+.pf-other:disabled { opacity: 0.5; cursor: default; }
+/* スマホの一覧：区切りのボタンの「›」を、左下の「氏名と担当コース」には付けない */
+.side-nav .me .profile-link::after { content: none !important; }
 .member-list small.prof { color: #3c4250; }
 .member-list small.prof.none { color: var(--muted); }

@@ -319,7 +319,7 @@ function CourseItem({
         <div className="set-group">点検表</div>
         <div className="grid set-list">
           <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} url={checkSheetUrl} />
-          <GroupRow course={course} changed={changed('groups') || changed('checkSplit')} onChange={onChange} />
+          <GroupRow course={course} saved={base.courses.find((c) => c.id === course.id)} changed={changed('groups') || changed('checkSplit')} onChange={onChange} />
           <SheetOrderRow
             year={draft.fiscalYear}
             course={course}
@@ -445,7 +445,7 @@ function CheckSheetRow({ year, course, saved, url }: { year: number; course: Cou
  * 所属（名前の札。指導教員の欄と同じく、欄に入れて Enter で足す。依頼者の選択 2026-11-09 mockups/v119 ①）。
  * 同じ名前・長すぎる名前は足さずに、欄の下で知らせる
  */
-function GroupRow({ course, changed, onChange }: { course: Course; changed: boolean; onChange: (c: Course) => void }) {
+function GroupRow({ course, saved, changed, onChange }: { course: Course; saved?: Course; changed: boolean; onChange: (c: Course) => void }) {
   const [text, setText] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
   const groups = course.groups ?? []
@@ -453,11 +453,12 @@ function GroupRow({ course, changed, onChange }: { course: Course; changed: bool
    * まとまりの作り方（依頼者の選択 2026-11-09）：使わない／学生が選ぶ（所属）／並び順で等分（班。学生には聞かない）。
    * 「学生が選ぶ」にして、まだ所属を足していない間も、その形のまま（chooseOpen）
    */
-  const [chooseOpen, setChooseOpen] = useState(false)
+  // はじめから所属があれば「学生が選ぶ」（札を全部消しても、ほかの形に変わらない：2026-11-09 の点検）
+  const [chooseOpen, setChooseOpen] = useState(() => (course.groups ?? []).length > 0)
   const mode: 'none' | 'choose' | 'split' = groups.length || chooseOpen ? 'choose' : course.checkSplit ? 'split' : 'none'
   // ほかの形に替えたあと、戻したときに使う（所属の名前・分ける数。この画面を開いている間だけ：2026-11-09 の点検）
-  const lastGroups = useRef<string[]>(groups)
-  const lastSplit = useRef<number>(course.checkSplit ?? 3)
+  const lastGroups = useRef<string[]>(groups.length ? groups : (saved?.groups ?? []))
+  const lastSplit = useRef<number>(course.checkSplit ?? saved?.checkSplit ?? 3)
   const pick = (next: typeof mode) => {
     setProblem(null)
     if (groups.length) lastGroups.current = groups
