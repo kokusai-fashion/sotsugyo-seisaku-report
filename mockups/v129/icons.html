@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>v129 管理ページのアイコン</title>
+<!-- 管理ページをスマホのホーム画面に置いたときのアイコンの見本（依頼者 2026-11-10）。
+     node scripts/mockup-v129-admin-icon.mjs → mockups/v129/v129-admin-icon.png -->
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udmincho/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/700.css" />
+<style>
+  :root { --navy: #2f3e75; --red: #7d2a35; --ink: #26262b; --muted: #6b6b73; --line: #e2ded6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 32px 32px; width: 1180px; background: #f3f1ec; color: var(--ink); font-family: 'BIZ UDPGothic', sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .lead { font-size: 14px; color: var(--muted); margin: 0 0 20px; line-height: 1.7; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { background: #fff; border-radius: 14px; padding: 18px 18px 16px; border: 1px solid var(--line); }
+  .card h2 { font-size: 16px; margin: 0 0 4px; }
+  .card h2 .rec { display: inline-block; margin-left: 8px; padding: 2px 9px; border-radius: 999px; background: var(--navy); color: #fff; font-size: 12px; vertical-align: 2px; }
+  .card .sub { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+  .big { display: flex; justify-content: center; margin: 4px 0 16px; }
+  /* アイコン（180px） */
+  .icon { width: 180px; height: 180px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .icon .k { font-family: 'BIZ UDMincho', serif; line-height: 1; font-size: 84px; }
+  .icon .s { font-family: 'BIZ UDPGothic', sans-serif; font-weight: 700; line-height: 1; font-size: 30px; letter-spacing: 0.12em; padding-left: 0.12em; margin-top: 10px; }
+  .n { background: var(--navy); }
+  .n .k, .n .s { color: #fff; }
+  .w { background: #fbfaf7; box-shadow: 0 2px 8px rgba(0,0,0,0.12), inset 0 0 0 1px #e6e2da; }
+  .w .k { color: var(--navy); }
+  .w .s { color: #fff; background: var(--navy); padding: 6px 12px 6px 16px; border-radius: 8px; font-size: 27px; }
+  .r { background: var(--red); }
+  .r .k, .r .s { color: #fff; }
+  /* 学生のツールのアイコン（いまのもの：紺地に白い「卒」） */
+  .stu { background: var(--navy); }
+  .stu .k { color: #fff; font-size: 96px; }
+  /* ホーム画面に置いたときの見え方 */
+  .home { border-radius: 16px; padding: 16px 10px 12px; background: linear-gradient(160deg, #5b6c8f, #8c7fa3 60%, #b49b8e); display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 14px; }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .app .ic { width: 60px; height: 60px; border-radius: 14px; overflow: hidden; position: relative; display: grid; place-items: center; }
+  .app .ic.dummy { background: rgba(255,255,255,0.35); }
+  .app .ic .icon { zoom: 0.3333; box-shadow: none; }
+  .app .lbl { width: 70px; text-align: center; color: #fff; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+  /* パソコンのブラウザのタブ */
+  .tab { margin-top: 12px; display: flex; align-items: center; gap: 8px; background: #eceef3; border-radius: 9px 9px 0 0; padding: 8px 12px; font-size: 12.5px; color: #333; width: 260px; }
+  .tab .fav { width: 16px; height: 16px; border-radius: 3px; overflow: hidden; display: grid; place-items: center; flex: none; }
+  .tab .fav .icon { zoom: 0.0889; box-shadow: none; border-radius: 0; }
+  .good { font-size: 13px; margin: 12px 0 0; line-height: 1.6; }
+  .good b { color: #2e7d4f; }
+  .weak b { color: #b03a2e; }
+  .box { margin-top: 20px; background: #fff; border-radius: 14px; padding: 14px 20px; border: 1px solid var(--line); font-size: 14px; line-height: 1.8; }
+  .box h3 { font-size: 15px; margin: 0 0 4px; }
+  .box ul { margin: 0; padding-left: 1.2em; }
+</style>
+</head>
+<body>
+  <h1>v129 管理ページのアイコン（スマホのホーム画面・パソコンのタブ）</h1>
+  <p class="lead">学生のツールのアイコン（紺地に白い「卒」）と見分けられるよう、「管理」の字を入れました。<br />
+    下のホーム画面の見本は、左上が学生のツール、その右が管理ページです。</p>
+
+  <div class="cards">
+    <div class="card">
+      <h2>案A　紺地に「卒」と「管理」<span class="rec">おすすめ</span></h2>
+      <p class="sub">学生のツールと同じ色で、下に「管理」</p>
+      <div class="big"><div class="icon n"><span class="k">卒</span><span class="s">管理</span></div></div>
+      <div class="home" data-v="n"></div>
+      <div class="tab" data-v="n"></div>
+      <p class="good"><b>よいところ</b>　学生のツールと同じ仲間だと分かり、ホーム画面でも目立つ。</p>
+      <p class="good weak"><b>弱いところ</b>　学生のツールと並べると、違いは「管理」の字だけ。</p>
+    </div>
+    <div class="card">
+      <h2>案B　白地に紺の「卒」と「管理」の札</h2>
+      <p class="sub">学生のツールと色を反対にする</p>
+      <div class="big"><div class="icon w"><span class="k">卒</span><span class="s">管理</span></div></div>
+      <div class="home" data-v="w"></div>
+      <div class="tab" data-v="w"></div>
+      <p class="good"><b>よいところ</b>　学生のツールと並べても、すぐ分かる。</p>
+      <p class="good weak"><b>弱いところ</b>　明るい壁紙だと、少し目立ちにくい。</p>
+    </div>
+    <div class="card">
+      <h2>案C　えんじ地に「卒」と「管理」</h2>
+      <p class="sub">形は案A のまま、色だけ変える</p>
+      <div class="big"><div class="icon r"><span class="k">卒</span><span class="s">管理</span></div></div>
+      <div class="home" data-v="r"></div>
+      <div class="tab" data-v="r"></div>
+      <p class="good"><b>よいところ</b>　色で見分けられ、ホーム画面でも目立つ。</p>
+      <p class="good weak"><b>弱いところ</b>　管理ページの画面の色（紺）とはそろわない。</p>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>アイコンの下の名前</h3>
+    <ul>
+      <li>名前は、ホーム画面に置くときに入れます（はじめは「卒業制作報告書 管理ページ」が入り、ホーム画面では途中で切れます）。見本では「卒制 管理」と入れたときの見え方にしました。</li>
+    </ul>
+  </div>
+
+  <script>
+    const big = (v) => document.querySelector(`.big .icon.${v}`).outerHTML
+    const stu = '<div class="icon stu"><span class="k">卒</span></div>'
+    const others = ['カメラ', '写真', 'Gmail', 'カレンダー', 'ドライブ', '天気']
+    document.querySelectorAll('.home').forEach((home) => {
+      const v = home.dataset.v
+      const cells = [`<div class="app"><div class="ic">${stu}</div><div class="lbl">卒制報告書</div></div>`, `<div class="app"><div class="ic">${big(v)}</div><div class="lbl">卒制 管理</div></div>`]
+      others.forEach((n) => cells.push(`<div class="app"><div class="ic dummy"></div><div class="lbl">${n}</div></div>`))
+      home.innerHTML = cells.join('')
+    })
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.innerHTML = `<span class="fav">${big(tab.dataset.v)}</span><span>卒業制作報告書 管理ページ</span>`
+    })
+  </script>
+</body>
+</html>

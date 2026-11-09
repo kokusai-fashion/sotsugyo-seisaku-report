@@ -1,5 +1,5 @@
 // Apps Script のプログラム（gas/*/Code.js）を、Google のサービスをまねた簡易版の上で動かして確かめる。
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createContext, runInContext } from 'node:vm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import * as rules from '../src/admin/serverRules'
@@ -425,7 +425,21 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
       }),
     },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (text: string) => ({ text, setMimeType() { return this } }) },
-    HtmlService: { createHtmlOutputFromFile: () => ({ setTitle() { return this }, addMetaTag() { return this } }) },
+    HtmlService: {
+      createHtmlOutputFromFile: () => ({
+        favicon: '',
+        setTitle() {
+          return this
+        },
+        setFaviconUrl(url: string) {
+          this.favicon = url
+          return this
+        },
+        addMetaTag() {
+          return this
+        },
+      }),
+    },
     ScriptApp: {
       getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/admin/exec' }),
       getProjectTriggers: () => triggers.map((t) => ({ trigger: t, getHandlerFunction: () => t.handler, getTriggerSourceId: () => t.source ?? null })),
@@ -512,6 +526,12 @@ describe('管理ページ（admin-project）', () => {
     expect(() => gas.getTrialSample()).toThrow(/登録された先生だけ/)
     user = 'kato@example.ac.jp'
     expect(() => load('admin-project').getTrialSample()).toThrow(/見本の原稿が入っていません/)
+  })
+
+  it('管理ページのアイコンは、GitHub Pages に置いた画像を指す（パソコンのタブ・Android のホーム画面）', () => {
+    const url = load('admin-project').doGet().favicon
+    expect(url).toBe('https://kokusai-fashion.github.io/sotsugyo-seisaku-report/icons/admin-icon-192.png')
+    expect(existsSync(`public/${url.split('/sotsugyo-seisaku-report/')[1]}`)).toBe(true)
   })
 
   it('公開中の管理ページの版の印と場所を返す（開いたままの画面の「新しい版があります」。だれでも呼べる）', () => {

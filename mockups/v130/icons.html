@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>v130 管理ページのアイコン（色の案）</title>
+<!-- 管理ページのアイコンの色の案（依頼者 2026-11-10：v129「案C寄りの考え方が良いが、別の色の案も見たい」）。
+     node scripts/mockup-v130-admin-icon-colors.mjs → mockups/v130/v130-admin-icon-colors.png -->
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udmincho/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/400.css" />
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/700.css" />
+<style>
+  :root { --navy: #2f3e75; --ink: #26262b; --muted: #6b6b73; --line: #e2ded6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 32px 32px; width: 1180px; background: #f3f1ec; color: var(--ink); font-family: 'BIZ UDPGothic', sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .lead { font-size: 14px; color: var(--muted); margin: 0 0 20px; line-height: 1.7; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { background: #fff; border-radius: 14px; padding: 16px 18px 16px; border: 1px solid var(--line); }
+  .card h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: baseline; gap: 8px; }
+  .card h2 small { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .card h2 .rec { padding: 2px 9px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+  .row { display: flex; align-items: center; gap: 16px; }
+  .icon { width: 180px; height: 180px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .icon .k { font-family: 'BIZ UDMincho', serif; line-height: 1; font-size: 84px; color: #fff; }
+  .icon .s { font-family: 'BIZ UDPGothic', sans-serif; font-weight: 700; line-height: 1; font-size: 30px; letter-spacing: 0.12em; padding-left: 0.12em; margin-top: 10px; color: #fff; }
+  .row > .icon { zoom: 0.7; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .stu .k { font-size: 96px; }
+  /* ホーム画面（学生のツールと並べる） */
+  .home { flex: 1; border-radius: 14px; padding: 12px 8px 10px; background: linear-gradient(160deg, #5b6c8f, #8c7fa3 60%, #b49b8e); display: grid; grid-template-columns: repeat(2, 1fr); row-gap: 10px; }
+  .home.light { background: linear-gradient(160deg, #e9e4da, #f6f2ea 60%, #dfe6ee); }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .app .ic { width: 52px; height: 52px; border-radius: 12px; overflow: hidden; display: grid; place-items: center; }
+  .app .ic .icon { zoom: 0.2889; }
+  .app .lbl { width: 64px; text-align: center; color: #fff; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+  .home.light .lbl { color: #333; text-shadow: none; }
+  .tab { margin-top: 12px; display: flex; align-items: center; gap: 8px; background: #eceef3; border-radius: 9px 9px 0 0; padding: 7px 12px; font-size: 12.5px; color: #333; }
+  .tab .fav { width: 16px; height: 16px; border-radius: 3px; overflow: hidden; display: grid; place-items: center; flex: none; }
+  .tab .fav .icon { zoom: 0.0889; border-radius: 0; }
+  .note { font-size: 13px; margin: 10px 0 0; line-height: 1.6; color: #444; }
+  .box { margin-top: 20px; background: #fff; border-radius: 14px; padding: 14px 20px; border: 1px solid var(--line); font-size: 14px; line-height: 1.8; }
+  .box h3 { font-size: 15px; margin: 0 0 4px; }
+  .box ul { margin: 0; padding-left: 1.2em; }
+</style>
+</head>
+<body>
+  <h1>v130 管理ページのアイコン　色の案</h1>
+  <p class="lead">形は v129 の案C（色の地に白い「卒」と「管理」）のままで、地の色を6つ並べました。<br />
+    右の小さな見本は、学生のツールのアイコン（紺）と並べたところです。上は暗い壁紙、下は明るい壁紙です。</p>
+
+  <div class="cards">
+    <div class="card" data-c="#316745"><h2>① 千歳緑<small>ちとせみどり</small><span class="rec">おすすめ</span></h2><p class="note">紺と並べても見分けやすく、落ち着いた色。赤のように「注意」にも見えない。</p></div>
+    <div class="card" data-c="#7d2a35"><h2>② えんじ<small>v129 の案C</small></h2><p class="note">いちばん目立つ。赤なので、知らせの印にも見える。</p></div>
+    <div class="card" data-c="#1f6273"><h2>③ 納戸色<small>なんどいろ</small></h2><p class="note">青緑。紺の仲間に見えつつ、並べると違いが分かる。</p></div>
+    <div class="card" data-c="#5d437e"><h2>④ 江戸紫<small>えどむらさき</small></h2><p class="note">ほかのアプリにあまりない色で、見つけやすい。</p></div>
+    <div class="card" data-c="#6f4b3e"><h2>⑤ 焦茶<small>こげちゃ</small></h2><p class="note">やわらかい印象。暗い壁紙では少し沈む。</p></div>
+    <div class="card" data-c="#3a3a40"><h2>⑥ 墨<small>すみ</small></h2><p class="note">きりっとした印象。紺と並べると、少し近く見える。</p></div>
+  </div>
+
+  <div class="box">
+    <h3>アイコンの下の名前</h3>
+    <ul><li>見本では「卒制 管理」と入れたときの見え方にしました（名前は、ホーム画面に置くときに入れます）。</li></ul>
+  </div>
+
+  <script>
+    const icon = (bg, admin) =>
+      admin
+        ? `<div class="icon" style="background:${bg}"><span class="k">卒</span><span class="s">管理</span></div>`
+        : `<div class="icon stu" style="background:#2f3e75"><span class="k">卒</span></div>`
+    document.querySelectorAll('.card').forEach((card) => {
+      const c = card.dataset.c
+      const app = (admin, lbl) => `<div class="app"><div class="ic">${icon(c, admin)}</div><div class="lbl">${lbl}</div></div>`
+      const homes = ['', 'light'].map((k) => `<div class="home ${k}">${app(false, '卒制報告書')}${app(true, '卒制 管理')}</div>`).join('')
+      const row = document.createElement('div')
+      row.className = 'row'
+      row.innerHTML = `${icon(c, true)}<div style="flex:1;display:grid;gap:8px">${homes}</div>`
+      card.querySelector('h2').after(row)
+      const tab = document.createElement('div')
+      tab.className = 'tab'
+      tab.innerHTML = `<span class="fav">${icon(c, true)}</span><span>卒業制作報告書 管理ページ</span>`
+      row.after(tab)
+    })
+  </script>
+</body>
+</html>

@@ -67,9 +67,17 @@ const TEACHER_AI_URL = /*TEACHER_AI_URL*/ ''
 // gas/pdf-folder.local.json の folderId を入れる。なければ ''：スクリプト プロパティ PDF_FOLDER_ID を使う）。コースの点検表は、この中のコースのフォルダに置く
 const PDF_FOLDER_ID = /*PDF_FOLDER_ID*/ ''
 
+/**
+ * 管理ページのアイコン（パソコンのタブと、Android のホーム画面。納戸色の地に「卒」と「管理」：依頼者の選択 2026-11-10。
+ * 画像は GitHub Pages に置く：scripts/make-icons.mjs）。Apps Script では iPhone のホーム画面用の指定（apple-touch-icon）は置けない。
+ * GitHub のリポジトリを移したら、ここも直す（docs/引き継ぎ手順.md）
+ */
+const ADMIN_ICON_URL = 'https://kokusai-fashion.github.io/sotsugyo-seisaku-report/icons/admin-icon-192.png'
+
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('admin')
     .setTitle('卒業制作報告書 管理ページ')
+    .setFaviconUrl(ADMIN_ICON_URL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
 }
 
