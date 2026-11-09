@@ -440,7 +440,8 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
         return (
           <>
             <h2 {...courseTitle}>所属を選んでください</h2>
-            <p>先生が登録した中から、自分の所属を選びます。先生の点検表は、所属ごとに並びます。</p>
+            {/* 点検表・先生の登録のことは書かない（学生には要らない：依頼者 2026-11-09） */}
+            <p>自分の所属（制作グループなど）を押します。</p>
             <div className="g-opts">
               {groups.map((g) => (
                 <button
