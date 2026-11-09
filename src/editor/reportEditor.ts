@@ -2,6 +2,7 @@ import { findCourse, subtitleInputOnly, type YearConfig } from '../config'
 import { abstractCapacity, checkReportDetailed, type ReportFinding } from '../checker/reportChecks'
 import { FIELD_IDS, REFERENCES_ANCHOR, TOC_TEXT, type AbstractGate } from '../layout/document'
 import type { LayoutInfo, PageKind } from '../layout/measure'
+import type { FigureGrow } from '../layout/figureGrow'
 import { captionWithoutNumber } from '../model/captionText'
 import { markedLine, numberedLine, subheadingTitle, typedHeading, type TypedHeading } from '../model/headingText'
 import { FIGURE_MAX_PX, fitFigureSize, importImage, PHOTO_MAX_PX } from '../model/images'
@@ -468,6 +469,9 @@ export class ReportEditor {
         // 前の段落に「。」を自動で付けたときは覚えておく（すぐ Backspace でつなぎ直したら、元に戻す）
         const kind = ops.findEditable(this.report, id)?.kind
         this.autoPeriod = !this.template && (kind === 'paragraph' || kind === 'abstractParagraph') && ops.withPeriod(before) !== before ? { prevId: id, newId: result.newId, original: before } : null
+        // 本文の段落の終わりで Enter：何も書かずに離れたら、作った段落を消す（依頼者の選択 2026-11-09。ひな形を作る画面では残す）。
+        // 「。」を自動で付けたときは、元に戻すと「。」が外れるので、積んだ原稿は残す（付けていなければ、分けたことごとなかったことにする）
+        if (!this.template && editing === 'paragraph' && !after.trim()) this.freshParagraph = { id: result.newId, titled: this.autoPeriod ? null : typed }
         this.continueWriting(result.newId, 0, { ghostOf: id })
         // はじめて「。」を自動で付けたときだけ（開いている間に1回）、画面の下に知らせる（黙って付けると、付いたことに気づかない）
         if (this.autoPeriod) this.noticeAutoPeriodOnce()
@@ -622,7 +626,7 @@ export class ReportEditor {
         this.reopenAfterRender(last ?? result.lastId, caret, { id, place: 'after' })
         // 段落ごと（終わりの改行まで）貼って、その後ろに作った空の段落：何も書かずに離れたら消す（図のタイトルの Enter と同じ。
         // 段落の終わり・空の段落に貼るたびに、空の段落が残っていた：学生の試し 6回目 2026-10-30）
-        if (!last && paragraphs.length > 1 && paragraphs[paragraphs.length - 1] === '') this.captionParagraph = { id: result.lastId, titled: null }
+        if (!last && paragraphs.length > 1 && paragraphs[paragraphs.length - 1] === '') this.freshParagraph = { id: result.lastId, titled: null }
         if (headed) this.noticeHeading(headed.step)
       },
       // 段落の書き出しに打った空白を入れなかった：1字下げは自動で付くことを、開いている間に1回だけ知らせる
@@ -1200,6 +1204,7 @@ export class ReportEditor {
         if (swap) this.renderer.swap(this.page)
         else if (result.early) this.renderer.show(this.page)
         this.shownReport = rendered
+        this.noticeFigureBack(rendered)
         // 削除したものが出てこない紙面になったら、隠すのをやめる（組み始めたあとに削除したものは、まだ隠しておく。元に戻したものは隠さない）
         const shown = bodyIds(rendered)
         const now = bodyIds(this.report)
@@ -2375,10 +2380,11 @@ export class ReportEditor {
     if (this.continuing?.id === id) this.continuing = null
     this.report = committed
     // 図・表のタイトルの Enter で作った段落に、何も書かずに離れた：消す（図の下に空の段落が残り、「空の段落がある」が図の数だけ出ていた：学生の試し 2026-10-29）
-    if (this.captionParagraph) {
-      const made = this.captionParagraph.id === id ? this.captionParagraph : null
-      this.captionParagraph = null
-      if (made && kindNow === 'paragraph' && !tidy.trim() && !heading && !ops.findParagraph(this.report, id)?.hint) {
+    if (this.freshParagraph) {
+      const made = this.freshParagraph.id === id ? this.freshParagraph : null
+      this.freshParagraph = null
+      // その段落に続けて何かをする（図・表を入れる・選ぶ範囲を広げるなど：commitAsParagraph）ときは消さない（入れた図・表が、その段落と置き換わる）
+      if (made && !this.keepParagraph && kindNow === 'paragraph' && !tidy.trim() && !heading && !ops.findParagraph(this.report, id)?.hint) {
         // フォーカスは、前の図・表のタイトル（見出し）へ戻す（消した段落へ戻そうとして、行方不明になっていた：学生の試し 4回目 2026-10-30）
         const blocks = this.report.body.flatMap((c) => c.blocks)
         const prev = blocks[blocks.findIndex((b) => b.id === id) - 1]
@@ -2993,15 +2999,17 @@ export class ReportEditor {
     this.pushHistory(titled)
     this.report = created.report
     this.autoPeriod = null
-    this.captionParagraph = { id: created.newId, titled }
+    this.freshParagraph = { id: created.newId, titled }
     this.continueWriting(created.newId, 0, { ghostOf: id })
   }
   /**
-   * 図・表のタイトル・打って見出しにした行で Enter を押して、その後ろに作った段落と、図・表のときに積んだ原稿（タイトルを書いた原稿）。
+   * 作ったばかりの段落（図・表のタイトル・打って見出しにした行・段落の終わりで Enter、「＋ 文章の続きを書く」、段落ごと貼った後ろ）と、
+   * 作るときに積んだ原稿（titled。図・表ならタイトルを書いた原稿、「＋ 文章の続きを書く」なら押す前の原稿）。
    * 何も書かずに離れたら、段落を消し、積んだ原稿も取り除く（元に戻すで、空の段落が戻らないように：onCommitEdit）。
-   * 見出しのとき（titled なし）は、元に戻すと打ったままの段落に戻るので、積んだ原稿は残す
+   * titled なし（見出し・「。」を自動で付けた段落の Enter など）は、元に戻すと打ったままの段落に戻るので、積んだ原稿は残す。
+   * 段落の終わりの Enter・「＋ 文章の続きを書く」で作った段落も消す（空の段落が残ると、図が大きくならず、「空の段落がある」も出ていた：依頼者の選択 2026-11-09）
    */
-  private captionParagraph: { id: string; titled: Report | null } | null = null
+  private freshParagraph: { id: string; titled: Report | null } | null = null
 
   /**
    * 見出しで Enter：すぐ後ろの、何も書いていない段落（blankId）へ移って書く（新しい段落は作らない）。
@@ -3074,7 +3082,7 @@ export class ReportEditor {
     this.autoPeriod = null
     const step = this.headingStep(typed, [[id, before.trim()]], this.headingNoticeBody(result.report, result.headingId, heading))
     // 何も書かずに離れたら、後ろに作った段落は消す（図のタイトルの Enter と同じ。空の段落が残っていた：学生の試し 3回目 2026-10-29）
-    if (!after.trim()) this.captionParagraph = { id: result.nextId, titled: null }
+    if (!after.trim()) this.freshParagraph = { id: result.nextId, titled: null }
     // 組み直すまでは、打ったままの文を仮に表示しておく（組み直すと、見出しになる）
     this.continueWriting(result.nextId, 0, { ghostOf: id, ghostText: before })
     this.noticeHeading(step)
@@ -3145,8 +3153,11 @@ export class ReportEditor {
     this.commitForChange()
     const created = ops.paragraphBelow(this.report, objectId)
     if (!created) return
-    this.pushHistory(this.report)
+    const before = this.report
+    this.pushHistory(before)
     this.report = created.report
+    // 何も書かずに離れたら、作った段落を消して、押す前に戻す（ひな形を作る画面では残す：先生が、学生の書く所として空の段落を置くことがあるため）
+    if (!this.template) this.freshParagraph = { id: created.newId, titled: before }
     this.selection = null
     this.markSelection()
     this.currentId = created.newId
@@ -3976,6 +3987,25 @@ export class ReportEditor {
   }
 
   /** Enter で「。」を自動で付けたことを、開いている間に1回だけ知らせる（すぐ Backspace で取り消せることも） */
+  /**
+   * 章の終わりの図の後ろの段落に書き始めて、大きくしていた図が元の大きさに戻った：画面の下に1回だけ知らせる
+   * （図が急に小さくなる理由が分かるように。空の段落のあいだは図を大きいままにする：layout/figureGrow.ts の blankTail。依頼者の選択 2026-11-09）
+   */
+  private noticeFigureBack(rendered: Report): void {
+    const before = this.grownBefore
+    const now = this.renderer.grownFigures
+    this.grownBefore = now
+    const editing = this.overlay.blockId
+    if (this.figureBackNoticed || !editing) return
+    const blocks = rendered.body.find((c) => c.blocks.some((b) => b.id === editing))?.blocks ?? []
+    const prev = blocks[blocks.findIndex((b) => b.id === editing) - 1]
+    if (prev?.type !== 'figureRow' || (before[prev.id]?.scale ?? 1) <= 1 || (now[prev.id]?.scale ?? 1) > 1) return
+    this.figureBackNoticed = true
+    this.showNotice('図の後ろに文章を書き始めたので、図を元の大きさに戻しました（章の終わりの図は、下の空きに合わせて大きくなります）', { untilMove: true })
+  }
+  private grownBefore: FigureGrow = {}
+  private figureBackNoticed = false
+
   private noticeAutoPeriodOnce(): void {
     if (this.autoPeriodNoticed) return
     this.autoPeriodNoticed = true
@@ -4231,7 +4261,7 @@ export class ReportEditor {
       }
       // 図・表のタイトル・見出しの Enter で作った、まだ何も書いていない段落：確定すると消えるので、その前（図・表・見出し）の後ろに足す
       // （図のタイトルで Enter → すぐ「中見出し」で、見出しが本文のいちばん後ろに入っていた：学生の試し 7回目 2026-10-30）
-      if (this.captionParagraph?.id === editing && !this.overlay.text.trim()) {
+      if (this.freshParagraph?.id === editing && !this.overlay.text.trim()) {
         const blocks = this.report.body.flatMap((c) => c.blocks)
         return blocks[blocks.findIndex((b) => b.id === editing) - 1]?.id ?? editing
       }
@@ -4652,6 +4682,8 @@ export class ReportEditor {
     const paragraphId = this.editingParagraph()
     if (!paragraphId || this.settlingRemoval) return
     const caret = this.overlay.caret
+    // 作ったばかりの空の段落で入れた：段落を消さずに、表と置き換える（placeObject）
+    if (this.freshParagraph?.id === paragraphId) this.freshParagraph = null
     this.commitForChange()
     const tableId = ops.newId('t')
     const table = kind === 'material' ? materialTable(tableId, ops.newId) : blankTable(tableId, ops.newId, '', size?.columns, size?.rows)

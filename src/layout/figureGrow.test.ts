@@ -66,6 +66,18 @@ describe('改ページ・章の終わりの直前の図を、下の空きに合�
     expect(decide(l, 'none')).toEqual({ g1: { scale: 1.5, page: 0 } })
   })
 
+  it('後ろが中身のない段落（説明もない）だけなら、章の終わりと同じく大きくする。書き始めた・説明がある・後ろにまだ続くときは大きくしない（依頼者の選択 2026-11-09）', () => {
+    const l = layout([at(0, 120, 212)], [[size(60, 80)]])
+    const p = (id: string, text: string, hint?: string) => ({ type: 'paragraph' as const, id, content: [{ type: 'text' as const, text }], ...(hint ? { hint } : {}) })
+    const withTail = (...tail: Chapter['blocks']): Chapter => ({ ...chapter('none'), blocks: [...chapter('none').blocks, ...tail] })
+    const grown = { g1: { scale: 1.5, page: 0 } }
+    expect(decideFigureGrowth(l, [withTail(p('p2', ''))], new Set(), {}, new Set(), new Set())).toEqual(grown)
+    expect(decideFigureGrowth(l, [withTail(p('p2', ''), { type: 'pageBreak', id: 'pb1' })], new Set(), {}, new Set(), new Set())).toEqual(grown)
+    expect(decideFigureGrowth(l, [withTail(p('p2', '完'))], new Set(), {}, new Set(), new Set())).toEqual({})
+    expect(decideFigureGrowth(l, [withTail(p('p2', '', '工夫した点を書く'))], new Set(), {}, new Set(), new Set())).toEqual({})
+    expect(decideFigureGrowth(l, [withTail(p('p2', ''), p('p3', '続き'))], new Set(), {}, new Set(), new Set())).toEqual({})
+  })
+
   it('次のページの上へ送った図・ページをまたぐまとまりは大きくしない', () => {
     expect(decide(layout([at(0, 120, 212)], [[size(60, 80)]]), 'pageBreak', {}, new Set(['g1']))).toEqual({})
     expect(decide(layout([at(0, 200, 272), at(1, 25, 40)], [[size(60, 80)]]))).toEqual({})

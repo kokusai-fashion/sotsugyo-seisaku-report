@@ -81,7 +81,7 @@ export function decideFigureGrowth(layout: GrowLayout, chapters: Chapter[], defe
       // 思われる：依頼者の判断 2026-11-05。写真を入れたら、今までどおり大きくする）
       if (block.figures.some((f) => !f.imageId)) return
       const after = chapter.blocks[index + 1]
-      if (after && after.type !== 'pageBreak') return
+      if (after && after.type !== 'pageBreak' && !blankTail(chapter.blocks, index + 1)) return
       const was = grow[block.id]
       const current = was?.scale ?? 1
       const places = layout.group(block.id)
@@ -168,6 +168,19 @@ function decideShrink(layout: GrowLayout, chapter: Chapter, index: number, grow:
 /** 今の紙面から、次に組むときの倍率を決める（decideFigureGrowth に、紙面から読み取った位置を渡す） */
 export function reviseFigureGrowth(pages: HTMLElement[], chapters: Chapter[], deferred: ReadonlySet<string>, grow: FigureGrow, reset: Set<string>, blocked: Set<string>): FigureGrow {
   return decideFigureGrowth(measureGrowLayout(pages), chapters, deferred, grow, reset, blocked)
+}
+
+/**
+ * blocks[at] が、中身のない段落（ひな形の説明もない）で、章の終わりか改ページの前にあるか。
+ * 「＋ 文章の続きを書く」を押したばかりの段落など。大きくした図の下には1行分の空きを残してあるので、そこに入る。
+ * そのあいだは図の大きさを変えない（押した・何も書かずに離れたときに、図が小さくなったり大きくなったりして、学生が戸惑うため。
+ * 文字を打ち始めたら、元の大きさに戻す：依頼者の選択 2026-11-09）
+ */
+function blankTail(blocks: Chapter['blocks'], at: number): boolean {
+  const block = blocks[at]
+  const next = blocks[at + 1]
+  if (block?.type !== 'paragraph' || block.hint || (next && next.type !== 'pageBreak')) return false
+  return block.content.every((node) => node.type === 'text' && !node.text.trim())
 }
 
 export function sameGrow(a: FigureGrow, b: FigureGrow): boolean {

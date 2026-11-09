@@ -130,6 +130,10 @@ export class ReportRenderer {
   private tableFits: TableFits = {}
   /** 前に組んだときに大きくした、改ページ・章の終わりの直前の図のまとまり（次も、ここから始める。layout/figureGrow.ts） */
   private figureGrow: FigureGrow = {}
+  /** いま組んである紙面で大きくしている図のまとまり（大きくした図が元に戻ったことを知らせるため：reportEditor の noticeFigureBack） */
+  get grownFigures(): FigureGrow {
+    return this.figureGrow
+  }
   /** 組んで落ち着いた原稿（状態によらない部分の HTML）と、そのときの状態 */
   private readonly settled = new Map<string, LayoutState>()
   /** 前に開いたときに覚えた組み方（layout/memory.ts）を、もう見たか（開いてはじめて組むときだけ使う） */

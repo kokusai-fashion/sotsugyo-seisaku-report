@@ -1972,11 +1972,15 @@ await withEdge(async (browser) => {
     const fixedTitle = (await blocksOf('fc1')).find((b) => b.id === 'fsN')?.title
     check('中見出しに手で書いた「（1）」は警告になり、「「（1）」を消します」と書く（「直す」はない）。押して移り、自分で消すと番号のない見出しになる', headingFix.shown && headingFix.warning && !headingFix.fix && headingFix.detail.includes('「（1）」を消します') && fixedTitle === '素材', JSON.stringify({ headingFix, fixedTitle }))
 
-    // Enter を押して何も書かずに閉じた空の段落：「空の段落がある」を押すとその段落が開き、道具の「削除」で消せる（「段落を削除しました［戻す］」が出る）
+    // Enter を押して何も書かずに閉じた段落は、残らない（作ったばかりの空の段落は消す：依頼者の選択 2026-11-09）
     await clickBlock('fpZ')
     await ctrlEnd()
     await page.keyboard.press('Enter')
     await page.keyboard.press('Escape')
+    await ready()
+    const enterLeft = (await blocksOf('fc2')).length
+    // 残った空の段落（前からある段落の文字を全部消して閉じたものなど）：「空の段落がある」を押すとその段落が開き、道具の「削除」で消せる（「段落を削除しました［戻す］」が出る）
+    await page.evaluate(() => window.__editor.update((r) => ({ ...r, body: r.body.map((c) => (c.id === 'fc2' ? { ...c, blocks: [...c.blocks, { type: 'paragraph', id: 'fpE', content: [{ type: 'text', text: '' }] }] } : c)) })))
     await ready()
     const emptyCount = (await blocksOf('fc2')).length
     const emptyFix = await page.evaluate(() => {
@@ -1989,7 +1993,7 @@ await withEdge(async (browser) => {
     await clickPaletteButton('削除')
     await ready()
     const afterEmpty = { blocks: (await blocksOf('fc2')).map(textOf), toast: await page.evaluate(() => document.querySelector('.undo-toast')?.textContent ?? '') }
-    check('何も書かずに残った空の段落は「空の段落がある」（「削除」で消すと書く）。押してその段落へ移り、道具の「削除」で消すと、「段落を削除しました［戻す］」が出る', emptyCount === 2 && emptyFix.shown && !emptyFix.fix && emptyFix.detail === '「削除」で、この空の段落を消します' && JSON.stringify(afterEmpty.blocks) === JSON.stringify(['まとめた。']) && afterEmpty.toast.includes('段落を削除しました'), JSON.stringify({ emptyCount, emptyFix, afterEmpty }))
+    check('Enter で作って何も書かずに閉じた段落は残らない。残った空の段落は「空の段落がある」（「削除」で消すと書く）。押してその段落へ移り、道具の「削除」で消すと、「段落を削除しました［戻す］」が出る', enterLeft === 1 && emptyCount === 2 && emptyFix.shown && !emptyFix.fix && emptyFix.detail === '「削除」で、この空の段落を消します' && JSON.stringify(afterEmpty.blocks) === JSON.stringify(['まとめた。']) && afterEmpty.toast.includes('段落を削除しました'), JSON.stringify({ enterLeft, emptyCount, emptyFix, afterEmpty }))
 
     // 文の途中で「図を入れる」：（図n）はカーソルの位置ではなく、その文の終わり（「。」の前）に入る
     await page.evaluate(() => window.__editor.openWhenReady('fpA', 8))
