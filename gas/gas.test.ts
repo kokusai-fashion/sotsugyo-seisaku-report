@@ -1667,6 +1667,28 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(["'（試し）文化　花子", '(試し) 文化 花子', '文化花子', 'ﾌﾞﾝｶ'].map((n) => g.nameKey_(n))).toEqual(['文化花子', '文化花子', '文化花子', 'ブンカ'])
   })
 
+  it('試しの行しかない点検表（学生がまだいない）も、写すと試しの行が消える（止まらない。2026-11-09 の点検）', () => {
+    user = 'jun-kato@example.ac.jp'
+    owner = user
+    const a = setup()
+    const key = 'staff:jun-kato@example.ac.jp'
+    expect(post(a, { ...registerBody(0, { familyName: '文化', givenName: '花子', familyKana: 'ブンカ', givenKana: 'ハナコ', studentId: '00ZZ0123' }), token: tokenOf('jun-kato@example.ac.jp') })).toEqual({ ok: true })
+    admin().ensureCheckSheet(2026, FILM.id)
+    // 前の決まりで写した、試しの行だけの点検表
+    const { h, header } = layoutOf()
+    const row = Array.from({ length: header.length }, () => '' as Cell)
+    row[0] = 1
+    row[1] = '（試し）文化　花子'
+    row[header.indexOf('学籍番号')] = key
+    tab().rows.splice(h + 1, 0, row)
+    expect(Object.keys(sheetStudents())).toEqual([key])
+    logs.length = 0
+    admin().syncCheckSheets()
+    expect(Object.keys(sheetStudents())).toEqual([])
+    expect(logs.filter((l) => l.includes('名簿にこのコースの学生がいません'))).toEqual([])
+    expect(admin().refreshCheckView(2026, FILM.id).students).toEqual([])
+  })
+
   it('register：学生の名簿に入れる・直す（年度と学籍番号で1行）。形の正しくないもの・ほかの学生の学籍番号は断る。教職員の試しは別の行', () => {
     const a = setup()
     expect(register(a, 0)).toEqual({ ok: true })

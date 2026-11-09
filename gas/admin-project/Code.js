@@ -1993,12 +1993,15 @@ function syncCheckSheet_(entry, course, roster) {
   const kept = {}
   const untrusted = {}
   let lastRow = 0
+  /** 点検表にいる、教職員の試しでない学生の行の数（試しの行だけなら、名簿が空でも写して、試しの行を消す） */
+  let realRows = 0
   blocks.forEach((b) => {
     const columns = blockColumns_(values[h], b).filter((x) => x.kind === 'round' || TEACHER_COLUMNS.indexOf(x.kind) >= 0)
     for (let r = h + 1; r < values.length; r++) {
       const key = String(values[r][b.cols.key] === undefined ? '' : values[r][b.cols.key]).trim()
       if (!key) continue
       lastRow = Math.max(lastRow, r - h)
+      if (key.indexOf('staff:') !== 0) realRows++
       const shown = b.cols.name >= 0 ? values[r][b.cols.name] : ''
       if (outOfStep_(names, key, shown)) {
         console.warn('点検表（' + entry.year + '年度・' + course.name + '）の ' + (r + 1) + ' 行目は並びが崩れています（見える氏名が、名簿のほかの学生の氏名）：' + key)
@@ -2017,8 +2020,8 @@ function syncCheckSheet_(entry, course, roster) {
     }
   })
   Object.keys(untrusted).forEach((key) => delete kept[key])
-  // 名簿が空なのに点検表に学生がいる：名簿のシートが読めなかったなど。消さない
-  if (!students.length && lastRow > 0) throw new Error('名簿にこのコースの学生がいません（点検表は、そのままにしました）')
+  // 名簿が空なのに点検表に学生がいる：名簿のシートが読めなかったなど。消さない（教職員の試しの行だけなら、写して消す：2026-11-09 の点検）
+  if (!students.length && realRows > 0) throw new Error('名簿にこのコースの学生がいません（点検表は、そのままにしました）')
 
   // 所属の列を足す・消す（所属を登録した・全部消した）。右の段から（左の段の列の場所が変わらないように）
   let groupFixed = false

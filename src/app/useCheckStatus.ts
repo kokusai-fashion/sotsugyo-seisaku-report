@@ -23,8 +23,8 @@ function readCache(report: Report): CheckStatus | null {
   try {
     const raw = localStorage.getItem(statusKey(report))
     if (!raw) return null
-    const v = JSON.parse(raw) as { row?: unknown; at?: unknown }
-    return typeof v.at === 'string' ? { row: readCheckRow(v.row), at: v.at } : null
+    const v = JSON.parse(raw) as { row?: unknown; at?: unknown; staff?: unknown }
+    return typeof v.at === 'string' ? { row: readCheckRow(v.row), at: v.at, ...(v.staff === true ? { staff: true } : {}) } : null
   } catch {
     return null
   }
