@@ -248,16 +248,16 @@ await withEdge(async (browser) => {
   // 保存の状態とボタンは、スマホで画面の下に出すためのまとまり（save-group）の中。パソコンでは見出しの中に並ぶ（mockups/v68）
   const headerItems = (p = page) => p.evaluate(() => [...document.querySelectorAll('.admin-header > :not(.save-group), .admin-header > .save-group > *')].map((e) => e.textContent.trim() || e.className).join('|'))
   /** 左の見出し（区切りの名前／下の字） */
-  const navItems = (p = page) => p.evaluate(() => [...document.querySelectorAll('.side-nav button')].map((b) => `${b.querySelector('.nt b').firstChild.textContent.trim()}／${b.querySelector('.nt small').textContent}${b.getAttribute('aria-current') ? '＊' : ''}`).join('|'))
+  const navItems = (p = page) => p.evaluate(() => [...document.querySelectorAll('.side-nav li button')].map((b) => `${b.querySelector('.nt b').firstChild.textContent.trim()}／${b.querySelector('.nt small').textContent}${b.getAttribute('aria-current') ? '＊' : ''}`).join('|'))
 
   check('公開中の2026年度が開く', await page.evaluate(() => document.querySelector('.badge.pub')?.textContent === '公開中'))
   const firstHeader = await headerItems()
   const firstNav = await navItems()
   const me = await page.evaluate(() => document.querySelector('.side-nav .me').textContent)
   check(
-    '見出しは1段：題名・使い方・年度・状態の印、右に「変更はありません」と静かな保存のボタン。左の見出しに8つの区切り（はじめは「年度の設定」。学生の画面を試す・届いた声も）。ログイン中の人と試験用サーバーは左の下',
+    '見出しは1段：題名・使い方・年度・状態の印、右に「変更はありません」と静かな保存のボタン。左の見出しに9つの区切り（いちばん上は「点検表」。はじめは「年度の設定」。学生の画面を試す・届いた声も）。ログイン中の人と試験用サーバーは左の下',
     firstHeader === '卒業制作報告書 管理ページ|使い方|2026年度（公開中）|公開中|spacer|変更はありません|保存して学生に反映' &&
-      firstNav.startsWith('年度の設定／題目・締切・新年度＊|コースごとの設定／お知らせ・ひな形|書き方のチェック／言葉 13語（エラー7）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと|先生の登録／2人|変更履歴／最後：') &&
+      firstNav.startsWith('点検表／点検の予定と記録|年度の設定／題目・締切・新年度＊|コースごとの設定／お知らせ・ひな形|書き方のチェック／言葉 13語（エラー7）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと|先生の登録／2人|変更履歴／最後：') &&
       firstNav.endsWith('|詳細設定／ふだんは変えません') &&
       me.includes('admin@example.ac.jp') &&
       me.includes('試験用サーバー'),
@@ -553,8 +553,8 @@ await withEdge(async (browser) => {
   await sleep(200)
   await teacher.waitForSelector('.admin .content')
   check(
-    '先生には、左の見出しが「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つだけの画面が出る（年度の設定・先生の登録などは出ない）',
-    (await navItems(teacher)) === 'コースごとの設定／お知らせ・ひな形＊|書き方のチェック／言葉 14語（エラー8）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと' && !(await teacher.$('#y-commonTitle')) && (await teacher.$$('.course.open .tpl-line')).length === 1,
+    '先生には、左の見出しが「点検表」「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の5つだけの画面が出る（年度の設定・先生の登録などは出ない）',
+    (await navItems(teacher)) === '点検表／点検の予定と記録|コースごとの設定／お知らせ・ひな形＊|書き方のチェック／言葉 14語（エラー8）|学生の画面を試す／見本の原稿で|届いた声／学生の困りごと' && !(await teacher.$('#y-commonTitle')) && (await teacher.$$('.course.open .tpl-line')).length === 1,
     await navItems(teacher),
   )
   check('先生の画面にも、ソースコードの場所のリンクが出る（AGPL）', await teacher.evaluate(() => !!document.querySelector('.side-nav .source a')?.href))
@@ -847,7 +847,7 @@ await withEdge(async (browser) => {
   check('キャンセルした役割の変更は保存されない', savedRole === '管理者', savedRole)
   // 役わりごとにできることは、絵と短い言葉の並びに（mockups/v114 案C を広げた）
   const membersLead = await page.evaluate(() => document.querySelector('.members .roles').textContent)
-  check('先生ができることの説明に、お知らせも入っている', membersLead.includes('すべてのコースの「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます'), membersLead)
+  check('先生ができることの説明に、担当のコースの点検表・お知らせも入っている', membersLead.includes('担当のコースの点検表・「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます'), membersLead)
 
   // 変更履歴（左の見出しの区切り）
   await nav(page, '変更履歴')
@@ -1575,8 +1575,8 @@ await withEdge(async (browser) => {
   const firstCount = await countScreen(vb)
   await vb.screenshot({ path: `${V43}/1-year-1366.png` })
   check(
-    'はじめの画面に見えるのは、入力欄5・ボタン9〜11・12px以下の字0（mockups/v43 案B の数とほぼ同じ。前の画面は入力欄10・ボタン11。左の見出しの「届いた声」でボタンが1つ、「AI に聞くのリンク」で入力欄が1つ増えた）',
-    firstCount.fields === 5 && firstCount.buttons >= 9 && firstCount.buttons <= 11 && firstCount.small === 0 && firstCount.chars >= 280 && firstCount.chars <= 530,
+    'はじめの画面に見えるのは、入力欄5・ボタン9〜13・12px以下の字0（mockups/v43 案B の数とほぼ同じ。前の画面は入力欄10・ボタン11。左の見出しの「届いた声」「点検表」と左下の「氏名と担当コース」でボタンが3つ、「AI に聞くのリンク」で入力欄が1つ増えた）',
+    firstCount.fields === 5 && firstCount.buttons >= 9 && firstCount.buttons <= 13 && firstCount.small === 0 && firstCount.chars >= 280 && firstCount.chars <= 530,
     JSON.stringify(firstCount),
   )
   /** いま見えている区切り：見出しの数・名前、左の見出しで選ばれている区切り、見本があるか */
@@ -1614,6 +1614,7 @@ await withEdge(async (browser) => {
   // キーボード：左の見出しはボタンの一覧（Tab で移り、Enter で開く）
   await vb.focus('.side-nav button')
   await vb.keyboard.press('Tab')
+  await vb.keyboard.press('Tab')
   await vb.keyboard.press('Enter')
   await sleep(200)
   const keyNav = await shownSections()
@@ -1633,7 +1634,7 @@ await withEdge(async (browser) => {
         buttons: bar ? [...bar.querySelectorAll('button')].map((b) => `${b.textContent}${b.classList.contains('primary') ? '＊' : ''}`).join('|') : null,
         header: document.querySelector('.admin-header .save-state')?.textContent ?? null,
         headerSave: [...document.querySelectorAll('.admin-header button.btn')].map((b) => `${b.textContent}${b.classList.contains('primary') ? '＊' : b.classList.contains('quiet') ? '（静か）' : ''}${b.disabled ? '（押せない）' : ''}`).join('|'),
-        counts: [...document.querySelectorAll('.side-nav button')].map((b) => `${b.querySelector('.nt b').firstChild.textContent.trim()}${b.querySelector('.cnt') ? `:${b.querySelector('.cnt').textContent.replace('保存していない変更', '')}` : ''}`).join('|'),
+        counts: [...document.querySelectorAll('.side-nav li button')].map((b) => `${b.querySelector('.nt b').firstChild.textContent.trim()}${b.querySelector('.cnt') ? `:${b.querySelector('.cnt').textContent.replace('保存していない変更', '')}` : ''}`).join('|'),
       }
     })
   const clean = await barState()
@@ -1653,7 +1654,7 @@ await withEdge(async (browser) => {
   check(
     '最終締切を変えると、画面の下に「まだ学生に届いていない変更が1か所あります」と保存のボタン（見出しのボタンも目立つ形に）。直した欄に「変更あり」、左の見出しの「年度の設定」に 1',
     one.head === 'まだ学生に届いていない変更が1か所あります' && one.sub === '最終締切' && one.mark === '1' && one.buttons === '変更を見る|保存して学生に反映＊' && one.header === '保存していない変更 1か所' && one.headerSave === '保存して学生に反映＊' &&
-      one.counts === '年度の設定:1|コースごとの設定|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定' && deadlineMark.label === '変更あり' && deadlineMark.ring && deadlineMark.others === 1,
+      one.counts === '点検表|年度の設定:1|コースごとの設定|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定' && deadlineMark.label === '変更あり' && deadlineMark.ring && deadlineMark.others === 1,
     JSON.stringify({ one, deadlineMark }),
   )
   await nav(vb, 'コースごとの設定')
@@ -1673,7 +1674,7 @@ await withEdge(async (browser) => {
   await vb.setViewport({ width: 1366, height: 768 })
   check(
     'コースのお知らせも直すと、帯は「…2か所あります」・「最終締切、映画・舞台衣装デザイナー コースのお知らせ」。閉じたコースの行に「変更あり」、左の見出しの「コース」に 1',
-    two.head === 'まだ学生に届いていない変更が2か所あります' && two.sub === '最終締切、映画・舞台衣装デザイナー コースのお知らせ' && two.counts.startsWith('年度の設定:1|コースごとの設定:1|') && courseChip[0].startsWith('変更あり・お知らせあり'),
+    two.head === 'まだ学生に届いていない変更が2か所あります' && two.sub === '最終締切、映画・舞台衣装デザイナー コースのお知らせ' && two.counts.startsWith('点検表|年度の設定:1|コースごとの設定:1|') && courseChip[0].startsWith('変更あり・お知らせあり'),
     JSON.stringify({ two, courseChip }),
   )
   await vb.evaluate(() => [...document.querySelectorAll('.dirty-bar button')].find((b) => b.textContent === '変更を見る').click())
@@ -1688,7 +1689,7 @@ await withEdge(async (browser) => {
   const afterBarSave = await barState()
   check(
     '帯の「保存して学生に反映」で、今までどおり確かめてから保存する（確かめに2つの変更）。保存すると帯は消える',
-    vbDialogs.last().includes('・最終締切') && vbDialogs.last().includes('・映画・舞台衣装デザイナー コースのお知らせ') && afterBarSave.head === null && afterBarSave.counts === '年度の設定|コースごとの設定|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定',
+    vbDialogs.last().includes('・最終締切') && vbDialogs.last().includes('・映画・舞台衣装デザイナー コースのお知らせ') && afterBarSave.head === null && afterBarSave.counts === '点検表|年度の設定|コースごとの設定|書き方のチェック|学生の画面を試す|届いた声|先生の登録|変更履歴|詳細設定',
     JSON.stringify(afterBarSave),
   )
 
@@ -1805,7 +1806,7 @@ await withEdge(async (browser) => {
   await sleep(800)
   const teacherCount = await countScreen(tv)
   const teacherView = await tv.evaluate(() => ({
-    nav: [...document.querySelectorAll('.side-nav button')].map((b) => b.querySelector('.nt b').firstChild.textContent.trim()).join('|'),
+    nav: [...document.querySelectorAll('.side-nav li button')].map((b) => b.querySelector('.nt b').firstChild.textContent.trim()).join('|'),
     labels: [...document.querySelectorAll('.course.open .lb')].map((l) => l.firstChild.textContent).join('|'),
     caption: document.querySelector('.stage .caption')?.textContent ?? '',
     outline: !!document.querySelector('.stage .preview.paged iframe'),
@@ -1822,8 +1823,8 @@ await withEdge(async (browser) => {
   }
   await tv.setViewport({ width: 1366, height: 768 })
   check(
-    '先生の画面：左の見出しは「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つ。コースを開くと、指導教員・お知らせ・ひな形・サブタイトル（使う・使わないのスイッチ：依頼者の選択 2026-11-09）・表の空の行・先生の許可・点検表・所属・点検表の並び（所属と並び：依頼者の選択 2026-11-09。並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
-    teacherView.nav === 'コースごとの設定|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|サブタイトル|表の空の行|先生の許可|点検表|所属|点検表の並び' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
+    '先生の画面：左の見出しは「点検表」「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の5つ。コースを開くと、指導教員・お知らせ・ひな形・サブタイトル（使う・使わないのスイッチ：依頼者の選択 2026-11-09）・表の空の行・先生の許可・点検表・所属・点検表の並び（所属と並び：依頼者の選択 2026-11-09。並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
+    teacherView.nav === '点検表|コースごとの設定|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|サブタイトル|表の空の行|先生の許可|点検表|所属|点検表の並び' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
     JSON.stringify(teacherView),
   )
   // 見本は見開きで送る（mockups 案A：依頼者の選択 2026-10-22）。「‹」で表紙・抄録へ、「›」で本文へ。最初・最後の見開きでは押せない

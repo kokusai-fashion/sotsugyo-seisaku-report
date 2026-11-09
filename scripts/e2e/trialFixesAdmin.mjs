@@ -202,8 +202,8 @@ export async function trialFixesAdmin(browser, check) {
   const k = await tp.evaluate(() => ({ can: document.querySelector('.side-nav .can-do')?.textContent ?? '', course: document.querySelector('.course.open')?.textContent ?? '' }))
   await tp.screenshot({ path: `${OUT}/admin-9-teacher.png` })
   check(
-    '先生の画面：左に「先生ができること　ひな形・お知らせ・書き方のチェック」、開いたコースの指導教員の下に「変えるときは、管理者に頼んでください」',
-    k.can === '先生ができることひな形・お知らせ・書き方のチェック' && k.course.includes('変えるときは、管理者に頼んでください'),
+    '先生の画面：左に「先生ができること　点検表・ひな形・お知らせ・書き方のチェック」、開いたコースの指導教員の下に「変えるときは、管理者に頼んでください」',
+    k.can === '先生ができること点検表・ひな形・お知らせ・書き方のチェック' && k.course.includes('変えるときは、管理者に頼んでください'),
     JSON.stringify({ can: k.can, course: k.course.slice(0, 80) }),
   )
   await context.close()

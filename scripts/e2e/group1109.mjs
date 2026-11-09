@@ -95,7 +95,7 @@ async function openAdmin(browser) {
     const c = document.querySelector(`.course[data-course-id="${id}"]`)
     if (!c.classList.contains('open')) c.querySelector('.open-btn').click()
   }, FILM)
-  await page.waitForSelector(`.course.open[data-course-id="${FILM}"] #c-${FILM}-group`)
+  await page.waitForSelector(`.course.open[data-course-id="${FILM}"] #c-${FILM}-group-mode`)
   await wait(200)
   return { context, page }
 }
@@ -260,6 +260,9 @@ await withEdge(async (browser) => {
       s.lastHead === '点検表' && s.lastLabels === '点検表|所属|点検表の並び' && s.sheetBtns === '点検表を開く' && s.orderBtn === '押せる' && s.picks === '五十音順*|学籍番号順|26人からは2列*|いつも縦1列',
       JSON.stringify(s),
     )
+    // まとまりの作り方は「学生が選ぶ」（依頼者の選択 2026-11-09：使わない・学生が選ぶ・並び順で等分）
+    await page.evaluate(() => [...document.querySelectorAll('.course.open .group-mode label')].find((l) => l.textContent === '学生が選ぶ').click())
+    await page.waitForSelector(`#c-${FILM}-group`)
     for (const name of [...GROUPS, '①グループ']) {
       await page.click(`#c-${FILM}-group`)
       await page.keyboard.type(name)

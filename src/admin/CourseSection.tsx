@@ -38,7 +38,11 @@ const PERMISSION_HINT = '使わないときは今のまま（抄録は学生が�
 /** 点検表の説明（点検表は PDF の控えのコースのフォルダに置くので、見られる人はそのフォルダと同じ：依頼者 2026-11-04） */
 const CHECK_SHEET_HINT = '学生がコースと氏名を入れると、自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。'
 /** 所属の説明（依頼者の選択 2026-11-09 mockups/v119） */
-const GROUP_HINT = '制作グループなど。学生は、はじめて使うときに、この中から自分の所属を選びます。点検表は、所属ごとに並びます。使わないコースは、空のままにします。'
+const GROUP_HINT = '制作グループなど。学生は、はじめて使うときに、この中から自分の所属を選びます。点検表は、所属ごとに並びます。'
+/** 並び順で等分するときの説明（依頼者の選択 2026-11-09） */
+const SPLIT_HINT = '学生には聞きません。点検表の並びを上から等分して班にします（人数が変わったら分け直します）。担当の割り振りに使えます。'
+/** まとまりを使わないときの説明 */
+const GROUP_NONE_HINT = '点検表を、所属や班に分けずに並べます。'
 /** 点検表の順番・並べ方の説明 */
 const SHEET_ORDER_HINT = '所属の中（所属を使わないときは全員）を、この順番に並べます。1人ずつ動かすときは「学生の並びを直す」から。'
 
@@ -67,21 +71,33 @@ interface Props {
   notices?: ReactNode
   /** 作ってある点検表の場所（コースの ID → 場所。管理ページを開いたときにサーバーから届く） */
   checkSheets?: Record<string, string>
+  /**
+   * 先生の担当のコース（依頼者の判断 2026-11-09：先生は担当のコースだけ）。渡すと、コースの一覧を出さず、このコースをいつも開いておく
+   * （「‹ コースの一覧」も出さない）。この年度にそのコースがなければ、そう知らせる
+   */
+  only?: string
 }
 
-export function CourseSection({ draft, base, teacher = false, openId, onOpen, onFocusCourse, setCourse, onMove, onAdd, onRemove, publishedIds, onOpenTemplate, onEditTemplate, notices, checkSheets }: Props) {
+export function CourseSection({ draft, base, teacher = false, openId, onOpen, onFocusCourse, setCourse, onMove, onAdd, onRemove, publishedIds, onOpenTemplate, onEditTemplate, notices, checkSheets, only }: Props) {
   const listRef = useRef<HTMLDivElement>(null)
   const order = useReorder(listRef, teacher ? 0 : draft.courses.length, (from, to) => onMove?.(from, to), '.course')
-  const shown = draft.courses.map((c, i) => ({ c, i })).filter(({ c }) => !teacher || !c.hidden)
+  const shown = draft.courses.map((c, i) => ({ c, i })).filter(({ c }) => (!teacher || !c.hidden) && (!only || c.id === only))
   // スマホは「‹ コースの一覧」を、画面のいちばん上の戻る所に出す（AdminApp の Work。戻る所が2つ並ばないように）
   const phone = usePhone()
-  const current = shown.find(({ c }) => c.id === openId)
+  const current = shown.find(({ c }) => c.id === (only ?? openId))
+  if (only && !current)
+    return (
+      <>
+        <SectionHead title="コースごとの設定" lead="この年度には、担当のコースがありません。上で年度を切り替えるか、左下の「氏名と担当コース」で担当のコースを確かめてください。" />
+        {notices}
+      </>
+    )
   if (current) {
     const { c, i } = current
     const advisors = c.advisors.filter((a) => a.trim())
     return (
       <>
-        {!phone && (
+        {!phone && !only && (
           <button type="button" className="course-back" onClick={() => onOpen(null)}>
             <span aria-hidden="true">‹</span>コースの一覧
           </button>
@@ -303,12 +319,12 @@ function CourseItem({
         <div className="set-group">点検表</div>
         <div className="grid set-list">
           <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} url={checkSheetUrl} />
-          <GroupRow course={course} changed={changed('groups')} onChange={onChange} />
+          <GroupRow course={course} changed={changed('groups') || changed('checkSplit')} onChange={onChange} />
           <SheetOrderRow
             year={draft.fiscalYear}
             course={course}
             savedCourse={base.courses.find((c) => c.id === course.id)}
-            unsaved={(['groups', 'checkById', 'checkOneColumn'] as const).some((k) => changed(k))}
+            unsaved={(['groups', 'checkById', 'checkOneColumn', 'checkSplit'] as const).some((k) => changed(k))}
             changed={changed('checkById') || changed('checkOneColumn')}
             onChange={onChange}
           />
@@ -433,6 +449,19 @@ function GroupRow({ course, changed, onChange }: { course: Course; changed: bool
   const [text, setText] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
   const groups = course.groups ?? []
+  /**
+   * まとまりの作り方（依頼者の選択 2026-11-09）：使わない／学生が選ぶ（所属）／並び順で等分（班。学生には聞かない）。
+   * 「学生が選ぶ」にして、まだ所属を足していない間も、その形のまま（chooseOpen）
+   */
+  const [chooseOpen, setChooseOpen] = useState(false)
+  const mode: 'none' | 'choose' | 'split' = groups.length || chooseOpen ? 'choose' : course.checkSplit ? 'split' : 'none'
+  const pick = (next: typeof mode) => {
+    setProblem(null)
+    setChooseOpen(next === 'choose')
+    if (next === 'none') onChange({ ...course, groups: undefined, checkSplit: undefined })
+    if (next === 'choose') onChange({ ...course, checkSplit: undefined })
+    if (next === 'split') onChange({ ...course, groups: undefined, checkSplit: course.checkSplit ?? 3 })
+  }
   const set = (next: string[]) => onChange({ ...course, groups: next.length ? next : undefined })
   const add = () => {
     const name = text.trim()
@@ -444,32 +473,61 @@ function GroupRow({ course, changed, onChange }: { course: Course; changed: bool
     setText('')
     setProblem(null)
   }
+  const name = `c-${course.id}-gmode`
   return (
-    <Row label="所属" htmlFor={`c-${course.id}-group`} hint={GROUP_HINT} warn={problem ?? undefined} changed={changed} icon={AdminIcon.people} tone="t-people">
-      <div className="tags">
-        {groups.map((name, i) => (
-          <span key={`${name}-${i}`} className="tag">
-            {name}
-            <button aria-label={`${name}を削除`} onClick={() => set(groups.filter((_, j) => j !== i))}>
-              ×
-            </button>
-          </span>
+    <Row label="所属" htmlFor={`c-${course.id}-group-mode`} hint={mode === 'split' ? SPLIT_HINT : mode === 'choose' ? GROUP_HINT : GROUP_NONE_HINT} warn={problem ?? undefined} changed={changed} icon={AdminIcon.people} tone="t-people">
+      <div className="seg-pick group-mode" role="radiogroup" aria-label="まとまりの作り方">
+        {(
+          [
+            ['none', '使わない'],
+            ['choose', '学生が選ぶ'],
+            ['split', '並び順で等分'],
+          ] as const
+        ).map(([key, label], i) => (
+          <label key={key}>
+            <input id={i === 0 ? `c-${course.id}-group-mode` : undefined} type="radio" name={name} checked={mode === key} onChange={() => pick(key)} />
+            <span>{label}</span>
+          </label>
         ))}
-        <input
-          id={`c-${course.id}-group`}
-          className="in tag-input group-input"
-          value={text}
-          placeholder="所属の名前を入れて Enter"
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              add()
-            }
-          }}
-          onBlur={add}
-        />
       </div>
+      {mode === 'choose' && (
+        <div className="tags group-tags">
+          {groups.map((g, i) => (
+            <span key={`${g}-${i}`} className="tag">
+              {g}
+              <button aria-label={`${g}を削除`} onClick={() => set(groups.filter((_, j) => j !== i))}>
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            id={`c-${course.id}-group`}
+            className="in tag-input group-input"
+            value={text}
+            placeholder="所属の名前を入れて Enter"
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                add()
+              }
+            }}
+            onBlur={add}
+          />
+        </div>
+      )}
+      {mode === 'split' && (
+        <div className="split-pick">
+          <select className="in" aria-label="分ける数" value={course.checkSplit ?? 3} onChange={(e) => onChange({ ...course, checkSplit: Number(e.target.value) })}>
+            {[2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span>つの班に分ける（1班・2班…）</span>
+        </div>
+      )}
     </Row>
   )
 }

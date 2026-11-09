@@ -2305,6 +2305,121 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(sheetStudents()[idOf(0)].cells.最終提出可の記録).toBe('')
   })
 
+  it('氏名と担当コース（依頼者の判断 2026-11-09）：setMyProfile で管理者シートの「氏名」「担当コース」に書き、getState の me に返す。先生は担当のコースだけ（点検表・並べ替え・保存）。管理者は全部', () => {
+    admin().setup()
+    admin().addMember('sensei@example.ac.jp', '先生', '')
+    const config = admin().getState().years[0].config
+    const OTHER = { ...config.courses[0], id: 'other-course', name: 'ほかのコース', advisors: ['山本　花'] }
+    admin().saveYear({ ...config, courses: [...config.courses, OTHER] })
+    user = 'sensei@example.ac.jp'
+    expect(admin().getState().me).toEqual({ name: '', courseId: '' })
+    expect(() => admin().setMyProfile(' ', FILM.id)).toThrow('氏名は1〜40字')
+    expect(() => admin().setMyProfile('梶田 貴子', 'no-such')).toThrow('担当のコースが見つかりません')
+    // 半角の空白は全角1つに
+    expect(admin().setMyProfile(' 梶田 貴子 ', FILM.id)).toEqual({ name: '梶田　貴子', courseId: FILM.id })
+    const rows = sheetRows('管理者')
+    expect(rows[0].slice(3, 5)).toEqual(['氏名', '担当コース'])
+    expect(rows.find((r) => r[0] === 'sensei@example.ac.jp')!.slice(2, 5)).toEqual(['先生', '梶田　貴子', FILM.id])
+    expect(admin().getState().me).toEqual({ name: '梶田　貴子', courseId: FILM.id })
+    expect(memberHistory().some((h) => h.includes('氏名と担当コースを登録：梶田　貴子'))).toBe(true)
+    // 先生は担当のコースだけ（ほかのコースは、サーバーでも断る）
+    expect(() => admin().getCheckView(2026, OTHER.id)).toThrow('担当のコースだけを見られます')
+    expect(() => admin().listStudents(2026, OTHER.id)).toThrow('担当のコースだけを見られます')
+    expect(() => admin().ensureCheckSheet(2026, OTHER.id)).toThrow('担当のコースだけを見られます')
+    expect(() => admin().saveTeacherEdits(2026, { notices: { [OTHER.id]: 'お知らせ' } })).toThrow('担当のコースだけを直せます')
+    expect(admin().getCheckView(2026, FILM.id)).toMatchObject({ exists: false, teachers: ['梶田', '佐藤', '加藤'], groups: [], split: 0, assignment: null })
+    // ほかの人の登録は、管理者だけが直せる
+    expect(() => admin().setMemberProfile('sensei@example.ac.jp', '佐藤　綾', FILM.id)).toThrow()
+    user = owner
+    expect(admin().getCheckView(2026, OTHER.id).exists).toBe(false)
+    const members = admin().setMemberProfile('sensei@example.ac.jp', '佐藤　綾', OTHER.id)
+    expect(members.find((m: { email: string }) => m.email === 'sensei@example.ac.jp')).toMatchObject({ name: '佐藤　綾', courseId: OTHER.id })
+    expect(() => admin().setMemberProfile('nobody@example.ac.jp', '佐藤　綾', FILM.id)).toThrow()
+    user = 'sensei@example.ac.jp'
+    expect(() => admin().getCheckView(2026, FILM.id)).toThrow('担当のコースだけを見られます')
+    expect(admin().getCheckView(2026, OTHER.id).teachers).toEqual(['山本'])
+  })
+
+  it('点検表の画面（getCheckView・setCheckCell・saveAssignment）：所属ごとの割り振りを「名字 予定」で入れ、「済み」は書き換えない。あとから来た学生にも写しで入る。✓ は記録の列も書く', () => {
+    setup()
+    user = 'sensei@example.ac.jp'
+    admin().setMyProfile('梶田　貴子', FILM.id)
+    admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: ['①班', '②班'], checkById: true, checkOneColumn: true } } })
+    let a = api()
+    const at = '2020-01-01T00:00:00.000Z'
+    for (let i = 0; i < 6; i++) expect(register(a, i, { group: i % 2 ? '②班' : '①班', groupAt: at })).toEqual({ ok: true })
+    expect(admin().getCheckView(2026, FILM.id).exists).toBe(false)
+    admin().ensureCheckSheet(2026, FILM.id)
+    let v = admin().getCheckView(2026, FILM.id)
+    expect(v).toMatchObject({ exists: true, groups: ['①班', '②班'], split: 0, assignment: null })
+    const labels: string[] = v.rounds
+    expect(labels.slice(0, 2)).toEqual(['1回目', '2回目'])
+    expect(v.students.map((s: { key: string }) => s.key)).toEqual([0, 2, 4, 1, 3, 5].map(idOf))
+    expect(v.students[0]).toMatchObject({ no: 1, name: nameOf(0), group: '①班', abstractOk: false, finalOk: false, kyomu: false })
+    expect(v.students[0].rounds[0]).toEqual({ teacher: '', state: '' })
+    // 1人目の1回目は、もう済み（ほかの先生）
+    admin().setCheckCell(2026, FILM.id, idOf(0), { round: '1回目', teacher: '加藤', state: 'done' })
+    const rows = { '①班': labels.map((_, r) => (r % 2 ? '佐藤' : '梶田')), '②班': labels.map((_, r) => (r % 2 ? '梶田' : '佐藤')) }
+    v = admin().saveAssignment(2026, FILM.id, { labels, rows })
+    expect(v.assignment.rows['①班'][0]).toBe('梶田')
+    const cells = () => sheetStudents()
+    expect(cells()[idOf(0)].cells['1回目']).toBe('加藤 済み')
+    expect(cells()[idOf(2)].cells['1回目']).toBe('梶田 予定')
+    expect(cells()[idOf(1)].cells['2回目']).toBe('梶田 予定')
+    expect(v.students.find((s: { key: string }) => s.key === idOf(2)).rounds[0]).toEqual({ teacher: '梶田', state: 'plan' })
+    expect(memberHistory().some((h) => h.includes('担当の割り振りを点検表に入れる'))).toBe(true)
+    // 指導教員でない名前・形の崩れた割り振りは断る
+    expect(() => admin().saveAssignment(2026, FILM.id, { labels, rows: { '①班': ['山田'] } })).toThrow('「山田」は、このコースの指導教員にいません')
+    expect(() => admin().saveAssignment(2026, FILM.id, { labels: 'x', rows })).toThrow('割り振りの形が正しくありません')
+    // あとから来た学生にも、10分ごとの写しで入る
+    a = api()
+    expect(register(a, 6, { group: '①班', groupAt: at })).toEqual({ ok: true })
+    admin().syncCheckSheets()
+    expect(cells()[idOf(6)].cells['1回目']).toBe('梶田 予定')
+    // 札を押して「済み」に（写しても、割り振りで書き換えない）
+    const s = admin().setCheckCell(2026, FILM.id, idOf(2), { round: '1回目', teacher: '梶田', state: 'done' })
+    expect(s.rounds[0]).toEqual({ teacher: '梶田', state: 'done' })
+    admin().syncCheckSheets()
+    expect(cells()[idOf(2)].cells['1回目']).toBe('梶田 済み')
+    // ✓：記録の列に「日時 / 名字」（登録した氏名の名字）。外すと消す
+    expect(admin().setCheckCell(2026, FILM.id, idOf(2), { kind: 'abstractOk', on: true }).abstractOk).toBe(true)
+    expect(String(cells()[idOf(2)].cells['抄録許可の記録'])).toMatch(/ \/ 梶田$/)
+    admin().setCheckCell(2026, FILM.id, idOf(2), { kind: 'abstractOk', on: false })
+    expect(cells()[idOf(2)].cells['抄録許可の記録']).toBe('')
+    // 形の正しくない書き込みは断る
+    expect(() => admin().setCheckCell(2026, FILM.id, idOf(2), { round: '1回目', teacher: '=HYPERLINK("x")', state: 'done' })).toThrow('先生の名前の形が正しくありません')
+    expect(() => admin().setCheckCell(2026, FILM.id, idOf(2), { round: 'ない回', teacher: '梶田', state: 'done' })).toThrow('回の列「ない回」が見つかりません')
+    expect(() => admin().setCheckCell(2026, FILM.id, idOf(2), { kind: 'other', on: true })).toThrow('書く欄の形が正しくありません')
+    expect(() => admin().setCheckCell(2026, FILM.id, 'nobody', { kind: 'finalOk', on: true })).toThrow('この学生が見つかりません')
+  })
+
+  it('並び順で等分（checkSplit。依頼者の選択 2026-11-09「いつも等分し直す」）：所属のないコースは、点検表の並びを上から等分して 1班〜。人数が変わると分け直し、班が変わった学生には新しい班の割り振り。所属があれば等分しない', () => {
+    setup()
+    user = 'sensei@example.ac.jp'
+    admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: true, checkOneColumn: true, checkSplit: 3 } } })
+    expect(admin().getState().years[0].config.courses[0].checkSplit).toBe(3)
+    for (let i = 0; i < 7; i++) register(api(), i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    let v = admin().getCheckView(2026, FILM.id)
+    expect(v).toMatchObject({ groups: ['1班', '2班', '3班'], split: 3 })
+    expect(v.students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '2班', '2班', '3班', '3班'])
+    expect(layoutOf().header.slice(0, 3)).toEqual(['番号', '所属', '氏名'])
+    admin().saveAssignment(2026, FILM.id, { labels: ['1回目'], rows: { '1班': ['梶田'], '2班': ['佐藤'], '3班': ['加藤'] } })
+    expect(sheetStudents()[idOf(5)].cells['1回目']).toBe('加藤 予定')
+    // 8人になると 3・3・2 に分け直す（6人目は 3班 → 2班）
+    register(api(), 7)
+    admin().syncCheckSheets()
+    v = admin().getCheckView(2026, FILM.id)
+    expect(v.students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '2班', '2班', '2班', '3班', '3班'])
+    expect(sheetStudents()[idOf(5)].cells['1回目']).toBe('佐藤 予定')
+    expect(sheetStudents()[idOf(7)].cells['1回目']).toBe('加藤 予定')
+    // 分ける数は 2〜6
+    expect(() => admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: true, checkOneColumn: true, checkSplit: 9 } } })).toThrow('並び順で分ける数が正しくありません')
+    // 所属を登録すると、等分しない
+    admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: ['A'], checkById: true, checkOneColumn: true, checkSplit: 3 } } })
+    expect('checkSplit' in admin().getState().years[0].config.courses[0]).toBe(false)
+  })
+
   it('setupCheckSheets（エディタで1回）：10分ごとの写し・点検表ごとの編集の仕掛け・届いた声のメールの仕掛けを作り直す（デプロイした本人だけ。終わった年度の仕掛けは外す）', () => {
     const a = setup()
     register(a, 0)

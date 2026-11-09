@@ -42,9 +42,12 @@ function onChange(handler: (state: unknown) => void): () => void {
   return () => void handlers.delete(handler)
 }
 
-/** [一覧を出しているか, 中身を出す, 一覧へ戻る] */
-export function usePhoneList(): [boolean, () => void, () => void] {
-  const [list, setList] = useState(true)
+/**
+ * [一覧を出しているか, 中身を出す, 一覧へ戻る]。
+ * startInSection：はじめから区切りの中身を出す（点検表に直接入るリンク ?view=check から開いたとき。戻ると一覧）
+ */
+export function usePhoneList(startInSection = false): [boolean, () => void, () => void] {
+  const [list, setList] = useState(!startInSection)
   useEffect(
     () =>
       onChange((state) => {
@@ -53,6 +56,11 @@ export function usePhoneList(): [boolean, () => void, () => void] {
       }),
     [],
   )
+  useEffect(() => {
+    if (startInSection) push({ adminSection: true })
+    // はじめの1回だけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const show = useCallback(() => {
     setList(false)
     push({ adminSection: true })

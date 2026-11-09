@@ -39,7 +39,64 @@ export interface AdminState {
   links?: { materials?: string; ai?: string }
   /** 作ってある点検表の場所（「点検表を開く」を、サーバーに聞かずにすぐ開く。依頼者の試し 2026-11-04。前の版のサーバーは返さない） */
   checkSheets?: CheckSheetLink[]
+  /** 自分の氏名と担当コース（先生は、はじめて開いたときに選ぶ。まだなら空の文字。依頼者の選択 2026-11-09。前の版のサーバーは返さない） */
+  me?: Profile | null
+  /** 管理ページの場所（点検表の画面に直接入るリンクを作る。前の版のサーバーは返さない） */
+  adminUrl?: string
 }
+
+/** 先生の氏名と担当コース（担当のコースはいつも1つ） */
+export interface Profile {
+  name: string
+  courseId: string
+}
+
+/** 点検表の回の欄（「山本 済み」→ teacher：山本・state：done。空は teacher も state も ''） */
+export interface CheckRound {
+  teacher: string
+  state: 'done' | 'plan' | ''
+}
+
+/** 点検表の画面の学生の行（点検表の1行。key：学籍番号） */
+export interface CheckStudent {
+  key: string
+  no: number
+  name: string
+  /** 所属（等分するコースは「1班」など。使わないコースは ''） */
+  group: string
+  pdf: { url: string; label: string } | null
+  note: string
+  /** 回ごと（CheckView.rounds と同じ並び） */
+  rounds: CheckRound[]
+  abstractOk: boolean
+  finalOk: boolean
+  kyomu: boolean
+}
+
+/** 担当の割り振り（まとまり → 回ごとの先生の名字。'' は入れない） */
+export interface Assignment {
+  labels: string[]
+  rows: Record<string, string[]>
+}
+
+/** 点検表の画面の中身（gas/admin-project の getCheckView。点検表がまだなければ exists：false） */
+export interface CheckView {
+  exists: boolean
+  url?: string
+  /** 回の名前（1回目・2回目…。点検表の青い見出しの列） */
+  rounds: string[]
+  students: CheckStudent[]
+  /** このコースの指導教員の名字（回の欄に入れる先生） */
+  teachers: string[]
+  /** まとまりの名前（所属、または等分した班。使わないコースは []） */
+  groups: string[]
+  /** 並び順で等分する数（しないコースは 0） */
+  split: number
+  assignment: Assignment | null
+}
+
+/** 点検表の画面から書く欄 */
+export type CheckField = { round: string; teacher: string; state: CheckRound['state'] } | { kind: 'abstractOk' | 'finalOk' | 'kyomu'; on: boolean }
 
 /**
  * PDF の控えのもとのフォルダ（管理者だけ。管理ページの「詳細設定」。依頼者の選択 2026-11-05 mockups/v112 案A）。
@@ -70,6 +127,9 @@ export interface Member {
   email: string
   memo: string
   role: '管理者' | '先生'
+  /** 氏名と担当コース（先生がはじめて開いたときに選ぶ。まだなら空） */
+  name?: string
+  courseId?: string
 }
 
 /** コースごとの下書きのひな形（コースID → ひな形と抄録の書き出し例） */
@@ -79,7 +139,7 @@ export type TemplateSet = Record<string, { template: TemplateBlock[]; abstractEx
 export type PermissionSet = Record<string, { abstract: boolean; final: boolean }>
 
 /** コースごとの所属・点検表の順番・並べ方（コースID → 設定。先生も変えられる：依頼者の選択 2026-11-09 mockups/v119） */
-export type SheetSettingSet = Record<string, { groups: string[]; checkById: boolean; checkOneColumn: boolean }>
+export type SheetSettingSet = Record<string, { groups: string[]; checkById: boolean; checkOneColumn: boolean; checkSplit: number }>
 
 /** 「学生の並びを直す」の窓の1行（点検表の並び。moved：手で動かした。studentId が「staff:」で始まるのは教職員の試し） */
 export interface StudentEntry {
@@ -132,6 +192,16 @@ export interface AdminServer {
   /** 「この並びにする」（studentIds が null なら、ふりがなの順に戻す）。返り値は直したあとの一覧 */
   /** groups：先生が直した学生の所属（学籍番号 → 所属。依頼者の選択 2026-11-09：学生が間違えて選んだときに、先生も直せる） */
   saveStudentOrder(year: number, courseId: string, studentIds: string[] | null, groups?: Record<string, string>): Promise<StudentEntry[]>
+  /** 自分の氏名と担当コースを登録する（先生・管理者） */
+  setMyProfile(name: string, courseId: string): Promise<Profile>
+  /** ほかの先生の氏名と担当コースを直す（管理者だけ）。返り値は直したあとの一覧 */
+  setMemberProfile(email: string, name: string, courseId: string): Promise<Member[]>
+  /** 点検表の画面の中身（先生は担当のコースだけ） */
+  getCheckView(year: number, courseId: string): Promise<CheckView>
+  /** 点検表の画面から1つの欄を書く。返り値は、その学生の書いたあとの行 */
+  setCheckCell(year: number, courseId: string, studentId: string, field: CheckField): Promise<CheckStudent | null>
+  /** 担当の割り振りを保存して、点検表に入れる。返り値は入れたあとの中身 */
+  saveAssignment(year: number, courseId: string, assignment: Assignment): Promise<CheckView>
   getMembers(): Promise<Member[]>
   /** mustExist：一覧の役割を変えるとき（登録されていない人は書き足さない） */
   addMember(email: string, role: Member['role'], memo: string, mustExist?: boolean): Promise<Member[]>
@@ -193,7 +263,7 @@ interface ScriptRun {
 
 declare global {
   interface Window {
-    google?: { script: { run: ScriptRun } }
+    google?: { script: { run: ScriptRun; url?: { getLocation(cb: (loc: { parameter: Record<string, string> }) => void): void } } }
   }
 }
 
@@ -216,6 +286,11 @@ function appsScriptServer(): AdminServer {
     saveWordChecks: (year, words) => call('saveWordChecks', year, words),
     saveNotices: (year, notices) => call('saveNotices', year, notices),
     saveTeacherEdits: (year, edits, expectedUpdatedAt) => call('saveTeacherEdits', year, edits, expectedUpdatedAt ?? null),
+    setMyProfile: (name, courseId) => call('setMyProfile', name, courseId),
+    setMemberProfile: (email, name, courseId) => call('setMemberProfile', email, name, courseId),
+    getCheckView: (year, courseId) => call('getCheckView', year, courseId),
+    setCheckCell: (year, courseId, studentId, field) => call('setCheckCell', year, courseId, studentId, field),
+    saveAssignment: (year, courseId, assignment) => call('saveAssignment', year, courseId, assignment),
     getMembers: () => call('getMembers'),
     addMember: (email, role, memo, mustExist) => call('addMember', email, role, memo, !!mustExist),
     addMembers: (entries, role) => call('addMembers', entries, role),
@@ -238,3 +313,10 @@ export const isMockServer = !window.google?.script
 // 開発中・自動テスト用にまとめた版の試験用サーバーだけ、自動テスト（scripts/e2e/admin.mjs）から試験用サーバーを直接呼べるようにする
 // （画面では押せない操作＝公開した年度の削除が断られることなどを確かめるため）
 if ((import.meta.env.DEV || import.meta.env.MODE === 'e2e') && isMockServer) Object.assign(window, { __adminServer: server })
+
+/** 管理ページを開いたときのアドレスの印（?view=check：点検表の画面から。Apps Script では、ページの外のアドレスを google.script.url で読む） */
+export function startParams(): Promise<Record<string, string>> {
+  const url = window.google?.script?.url
+  if (url) return new Promise((resolve) => url.getLocation((loc) => resolve(loc?.parameter ?? {})))
+  return Promise.resolve(Object.fromEntries(new URLSearchParams(location.search)))
+}

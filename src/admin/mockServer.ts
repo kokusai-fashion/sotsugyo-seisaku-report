@@ -1,7 +1,8 @@
 import { BUILD_ID } from '../app/newVersion'
 import { currentConfig, type Course, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
-import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type PdfFolder, type StudentEntry, type YearRow } from './server'
+import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type Assignment, type CheckField, type CheckStudent, type CheckView, type FeedbackItem, type HistoryRow, type Member, type PdfFolder, type StudentEntry, type YearRow } from './server'
+import { effectiveGroups, roundCell, splitGroups, surnameOf } from './checkView'
 import { applyNotices, applyPermissions, applySheetSettings, applySubtitles, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, folderIdFromLink, removedMemberMessage } from './serverRules'
 import { byKana, comparerFor, movedFlags } from './studentOrder'
 
@@ -25,9 +26,14 @@ interface Store {
   members?: Member[]
 }
 
+/**
+ * はじめの登録。先生は、氏名と担当コースを登録してある（admin.html?as=teacher&profile=none で開くと、まだ登録していない先生：
+ * はじめて開いたときに氏名を選ぶ窓を確かめる）
+ */
+const NO_PROFILE = new URLSearchParams(location.search).get('profile') === 'none'
 const DEFAULT_MEMBERS: Member[] = [
-  { email: ADMIN, memo: '試験用の管理者', role: '管理者' },
-  { email: TEACHER, memo: '試験用の先生', role: '先生' },
+  { email: ADMIN, memo: '試験用の管理者', role: '管理者', name: '', courseId: '' },
+  { email: TEACHER, memo: '試験用の先生', role: '先生', name: NO_PROFILE ? '' : '梶田　貴子', courseId: NO_PROFILE ? '' : 'film-stage-costume' },
 ]
 
 function load(): Store {
@@ -114,6 +120,31 @@ function loadPdfFolder(): { id: string; name: string } {
 }
 const folderInfo = (f: { id: string; name: string }): PdfFolder => ({ id: f.id, name: f.name, url: `https://drive.google.com/drive/folders/${f.id}` })
 
+/** 試験用の点検表の回の列（本番は点検表の青い見出しの列） */
+const MOCK_ROUNDS = ['1回目', '2回目', '3回目', '4回目', '抄録']
+/** 試験用の点検表の中身（年度:コース:学籍番号 → 回の欄と ✓）。本番は点検表のスプレッドシート */
+const CELLS_KEY = 'sotsugyo-admin-mock-checkcells'
+type MockCells = Record<string, { rounds?: Record<string, string>; abstractOk?: boolean; finalOk?: boolean; kyomu?: boolean }>
+function loadCells(): MockCells {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CELLS_KEY) ?? 'null') as MockCells | null
+    if (saved && typeof saved === 'object') return saved
+  } catch {
+    // 壊れていたら、まだ何も書いていない
+  }
+  return {}
+}
+/** 試験用の担当の割り振り（年度:コース → 割り振り）。本番はスクリプト プロパティ assign: */
+const ASSIGN_KEY = 'sotsugyo-admin-mock-assign'
+function loadAssign(): Record<string, Assignment> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ASSIGN_KEY) ?? 'null') as Record<string, Assignment> | null
+    if (saved && typeof saved === 'object') return saved
+  } catch {
+    // 壊れていたら、割り振りなし
+  }
+  return {}
+}
 /** 作った点検表（年度:コース → 場所）。本番は管理用スプレッドシートのシート「点検表」 */
 const SHEETS_KEY = 'sotsugyo-admin-mock-checksheets'
 function loadSheets(): Record<string, string> {
@@ -199,7 +230,52 @@ export function createMockServer(): AdminServer {
       years: role ? years.sort((a, b) => b.year - a.year) : [],
       links: role ? { materials: 'https://example.com/materials', ai: 'https://example.com/teacher-ai' } : {},
       checkSheets: role ? checkSheets : [],
+      me: role ? { name: me(store)?.name ?? '', courseId: me(store)?.courseId ?? '' } : null,
+      adminUrl: role ? `${location.origin}${location.pathname}` : '',
     }
+  }
+  const me = (store: Store) => members(store).find((m) => m.email === USER)
+  /** 先生は、担当のコースだけ（本番の requireCourseAccess_ と同じ言葉） */
+  const requireCourseAccess = (store: Store, courseId: string) => {
+    const m = me(store)
+    if (!m || m.role === '管理者' || !m.courseId) return
+    if (m.courseId !== courseId) throw new Error('担当のコースだけを見られます（担当のコースは、左下の「氏名と担当コース」で確かめられます）')
+  }
+  /** 氏名と担当コースの形（本番の cleanProfile_ と同じ） */
+  const cleanProfile = (store: Store, name: string, courseId: string) => {
+    const n = String(name ?? '').replace(/\s+/g, '　').trim()
+    if (!n || n.length > 40) throw new Error('氏名は1〜40字で入れてください')
+    const id = String(courseId ?? '').trim()
+    if (!id || !store.years.some((y) => y.config.courses.some((c) => c.id === id))) throw new Error('担当のコースが見つかりません')
+    return { name: n, courseId: id }
+  }
+  /** 点検表の画面の中身（本番の getCheckView と同じ形。点検表がまだなければ exists：false） */
+  const checkView = (store: Store, year: number, courseId: string): CheckView => {
+    const course = findYear(store, year).config.courses.find((c) => c.id === courseId)!
+    const teachers = (course.advisors ?? []).map(surnameOf).filter((t, i, a) => t && a.indexOf(t) === i)
+    const groups = effectiveGroups(course)
+    const key = `${year}:${courseId}`
+    const base: CheckView = { exists: false, rounds: [], students: [], teachers, groups, split: groups.length && !(course.groups ?? []).length ? (course.checkSplit ?? 0) : 0, assignment: loadAssign()[key] ?? null }
+    if (!loadSheets()[key]) return base
+    const listed = mockStudentList(year, courseId, course)
+    const ordered = base.split ? splitGroups(listed, base.split) : listed
+    const cells = loadCells()
+    const students: CheckStudent[] = ordered.map((e, i) => {
+      const c = cells[`${key}:${e.studentId}`] ?? {}
+      return {
+        key: e.studentId,
+        no: i + 1,
+        name: e.name,
+        group: e.group,
+        pdf: i % 6 === 5 ? null : { url: 'about:blank#pdf', label: `12/${10 + (i % 7)}` },
+        note: i % 6 === 5 ? 'PDF まだ' : '',
+        rounds: MOCK_ROUNDS.map((l) => roundCell(c.rounds?.[l] ?? '')),
+        abstractOk: c.abstractOk === true,
+        finalOk: c.finalOk === true,
+        kyomu: c.kyomu === true,
+      }
+    })
+    return { ...base, exists: true, url: loadSheets()[key], rounds: MOCK_ROUNDS, students }
   }
   const requireAdmin = (store: Store) => {
     if (roleOf(store) !== '管理者') throw new Error(`管理者だけが変更できます（ログイン中：${USER}）`)
@@ -359,6 +435,7 @@ export function createMockServer(): AdminServer {
       const store = load()
       requireTeacher(store)
       requireSavedCourse(store, year, courseId)
+      requireCourseAccess(store, courseId)
       // 本番は Google スプレッドシートの場所。試験用は、新しいタブで開ける空のページ（自動テストが、開いたことを確かめる）。
       // 作ったことを覚えておく（次からは、管理ページの状態に場所が入り、サーバーに聞かずに開く）
       const url = `about:blank#check-sheet-${year}-${courseId}`
@@ -370,6 +447,7 @@ export function createMockServer(): AdminServer {
       const store = load()
       requireTeacher(store)
       requireSavedCourse(store, year, courseId)
+      requireCourseAccess(store, courseId)
       return mockStudentList(year, courseId, findYear(store, year).config.courses.find((c) => c.id === courseId))
     },
     async saveStudentOrder(year, courseId, studentIds, groups) {
@@ -377,6 +455,7 @@ export function createMockServer(): AdminServer {
       const store = load()
       requireTeacher(store)
       requireSavedCourse(store, year, courseId)
+      requireCourseAccess(store, courseId)
       if (studentIds !== null && (!Array.isArray(studentIds) || studentIds.some((x) => typeof x !== 'string'))) throw new Error('並びの形が正しくありません')
       const orders = loadOrders()
       if (studentIds) orders[`${year}:${courseId}`] = studentIds
@@ -412,6 +491,80 @@ export function createMockServer(): AdminServer {
         if (!templates || typeof templates !== 'object') throw new Error('ひな形の形が正しくありません')
         return `下書きのひな形を保存（${applyTemplates(config, templates).join('・')}）`
       })
+    },
+    async setMyProfile(name, courseId) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      const profile = cleanProfile(store, name, courseId)
+      store.members = members(store).map((m) => (m.email === USER ? { ...m, ...profile } : m))
+      save(store)
+      return profile
+    },
+    async setMemberProfile(email, name, courseId) {
+      await wait()
+      const store = load()
+      requireAdmin(store)
+      const profile = cleanProfile(store, name, courseId)
+      if (!members(store).some((m) => m.email === email)) throw new Error(removedMemberMessage(email))
+      store.members = members(store).map((m) => (m.email === email ? { ...m, ...profile } : m))
+      save(store)
+      return clone(store.members)
+    },
+    async getCheckView(year, courseId) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      requireSavedCourse(store, year, courseId)
+      requireCourseAccess(store, courseId)
+      requireCourseAccess(store, courseId)
+      return checkView(store, year, courseId)
+    },
+    async setCheckCell(year, courseId, studentId, field: CheckField) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      requireSavedCourse(store, year, courseId)
+      requireCourseAccess(store, courseId)
+      requireCourseAccess(store, courseId)
+      const key = `${year}:${courseId}:${studentId}`
+      const cells = loadCells()
+      const c = cells[key] ?? {}
+      if ('round' in field) {
+        const teacher = field.teacher.trim()
+        c.rounds = { ...(c.rounds ?? {}), [field.round]: !teacher ? '' : teacher + (field.state === 'done' ? ' 済み' : field.state === 'plan' ? ' 予定' : '') }
+      } else c[field.kind] = field.on
+      cells[key] = c
+      localStorage.setItem(CELLS_KEY, JSON.stringify(cells))
+      return checkView(store, year, courseId).students.find((s) => s.key === studentId) ?? null
+    },
+    async saveAssignment(year, courseId, assignment: Assignment) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      requireSavedCourse(store, year, courseId)
+      requireCourseAccess(store, courseId)
+      requireCourseAccess(store, courseId)
+      const view = checkView(store, year, courseId)
+      if (!view.groups.length) throw new Error('所属か、並び順で分ける数を、コースごとの設定で決めてください')
+      for (const list of Object.values(assignment.rows)) for (const t of list) if (t && !view.teachers.includes(t)) throw new Error(`「${t}」は、このコースの指導教員にいません`)
+      localStorage.setItem(ASSIGN_KEY, JSON.stringify({ ...loadAssign(), [`${year}:${courseId}`]: assignment }))
+      // 点検表に入れる（済みの欄・割り振りが空の欄は書き換えない）
+      const cells = loadCells()
+      for (const s of view.students) {
+        const plan = assignment.rows[s.group]
+        if (!plan) continue
+        const key = `${year}:${courseId}:${s.key}`
+        const c = cells[key] ?? {}
+        view.rounds.forEach((label, r) => {
+          const i = assignment.labels.indexOf(label)
+          const t = i >= 0 ? plan[i] : ''
+          if (t && s.rounds[r].state !== 'done') c.rounds = { ...(c.rounds ?? {}), [label]: `${t} 予定` }
+        })
+        cells[key] = c
+      }
+      localStorage.setItem(CELLS_KEY, JSON.stringify(cells))
+      return checkView(store, year, courseId)
     },
     async getMembers() {
       await wait()

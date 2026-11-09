@@ -175,6 +175,8 @@ export interface SheetSettings {
   groups: string[]
   checkById: boolean
   checkOneColumn: boolean
+  /** 並び順で等分する数（0 はしない。2〜6） */
+  checkSplit: number
 }
 
 /**
@@ -195,6 +197,10 @@ export function applySheetSettings(config: YearConfig, sheets: Record<string, un
     else delete course.checkById
     if (s.checkOneColumn) course.checkOneColumn = true
     else delete course.checkOneColumn
+    const n = Number(s.checkSplit || 0)
+    if (n && !(Number.isInteger(n) && n >= 2 && n <= 6)) throw new Error('「' + course.name + '」の並び順で分ける数が正しくありません（2〜6）')
+    if (n && !groups.length) course.checkSplit = n
+    else delete course.checkSplit
     names.push(course.name)
   })
   return names
@@ -230,6 +236,9 @@ export function checkConfig(config: unknown): void {
     if (course.groups !== undefined && course.groups !== null) checkGroups(course.groups, name)
     if ((course.checkById !== undefined && typeof course.checkById !== 'boolean') || (course.checkOneColumn !== undefined && typeof course.checkOneColumn !== 'boolean')) {
       throw new Error('「' + name + '」の点検表の並びの設定が正しくありません')
+    }
+    if (course.checkSplit !== undefined && course.checkSplit !== null && !(Number.isInteger(course.checkSplit) && course.checkSplit >= 2 && course.checkSplit <= 6)) {
+      throw new Error('「' + name + '」の並び順で分ける数が正しくありません（2〜6）')
     }
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords(config.wordChecks)

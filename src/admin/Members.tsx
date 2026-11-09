@@ -9,7 +9,7 @@ import { DoneNote, SlowNote, Waiting } from './Wait'
 
 /**
  * 「先生の登録」の区切り（管理者だけ。mockups/v43 案B。前の版の窓の中身を、画面の中に出す）。
- * 先生は、すべてのコースの「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できる（年度の設定はほかには変えられない）。
+ * 先生は、担当のコース（はじめて開いたときに登録する1つ）の点検表・「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できる（年度の設定はほかには変えられない）。
  * 登録の欄には、1人分でも、メーリングリストの宛先を何人分でも貼り付けられる（mockups/v20 案3）。
  * 2人以上なら、読み取った結果を一覧で見せてから登録する（学生のアドレス・大学のアドレスでないもの・登録済みの人は登録しない）
  */
@@ -44,6 +44,7 @@ export function MembersSection({
   onMembers,
   onPending,
   notices,
+  courseNames = {},
 }: {
   me: string
   studentIdPattern: string | null
@@ -56,6 +57,8 @@ export function MembersSection({
   onPending: (message: string | null) => void
   /** 区切りの見出しのすぐ下に出す知らせ（保存した・断られた、入力の誤りなど） */
   notices?: ReactNode
+  /** コースの名前（登録した担当コースを出す。ID → 名前） */
+  courseNames?: Record<string, string>
 }) {
   const [text, setText] = useState('')
   const [role, setRole] = useState<Member['role']>('先生')
@@ -99,7 +102,7 @@ export function MembersSection({
     const after = members.map((x) => (x.email === m.email ? { ...x, role: next } : x))
     const lines = [
       `${m.email} を「${next}」にしますか？`,
-      next === '管理者' ? '管理者は、すべての設定の変更と公開、先生の登録ができます。' : '先生は、ひな形・お知らせ・書き間違えやすい語だけを編集できます（年度の設定の変更・公開・先生の登録はできなくなります）。',
+      next === '管理者' ? '管理者は、すべての設定の変更と公開、先生の登録ができます。' : '先生は、担当のコースの点検表・ひな形・お知らせと、書き間違えやすい語だけを編集できます（年度の設定の変更・公開・先生の登録はできなくなります）。',
     ]
     if (adminsAfter(after) === 1) lines.push('', ONE_ADMIN)
     // 「やめる」なら何もしない（選ぶ欄は、元の役割に戻る）
@@ -140,7 +143,7 @@ export function MembersSection({
         <li>
           <span className="set-ic t-people">{AdminIcon.person}</span>
           <span>
-            <b>先生</b>すべてのコースの「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます（ほかの設定は変えられません）
+            <b>先生</b>担当のコースの点検表・「下書きのひな形」「お知らせ」と、「書き間違えやすい語」を編集できます（ほかの設定は変えられません）。氏名と担当コースは、はじめて開いたときに先生が登録します
           </span>
         </li>
         <li>
@@ -168,6 +171,15 @@ export function MembersSection({
                 <span className="who">
                   {m.email}
                   {m.memo && <small>{m.memo}</small>}
+                  {/* 氏名と担当コース（先生が、はじめて開いたときに登録する。依頼者の判断 2026-11-09） */}
+                  {m.name ? (
+                    <small className="prof">
+                      {m.name}
+                      {m.courseId && `・${courseNames[m.courseId] ?? m.courseId} コース`}
+                    </small>
+                  ) : (
+                    m.role === '先生' && <small className="prof none">氏名と担当コースは、まだ（次に開いたときに登録）</small>
+                  )}
                 </span>
                 <select className="sel" aria-label={`${m.email} の役割`} value={m.role} disabled={m.email.toLowerCase() === me.toLowerCase() || !!busy} onChange={(e) => changeRole(m, e.target.value as Member['role'])}>
                   <option value="先生">先生</option>

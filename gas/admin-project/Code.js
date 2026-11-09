@@ -131,7 +131,17 @@ function getState() {
     years: role ? readYears_() : [],
     links: role ? teacherLinks_() : {},
     checkSheets: role ? checkSheetLinks_() : [],
+    // 自分の氏名と担当コース（先生は、はじめて開いたときに選ぶ：依頼者の選択 2026-11-09）
+    me: role ? meOf_(user) : null,
+    // 管理ページの場所（点検表の画面に直接入るリンク：?view=check）
+    adminUrl: role ? ADMIN_URL || ScriptApp.getService().getUrl() : '',
   }
+}
+
+/** 自分の氏名と担当コース（{ name, courseId }。まだ登録していなければ空の文字） */
+function meOf_(user) {
+  const m = memberOf_(user)
+  return { name: m ? m.name : '', courseId: m ? m.courseId : '' }
 }
 
 /** 先生向けのリンク（説明の資料一式・使い方を AI に聞く）。スクリプト プロパティがあれば、そちらを使う */
@@ -188,6 +198,7 @@ function saveWordChecks(year, words) {
 function saveTeacherEdits(year, edits, expectedUpdatedAt) {
   return editYear_(year, expectedUpdatedAt, (config) => {
     if (!edits || typeof edits !== 'object') throw new Error('保存する内容の形が正しくありません')
+    requireOwnCourseEdits_(Session.getActiveUser().getEmail(), edits)
     const done = []
     if (edits.templates && typeof edits.templates === 'object' && Object.keys(edits.templates).length) {
       done.push('下書きのひな形を保存（' + applyTemplates_(config, edits.templates).join('・') + '）')
@@ -340,6 +351,11 @@ function applySheetSettings_(config, sheets) {
     else delete course.checkById
     if (s.checkOneColumn) course.checkOneColumn = true
     else delete course.checkOneColumn
+    // 並び順で等分する数（所属を使うときは使わない。0・なしは等分しない）
+    const n = Number(s.checkSplit || 0)
+    if (n && !(Number.isInteger(n) && n >= SPLIT_MIN && n <= SPLIT_MAX)) throw new Error('「' + course.name + '」の並び順で分ける数が正しくありません（' + SPLIT_MIN + '〜' + SPLIT_MAX + '）')
+    if (n && !groups.length) course.checkSplit = n
+    else delete course.checkSplit
     names.push(course.name)
   })
   return names
@@ -780,7 +796,9 @@ function roleOfCell_(value) {
 
 /** 管理者シートの行（見出しを除く）を一覧にする。役割を書き間違えた行は、使えないようにする（間違って管理者にならないように） */
 function parseMembers_(rows) {
-  return rows.map((r) => ({ email: String(r[0]).trim(), memo: String(r[1] || ''), role: roleOfCell_(r[2]) })).filter((m) => m.email && m.role)
+  return rows
+    .map((r) => ({ email: String(r[0]).trim(), memo: String(r[1] || ''), role: roleOfCell_(r[2]), name: String(r[3] || '').trim(), courseId: String(r[4] || '').trim() }))
+    .filter((m) => m.email && m.role)
 }
 
 /**
@@ -889,6 +907,9 @@ function checkConfig_(config) {
     if (course.groups !== undefined && course.groups !== null) checkGroups_(course.groups, name)
     if ((course.checkById !== undefined && typeof course.checkById !== 'boolean') || (course.checkOneColumn !== undefined && typeof course.checkOneColumn !== 'boolean')) {
       throw new Error('「' + name + '」の点検表の並びの設定が正しくありません')
+    }
+    if (course.checkSplit !== undefined && course.checkSplit !== null && !(Number.isInteger(course.checkSplit) && course.checkSplit >= SPLIT_MIN && course.checkSplit <= SPLIT_MAX)) {
+      throw new Error('「' + name + '」の並び順で分ける数が正しくありません（' + SPLIT_MIN + '〜' + SPLIT_MAX + '）')
     }
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords_(config.wordChecks)
@@ -1691,8 +1712,9 @@ function checkSheetLinks_() {
  * もうあれば、写さずにすぐ場所を返す（写すのは10分ごとの仕掛けと「この並びにする」。開くのを待たせない：依頼者の試し 2026-11-04）
  */
 function ensureCheckSheet(year, courseId) {
-  requireTeacher_()
+  const user = requireTeacher_()
   const course = requireCourse_(year, courseId)
+  requireCourseAccess_(user, course.id)
   rememberAdminBook_()
   const existing = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
   if (existing && usableSheet_(existing.id)) return { url: checkSheetUrl_(existing.id) }
@@ -1730,7 +1752,8 @@ function studentList_(year, course) {
 
 /** 「学生の並びを直す」の窓の一覧（先生も使える） */
 function listStudents(year, courseId) {
-  requireTeacher_()
+  const user = requireTeacher_()
+  requireCourseAccess_(user, String(courseId))
   return studentList_(year, requireCourse_(year, courseId))
 }
 
@@ -1744,6 +1767,7 @@ function saveStudentOrder(year, courseId, studentIds, groups) {
   const course = withLock_(() => {
     const user = requireTeacher_()
     const found = requireCourse_(year, courseId)
+    requireCourseAccess_(user, found.id)
     if (studentIds !== null && (!Array.isArray(studentIds) || studentIds.length > 2000 || studentIds.some((x) => typeof x !== 'string'))) throw new Error('並びの形が正しくありません')
     const known = courseGroups_(found)
     const fixes = groups && typeof groups === 'object' ? groups : {}
@@ -1860,10 +1884,13 @@ function syncCheckSheet_(entry, course, roster) {
   const sheet = book.getSheetByName(CHECK_TAB) || book.getSheets()[0]
   const title = checkSheetTitle_(entry.year, course)
   if (book.getName() !== title) book.rename(title)
-  const students = orderStudents_(knownGroups_(courseStudents_(roster, entry.year, course.id), course), course, manualOrderOk_(entry.year, course))
+  const ordered = orderStudents_(knownGroups_(courseStudents_(roster, entry.year, course.id), course), course, manualOrderOk_(entry.year, course))
+  // 並び順で等分するコース（所属を学生に選ばせず、上から N 等分して班にする。人数が変わったら分け直す：依頼者の選択 2026-11-09）
+  const split = splitCount_(course)
+  const students = split ? splitGroups_(ordered, split) : ordered
   const layout = blockLayout_(students.length, course.checkOneColumn === true)
-  // 所属の列（所属を登録したコースだけ。番号のすぐ右。依頼者の選択 2026-11-09 mockups/v118・v119）
-  const wantGroup = courseGroups_(course).length > 0
+  // 所属の列（所属を登録した・等分するコースだけ。番号のすぐ右。依頼者の選択 2026-11-09 mockups/v118・v119）
+  const wantGroup = effectiveGroups_(course).length > 0
   const surnames = advisorSurnames_(course.advisors)
 
   let values = sheet.getDataRange().getValues()
@@ -2001,7 +2028,7 @@ function syncCheckSheet_(entry, course, roster) {
     return out
   })
   // 所属の色（段ごと、行ごとの所属の番号。選んでいない学生・学生のいない行は -1）
-  const groupList = courseGroups_(course)
+  const groupList = effectiveGroups_(course)
   const tones = blocks.slice(0, layout.blocks).map((b, bi) => {
     const out = []
     for (let r = 0; r < layout.perBlock; r++) {
@@ -2014,6 +2041,12 @@ function syncCheckSheet_(entry, course, roster) {
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
     formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh, edges, tones)
     props.setProperty('checkLayout:' + entry.id, signature)
+  }
+  // 担当の割り振り：あとから来た学生・まとまりが変わった学生に、割り振りの先生の「予定」を入れる
+  try {
+    applyAssignment_(entry.year, course, true)
+  } catch (err) {
+    console.error('割り振りを入れられませんでした：' + String(err && err.message ? err.message : err))
   }
 }
 
@@ -2339,7 +2372,7 @@ function editContext_(e, sheet) {
     const book = adminBook_()
     const admins = book.getSheetByName(SHEET_ADMINS)
     const member = admins ? parseMembers_(admins.getDataRange().getValues().slice(1)).find((m) => m.email.toLowerCase() === String(email).toLowerCase()) : null
-    memo = member ? member.memo : ''
+    memo = member ? [member.name, member.memo].join(' ') : ''
     const id = (e.source && typeof e.source.getId === 'function' ? e.source : sheet.getParent()).getId()
     const entry = checkSheetEntries_(book).find((x) => x.id === id)
     const found = entry ? yearConfig_(entry.year, book) : null
@@ -2404,4 +2437,331 @@ function setupCheckSheets() {
   setupFeedbackMail()
   syncCheckSheets()
   Logger.log('点検表の準備ができました（' + CHECK_SYNC_MINUTES + ' 分ごとに、学生の名簿を点検表に写します）')
+}
+
+// ---- 先生の氏名と担当コース・点検表の画面（依頼者の選択 2026-11-09 mockups/v126） ----
+// 先生は、はじめて管理ページを開いたときに、氏名（指導教員の一覧から）を選ぶ。選んだ氏名のコースが担当のコース（いつも1つ）。
+// 先生は担当のコースだけを見る・直す（管理者は全部）。点検表は、管理ページの「点検表」の画面で見て、そこから書く（裏はスプレッドシートのまま）
+
+/** 管理者シートの列（0 から）：氏名と担当コースは、あとから右に足した列 */
+const MEMBER_COLS = { email: 0, memo: 1, role: 2, name: 3, course: 4 }
+const MEMBER_EXTRA_HEADER = ['氏名', '担当コース']
+/** 氏名の長さの上限 */
+const PROFILE_NAME_MAX = 40
+/** 並び順で等分するときの数（2〜6） */
+const SPLIT_MIN = 2
+const SPLIT_MAX = 6
+
+/** その人の登録（{ email, memo, role, name, courseId }。なければ null） */
+function memberOf_(email) {
+  if (!email) return null
+  return readMembers_().find((m) => m.email.toLowerCase() === String(email).toLowerCase()) || null
+}
+
+/** 先生は、担当のコースだけ（担当を登録した先生だけ。管理者は全部） */
+function requireCourseAccess_(user, courseId) {
+  const m = memberOf_(user)
+  if (!m || m.role === ROLE_ADMIN || !m.courseId) return
+  if (m.courseId !== String(courseId)) throw new Error('担当のコースだけを見られます（担当のコースは、左下の「氏名と担当コース」で確かめられます）')
+}
+
+/** 先生の画面から届いた、コースごとの編集（コースの ID → 中身）が、担当のコースだけか */
+function requireOwnCourseEdits_(user, edits) {
+  const m = memberOf_(user)
+  if (!m || m.role === ROLE_ADMIN || !m.courseId) return
+  ;['templates', 'notices', 'permissions', 'subtitles', 'sheets'].forEach((key) => {
+    const part = edits && edits[key]
+    if (!part || typeof part !== 'object') return
+    Object.keys(part).forEach((id) => {
+      if (id !== m.courseId) throw new Error('担当のコースだけを直せます')
+    })
+  })
+}
+
+/** 氏名と担当コースの形を確かめる（どこかの年度の設定にあるコース）。{ name, courseId } */
+function cleanProfile_(name, courseId) {
+  const n = String(name === undefined || name === null ? '' : name).replace(/\s+/g, '　').trim()
+  if (!n || n.length > PROFILE_NAME_MAX) throw new Error('氏名は1〜' + PROFILE_NAME_MAX + '字で入れてください')
+  const id = String(courseId === undefined || courseId === null ? '' : courseId).trim()
+  if (!id || !readYears_().some((y) => courseOf_(y.config, id))) throw new Error('担当のコースが見つかりません')
+  return { name: n, courseId: id }
+}
+
+/** 管理者シートの、その人の行に氏名と担当コースを書く（見出しがなければ足す） */
+function writeProfile_(email, profile) {
+  const sheet = sheet_(SHEET_ADMINS)
+  if (!String(sheet.getRange(1, MEMBER_COLS.name + 1).getValue())) sheet.getRange(1, MEMBER_COLS.name + 1, 1, 2).setValues([MEMBER_EXTRA_HEADER]).setFontWeight('bold')
+  const values = sheet.getDataRange().getValues()
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim().toLowerCase() !== String(email).toLowerCase()) continue
+    setRow_(sheet, i + 1, MEMBER_COLS.name + 1, [profile.name, profile.courseId])
+    return true
+  }
+  return false
+}
+
+/** 自分の氏名と担当コースを登録する（先生・管理者。はじめて開いたとき・直すとき） */
+function setMyProfile(name, courseId) {
+  return withLock_(() => {
+    const user = requireTeacher_()
+    const profile = cleanProfile_(name, courseId)
+    writeProfile_(user, profile)
+    appendMemberHistory_(user, '氏名と担当コースを登録：' + profile.name + '（' + profile.courseId + '）')
+    return profile
+  })
+}
+
+/** ほかの先生の氏名と担当コースを直す（管理者だけ） */
+function setMemberProfile(email, name, courseId) {
+  return withLock_(() => {
+    const user = requireAdmin_()
+    const profile = cleanProfile_(name, courseId)
+    if (!writeProfile_(email, profile)) throw new Error(removedMemberMessage_(email))
+    appendMemberHistory_(user, '氏名と担当コースを直す：' + email + '（' + profile.name + '・' + profile.courseId + '）')
+    return readMembers_()
+  })
+}
+
+/** 並び順で等分する数（所属を登録したコースは 0。2〜6 でなければ 0） */
+function splitCount_(course) {
+  if (!course || courseGroups_(course).length) return 0
+  const n = Number(course.checkSplit)
+  return Number.isInteger(n) && n >= SPLIT_MIN && n <= SPLIT_MAX ? n : 0
+}
+
+/** 等分したときの班の名前（1班・2班…） */
+function splitNames_(n) {
+  const out = []
+  for (let i = 1; i <= n; i++) out.push(i + '班')
+  return out
+}
+
+/** 点検表で使う、まとまりの名前（所属。所属がなく等分するコースは 1班〜。どちらでもなければ []） */
+function effectiveGroups_(course) {
+  const groups = courseGroups_(course)
+  if (groups.length) return groups
+  const n = splitCount_(course)
+  return n ? splitNames_(n) : []
+}
+
+/** 並べた学生を、上から n 等分して班を付ける（人数が割り切れなければ、前の班から1人ずつ多く） */
+function splitGroups_(ordered, n) {
+  const base = Math.floor(ordered.length / n)
+  const extra = ordered.length % n
+  const out = []
+  let at = 0
+  for (let k = 0; k < n; k++) {
+    const size = base + (k < extra ? 1 : 0)
+    for (let j = 0; j < size; j++) out.push(Object.assign({}, ordered[at++], { group: k + 1 + '班' }))
+  }
+  return out
+}
+
+/** 回の欄の中身を読む（「山本 済み」「山本 予定」。名字だけ・ほかの字は済み。配信の窓口の roundOf_ と同じ読み方） */
+function roundCell_(value) {
+  if (value === true) return { teacher: '', state: 'done' }
+  const text = value instanceof Date ? monthDay_(value) : String(value === undefined || value === null || value === false ? '' : value).trim()
+  if (!text) return { teacher: '', state: '' }
+  const m = /^(.+?)\s+(済み|予定)$/.exec(text)
+  if (m) return { teacher: m[1].trim(), state: m[2] === '済み' ? 'done' : 'plan' }
+  return { teacher: text, state: 'done' }
+}
+
+/** コースの点検表（{ entry, sheet, values, formulas, h, blocks }。まだなければ null） */
+function openCheckSheet_(year, courseId) {
+  const entry = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === courseId)
+  if (!entry || !usableSheet_(entry.id)) return null
+  const book = SpreadsheetApp.openById(entry.id)
+  const sheet = book.getSheetByName(CHECK_TAB) || book.getSheets()[0]
+  const values = sheet.getDataRange().getValues()
+  const h = headerRowOf_(values)
+  if (h < 0) return null
+  return { entry: entry, sheet: sheet, values: values, formulas: sheet.getDataRange().getFormulas(), h: h, blocks: checkBlocks_(values[h]) }
+}
+
+/** 点検表の学生の行（学籍番号 → { block, r（values の行）, row }） */
+function checkRows_(cs) {
+  const out = {}
+  cs.blocks.forEach((b) => {
+    if (b.cols.key < 0) return
+    for (let r = cs.h + 1; r < cs.values.length; r++) {
+      const key = String(cs.values[r][b.cols.key] === undefined ? '' : cs.values[r][b.cols.key]).trim()
+      if (key && !out[key]) out[key] = { block: b, r: r, row: cs.values[r] }
+    }
+  })
+  return out
+}
+
+/** 「最新 PDF」のセルの式から、PDF の場所と日付 */
+function pdfOfCell_(formula, value) {
+  const m = /HYPERLINK\("([^"]+)","([^"]*)"\)/.exec(String(formula || ''))
+  return m ? { url: m[1], label: m[2] } : value ? { url: '', label: String(value) } : null
+}
+
+/** 先生の割り振り（スクリプト プロパティ assign:年度:コース。{ labels: [回の名前], rows: { まとまり: [名字（回ごと）] } }） */
+function readAssignment_(year, courseId) {
+  const raw = PropertiesService.getScriptProperties().getProperty('assign:' + Number(year) + ':' + courseId)
+  const parsed = raw ? parseJson_(raw) : null
+  return parsed && Array.isArray(parsed.labels) && parsed.rows && typeof parsed.rows === 'object' ? parsed : null
+}
+
+/**
+ * 点検表の画面の中身（先生・管理者。先生は担当のコースだけ）。点検表がまだなければ exists: false。
+ * students：[{ key, no, name, group, pdf: { url, label } | null, note, rounds: [{ teacher, state }]（回の並びは rounds と同じ）, abstractOk, finalOk, kyomu }]
+ */
+function getCheckView(year, courseId) {
+  const user = requireTeacher_()
+  const course = requireCourse_(year, courseId)
+  requireCourseAccess_(user, course.id)
+  const base = { exists: false, rounds: [], students: [], teachers: advisorSurnames_(course.advisors), groups: effectiveGroups_(course), split: splitCount_(course), assignment: readAssignment_(year, course.id) }
+  const cs = openCheckSheet_(year, course.id)
+  if (!cs) return base
+  const first = cs.blocks[0]
+  const labels = first ? first.rounds.map((r) => r.label) : []
+  const text = (v) => String(v === undefined || v === null ? '' : v).trim()
+  const rows = checkRows_(cs)
+  const students = Object.keys(rows).map((key) => {
+    const p = rows[key]
+    const c = p.block.cols
+    const at = (col) => (col >= 0 ? p.row[col] : '')
+    // 段ごとに回の列が違っても、名前で合わせる（1段目の回の並びで返す）
+    const byLabel = {}
+    p.block.rounds.forEach((x) => (byLabel[x.label] = p.row[x.col]))
+    return {
+      key: key,
+      no: Number(at(c.no)) || 0,
+      name: text(at(c.name)),
+      group: text(at(c.group)),
+      pdf: pdfOfCell_(c.pdf >= 0 ? cs.formulas[p.r][c.pdf] : '', at(c.pdf)),
+      note: text(at(c.note)),
+      rounds: labels.map((l) => roundCell_(byLabel[l])),
+      abstractOk: at(c.abstractOk) === true,
+      finalOk: at(c.finalOk) === true,
+      kyomu: at(c.kyomu) === true,
+    }
+  })
+  students.sort((a, b) => a.no - b.no)
+  return Object.assign(base, { exists: true, url: checkSheetUrl_(cs.entry.id), rounds: labels, students: students })
+}
+
+/** 自分の名字（✓ の記録に残す。登録した氏名 → メモ → 指導教員の名字 → アドレスの @ より前） */
+function mySurname_(user, course) {
+  const m = memberOf_(user)
+  return editorSurname_(user, m ? [m.name, m.memo].join(' ') : '', advisorSurnames_(course.advisors))
+}
+
+/**
+ * 点検表の画面から1つのセルを書く（先生・管理者。先生は担当のコースだけ）。field：{ round: 回の名前, teacher, state: 'done' | 'plan' | '' } か
+ * { kind: 'abstractOk' | 'finalOk' | 'kyomu', on: true | false }。許可の ✓ は、記録の列に「日時 / 名字」も書く（点検表で入れたときと同じ）。
+ * 並びが崩れている行には書かない。書いたあとの、その学生の行を返す
+ */
+function setCheckCell(year, courseId, studentId, field) {
+  const user = requireTeacher_()
+  const course = requireCourse_(year, courseId)
+  requireCourseAccess_(user, course.id)
+  const lock = LockService.getDocumentLock()
+  lock.waitLock(30000)
+  try {
+    const cs = openCheckSheet_(year, course.id)
+    if (!cs) throw new Error('点検表がまだありません')
+    const p = checkRows_(cs)[String(studentId)]
+    if (!p) throw new Error('点検表にこの学生が見つかりません（10分ほどで載ります）')
+    const c = p.block.cols
+    if (c.note >= 0 && String(p.row[c.note]).trim() === BROKEN_NOTE) throw new Error('この行は並びが崩れています。点検表で確かめてください')
+    const row = p.r + 1
+    if (field && typeof field.round === 'string') {
+      const col = p.block.rounds.find((x) => x.label === field.round)
+      if (!col) throw new Error('回の列「' + field.round + '」が見つかりません')
+      const teacher = String(field.teacher || '').trim()
+      if (teacher.length > 20 || /[=+\-@]/.test(teacher.charAt(0))) throw new Error('先生の名前の形が正しくありません')
+      const value = !teacher ? '' : teacher + (field.state === 'done' ? ' 済み' : field.state === 'plan' ? ' 予定' : '')
+      cs.sheet.getRange(row, col.col + 1).setValue(value)
+    } else if (field && ['abstractOk', 'finalOk', 'kyomu'].indexOf(field.kind) >= 0) {
+      const col = c[field.kind]
+      if (col < 0) throw new Error('点検表に「' + CHECK_COLUMNS[field.kind] + '」の列がありません')
+      const on = field.on === true
+      cs.sheet.getRange(row, col + 1).setValue(on)
+      const rec = field.kind === 'abstractOk' ? c.abstractRec : field.kind === 'finalOk' ? c.finalRec : -1
+      if (rec >= 0) cs.sheet.getRange(row, rec + 1).setValue(on ? new Date().toISOString() + ' / ' + mySurname_(user, course) : '')
+    } else {
+      throw new Error('書く欄の形が正しくありません')
+    }
+  } finally {
+    lock.releaseLock()
+  }
+  return getCheckView(year, course.id).students.find((s) => s.key === String(studentId)) || null
+}
+
+/**
+ * 担当の割り振りを保存して、点検表に入れる（先生・管理者。先生は担当のコースだけ）。assignment：{ labels: [回の名前], rows: { まとまり: [名字（回ごと。'' は入れない）] } }。
+ * 点検表の回の欄に「名字 予定」を入れる（「済み」の欄は書き換えない）。あとから来た学生・班が変わった学生も、10分ごとの写しで入る
+ */
+function saveAssignment(year, courseId, assignment) {
+  const user = requireTeacher_()
+  const course = requireCourse_(year, courseId)
+  requireCourseAccess_(user, course.id)
+  const teachers = advisorSurnames_(course.advisors)
+  const groups = effectiveGroups_(course)
+  if (!groups.length) throw new Error('所属か、並び順で分ける数を、コースごとの設定で決めてください')
+  const a = assignment
+  if (!a || !Array.isArray(a.labels) || a.labels.length > 30 || !a.rows || typeof a.rows !== 'object') throw new Error('割り振りの形が正しくありません')
+  const rows = {}
+  groups.forEach((g) => {
+    const list = Array.isArray(a.rows[g]) ? a.rows[g] : []
+    rows[g] = a.labels.map((_, i) => {
+      const t = String(list[i] || '').trim()
+      if (t && teachers.indexOf(t) < 0) throw new Error('「' + t + '」は、このコースの指導教員にいません')
+      return t
+    })
+  })
+  const clean = { labels: a.labels.map((l) => String(l)), rows: rows }
+  const lock = LockService.getDocumentLock()
+  lock.waitLock(30000)
+  let written = 0
+  try {
+    PropertiesService.getScriptProperties().setProperty('assign:' + Number(year) + ':' + course.id, JSON.stringify(clean))
+    written = applyAssignment_(year, course, false)
+  } finally {
+    lock.releaseLock()
+  }
+  appendMemberHistory_(user, '担当の割り振りを点検表に入れる（' + Number(year) + '年度・' + course.name + ' コース・' + written + 'か所）')
+  return getCheckView(year, course.id)
+}
+
+/**
+ * 割り振りを点検表に入れる。onlyMoved：まとまりが変わった学生・新しい学生だけ（10分ごとの写しから）。
+ * 「済み」の欄と、割り振りが空の欄は書き換えない。入れたときのまとまりを覚える（assignGroups:年度:コース）。書いた欄の数を返す
+ */
+function applyAssignment_(year, course, onlyMoved) {
+  const assign = readAssignment_(year, course.id)
+  if (!assign) return 0
+  const cs = openCheckSheet_(year, course.id)
+  if (!cs) return 0
+  const props = PropertiesService.getScriptProperties()
+  const memoKey = 'assignGroups:' + Number(year) + ':' + course.id
+  const seen = (props.getProperty(memoKey) && parseJson_(props.getProperty(memoKey))) || {}
+  const rows = checkRows_(cs)
+  let written = 0
+  Object.keys(rows).forEach((key) => {
+    const p = rows[key]
+    const c = p.block.cols
+    const group = c.group >= 0 ? String(p.row[c.group]).trim() : ''
+    if (onlyMoved && seen[key] === group) return
+    seen[key] = group
+    const plan = assign.rows[group]
+    if (!plan) return
+    p.block.rounds.forEach((x) => {
+      const i = assign.labels.indexOf(x.label)
+      const t = i >= 0 ? plan[i] : ''
+      if (!t) return
+      const now = roundCell_(p.row[x.col])
+      if (now.state === 'done') return
+      const value = t + ' 予定'
+      if (String(p.row[x.col]).trim() === value) return
+      cs.sheet.getRange(p.r + 1, x.col + 1).setValue(value)
+      written++
+    })
+  })
+  props.setProperty(memoKey, JSON.stringify(seen))
+  return written
 }

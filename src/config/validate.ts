@@ -277,6 +277,7 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
       (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean') ||
       (course.checkById !== undefined && typeof course.checkById !== 'boolean') ||
       (course.checkOneColumn !== undefined && typeof course.checkOneColumn !== 'boolean') ||
+      (course.checkSplit !== undefined && !(Number.isInteger(course.checkSplit) && course.checkSplit >= 2 && course.checkSplit <= 6)) ||
       (course.groups !== undefined && !(Array.isArray(course.groups) && course.groups.every(isText)))
     ) {
       error(field, `${i + 1}番目のコースの形が正しくありません`)

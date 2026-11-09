@@ -1,6 +1,7 @@
 // 管理ページの「コースごとの設定」：はじめはコースの一覧（1コース1行）。押すと、そのコースの設定の画面に入り、ほかのコースは出さない。
 // 「‹ コースの一覧」で戻る（依頼者の選択 2026-11-07 案1。前は一覧の中でその場で広げていた）。
-// この端末で最後に入っていたコースを覚えておき、次に開いたときは、そのコースの画面から始める（一覧に戻っていれば一覧から）。管理者・先生の画面とも
+// この端末で最後に入っていたコースを覚えておき、次に開いたときは、そのコースの画面から始める（一覧に戻っていれば一覧から）。管理者の画面。
+// 先生は担当のコースだけ（依頼者の判断 2026-11-09）：いつもそのコースの画面で、一覧はない
 // これだけを流すときは node scripts/e2e/run.mjs adminCourseOpen
 import { withEdge } from '../poc/edge.mjs'
 
@@ -21,7 +22,7 @@ async function open(context, { teacher = false } = {}) {
   await page.waitForSelector('.side-nav')
   return page
 }
-const navTitles = (page) => page.evaluate(() => [...document.querySelectorAll('.side-nav button')].map((b) => b.querySelector('.nt b')?.firstChild?.textContent.trim()))
+const navTitles = (page) => page.evaluate(() => [...document.querySelectorAll('.side-nav li button')].map((b) => b.querySelector('.nt b')?.firstChild?.textContent.trim()))
 const nav = async (page, title) => {
   await page.evaluate((title) => [...document.querySelectorAll('.side-nav button')].find((b) => b.querySelector('.nt b')?.firstChild?.textContent.trim() === title).click(), title)
   await wait(300)
@@ -50,6 +51,15 @@ await withEdge(async (browser) => {
     check(`${who}：左の見出しは「コース」ではなく「コースごとの設定」`, (await navTitles(page)).includes('コースごとの設定') && !(await navTitles(page)).includes('コース'), JSON.stringify(await navTitles(page)))
     await nav(page, 'コースごとの設定')
     let s = await state(page)
+    if (teacher) {
+      // 先生は担当のコースだけ（依頼者の判断 2026-11-09）：いつもそのコースの画面。一覧・「‹ コースの一覧」はない。読み込み直しても同じ
+      check('先生：担当のコースの画面がいつも開いている（コースの一覧・「‹ コースの一覧」はない）', s.page === 'film-stage-costume' && s.courses === 1 && s.ids.length === 0 && !s.back, JSON.stringify(s))
+      await reopen(page)
+      s = await state(page)
+      check('先生：読み込み直しても、担当のコースの画面', s.page === 'film-stage-costume' && !s.back, JSON.stringify(s))
+      await context.close()
+      continue
+    }
     check(`${who}：はじめはコースの一覧（見出しは「コースごとの設定」。どのコースにも入っていない）`, s.head === 'コースごとの設定' && s.ids.length >= 1 && s.page === null && !s.back, JSON.stringify(s))
     // コースを押す → そのコースの画面（見出しはコース名。ほかのコースは出さない。上に「‹ コースの一覧」）
     const last = s.ids.at(-1)

@@ -170,7 +170,7 @@ export async function standardTemplateAdmin(browser, check) {
   await teacher.setViewport({ width: 1366, height: 820 })
   await teacher.goto(`${APP}/admin.html?as=teacher`, { waitUntil: 'networkidle0' })
   await teacher.waitForSelector('.admin .side-nav button')
-  const t = await teacher.evaluate(() => ({ nav: [...document.querySelectorAll('.side-nav button')].map((b) => b.textContent).join('|'), card: !!document.querySelector('.std-template') }))
+  const t = await teacher.evaluate(() => ({ nav: [...document.querySelectorAll('.side-nav li button')].map((b) => b.textContent).join('|'), card: !!document.querySelector('.std-template') }))
   check('先生の管理ページには、標準のひな形の入り口がない（詳細設定もない）', !t.nav.includes('詳細設定') && !t.card, t.nav)
   await context.close()
 }

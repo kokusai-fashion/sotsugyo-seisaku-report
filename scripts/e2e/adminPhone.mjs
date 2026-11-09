@@ -57,7 +57,7 @@ await withEdge(async (browser) => {
     const { context, page } = await open(browser)
     const first = { list: await visible(page, '.side-nav'), work: await visible(page, '.work'), over: await overflow(page), bottom: await page.evaluate(() => { const g = document.querySelector('.admin-header .save-group'); const r = g?.getBoundingClientRect(); return r ? Math.round(innerHeight - r.bottom) : null }) }
     check('スマホ：開くと区切りの一覧（中身は出さない）。横にはみ出さず、保存のボタンは画面の下', first.list && !first.work && first.over <= 0 && first.bottom === 0, JSON.stringify(first))
-    const titles = await page.evaluate(() => [...document.querySelectorAll('.side-nav button')].map((b) => b.querySelector('.nt b').firstChild.textContent.trim()))
+    const titles = await page.evaluate(() => [...document.querySelectorAll('.side-nav li button')].map((b) => b.querySelector('.nt b').firstChild.textContent.trim()))
     const over = []
     for (const t of titles) {
       // コースの画面では、上の戻る所は「‹ コースの一覧」（2026-11-07 案1）。区切りの一覧が出るまで戻る
@@ -66,7 +66,7 @@ await withEdge(async (browser) => {
       const state = { t, list: await visible(page, '.side-nav'), back: await visible(page, '.phone-back'), head: await page.evaluate(() => document.querySelector('.content .sec-h')?.textContent ?? ''), over: await overflow(page) }
       if (state.list || !state.back || state.over > 0) over.push(state)
     }
-    check(`スマホ：一覧で区切り（${titles.length}つ）を押すと、その中身と「‹ 管理ページの一覧」が出て、どれも横にはみ出さない`, titles.length === 8 && over.length === 0, JSON.stringify(over))
+    check(`スマホ：一覧で区切り（${titles.length}つ）を押すと、その中身と「‹ 管理ページの一覧」が出て、どれも横にはみ出さない`, titles.length === 9 && over.length === 0, JSON.stringify(over))
     await tap(page, '.phone-back')
     check('スマホ：「‹ 管理ページの一覧」で一覧へ戻る', (await visible(page, '.side-nav')) && !(await visible(page, '.work')))
 
@@ -110,8 +110,8 @@ await withEdge(async (browser) => {
   // ---- 先生：一覧は4つ（届いた声も）と「先生ができること」 ----
   {
     const { context, page } = await open(browser, { as: 'teacher' })
-    const t = await page.evaluate(() => ({ items: document.querySelectorAll('.side-nav button').length, can: !!document.querySelector('.side-nav .can-do'), over: document.documentElement.scrollWidth - document.documentElement.clientWidth }))
-    check('スマホ（先生）：一覧は4つ（届いた声も）と「先生ができること」。横にはみ出さない', t.items === 4 && t.can && t.over <= 0, JSON.stringify(t))
+    const t = await page.evaluate(() => ({ items: document.querySelectorAll('.side-nav li button').length, can: !!document.querySelector('.side-nav .can-do'), over: document.documentElement.scrollWidth - document.documentElement.clientWidth }))
+    check('スマホ（先生）：一覧は5つ（点検表・届いた声も）と「先生ができること」。横にはみ出さない', t.items === 5 && t.can && t.over <= 0, JSON.stringify(t))
     await context.close()
   }
 

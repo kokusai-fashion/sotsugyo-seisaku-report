@@ -13,13 +13,16 @@ import { AdminNewVersion } from './AdminNewVersion'
 import { courseChanged, courseName, fieldChanged, listChanges, mergeEdits, sameConfig, shortChanges, describeChanges, type Change, type ChangeSection } from './changes'
 import { useConfirm } from './confirm'
 import { Modal } from './Modal'
+import { CheckSection } from './CheckSection'
+import { rememberCheckCourse } from './checkView'
 import { CourseSection } from './CourseSection'
 import { DetailsSection } from './DetailsSection'
 import { HistorySection } from './HistorySection'
 import { MembersSection } from './Members'
 import { newYearSteps, type NewYearStep } from './newYearSteps'
 import { Preview } from './Preview'
-import { checkSheetUrls, isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type PermissionSet, type SheetSettingSet, type TemplateSet, type YearRow } from './server'
+import { ProfileDialog } from './ProfileDialog'
+import { checkSheetUrls, isMockServer, roleOf, server, startParams, type AdminState, type HistoryRow, type Member, type PermissionSet, type Profile, type SheetSettingSet, type TemplateSet, type YearRow } from './server'
 import { TemplateEditor } from './TemplateEditor'
 import { STANDARD_COURSE, TemplateOverlay } from './TemplateOverlay'
 import { TrialSection } from './TrialSection'
@@ -44,7 +47,8 @@ import { changeLine, deleteConfirmText, deletedMessage, deliveryNote, newYearNot
  * 右には選んだ区切りだけを出す。表紙と抄録の見本は、要る区切り（年度の設定・コース・詳細設定）だけ、いちばん右に出す。
  * 直して保存していない間は、画面の下に帯（変更の数と保存のボタン）を出し、直した欄に「変更あり」を付ける。
  * まだ公開していない（準備中の）年度は、「年度の設定」に新年度の手順（題目 → 締切 → コース → 確かめる → 公開）を出す。
- * 「先生」として登録された人には、コースと書き方のチェックだけの画面（TeacherView）を出す。
+ * 「先生」として登録された人には、コースと書き方のチェックだけの画面（TeacherView）を出す。先生は担当のコースだけ（はじめに「氏名と担当コース」を登録する：ProfileDialog.tsx）。
+ * いちばん上の「点検表」は、点検表の中身を見て「済み」や許可を入れる画面（CheckSection.tsx。?view=check のリンクで直接入れる）。
  * コースごとの「下書きのひな形」は、コースの「ひな形を作る画面を開く」で、学生と同じ紙面で作る（mockups/v44 案A。TemplateOverlay.tsx）。前の窓（mockups/v8 案1）は「前の作り方で直す」から
  */
 
@@ -64,9 +68,9 @@ const WAIT_TEXT: Record<Busy, string> = { save: '保存しています…', publ
 const DONE_TEXT: Record<Busy, string> = { save: '保存しました', publish: '公開しました', create: '作成しました', delete: '削除しました' }
 
 /** 左の見出しの区切り */
-type Section = 'year' | 'course' | 'words' | 'trial' | 'feedback' | 'members' | 'history' | 'details'
-const SECTIONS: Section[] = ['year', 'course', 'words', 'trial', 'members', 'history', 'details']
-const TEACHER_SECTIONS: Section[] = ['course', 'words', 'trial']
+type Section = 'check' | 'year' | 'course' | 'words' | 'trial' | 'feedback' | 'members' | 'history' | 'details'
+const SECTIONS: Section[] = ['year', 'course', 'words', 'trial', 'members', 'history', 'details', 'check']
+const TEACHER_SECTIONS: Section[] = ['course', 'words', 'trial', 'check']
 /** 表紙と抄録の見本を右に出す区切り（ほかは、区切りを画面の幅いっぱいに出す） */
 const WITH_PREVIEW: Section[] = ['year', 'course', 'details']
 
@@ -367,6 +371,8 @@ interface NavItem {
   sep?: boolean
 }
 
+/** 「点検表」（管理者・先生とも。いちばん上：依頼者の判断 2026-11-09） */
+const CHECK_NAV: NavItem = { key: 'check', icon: AdminIcon.sheet, title: '点検表', sub: '点検の予定と記録' }
 /** 「学生の画面を試す」（管理者・先生とも。依頼者の選択 2026-10-22 案1） */
 const TRIAL_NAV: NavItem = { key: 'trial', icon: AdminIcon.trial, title: '学生の画面を試す', sub: '見本の原稿で' }
 /** 「届いた声」（管理者・先生とも。学生の「困ったこと・おかしいことを知らせる」。mockups/v85） */
@@ -376,10 +382,28 @@ const FEEDBACK_NAV: NavItem = { key: 'feedback', icon: AdminIcon.feedback, title
 const publishedConfig = (state: AdminState, row: YearRow): YearConfig => state.years.find((y) => y.status === '公開中')?.config ?? row.config
 
 /** 左の見出しの絵の丸の色（区切りの中の絵と同じ色づかい：admin.css の .set-ic。mockups/v114 案C を広げた：依頼者の選択 2026-11-05） */
-const NAV_TONE: Partial<Record<Section, string>> = { year: 't-notice', course: 't-template', words: 't-table', trial: 't-subtitle', feedback: 't-stamp' }
+const NAV_TONE: Partial<Record<Section, string>> = { check: 't-sheet', year: 't-notice', course: 't-template', words: 't-table', trial: 't-subtitle', feedback: 't-stamp' }
 
 /** 左の見出し（ボタンの一覧。選んでいる区切りに aria-current）。下に、ログイン中の人 */
-function SideNav({ items, active, onSelect, user, teacher }: { items: NavItem[]; active: Section; onSelect: (s: Section) => void; user: string; teacher: boolean }) {
+function SideNav({
+  items,
+  active,
+  onSelect,
+  user,
+  teacher,
+  profile,
+  onProfile,
+}: {
+  items: NavItem[]
+  active: Section
+  onSelect: (s: Section) => void
+  user: string
+  teacher: boolean
+  /** 登録した氏名と担当コース（なければ null） */
+  profile?: { name: string; course: string } | null
+  /** 「氏名と担当コース」を開く */
+  onProfile?: () => void
+}) {
   return (
     <nav className="side-nav" aria-label="管理ページの区切り">
       <ul>
@@ -407,12 +431,14 @@ function SideNav({ items, active, onSelect, user, teacher }: { items: NavItem[];
       {teacher && (
         <p className="can-do">
           <b>先生ができること</b>
+          <span>点検表・</span>
           <span>ひな形・お知らせ・</span>
           <span>書き方のチェック</span>
         </p>
       )}
       <div className="me">
         <span>ログイン中</span>
+        {profile?.name && <b className="pname">{profile.name}</b>}
         {/* 長いアドレスは「@」の前で折り返す（途中の字で切らない） */}
         <span className="user">
           {user.includes('@') ? (
@@ -426,6 +452,12 @@ function SideNav({ items, active, onSelect, user, teacher }: { items: NavItem[];
           )}
         </span>
         {teacher && <span>（先生）</span>}
+        {profile?.course && <span>担当：{profile.course} コース</span>}
+        {onProfile && (
+          <button type="button" className="profile-link" onClick={onProfile}>
+            氏名と担当コース
+          </button>
+        )}
         {isMockServer && <span className="badge old">試験用サーバー</span>}
         <SourceLink />
       </div>
@@ -570,8 +602,22 @@ function useFocusLater(): (selector: string) => void {
   }, [])
 }
 
+/** 年度のどこかにあるコース（担当コースの登録が、いまもあるコースを指しているか） */
+const courseExists = (state: AdminState, id: string | undefined) => !!id && state.years.some((y) => y.config.courses.some((c) => c.id === id))
+/** 登録した氏名と担当コース（左下に出す。コースの名前は、開いている年度のもの） */
+function profileLine(state: AdminState, config: YearConfig): { name: string; course: string } | null {
+  const me = state.me
+  if (!me?.name) return null
+  const c = config.courses.find((x) => x.id === me.courseId) ?? state.years.flatMap((y) => y.config.courses).find((x) => x.id === me.courseId)
+  return { name: me.name, course: c ? courseName(c) : '' }
+}
+
 export function AdminApp() {
   const [state, setState] = useState<AdminState | null>(null)
+  /** 点検表に直接入るリンク（?view=check）から開いた */
+  const [startCheck, setStartCheck] = useState(false)
+  /** 「氏名と担当コース」の窓を開いている（まだ登録していない先生には、閉じられない形で出す） */
+  const [profileOpen, setProfileOpen] = useState(false)
   const [year, setYear] = useState<number | null>(null)
   const [draft, setDraft] = useState<YearConfig | null>(null)
   /** サーバーを待っている操作（なければ null） */
@@ -646,10 +692,18 @@ export function AdminApp() {
     if (target) rememberYear(target.year)
   }, [])
 
+  const phoneAtStart = useRef(phone)
   useEffect(() => {
-    server
-      .getState()
-      .then((s) => {
+    Promise.all([server.getState(), startParams().catch(() => ({}) as Record<string, string>)])
+      .then(([s, params]) => {
+        // 点検表に直接入るリンク（ブックマーク・スマホのホーム画面）：点検表の区切りを開く（管理者は、リンクのコースを）
+        if (params.view === 'check') {
+          if (params.course) rememberCheckCourse(params.course)
+          saveSection('check')
+          setSectionState('check')
+          setStartCheck(true)
+          if (phoneAtStart.current && roleOf(s) === 'admin') showSection()
+        }
         setState(s)
         // 前に開いていた年度から（なければ公開中の年度）
         const last = lastYear()
@@ -659,7 +713,7 @@ export function AdminApp() {
         if (roleOf(s) === 'admin') server.getMembers().then(setMembers, (e) => setMembersError(`先生の登録を読み込めませんでした：${String(e?.message ?? e)}`))
       })
       .catch((e) => setMessage({ kind: 'ng', text: `読み込めませんでした：${String(e?.message ?? e)}` }))
-  }, [select])
+  }, [select, showSection])
 
   // 「変更履歴」の区切りを開いたら（年度を変えた・保存したときも）、その年度の記録を読む
   const historyKey = section === 'history' && row ? `${row.year}:${row.updatedAt}` : null
@@ -811,11 +865,32 @@ export function AdminApp() {
       </div>
     )
   if (!draft || !row) return <div className="admin-loading">年度設定がありません。</div>
+  // 氏名と担当コース：まだ登録していない先生（担当のコースが、どの年度にもなくなった先生も）は、はじめに登録する（閉じられない）
+  const profileRequired = role === 'teacher' && (!state.me?.name || !courseExists(state, state.me.courseId))
+  const profileDialog =
+    profileOpen || profileRequired ? (
+      <ProfileDialog
+        courses={row.config.courses.filter((c) => !c.hidden)}
+        me={state.me ?? null}
+        required={profileRequired}
+        onClose={() => setProfileOpen(false)}
+        onDone={(p: Profile) => {
+          setState({ ...state, me: p })
+          setProfileOpen(false)
+          const c = state.years.flatMap((y) => y.config.courses).find((x) => x.id === p.courseId)
+          setMessage({ kind: 'ok', text: `氏名と担当コースを登録しました：${p.name}（${c ? courseName(c) : ''} コース）` })
+        }}
+      />
+    ) : null
   if (role === 'teacher')
     return (
       <>
         {versionBanner}
+        {profileDialog}
         <TeacherView
+          key={state.me?.courseId ?? ''}
+          startCheck={startCheck}
+          onProfile={() => setProfileOpen(true)}
           state={state}
           row={row}
           draft={draft}
@@ -962,6 +1037,7 @@ export function AdminApp() {
   }
 
   const navItems: NavItem[] = [
+    CHECK_NAV,
     { key: 'year', icon: AdminIcon.calendar, title: '年度の設定', sub: '題目・締切・新年度', count: counts.year },
     { key: 'course', icon: AdminIcon.course, title: SECTION_TITLES.course, sub: 'お知らせ・ひな形', count: counts.course },
     { key: 'words', icon: AdminIcon.words, title: '書き方のチェック', sub: wordSummary(draft.wordChecks ?? DEFAULT_WORD_CHECKS), count: counts.words },
@@ -1049,10 +1125,11 @@ export function AdminApp() {
         checkSheets={checkSheetUrls(state, row.year)}
       />
     )
+  else if (section === 'check') content = <CheckSection key={row.year} year={row.year} courses={row.config.courses.filter((c) => !c.hidden)} me={state.me ?? null} adminUrl={state.adminUrl} admin phone={phone} />
   else if (section === 'words') content = <WordsSection key={row.year} words={draft.wordChecks ?? DEFAULT_WORD_CHECKS} onChange={(wordChecks) => set({ wordChecks })} onPending={setPending} notices={notices} />
   else if (section === 'trial') content = <TrialSection config={publishedConfig(state, row)} />
   else if (section === 'feedback') content = <FeedbackSection />
-  else if (section === 'members') content = <MembersSection me={state.user} studentIdPattern={draft.studentIdPattern} members={members} loadError={membersError} onMembers={setMembers} onPending={setPending} notices={notices} />
+  else if (section === 'members') content = <MembersSection me={state.user} studentIdPattern={draft.studentIdPattern} members={members} loadError={membersError} onMembers={setMembers} onPending={setPending} notices={notices} courseNames={Object.fromEntries(state.years.flatMap((y) => y.config.courses).map((c) => [c.id, courseName(c)]))} />
   else if (section === 'history')
     content = (
       <HistorySection
@@ -1090,7 +1167,7 @@ export function AdminApp() {
       />
       <ProblemsContext.Provider value={problemsValue}>
       <main className="admin-main">
-        <SideNav items={navItems} active={section} onSelect={phone ? (s) => void openSection(s) : go} user={state.user} teacher={false} />
+        <SideNav items={navItems} active={section} onSelect={phone ? (s) => void openSection(s) : go} user={state.user} teacher={false} profile={profileLine(state, row.config)} onProfile={() => setProfileOpen(true)} />
         <Work
           formWidth={formWidth}
           locked={busy !== null}
@@ -1103,6 +1180,7 @@ export function AdminApp() {
       </ProblemsContext.Provider>
       {dirty && <DirtyBar changes={labels} row={row} teacher={false} busy={busy} onSave={save} onShow={() => setDialog('changes')} />}
       {help && <AdminHelp admin links={state.links} onClose={() => setHelp(false)} />}
+      {profileDialog}
 
       {templateScreen !== null && draft.courses[templateScreen] && (
         <TemplateOverlay
@@ -1220,6 +1298,8 @@ export function AdminApp() {
  * 保存はひな形・お知らせ・書き間違えやすい語だけを送る（ほかの設定はサーバー側でも変えられない）
  */
 function TeacherView({
+  startCheck,
+  onProfile,
   state,
   row,
   draft,
@@ -1236,6 +1316,10 @@ function TeacherView({
   confirmUnappliedWords,
   onSave,
 }: {
+  /** 点検表に直接入るリンク（?view=check）から開いた */
+  startCheck: boolean
+  /** 「氏名と担当コース」を開く */
+  onProfile: () => void
   state: AdminState
   row: YearRow
   draft: YearConfig
@@ -1257,13 +1341,15 @@ function TeacherView({
   /** notices は、書き換えたコースのお知らせだけ（コースの ID → お知らせ）。permissions は、切り替えたコースの先生の許可だけ。subtitles は、切り替えたコースのサブタイトルを使うかだけ（使わないなら true）。sheets は、所属・点検表の順番・並べ方を変えたコースだけ */
   onSave: (templates: TemplateSet, words: WordCheck[] | null, notices: Record<string, string>, permissions: PermissionSet, subtitles: Record<string, boolean>, sheets: SheetSettingSet) => void
 }) {
-  const [section, setSectionState] = useState<Section>(() => loadSection(TEACHER_SECTIONS))
+  const [section, setSectionState] = useState<Section>(() => (startCheck ? 'check' : loadSection(TEACHER_SECTIONS)))
   const [editing, setEditing] = useState<number | null>(null)
+  /** 担当のコース（先生は、このコースだけを見る・直す：依頼者の判断 2026-11-09） */
+  const mine = state.me?.courseId || undefined
   /** ひな形を作る画面（学生と同じ紙面。管理ページの上に重ねて開く：mockups/v44 案A）を開いているコース */
   const [templateScreen, setTemplateScreen] = useState<number | null>(null)
   /** ひな形を受け取ったときの短い知らせ（数秒で消える） */
   // 開いているコース（はじめは、この端末で最後に開いていたコース：useOpenCourse）
-  const [openId, setOpenCourse] = useOpenCourse(draft.courses.filter((c) => !c.hidden).map((c) => c.id))
+  const [openId, setOpenCourse] = useOpenCourse(draft.courses.filter((c) => !c.hidden && (!mine || c.id === mine)).map((c) => c.id))
   const [previewCourse, setPreviewCourse] = useState<string | null>(null)
   /** コースの設定の画面に入る（null：コースの一覧に戻る）。入ったコースを見本にも出す */
   const enterCourse = (id: string | null) => {
@@ -1277,11 +1363,11 @@ function TeacherView({
   const formWidth = useFormWidth()
   // スマホ：はじめに区切りの一覧を出し、押すと中身。「‹ 管理ページの一覧」で一覧へ戻る（mockups/v68 案C）
   const phone = usePhone()
-  const [phoneList, showSection, backToList] = usePhoneList()
+  const [phoneList, showSection, backToList] = usePhoneList(startCheck && phone)
   const labels = changes.map((c) => c.label)
   const dirty = changes.length > 0
   const counts = countBySection(changes)
-  const shown = draft.courses.filter((c) => !c.hidden)
+  const shown = draft.courses.filter((c) => !c.hidden && (!mine || c.id === mine))
   const shownCourse = shown.find((c) => c.id === (previewCourse ?? openId)) ?? shown[0]
 
   const ask = useConfirm()
@@ -1325,8 +1411,8 @@ function TeacherView({
     // 所属・点検表の順番・並べ方（先生も変えられる：依頼者の選択 2026-11-09 mockups/v119）。変えたコースだけ、3つまとめて送る
     const sheets: SheetSettingSet = {}
     draft.courses.forEach((c) => {
-      if ((['groups', 'checkById', 'checkOneColumn'] as const).some((k) => courseChanged(row.config, draft, c.id, k))) {
-        sheets[c.id] = { groups: c.groups ?? [], checkById: c.checkById === true, checkOneColumn: c.checkOneColumn === true }
+      if ((['groups', 'checkById', 'checkOneColumn', 'checkSplit'] as const).some((k) => courseChanged(row.config, draft, c.id, k))) {
+        sheets[c.id] = { groups: c.groups ?? [], checkById: c.checkById === true, checkOneColumn: c.checkOneColumn === true, checkSplit: c.checkSplit ?? 0 }
       }
     })
     // 長すぎるお知らせは、送る前に知らせる（サーバーでも同じ言葉で断られる）
@@ -1338,6 +1424,7 @@ function TeacherView({
     onSave(templates, words, notices, permissions, subtitles, sheets)
   }
   const navItems: NavItem[] = [
+    CHECK_NAV,
     { key: 'course', icon: AdminIcon.course, title: SECTION_TITLES.course, sub: 'お知らせ・ひな形', count: counts.course },
     { key: 'words', icon: AdminIcon.words, title: '書き方のチェック', sub: wordSummary(draft.wordChecks ?? DEFAULT_WORD_CHECKS), count: counts.words },
     TRIAL_NAV,
@@ -1360,18 +1447,21 @@ function TeacherView({
         onSave={save}
       />
       <main className="admin-main">
-        <SideNav items={navItems} active={section} onSelect={phone ? (s) => void openSection(s) : go} user={state.user} teacher />
+        <SideNav items={navItems} active={section} onSelect={phone ? (s) => void openSection(s) : go} user={state.user} teacher profile={profileLine(state, row.config)} onProfile={onProfile} />
         <Work
           formWidth={formWidth}
           locked={busy !== null}
-          onBack={phone ? (section === 'course' && openId ? () => enterCourse(null) : backToList) : undefined}
-          backLabel={section === 'course' && openId ? 'コースの一覧' : undefined}
+          onBack={phone ? (section === 'course' && openId && !mine ? () => enterCourse(null) : backToList) : undefined}
+          backLabel={section === 'course' && openId && !mine ? 'コースの一覧' : undefined}
           content={
-            section === 'course' ? (
+            section === 'check' ? (
+              <CheckSection key={row.year} year={row.year} courses={row.config.courses.filter((c) => !c.hidden && (!mine || c.id === mine))} me={state.me ?? null} adminUrl={state.adminUrl} admin={false} phone={phone} />
+            ) : section === 'course' ? (
                 <CourseSection
                   draft={draft}
                   base={row.config}
                   teacher
+                  only={mine}
                   openId={openId}
                   onOpen={enterCourse}
                   onFocusCourse={setPreviewCourse}
