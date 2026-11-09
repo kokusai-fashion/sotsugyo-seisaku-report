@@ -146,6 +146,23 @@ export function applyPermissions(config: YearConfig, permissions: Record<string,
   return names
 }
 
+/**
+ * 指定したコースの「サブタイトルを使うか」を書き換える（Code.js の applySubtitles_。値は「使わない」なら true。使うなら項目ごと消す）。
+ * 書き換えたコースの名前を返す
+ */
+export function applySubtitles(config: YearConfig, subtitles: Record<string, unknown>): string[] {
+  const names: string[] = []
+  config.courses.forEach((course) => {
+    if (!Object.prototype.hasOwnProperty.call(subtitles, course.id)) return
+    const off = subtitles[course.id]
+    if (typeof off !== 'boolean') throw new Error('「' + course.name + '」のサブタイトルを使うかの設定が正しくありません')
+    if (off) course.noSubtitle = true
+    else delete course.noSubtitle
+    names.push(course.name)
+  })
+  return names
+}
+
 /** 保存する設定の形を確かめる（Code.js の checkConfig_。題目が空などの細かい確認は画面で行う） */
 export function checkConfig(config: unknown): void {
   if (!isObj(config) || Array.isArray(config)) throw new Error('設定の形が正しくありません')
@@ -171,6 +188,7 @@ export function checkConfig(config: unknown): void {
     if (course.abstractExample !== undefined && course.abstractExample !== null) checkText(course.abstractExample, LIMITS.abstractExample, '「' + name + '」の抄録の書き出し例')
     if (course.notice !== undefined && course.notice !== null) checkText(course.notice, LIMITS.notice, '「' + name + '」のお知らせ')
     if (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') throw new Error('「' + name + '」の表の空の行の設定が正しくありません')
+    if (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean') throw new Error('「' + name + '」のサブタイトルを使うかの設定が正しくありません')
     if (course.permission !== undefined && course.permission !== null) checkPermission(course.permission, name)
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords(config.wordChecks)

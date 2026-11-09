@@ -11,6 +11,14 @@ export function findCourse(config: YearConfig, courseId: string): Course | undef
 }
 
 /**
+ * そのコースでサブタイトルを使うか（使わないコースは、表紙・抄録にサブタイトルの行を出さず、学生にも入れさせない：依頼者の選択 2026-11-09）。
+ * コースがまだ決まっていないときは使う
+ */
+export function usesSubtitle(config: YearConfig, courseId: string): boolean {
+  return !findCourse(config, courseId)?.noSubtitle
+}
+
+/**
  * 文の中に書いてあるコースの名前から、コースを探す（Word の表紙・抄録など。長い名前から。見つからなければ null）。
  * 全角・半角と空白の違いは見ない。提出前チェック（check/wordParts.ts の findCourseId）と、学生用ツールの「Word から読み込む」で使う
  */

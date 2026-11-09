@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { currentConfig, findCourse, type YearConfig } from './config'
+import { currentConfig, findCourse, usesSubtitle, type YearConfig } from './config'
 import { loadYearConfig, sameConfig, startConfigLoad, type ConfigSource } from './config/remote'
 import { ReportEditor, type EditorSnapshot } from './editor/reportEditor'
 import { preloadGis } from './drive/driveApi'
@@ -94,11 +94,15 @@ const rendered = (ed: ReportEditor) =>
   })
 
 /** 表紙の項目のうち、まだ入っていない最初のもの（はじめての案内で、その項目から案内する） */
-const firstEmptyCoverStep = (report: Report): GuideStep | null => {
+const firstEmptyCoverStep = (report: Report, config: YearConfig): GuideStep | null => {
   const b = report.basicInfo
-  // 氏名は、ふりがなまで入っていなければ、まだ（Word から読み込んだ氏名にも、ふりがなを入れてもらう：依頼者の選択 2026-11-04）
-  return !b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : !b.subtitleInput.trim() ? 'subtitle' : null
+  // 氏名は、ふりがなまで入っていなければ、まだ（Word から読み込んだ氏名にも、ふりがなを入れてもらう：依頼者の選択 2026-11-04）。
+  // サブタイトルを使わないコースは、サブタイトルを聞かない（依頼者の選択 2026-11-09）
+  return !b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : !subtitleFilled(report, config) ? 'subtitle' : null
 }
+
+/** 表紙のサブタイトルが入っているか（使わないコースは、いつも入っているとみなす） */
+const subtitleFilled = (report: Report, config: YearConfig) => !!report.basicInfo.subtitleInput.trim() || !usesSubtitle(config, report.basicInfo.courseId)
 
 /**
  * 原稿を Google ドライブにも保存する（ログイン必須。mockups/v18 案3・v19 案A）。
@@ -379,10 +383,10 @@ export default function App() {
     else {
       // コースを選ぶ段階で止まっていた（コースの一覧を読めなかったなど）ときは、続きを出さない（コースは、その案内の外で決まっている）
       const left = guideLeftAt()
-      const empty = firstEmptyCoverStep(report)
+      const empty = firstEmptyCoverStep(report, cfg)
       if (left && left !== 'course' && empty) {
         // ふりがなだけを聞いている途中で読み込み直した（前から書いている学生）：済ませたら閉じる（「表紙ができました」に進まない。見直しで分かった）
-        if (empty === 'name' && report.basicInfo.subtitleInput.trim()) setNameOnly(true)
+        if (empty === 'name' && subtitleFilled(report, cfg)) setNameOnly(true)
         setGuide(left === 'word' && wordImportOffered(cfg) ? 'word' : empty)
       }
       // ふりがなをまだ入れていない（氏名の欄が1つだったころから書いている）：開いたときに、氏名の4つの欄を入れてもらう（入れるまで閉じられない。
@@ -992,7 +996,7 @@ export default function App() {
       setDialog(null)
       // 表紙の Word の学籍番号がアカウントと違う：読み込んだすぐあとに、直すかを聞く（依頼者の選択 2026-10-25）
       setWordIdCheck(idMismatch(editor.getSnapshot().report))
-      const next = firstEmptyCoverStep(editor.getSnapshot().report)
+      const next = firstEmptyCoverStep(editor.getSnapshot().report, configRef.current)
       const toBody = async () => {
         await rendered(editor)
         editor.goToArea('body')
@@ -1001,7 +1005,7 @@ export default function App() {
       }
       // ふりがなだけを聞くとき（表紙のほかの項目は Word から入った）：済ませたら案内を閉じて本文へ（「表紙ができました」・指差し確認は出さない。
       // 前と同じく、読み込んだらすぐ「つぎにすること」へ進む）
-      setNameOnly(next === 'name' && !!editor.getSnapshot().report.basicInfo.subtitleInput.trim())
+      setNameOnly(next === 'name' && subtitleFilled(editor.getSnapshot().report, configRef.current))
       setGuide(next)
       if (next) {
         afterGuideRef.current = () => void toBody()

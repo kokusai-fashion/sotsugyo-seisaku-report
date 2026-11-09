@@ -272,7 +272,7 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
       return
     }
     const course = c as unknown as Course
-    if (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') {
+    if ((course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') || (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean')) {
       error(field, `${i + 1}番目のコースの形が正しくありません`)
       return
     }

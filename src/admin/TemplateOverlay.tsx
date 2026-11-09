@@ -61,7 +61,7 @@ export function TemplateOverlay({ course, standard = false, config, status, onAp
 
   // 渡すもの（開いたときの内容。年度の設定は、このコースだけにする。お知らせなど、紙面に要らないものは渡さない）
   const [payload] = useState<InitPayload>(() => {
-    const own: Course = { id: course.id, name: course.name, advisors: course.advisors, subtitleTemplate: course.subtitleTemplate }
+    const own: Course = { id: course.id, name: course.name, advisors: course.advisors, subtitleTemplate: course.subtitleTemplate, ...(course.noSubtitle ? { noSubtitle: true } : {}) }
     return JSON.parse(
       JSON.stringify({
         courseId: course.id,

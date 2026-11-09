@@ -2,7 +2,7 @@ import { BUILD_ID } from '../app/newVersion'
 import { currentConfig, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
 import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type PdfFolder, type StudentEntry, type YearRow } from './server'
-import { applyNotices, applyPermissions, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, folderIdFromLink, removedMemberMessage } from './serverRules'
+import { applyNotices, applyPermissions, applySubtitles, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, folderIdFromLink, removedMemberMessage } from './serverRules'
 import { byKana, movedFlags } from './studentOrder'
 
 /**
@@ -292,6 +292,7 @@ export function createMockServer(): AdminServer {
           done.push(`書き間違えやすい語を保存（${config.wordChecks.length}語）`)
         }
         if (edits.permissions && typeof edits.permissions === 'object' && Object.keys(edits.permissions).length) done.push(`先生の許可を保存（${applyPermissions(config, edits.permissions).join('・')}）`)
+        if (edits.subtitles && typeof edits.subtitles === 'object' && Object.keys(edits.subtitles).length) done.push(`サブタイトルを使うかを保存（${applySubtitles(config, edits.subtitles).join('・')}）`)
         return done.join('・') || '保存（変更なし）'
       })
     },

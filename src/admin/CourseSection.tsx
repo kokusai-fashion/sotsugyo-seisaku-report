@@ -23,6 +23,8 @@ import { SlowNote, Waiting } from './Wait'
 
 /** お知らせの説明（1行の説明にした：mockups/v114 案C） */
 export const NOTICE_HINT = '学生の画面の、セルフチェックの上に出ます'
+/** サブタイトルを使わないときの説明 */
+const SUBTITLE_OFF_HINT = '表紙と抄録にサブタイトルの行を出しません。学生も入力しません'
 /** お知らせの欄の例（依頼者の指定 2026-11-05） */
 const NOTICE_EXAMPLE = '例：夏休み明けの初回授業時に、第1回目の途中点検を提出してください。'
 /** 表の空の行の説明（ひな形で枠を用意し、少なければ空欄の行のままでよいコースのため） */
@@ -270,7 +272,8 @@ function CourseItem({
               </span>
             </div>
           </Row>
-          {!teacher && <SubtitleRow course={course} changed={changed('subtitleTemplate')} onChange={onChange} />}
+          {/* サブタイトル：使う・使わないは先生も切り替えられる。前後の文字は管理者だけ（依頼者の選択 2026-11-09） */}
+          <SubtitleRow course={course} teacher={teacher} changed={changed('subtitleTemplate') || changed('noSubtitle')} onChange={onChange} />
         </div>
         <div className="set-group">コースで選べること</div>
         <div className="grid set-list">
@@ -482,10 +485,21 @@ function AdvisorRow({ course, changed, onChange }: { course: Course; changed: bo
 }
 
 /** サブタイトルの形式：「―」［前］〔学生が入力〕［後ろ］「―」。前後の「―」は固定の印（保存するときに付ける） */
-function SubtitleRow({ course, changed, onChange }: { course: Course; changed: boolean; onChange: (c: Course) => void }) {
+/**
+ * サブタイトル：使う・使わない（使わないと、表紙・抄録にサブタイトルの行を出さず、学生にも入れさせない。先生も切り替えられる：依頼者の選択 2026-11-09）と、
+ * 使うときの形式（前後の文字。管理者だけ。先生には形式を見せるだけ）
+ */
+function SubtitleRow({ course, teacher, changed, onChange }: { course: Course; teacher: boolean; changed: boolean; onChange: (c: Course) => void }) {
   const [before, after] = splitSubtitle(course.subtitleTemplate)
+  const on = !course.noSubtitle
+  const hint = !on ? SUBTITLE_OFF_HINT : teacher ? <span className="example">形式：{subtitleExample(course.subtitleTemplate)}（形式を変えるときは、管理者に頼んでください）</span> : <span className="example">例：{subtitleExample(course.subtitleTemplate)}</span>
   return (
-    <Row label="サブタイトル" htmlFor={`c-${course.id}-before`} hint={<span className="example">例：{subtitleExample(course.subtitleTemplate)}</span>} changed={changed} icon={AdminIcon.subtitle} tone="t-subtitle">
+    <Row label="サブタイトル" htmlFor={`c-${course.id}-subtitle-use`} hint={hint} changed={changed} icon={AdminIcon.subtitle} tone="t-subtitle">
+      <label className="toggle-label" data-on="使う" data-off="使わない">
+        <input id={`c-${course.id}-subtitle-use`} type="checkbox" role="switch" checked={on} onChange={(e) => onChange({ ...course, noSubtitle: e.target.checked ? undefined : true })} />
+        表紙と抄録にサブタイトルを入れる
+      </label>
+      {on && !teacher && (
       <div className="template">
         <span className="dash" title="この線は自動で付きます">
           ―
@@ -497,6 +511,7 @@ function SubtitleRow({ course, changed, onChange }: { course: Course; changed: b
           ―
         </span>
       </div>
+      )}
     </Row>
   )
 }

@@ -50,6 +50,7 @@ const COURSE_LABELS: Record<string, string> = {
   name: '名前',
   hidden: '「学生に表示」',
   subtitleTemplate: 'サブタイトルの形式',
+  noSubtitle: 'サブタイトルを使うか',
   advisors: '指導教員',
   template: '下書きのひな形',
   abstractExample: '抄録の書き出し例',
@@ -200,7 +201,7 @@ const TOP_TARGETS: Record<string, string> = {
   studentIdPattern: 'd-studentId',
 }
 /** 「この欄へ」で入る欄の id（コースの項目） */
-const COURSE_TARGETS: Record<string, string> = { name: 'name', advisors: 'advisor', subtitleTemplate: 'before', notice: 'notice', blankRowsOk: 'blankrows', permission: 'perm-abstract' }
+const COURSE_TARGETS: Record<string, string> = { name: 'name', advisors: 'advisor', subtitleTemplate: 'before', noSubtitle: 'subtitle-use', notice: 'notice', blankRowsOk: 'blankrows', permission: 'perm-abstract' }
 
 /** 変更前・変更後に出す、短い文字（長い文は縮める。空は「（なし）」） */
 function brief(v: unknown): string | undefined {
@@ -235,6 +236,7 @@ function courseValue(course: Course, key: string): string | undefined {
   if (key === 'hidden') return course.hidden ? '表示しない' : '表示する'
   if (key === 'blankRowsOk') return course.blankRowsOk ? '空のままでよい' : '空いている所に数える'
   if (key === 'permission') return permissionText(course)
+  if (key === 'noSubtitle') return course.noSubtitle ? '使わない' : '使う'
   if (key === 'name' || key === 'advisors' || key === 'subtitleTemplate' || key === 'notice') return brief(course[key as keyof Course])
   return undefined
 }

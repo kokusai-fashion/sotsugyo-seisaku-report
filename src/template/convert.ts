@@ -44,6 +44,8 @@ export function templateConfig(payload: Pick<InitPayload, 'config' | 'courseId' 
     name: typeof c.name === 'string' ? c.name : payload.courseName,
     advisors: Array.isArray(c.advisors) ? c.advisors.filter((a): a is string => typeof a === 'string') : [],
     subtitleTemplate: typeof c.subtitleTemplate === 'string' && c.subtitleTemplate.includes('{input}') ? c.subtitleTemplate : '―{input}―',
+    // サブタイトルを使わないコース（依頼者の選択 2026-11-09）
+    ...(c.noSubtitle === true ? { noSubtitle: true } : {}),
   }
   return repairConfig({ ...(merged as unknown as YearConfig), courses: [course] })
 }

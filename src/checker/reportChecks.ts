@@ -1,4 +1,4 @@
-import { findCourse, subtitleInputOnly, type YearConfig } from '../config'
+import { findCourse, subtitleInputOnly, usesSubtitle, type YearConfig } from '../config'
 import { contentToText, editables, figureMentionOrder, numbering, parenthetical, subheadingName, type EditableKind } from '../editor/reportOps'
 import { COVER_SUBTITLE, OVERFLOW_RATIO, yearDigits } from '../layout/document'
 import type { LayoutInfo } from '../layout/measure'
@@ -198,7 +198,7 @@ export function toolFindings(report: Report, config: YearConfig): ReportFinding[
   const findings: ReportFinding[] = []
   const course = findCourse(config, report.basicInfo.courseId)
   const input = report.basicInfo.subtitleInput
-  const only = course && input.trim() ? subtitleInputOnly(course, input) : null
+  const only = course && !course.noSubtitle && input.trim() ? subtitleInputOnly(course, input) : null
   if (course && only !== null && only !== input.trim()) {
     const [before, after] = course.subtitleTemplate.split('{input}')
     findings.push(
@@ -338,7 +338,8 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   const required: [string, string, string][] = [
     ['basic:studentId', basicInfo.studentId, '学籍番号'],
     ['basic:name', basicInfo.name, '氏名'],
-    ['basic:subtitleInput', basicInfo.subtitleInput, 'サブタイトル'],
+    // サブタイトルを使わないコースは、入れなくてよい（依頼者の選択 2026-11-09）
+    ...(usesSubtitle(config, basicInfo.courseId) ? [['basic:subtitleInput', basicInfo.subtitleInput, 'サブタイトル'] as [string, string, string]] : []),
   ]
   for (const [blockId, value, label] of required) {
     if (!value.trim()) findings.push(guide('required-field', 'error', `表紙の${label}が入力されていない`, 'cover', { blockId }))
@@ -396,7 +397,7 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
   // サブタイトルは、枠の1行に入るまで文字を小さくする（document.ts）。いちばん小さくしても入らないとき（組んだ紙面で測る）。
   // 題目は申告書と同じにする決まりなので、短くするようには言わず、確かめ方と相談先を伝える
   const subtitleFit = layout?.coverSubtitle
-  if (subtitleFit && subtitleFit.ratio > OVERFLOW_RATIO && basicInfo.subtitleInput.trim()) {
+  if (subtitleFit && subtitleFit.ratio > OVERFLOW_RATIO && basicInfo.subtitleInput.trim() && usesSubtitle(config, basicInfo.courseId)) {
     findings.push(
       guide('cover-subtitle-fit', 'error', 'サブタイトルが長く、表紙の1行に入りません', 'cover', {
         blockId: 'basic:subtitleInput',

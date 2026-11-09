@@ -107,8 +107,8 @@ export function coverHtml(report: Report, config: YearConfig, options: Pick<Docu
 <div class="el label">${escapeHtml(config.cover.titleLabel)}</div>
 <div class="el title">${escapeHtml(config.commonTitle)}</div>
 <div class="rule title-rule"></div>
-<div class="el subtitle" style="font-size:${subtitlePt}pt${subtitlePt < COVER_SUBTITLE.maxPt ? `;padding-top:${COVER_SUBTITLE.maxPt - subtitlePt}pt` : ''}">${escapeHtml(subtitleBefore)}${field(FIELD_IDS.subtitleInput, basicInfo.subtitleInput, '（クリックして入力）')}${escapeHtml(subtitleAfter)}</div>
-<div class="rule subtitle-rule"></div>
+${course?.noSubtitle ? '' : `<div class="el subtitle" style="font-size:${subtitlePt}pt${subtitlePt < COVER_SUBTITLE.maxPt ? `;padding-top:${COVER_SUBTITLE.maxPt - subtitlePt}pt` : ''}">${escapeHtml(subtitleBefore)}${field(FIELD_IDS.subtitleInput, basicInfo.subtitleInput, '（クリックして入力）')}${escapeHtml(subtitleAfter)}</div>
+<div class="rule subtitle-rule"></div>`}
 <div class="el department">${escapeHtml(config.faculty)}・${escapeHtml(config.department)}</div>
 <div class="el course">${field(FIELD_IDS.course, course?.name ?? '', '（コースを選ぶ）')} コース</div>
 <div class="el id-label">学籍番号</div>
@@ -229,7 +229,7 @@ export function abstractHtml(report: Report, config: YearConfig, gate: AbstractG
   const course = findCourse(config, report.basicInfo.courseId)
   const { basicInfo } = report
   // サブタイトルは、本文の幅の1行に入るまで小さくする（抄録の書体は字の幅がそろっているので、字数から決める）
-  const subtitle = subtitleLine(report, config)
+  const subtitle = course?.noSubtitle ? '' : subtitleLine(report, config)
   const widthMm = textWidthMm(marginsOf(config))
   const subtitlePt = fitLineFontPt(subtitle, { ...ABSTRACT_SUBTITLE, widthMm })
   const advisors = course ? course.advisors.join('、') : ''
@@ -254,7 +254,7 @@ export function abstractHtml(report: Report, config: YearConfig, gate: AbstractG
 <div class="el row row2"><span>${escapeHtml(config.faculty)}　${escapeHtml(config.department)}</span><span class="course-part">${escapeHtml(course?.name ?? '')}　コース</span></div>
 <div class="el row row3" style="font-size:${rowFontPt}pt"><span class="student">${escapeHtml(studentPart)}</span><span class="advisors">${escapeHtml(advisorPart)}</span></div>
 <div class="el title">${escapeHtml(config.commonTitle)}</div>
-<div class="el subtitle" style="font-size:${subtitlePt}pt">${escapeHtml(subtitle)}</div>
+<div class="el subtitle" style="font-size:${subtitlePt}pt">${subtitle ? escapeHtml(subtitle) : '&nbsp;'}</div>
 </div>
 <div class="body">
 ${paragraphs}

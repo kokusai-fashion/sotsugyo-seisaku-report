@@ -306,6 +306,8 @@ body.reordering iframe { pointer-events: none; }
 .set-list .ctl.chg .toggle-label input { box-shadow: 0 0 0 2px var(--chg-line); }
 .set-list .perm-checks .toggle-label { align-items: center; }
 .set-list .perm-checks .toggle-label input { margin: 0; }
+/* サブタイトル：使う・使わないのスイッチの下に、形式の欄（使うときだけ） */
+.set-list .toggle-label + .template { margin-top: 6px; }
 .set-list .sw-desc { margin: -2px 0 6px; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
 /* サブタイトルの形式：「―」［前］〔学生が入力〕［後ろ］「―」。前後の「―」は固定の印（保存するときに付ける） */
 .template { display: flex; align-items: center; gap: 5px; }

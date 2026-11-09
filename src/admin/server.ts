@@ -112,7 +112,7 @@ export interface AdminServer {
    * 先生の画面の保存：ひな形・お知らせ・書き間違えやすい語・先生の許可を、まとめて1回で。
    * expectedUpdatedAt：画面を開いたときの更新日時（そのあとにほかの人が保存していたら、保存せずに知らせる）
    */
-  saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[]; permissions?: PermissionSet }, expectedUpdatedAt?: string): Promise<AdminState>
+  saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[]; permissions?: PermissionSet; subtitles?: Record<string, boolean> }, expectedUpdatedAt?: string): Promise<AdminState>
   /**
    * コースの点検表を作る（管理者・先生。まだ点検表がないときに「点検表を開く」から）。PDF の控えのコースのフォルダに作り、名簿から写してから、場所を返す。
    * もうあれば、すぐ場所を返す（gas/admin-project の ensureCheckSheet。依頼者の選択 2026-11-04）

@@ -83,6 +83,31 @@ describe('サブタイトルが長いとき、1行に入るまで文字を小さ
   })
 })
 
+describe('サブタイトルを使わないコース（依頼者の選択 2026-11-09）', () => {
+  const noSub = () => {
+    const config = { ...currentConfig, courses: currentConfig.courses.map((c) => (c.id === 'film-stage-costume' ? { ...c, noSubtitle: true } : c)) }
+    const report = createReport(config)
+    report.basicInfo = { ...report.basicInfo, courseId: 'film-stage-costume', subtitleInput: '' }
+    return { config, report }
+  }
+
+  it('表紙：サブタイトルの行と下線を出さない（ほかの部品はそのまま）', () => {
+    const { config, report } = noSub()
+    const html = coverHtml(report, config)
+    expect(html).not.toContain('class="el subtitle"')
+    expect(html).not.toContain('subtitle-rule')
+    expect(html).toContain('class="el department"')
+  })
+
+  it('抄録：サブタイトルの行は空けたまま残す（本文の位置を変えない）。入力が残っていても出さない', () => {
+    const { config, report } = noSub()
+    report.basicInfo.subtitleInput = '前に入れた文字'
+    const html = abstractHtml(report, config)
+    expect(html).toContain('<div class="el subtitle" style="font-size:12pt">&nbsp;</div>')
+    expect(html).not.toContain('前に入れた文字')
+  })
+})
+
 describe('引用・参考文献の書き方', () => {
   const book = { type: 'book' as const, id: 'b', author: '浜松隆志', title: 'ファッションの歴史', publisher: '文化出版局', year: '2019', pages: '' }
 

@@ -67,6 +67,17 @@ describe('checkReport', () => {
     expect(ids(r, layout()).filter((x) => x === 'required-field')).toHaveLength(4)
   })
 
+  it('サブタイトルを使わないコースは、サブタイトルが空でも指摘しない。はみ出し・決まり文句の打ち込みも見ない（依頼者の選択 2026-11-09）', () => {
+    const r = cleanReport()
+    const config = { ...currentConfig, courses: currentConfig.courses.map((c) => (c.id === r.basicInfo.courseId ? { ...c, noSubtitle: true } : c)) }
+    const empty = { ...r, basicInfo: { ...r.basicInfo, subtitleInput: '' } }
+    expect(checkReport(empty, config, layout()).filter((f) => f.blockId === 'basic:subtitleInput')).toEqual([])
+    const over = layout({ coverSubtitle: { fontPt: 11, ratio: 1.1, chars: 32, fitChars: 29 } })
+    expect(checkReport(r, config, over).filter((f) => f.blockId === 'basic:subtitleInput')).toEqual([])
+    // 使うコースは、今までどおり空なら指摘する
+    expect(checkReport(empty, currentConfig, layout()).filter((f) => f.blockId === 'basic:subtitleInput').map((f) => f.ruleId)).toEqual(['required-field'])
+  })
+
   it('表紙のサブタイトルが、いちばん小さい文字でも枠からはみ出すときはエラー（組んだ紙面で測った結果から判定する）', () => {
     const r = cleanReport()
     const over = layout({ coverSubtitle: { fontPt: 11, ratio: 1.1, chars: 32, fitChars: 29 } })

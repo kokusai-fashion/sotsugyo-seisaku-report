@@ -1065,6 +1065,9 @@ describe('管理ページ（admin-project）', () => {
       { ...initialConfig, courses: [{ ...course, permission: { abstract: 'yes' } }] },
       { ...initialConfig, courses: [{ ...course, permission: [] }] },
       { ...initialConfig, courses: [{ ...course, permission: 'x' }] },
+      // サブタイトルを使わないコース（依頼者の選択 2026-11-09）
+      { ...initialConfig, courses: [{ ...course, noSubtitle: true }] },
+      { ...initialConfig, courses: [{ ...course, noSubtitle: 'yes' }] },
       // 標準のひな形（管理者が詳細設定で直す：mockups/v116 案B）
       { ...initialConfig, standardTemplate: [{ type: 'chapter', title: '概要' }, { type: 'paragraph', hint: '概要を書く' }] },
       { ...initialConfig, standardTemplate: [{ type: 'chapter', title: '' }] },
@@ -1077,6 +1080,12 @@ describe('管理ページ（admin-project）', () => {
       const a = JSON.parse(JSON.stringify(initialConfig))
       const b = JSON.parse(JSON.stringify(initialConfig))
       expect(outcome(() => rules.applyPermissions(a, p))).toBe(outcome(() => gas.applyPermissions_(b, p)))
+      expect(a).toEqual(b)
+    }
+    for (const s of [{ [course.id]: true }, { [course.id]: false }, { [course.id]: 'x' }, { [course.id]: null }, { nothing: true }]) {
+      const a = JSON.parse(JSON.stringify(initialConfig))
+      const b = JSON.parse(JSON.stringify(initialConfig))
+      expect(outcome(() => rules.applySubtitles(a, s))).toBe(outcome(() => gas.applySubtitles_(b, s)))
       expect(a).toEqual(b)
     }
     // コースのひな形・お知らせを書き換える（書き換えたあとの設定も同じ）
@@ -2155,6 +2164,20 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     const config = admin().getState().years[0].config
     expect(admin().saveYear({ ...config, courses: [{ ...config.courses[0], permission: { final: true } }] }).years[0].config.courses[0].permission).toEqual({ final: true })
     expect(() => admin().saveYear({ ...config, courses: [{ ...config.courses[0], permission: 'x' }] })).toThrow(/先生の許可の設定が正しくありません/)
+  })
+
+  it('サブタイトルを使うかは、先生も保存できる（変更履歴に残す）。使うに戻すと項目ごと消す。true・false 以外は保存しない（依頼者の選択 2026-11-09）', () => {
+    admin().setup()
+    admin().addMember('sensei@example.ac.jp', '先生', '')
+    user = 'sensei@example.ac.jp'
+    const saved = admin().saveTeacherEdits(2026, { subtitles: { [FILM.id]: true, 'no-such': true } })
+    expect(saved.years[0].config.courses[0].noSubtitle).toBe(true)
+    expect(admin().getHistory(2026)[0].action).toBe('サブタイトルを使うかを保存（映画・舞台衣装デザイナー）')
+    const on = admin().saveTeacherEdits(2026, { subtitles: { [FILM.id]: false } })
+    expect('noSubtitle' in on.years[0].config.courses[0]).toBe(false)
+    expect(() => admin().saveTeacherEdits(2026, { subtitles: { [FILM.id]: 'yes' } })).toThrow('「映画・舞台衣装デザイナー」のサブタイトルを使うかの設定が正しくありません')
+    // 前後の文字（形式）は、先生は変えられないまま
+    expect(admin().getState().years[0].config.courses[0].subtitleTemplate).toBe(saved.years[0].config.courses[0].subtitleTemplate)
   })
 
   it('名字：最初の空白（半角・全角）の前。指導教員の欄の「、」「,」も分ける。✓ を入れた先生は、登録のメモにある指導教員の名字（なければアドレスの @ より前）', () => {

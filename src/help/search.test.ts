@@ -143,9 +143,9 @@ describe('言葉で探す：印を付ける', () => {
 describe('使い方の項目', () => {
   const all = [...STUDENT_TOPICS, ...TEACHER_TOPICS]
 
-  it('学生用は20項目、先生用は15項目。id は重ならない', () => {
+  it('学生用は20項目、先生用は16項目。id は重ならない', () => {
     expect(STUDENT_TOPICS).toHaveLength(20)
-    expect(TEACHER_TOPICS).toHaveLength(15)
+    expect(TEACHER_TOPICS).toHaveLength(16)
     expect(new Set(all.map((t) => t.id)).size).toBe(all.length)
   })
 

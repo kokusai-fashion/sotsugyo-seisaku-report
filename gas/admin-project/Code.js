@@ -198,6 +198,10 @@ function saveTeacherEdits(year, edits, expectedUpdatedAt) {
     if (edits.permissions && typeof edits.permissions === 'object' && Object.keys(edits.permissions).length) {
       done.push('先生の許可を保存（' + applyPermissions_(config, edits.permissions).join('・') + '）')
     }
+    // サブタイトルを使うか（先生も切り替えられる：依頼者の選択 2026-11-09）
+    if (edits.subtitles && typeof edits.subtitles === 'object' && Object.keys(edits.subtitles).length) {
+      done.push('サブタイトルを使うかを保存（' + applySubtitles_(config, edits.subtitles).join('・') + '）')
+    }
     if (edits.words !== undefined && edits.words !== null) {
       config.wordChecks = cleanWords_(edits.words)
       done.push('書き間違えやすい語を保存（' + config.wordChecks.length + '語）')
@@ -277,6 +281,23 @@ function applyPermissions_(config, permissions) {
     if (p && p.final === true) next.final = true
     if (Object.keys(next).length) course.permission = next
     else delete course.permission
+    names.push(course.name)
+  })
+  return names
+}
+
+/**
+ * 指定したコースの「サブタイトルを使うか」を書き換える（値は「使わない」なら true。使うなら項目ごと消す。src/admin/serverRules.ts の applySubtitles と同じ）。
+ * 書き換えたコースの名前を返す
+ */
+function applySubtitles_(config, subtitles) {
+  const names = []
+  config.courses.forEach((course) => {
+    if (!Object.prototype.hasOwnProperty.call(subtitles, course.id)) return
+    const off = subtitles[course.id]
+    if (typeof off !== 'boolean') throw new Error('「' + course.name + '」のサブタイトルを使うかの設定が正しくありません')
+    if (off) course.noSubtitle = true
+    else delete course.noSubtitle
     names.push(course.name)
   })
   return names
@@ -821,6 +842,7 @@ function checkConfig_(config) {
     if (course.abstractExample !== undefined && course.abstractExample !== null) checkText_(course.abstractExample, LIMITS.abstractExample, '「' + name + '」の抄録の書き出し例')
     if (course.notice !== undefined && course.notice !== null) checkText_(course.notice, LIMITS.notice, '「' + name + '」のお知らせ')
     if (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') throw new Error('「' + name + '」の表の空の行の設定が正しくありません')
+    if (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean') throw new Error('「' + name + '」のサブタイトルを使うかの設定が正しくありません')
     if (course.permission !== undefined && course.permission !== null) checkPermission_(course.permission, name)
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords_(config.wordChecks)

@@ -25,6 +25,12 @@ describe('validateConfig', () => {
     expect(errors(config)).toEqual(['courses.1', 'courses'])
   })
 
+  it('サブタイトルを使わないコース（noSubtitle: true）は公開できる。true・false 以外の値は形が正しくない', () => {
+    const course = currentConfig.courses[0]
+    expect(validateConfig({ ...currentConfig, courses: [{ ...course, noSubtitle: true }, ...currentConfig.courses.slice(1)] })).toEqual([])
+    expect(errors({ ...currentConfig, courses: [{ ...course, noSubtitle: 'yes' as never }, ...currentConfig.courses.slice(1)] })).toEqual(['courses.0'])
+  })
+
   it('表示するコースが1つもないと公開できない。指導教員が未登録なら警告', () => {
     const hiddenOnly = { ...currentConfig, courses: currentConfig.courses.map((c) => ({ ...c, hidden: true })) }
     expect(errors(hiddenOnly)).toEqual(['courses'])

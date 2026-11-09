@@ -45,7 +45,7 @@ const isChoiceStep = (step: GuideStep) => step === 'course' || step === 'word'
 const isLockedStep = (step: GuideStep) => isChoiceStep(step) || step === 'name'
 
 /** 「いいえ、ここから書き始める」のあと：表紙の項目のうち、まだ入っていない最初のもの（全部入っていれば「表紙ができました」） */
-const firstCoverStep = (b: BasicInfo): GuideStep => (!b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : !b.subtitleInput.trim() ? 'subtitle' : 'done')
+const firstCoverStep = (b: BasicInfo, subtitle: boolean): GuideStep => (!b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : subtitle && !b.subtitleInput.trim() ? 'subtitle' : 'done')
 
 /**
  * 「氏名」の段：姓・名・セイ・メイの4つの欄（mockups/v101 ①②）。入れ終わるまで次へ進めない。
@@ -226,8 +226,10 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
     prevEditing.current = snap.editingId
     if (!field || step === 'course' || was !== field || snap.editingId === field) return
     const leftCover = !!snap.layout && snap.layout.kinds[snap.page] !== 'cover'
-    onStep(leftCover || escaped.current ? null : NEXT[step])
-  }, [snap.editingId, snap.layout, snap.page, field, step, onStep])
+    // サブタイトルを使わないコースは、氏名のあと「表紙ができました」へ（依頼者の選択 2026-11-09）
+    const next = NEXT[step] === 'subtitle' && findCourse(config, snap.report.basicInfo.courseId)?.noSubtitle ? 'done' : NEXT[step]
+    onStep(leftCover || escaped.current ? null : next)
+  }, [snap.editingId, snap.layout, snap.page, snap.report.basicInfo.courseId, config, field, step, onStep])
 
   // 「表紙ができました」：「本文へ進む」にフォーカスを移し、Esc で閉じる（前はフォーカスが紙面の欄に残り、Tab 22回でやっと届いた：学生の試し 4回目 2026-10-30）
   useEffect(() => {
@@ -328,10 +330,12 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
 
   const course = findCourse(config, snap.report.basicInfo.courseId)
   const [subtitleBefore, subtitleAfter] = course ? course.subtitleTemplate.split('{input}') : ['', '']
+  // サブタイトルを使わないコースは、サブタイトルの段をとばす（依頼者の選択 2026-11-09）
+  const subtitle = !course?.noSubtitle
   const pad = 8
   const close = () => onStep(null)
   // 「Word」の段は、今年度だけ出す
-  const stepLabels = wordImport ? STEP_LABELS : STEP_LABELS.filter(([s]) => s !== 'word')
+  const stepLabels = STEP_LABELS.filter(([s]) => (wordImport || s !== 'word') && (subtitle || s !== 'subtitle'))
   const index = stepLabels.findIndex(([s]) => s === step)
   // コースを選ぶ段階の見出し：開いたときはここに移る（読み上げで、案内の初めから読まれるように）。
   // 最初のコースのボタンに移すと、そのコースを選んでいるように見えてしまうため、見出しにする（見出しの枠は出さない。CSS）
@@ -396,10 +400,10 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
                 </span>
               </button>
               {/* まだ入っていない最初の項目から（入れ終わった氏名を、もう一度聞かない） */}
-              <button className="g-word-opt no" onClick={() => onStep(firstCoverStep(snap.report.basicInfo))}>
+              <button className="g-word-opt no" onClick={() => onStep(firstCoverStep(snap.report.basicInfo, subtitle))}>
                 <span>
                   いいえ、ここから書き始める
-                  <small>学籍番号・氏名・サブタイトルを順に案内します</small>
+                  <small>{subtitle ? '学籍番号・氏名・サブタイトルを順に案内します' : '学籍番号と氏名を順に案内します'}</small>
                 </span>
               </button>
             </div>
@@ -415,7 +419,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
           </>
         )
       case 'name':
-        return <NameStep editor={editor} titleId={titleId} onDone={() => onStep(nameOnly ? null : snap.report.basicInfo.subtitleInput.trim() ? 'done' : 'subtitle')} />
+        return <NameStep editor={editor} titleId={titleId} onDone={() => onStep(nameOnly ? null : snap.report.basicInfo.subtitleInput.trim() || !subtitle ? 'done' : 'subtitle')} />
       case 'subtitle':
         return (
           <>
@@ -437,7 +441,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             ['サブタイトル', info.subtitleInput],
           ] as const
         )
-          .filter(([, v]) => !v.trim())
+          .filter(([label, v]) => !v.trim() && (subtitle || label !== 'サブタイトル'))
           .map(([label]) => label)
         return (
           <>
