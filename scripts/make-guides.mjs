@@ -12,7 +12,7 @@
 //         node scripts/make-guides.mjs --pdf-only … HTML の文だけを直したあと、PDF だけ作り直す（画面は撮り直さない）
 //   自動テスト用にまとめた版（dist-e2e）で撮るとき：scripts/e2e/serveBuilt.mjs で出して（PORT=4241 node scripts/e2e/serveBuilt.mjs）、
 //   APP_URL=http://localhost:4241 node scripts/make-guides.mjs（ページの中の部品は window.__import で読むので、どちらでも動く）
-//   SHOTS=student（学生用ツール。スマホも）／SHOTS=admin（管理ページ） node scripts/make-guides.mjs … 画面の画像を一部だけ撮り直す
+//   SHOTS=student（学生用ツール。スマホも）／SHOTS=admin（管理ページ）／SHOTS=teacher（先生の画面だけ） node scripts/make-guides.mjs … 画面の画像を一部だけ撮り直す
 //   Edge は EDGE_PORT（ふだんは 9364）で起動する（ほかの確かめと同時に動かしてもぶつからないように）。
 //   書き出した PDF を画像にするときは、この中で小さなサーバーを立てる（ポートは PDF_VIEW_PORT。なければ空いているポート）
 //
@@ -1300,11 +1300,31 @@ async function adminShots(browser) {
     { n: 8, box: await previewPage(page), at: 'tl', dx: 10, dy: 10 },
   ])
   await context.close()
+  await teacherShots(browser)
+}
 
-  // ---- 先生の画面（コースと書き方のチェックだけ）。お知らせを書いたところ（下に、保存していない変更の帯） ----
-  // 先生用の手引きでは、画像の横に手順を並べるので、画面を小さめ（1180×640）にして、コースのカードのすぐ下に帯が来るようにする
+/** 先生の画面に写す、ログイン中の先生の氏名（架空。試験用サーバーのはじめの先生は、本物の先生の名前で登録してあるため） */
+const TEACHER_NAME = '文化　太郎'
+
+/**
+ * 先生の画面（担当のコースだけ）。お知らせを書いたところ（下に、保存していない変更の帯）。SHOTS=teacher なら、これだけ撮る
+ * 先生用の手引きでは、画像の横に手順を並べるので、画面を小さめ（1180×640）にして、コースのカードのすぐ下に帯が来るようにする
+ */
+async function teacherShots(browser) {
   const TEACHER = { width: 1180, height: 640, deviceScaleFactor: 2 }
   const t = await openAdmin(browser, { as: 'teacher', viewport: TEACHER })
+  // 左の下の「ログイン中」に出る氏名を架空のものにする（試験用サーバーの控えの先生の行を書き換えて、読み直す）
+  await t.page.evaluate((name) => {
+    const store = JSON.parse(localStorage.getItem('sotsugyo-admin-mock'))
+    store.members = [
+      { email: 'admin@example.ac.jp', memo: '試験用の管理者', role: '管理者', name: '', courseId: '' },
+      { email: 'sensei@example.ac.jp', memo: '試験用の先生', role: '先生', name, courseId: 'film-stage-costume' },
+    ]
+    localStorage.setItem('sotsugyo-admin-mock', JSON.stringify(store))
+  }, TEACHER_NAME)
+  await t.page.reload({ waitUntil: 'networkidle0' })
+  await t.page.waitForSelector('.admin .content')
+  await hideMockBadge(t.page)
   // 先生の画面も、はじめはコースの一覧（2026-11-07 から）。いちばん上のコースを押して、そのコースの画面に入って撮る
   await t.page.waitForSelector('.course .open-btn, .course.open')
   await t.page.evaluate(() => document.querySelector('.course.open') || document.querySelector('.course .open-btn').click())
@@ -1467,6 +1487,7 @@ await withEdge(async (browser) => {
     config.aiHelpUrl = 'https://gemini.google.com/gem/example'
     if (doShot('student') && !draftOnly) await studentShots(browser, config)
     if (doShot('admin') && !draftOnly) await adminShots(browser)
+    else if (SHOT_ONLY.includes('teacher') && !draftOnly) await teacherShots(browser)
     // 学生用の手引きの画面（画面の地図・図と表の入れ方・スマホ）。SHOTS=detail でこれだけ撮れる
     if ((doShot('student') && !draftOnly) || SHOT_ONLY.includes('detail')) await detailShots(browser, config)
     await makeQr()
