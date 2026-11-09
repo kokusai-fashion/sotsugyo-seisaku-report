@@ -269,7 +269,7 @@ function CourseItem({
             {/* 書いてから消したときは「お知らせなし」に戻す（空の文字のまま残すと、保存していない変更があるように見えるため） */}
             <textarea id={`c-${course.id}-notice`} className="in notice" rows={teacher ? 3 : 2} value={course.notice ?? ''} placeholder={NOTICE_EXAMPLE} onChange={(e) => onChange({ ...course, notice: e.target.value || undefined })} />
           </Row>
-          <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher ? (phone ? '組み立ては見本のとおりです' : '組み立ては右の見本のとおりです') : undefined} icon={AdminIcon.template} tone="t-template">
+          <Row label="ひな形" sub="下書き" changed={changed('template') || changed('abstractExample')} hint={teacher && !phone ? '組み立ては右の見本のとおりです' : undefined} icon={AdminIcon.template} tone="t-template">
             <div className={`tpl-line${course.template?.length ? '' : ' default'}`}>
               {/* 作ってあるかだけを出す（中身の数の一覧を見て決めることはないため。言葉は「作成済み」「未作成（標準のひな形）」：依頼者 2026-11-05）。数の一覧は、重ねると出る */}
               <b className={`tpl-state${course.template?.length ? ' on' : ''}`} title={templateSummary(course)}>

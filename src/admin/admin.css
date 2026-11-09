@@ -830,7 +830,7 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .ck-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; padding: 7px 12px; font-size: 13.5px; color: #334; text-decoration: none; cursor: pointer; }
 .ck-btn svg { width: 15px; height: 15px; color: #667; }
 .ck-btn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.ck-btn.ck-refresh { min-width: 8.6em; justify-content: center; }
+.ck-btn.ck-refresh { min-width: 9.4em; justify-content: center; }
 .ck-gs { width: 11px; height: 15px; border-radius: 2px; background: #188038; display: inline-block; }
 .ck-pop { position: absolute; right: 0; top: 44px; z-index: 20; width: min(360px, calc(100vw - 32px)); background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; box-shadow: 0 10px 30px rgba(20, 30, 60, 0.16); padding: 14px 16px; font-size: 13.5px; line-height: 1.7; display: flex; flex-direction: column; gap: 6px; }
 .ck-pop b { font-size: 14px; }

@@ -74,6 +74,8 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
     setTab('left')
     setScope(null)
     setRefreshing(null)
+    setCreating(false)
+    setError('')
     try {
       localStorage.setItem(COURSE_KEY, id)
     } catch {
@@ -249,13 +251,14 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   const create = async () => {
     setCreating(true)
     setError('')
+    const asked = `${year}:${courseId}`
     try {
       await server.ensureCheckSheet(year, courseId)
-      setReload((n) => n + 1)
+      if (showing.current === asked) setReload((n) => n + 1)
     } catch (e) {
-      setError(`点検表を作れませんでした：${e instanceof Error ? e.message : String(e)}`)
+      if (showing.current === asked) setError(`点検表を作れませんでした：${e instanceof Error ? e.message : String(e)}`)
     } finally {
-      setCreating(false)
+      if (showing.current === asked) setCreating(false)
     }
   }
 
@@ -317,13 +320,13 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       </h1>
       <span className="ck-acts">
         {view?.exists && (
-        <button type="button" className={`ck-btn${sub === 'assign' ? ' on' : ''}`} onClick={() => setSub(sub === 'assign' ? 'check' : 'assign')}>
+        <button type="button" className={`ck-btn${sub === 'assign' ? ' on' : ''}`} onClick={() => (setSub(sub === 'assign' ? 'check' : 'assign'), setError(''))}>
           {sub === 'assign' ? AdminIcon.sheet : AdminIcon.people}
           {sub === 'assign' ? '点検にもどる' : '担当の割り振り'}
         </button>
         )}
         {view?.exists && (
-          <button type="button" className={`ck-btn ck-refresh${refreshing === 'busy' ? ' busy' : ''}`} disabled={refreshing === 'busy'} aria-busy={refreshing === 'busy'} onClick={() => void refresh()} title="スプレッドシートには10分ごとに自動で入ります。待たずにいま入れて、この画面も読み直します（新しく登録した学生・並び・PDF の日付など）">
+          <button type="button" className={`ck-btn ck-refresh${refreshing === 'busy' ? ' busy' : ''}`} disabled={refreshing === 'busy'} aria-busy={refreshing === 'busy'} onClick={() => void refresh()} title="新しく登録した学生・並び・PDF の日付などは、10分ごとにスプレッドシートへ自動で入ります。押すと、待たずにいま入れて、この画面も読み直します">
             {refreshing === 'busy' ? <Waiting text="更新中…" /> : <>{AdminIcon.reset}{refreshing === 'done' ? '更新しました' : '今すぐ更新'}</>}
           </button>
         )}

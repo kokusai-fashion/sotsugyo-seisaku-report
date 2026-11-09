@@ -510,7 +510,27 @@ function showFromTop() {
   })
 }
 
-function Work({ content, stage, locked, formWidth, onBack, backLabel = '管理ページの一覧' }: { content: ReactNode; stage: ReactNode | null; locked: boolean; formWidth: ReturnType<typeof useFormWidth>; onBack?: () => void; backLabel?: string }) {
+function Work({
+  content,
+  stage,
+  locked,
+  formWidth,
+  onBack,
+  backLabel = '管理ページの一覧',
+  listShown = false,
+  previewLabel = '見本を見る（表紙・抄録・ひな形）',
+}: {
+  content: ReactNode
+  stage: ReactNode | null
+  locked: boolean
+  formWidth: ReturnType<typeof useFormWidth>
+  onBack?: () => void
+  backLabel?: string
+  /** スマホで区切りの一覧を出している（見本を閉じる） */
+  listShown?: boolean
+  /** スマホの見本のボタンの言葉 */
+  previewLabel?: string
+}) {
   // スマホ：見本は「見本を見る」で、画面いっぱいに開く（mockups/v68 案C）
   const [preview, setPreview] = useState(false)
   /** 見本を開く前に見ていた位置（閉じたら戻す。前はページのいちばん上に戻り、余白の欄などを探し直した：管理ページの試し 2026-10-27） */
@@ -524,6 +544,10 @@ function Work({ content, stage, locked, formWidth, onBack, backLabel = '管理�
     window.addEventListener('sotsugyo-admin-show-preview', open)
     return () => window.removeEventListener('sotsugyo-admin-show-preview', open)
   }, [])
+  // スマホで区切りの一覧に戻ったら（端末の「戻る」も）、見本は閉じる（次に区切りを開いたとき、見本が全画面のまま出た：2026-11-09 の点検）
+  useEffect(() => {
+    if (listShown) setPreview(false)
+  }, [listShown])
   return (
     <div className={`work${stage ? '' : ' wide'}${preview ? ' pv-open' : ''}`} style={stage ? formWidth.style : undefined}>
       <section className="content" inert={locked} aria-busy={locked}>
@@ -542,7 +566,8 @@ function Work({ content, stage, locked, formWidth, onBack, backLabel = '管理�
               setPreview(true)
             }}
           >
-            {AdminIcon.eye}見本を見る（表紙・抄録・ひな形）
+            {AdminIcon.eye}
+            {previewLabel}
           </button>
         )}
         {content}
@@ -1200,6 +1225,7 @@ export function AdminApp() {
           locked={busy !== null}
           onBack={phone ? (section === 'course' && openId ? () => enterCourse(null) : backToList) : undefined}
           backLabel={section === 'course' && openId ? 'コースの一覧' : undefined}
+          listShown={phone && phoneList}
           content={content}
           stage={WITH_PREVIEW.includes(section) ? <CoverStage config={draft} course={shownCourse} /> : null}
         />
@@ -1481,6 +1507,8 @@ function TeacherView({
           locked={busy !== null}
           onBack={phone ? (section === 'course' && openId && !mine ? () => enterCourse(null) : backToList) : undefined}
           backLabel={section === 'course' && openId && !mine ? 'コースの一覧' : undefined}
+          listShown={phone && phoneList}
+          previewLabel="見本を見る（ひな形）"
           content={
             section === 'check' ? (
               <CheckSection key={row.year} year={row.year} courses={row.config.courses.filter((c) => !c.hidden && (!mine || c.id === mine))} me={state.me ?? null} adminUrl={state.adminUrl} admin={false} phone={phone} notices={message && <MessageBox message={message} />} />
