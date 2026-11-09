@@ -59,7 +59,7 @@ const COURSE_LABELS: Record<string, string> = {
   groups: '所属',
   checkById: '点検表の順番',
   checkOneColumn: '点検表の並べ方',
-  checkSplit: '並び順で分ける数',
+  checkSplit: '所属の分け方',
   notice: 'お知らせ',
 }
 const OTHER = 'そのほかの設定'
@@ -247,7 +247,7 @@ function courseValue(course: Course, key: string): string | undefined {
   if (key === 'checkById') return course.checkById ? '学籍番号順' : '五十音順'
   if (key === 'checkOneColumn') return course.checkOneColumn ? 'いつも縦1列' : '26人からは2列'
   if (key === 'groups') return brief(course.groups ?? [])
-  if (key === 'checkSplit') return course.checkSplit ? `${course.checkSplit}等分` : '分けない'
+  if (key === 'checkSplit') return course.checkSplit ? `並び順で${course.checkSplit}等分` : '並び順で等分しない'
   if (key === 'name' || key === 'advisors' || key === 'subtitleTemplate' || key === 'notice') return brief(course[key as keyof Course])
   return undefined
 }

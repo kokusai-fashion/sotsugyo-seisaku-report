@@ -84,6 +84,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 .side-nav button.on > svg, .side-nav button.on .nt b { color: var(--accent); }
 /* 区切りの中の、保存していない変更の数 */
 .side-nav .cnt { display: inline-block; vertical-align: 1px; margin-left: 6px; min-width: 22px; padding: 0 6px; border-radius: 999px; background: #c97f00; color: #fff; font-size: 13px; font-weight: 700; font-style: normal; text-align: center; line-height: 22px; }
+/* パソコン：変更の数の印は、絵の丸の右上に重ねる（区切りの名前の横だと、見出しが9つになって左の欄が狭くなったとき、印だけが次の行に落ちた：2026-11-09 の点検） */
+@media (min-width: 761px) {
+  .side-nav li button .cnt { position: absolute; left: 24px; top: 0; margin-left: 0; min-width: 21px; padding: 0 5px; font-size: 13px; line-height: 21px; box-shadow: 0 0 0 2px var(--panel); }
+}
 .side-nav .me { margin-top: auto; padding: 14px 12px 0; display: grid; justify-items: start; gap: 2px; font-size: 13px; color: var(--muted); line-height: 1.6; overflow-wrap: break-word; }
 .side-nav .me .user { color: #3c4250; font-size: 13.5px; }
 .side-nav .me .badge { margin-top: 4px; }
@@ -819,7 +823,7 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .ck-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: relative; }
 .ck-top .sec-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; }
 .ck-course { font-size: 16px; font-weight: 700; color: #223; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; padding: 5px 12px; }
-.ck-course.fixed { display: inline-block; }
+.ck-course.fixed { display: inline-block; border-color: transparent; background: none; padding-left: 4px; }
 .ck-acts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; position: relative; }
 .ck-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; padding: 7px 12px; font-size: 13.5px; color: #334; text-decoration: none; cursor: pointer; }
 .ck-btn svg { width: 15px; height: 15px; color: #667; }
@@ -920,7 +924,7 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
 .ck-pchip.busy { opacity: 0.5; }
 .ck-pchip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ck-pchip select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
-.ck-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e3e6ec; overflow-x: auto; scrollbar-width: none; }
+.ck-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e3e6ec; overflow-x: auto; scrollbar-width: thin; }
 .ck-tabs button { padding: 8px 16px; font-size: 14px; color: #556; border: 2px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: none; white-space: nowrap; }
 .ck-tabs button.on { background: #fff; border-color: #e3e6ec; margin-bottom: -2px; color: #1f3f6b; font-weight: 700; }
 .ck-tabs em { font-style: normal; display: inline-block; margin-left: 6px; background: #fce8e6; color: #c5221f; border-radius: 999px; padding: 0 7px; font-size: 12px; font-weight: 700; }
@@ -955,10 +959,10 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
   .ck-acts { margin-left: 0; width: 100%; }
   .ck-btn { padding: 7px 10px; }
   .ck-grp.right { margin-left: 0; }
-  .ck-vseg button span { display: none; }
+  .ck-vseg button { padding: 8px 11px; }
   .ck-cgrid, .ck-split.with-panel { grid-template-columns: minmax(0, 1fr); }
   .ck-task { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
-  .ck-task .ck-pdf, .ck-task > span:nth-child(3) { grid-column: 1; }
+  .ck-task .ck-pdf, .ck-task > .ck-warn, .ck-task > span:nth-child(3) { grid-column: 1; justify-self: start; }
   .ck-task .ck-do { grid-row: 1 / span 3; grid-column: 2; min-height: 44px; min-width: 64px; }
   .ck-cards { grid-template-columns: minmax(0, 1fr); }
   .ck-dot { flex: 1; width: auto; }

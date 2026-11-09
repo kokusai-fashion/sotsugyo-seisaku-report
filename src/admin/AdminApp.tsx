@@ -300,6 +300,7 @@ function HeaderBar({
   state,
   row,
   teacher,
+  quiet = false,
   help,
   onHelp,
   onSelectYear,
@@ -313,6 +314,8 @@ function HeaderBar({
   state: AdminState
   row: YearRow
   teacher: boolean
+  /** 点検表の区切り：変更がなければ、保存の状態とボタンを出さない */
+  quiet?: boolean
   help: boolean
   onHelp: () => void
   onSelectYear: (year: number) => void
@@ -338,7 +341,8 @@ function HeaderBar({
       </select>
       <span className={`badge ${isPublished ? 'pub' : row.status === '準備中' ? 'draft' : 'old'}`}>{row.status}</span>
       <span className="spacer" />
-      {/* 保存の状態とボタン（パソコンは見出しの中。スマホは画面の下：admin.css の save-group） */}
+      {/* 保存の状態とボタン（パソコンは見出しの中。スマホは画面の下：admin.css の save-group）。点検表の区切りでは、変更がなければ出さない（点検表は押すとすぐ書かれる：2026-11-09 の点検） */}
+      {!(quiet && !dirty && !slow && !doneText) && (
       <span className="save-group">
         {slow ? <SlowNote show /> : doneText && !dirty ? <DoneNote text={doneText} /> : <span className={`save-state${dirty ? ' dirty' : ''}`}>{dirty ? `保存していない変更 ${changes.length}か所` : '変更はありません'}</span>}
         <button
@@ -350,6 +354,7 @@ function HeaderBar({
           {busy === 'save' ? <Waiting text={WAIT_TEXT.save} /> : saveButtonLabel(row.status)}
         </button>
       </span>
+      )}
       {!isPublished && onPublish && (
         // 終了した年度は、目立たない白いボタン「この年度に戻す…」（前は、いちばん目立つ青いボタンだった：mockups/v71 ① 案A）
         <button id="publish-btn" className={`btn${row.status === '終了' ? '' : ' primary'}${busy === 'publish' ? ' busy' : ''}`} disabled={!!busy} aria-busy={busy === 'publish'} onClick={onPublish}>
@@ -877,6 +882,7 @@ export function AdminApp() {
         onDone={(p: Profile) => {
           setState({ ...state, me: p })
           setProfileOpen(false)
+          setStartCheck(false)
           const c = state.years.flatMap((y) => y.config.courses).find((x) => x.id === p.courseId)
           setMessage({ kind: 'ok', text: `氏名と担当コースを登録しました：${p.name}（${c ? courseName(c) : ''} コース）` })
         }}
@@ -890,7 +896,10 @@ export function AdminApp() {
         <TeacherView
           key={state.me?.courseId ?? ''}
           startCheck={startCheck}
-          onProfile={() => setProfileOpen(true)}
+          onProfile={() => {
+            if (dirty) return setMessage({ kind: 'ng', text: '保存していない変更があります。保存するか元に戻してから、「氏名と担当コース」を直してください' })
+            setProfileOpen(true)
+          }}
           state={state}
           row={row}
           draft={draft}
@@ -1125,7 +1134,7 @@ export function AdminApp() {
         checkSheets={checkSheetUrls(state, row.year)}
       />
     )
-  else if (section === 'check') content = <CheckSection key={row.year} year={row.year} courses={row.config.courses.filter((c) => !c.hidden)} me={state.me ?? null} adminUrl={state.adminUrl} admin phone={phone} />
+  else if (section === 'check') content = <CheckSection key={row.year} year={row.year} courses={row.config.courses.filter((c) => !c.hidden)} me={state.me ?? null} adminUrl={state.adminUrl} admin phone={phone} notices={message && <MessageBox message={message} />} />
   else if (section === 'words') content = <WordsSection key={row.year} words={draft.wordChecks ?? DEFAULT_WORD_CHECKS} onChange={(wordChecks) => set({ wordChecks })} onPending={setPending} notices={notices} />
   else if (section === 'trial') content = <TrialSection config={publishedConfig(state, row)} />
   else if (section === 'feedback') content = <FeedbackSection />
@@ -1155,6 +1164,7 @@ export function AdminApp() {
         state={state}
         row={row}
         teacher={false}
+        quiet={section === 'check'}
         help={help}
         onHelp={() => setHelp(!help)}
         onSelectYear={(y) => switchYear(state, y)}
@@ -1341,7 +1351,7 @@ function TeacherView({
   /** notices は、書き換えたコースのお知らせだけ（コースの ID → お知らせ）。permissions は、切り替えたコースの先生の許可だけ。subtitles は、切り替えたコースのサブタイトルを使うかだけ（使わないなら true）。sheets は、所属・点検表の順番・並べ方を変えたコースだけ */
   onSave: (templates: TemplateSet, words: WordCheck[] | null, notices: Record<string, string>, permissions: PermissionSet, subtitles: Record<string, boolean>, sheets: SheetSettingSet) => void
 }) {
-  const [section, setSectionState] = useState<Section>(() => (startCheck ? 'check' : loadSection(TEACHER_SECTIONS)))
+  const [section, setSectionState] = useState<Section>(() => loadSection(TEACHER_SECTIONS))
   const [editing, setEditing] = useState<number | null>(null)
   /** 担当のコース（先生は、このコースだけを見る・直す：依頼者の判断 2026-11-09） */
   const mine = state.me?.courseId || undefined
@@ -1437,6 +1447,7 @@ function TeacherView({
         state={state}
         row={row}
         teacher
+        quiet={section === 'check'}
         help={help}
         onHelp={() => setHelp(!help)}
         onSelectYear={onSelectYear}
@@ -1455,7 +1466,7 @@ function TeacherView({
           backLabel={section === 'course' && openId && !mine ? 'コースの一覧' : undefined}
           content={
             section === 'check' ? (
-              <CheckSection key={row.year} year={row.year} courses={row.config.courses.filter((c) => !c.hidden && (!mine || c.id === mine))} me={state.me ?? null} adminUrl={state.adminUrl} admin={false} phone={phone} />
+              <CheckSection key={row.year} year={row.year} courses={row.config.courses.filter((c) => !c.hidden && (!mine || c.id === mine))} me={state.me ?? null} adminUrl={state.adminUrl} admin={false} phone={phone} notices={message && <MessageBox message={message} />} />
             ) : section === 'course' ? (
                 <CourseSection
                   draft={draft}

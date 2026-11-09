@@ -71,22 +71,23 @@ export function assigned(view: CheckView, r: number, teacher: string): CheckStud
 }
 
 /**
- * 自分の担当で、まだ済んでいないもの（回ごと）。kind：left＝始まっている回の残り、now＝まだ始まっていない最初の回、later＝その先の回（たたむ）
+ * 自分の担当で、まだ済んでいないもの（回ごと）。kind：left＝始まっている回の残り、now＝まだ始まっていない最初の回、later＝その先の回（たたむ）。
+ * 回が始まったかは、コースの全員で決める（所属・範囲で絞っても変わらない：2026-11-09 の点検）。students：出す学生（絞ったあと。なければ全員）
  */
-export function myBlocks(view: CheckView, me: string): { r: number; label: string; kind: 'left' | 'now' | 'later'; list: CheckStudent[] }[] {
+export function myBlocks(view: CheckView, me: string, students: CheckStudent[] = view.students): { r: number; label: string; kind: 'left' | 'now' | 'later'; list: CheckStudent[] }[] {
   const firstUpcoming = view.rounds.findIndex((_, r) => !roundStarted(view, r))
   return view.rounds
     .map((label, r) => {
-      const list = view.students.filter((s) => s.rounds[r]?.teacher === me && s.rounds[r]?.state !== 'done')
+      const list = students.filter((s) => s.rounds[r]?.teacher === me && s.rounds[r]?.state !== 'done')
       const kind: 'left' | 'now' | 'later' = roundStarted(view, r) ? 'left' : r === firstUpcoming ? 'now' : 'later'
       return { r, label, kind, list }
     })
     .filter((b) => b.list.length > 0)
 }
 
-/** 前の回で、まだ済んでいない自分の担当の人数（「まだの分」の数） */
-export function leftCount(view: CheckView, me: string): number {
-  return myBlocks(view, me)
+/** 始まった回で、まだ済んでいない自分の担当の人数（「まだの分」の数） */
+export function leftCount(view: CheckView, me: string, students: CheckStudent[] = view.students): number {
+  return myBlocks(view, me, students)
     .filter((b) => b.kind === 'left')
     .reduce((n, b) => n + b.list.length, 0)
 }

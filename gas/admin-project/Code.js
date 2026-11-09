@@ -196,7 +196,7 @@ function saveWordChecks(year, words) {
  * expectedUpdatedAt は、画面を開いたときの更新日時（そのあとにほかの人が保存していたら、保存せずに知らせる）
  */
 function saveTeacherEdits(year, edits, expectedUpdatedAt) {
-  return editYear_(year, expectedUpdatedAt, (config) => {
+  const state = editYear_(year, expectedUpdatedAt, (config) => {
     if (!edits || typeof edits !== 'object') throw new Error('保存する内容の形が正しくありません')
     requireOwnCourseEdits_(Session.getActiveUser().getEmail(), edits)
     const done = []
@@ -223,6 +223,9 @@ function saveTeacherEdits(year, edits, expectedUpdatedAt) {
     }
     return done.join('・') || '保存（変更なし）'
   })
+  // 所属・点検表の並び・等分を変えたコースの点検表は、すぐ写す（画面の班と点検表の班が、10分後まで食い違わないように：2026-11-09 の点検）
+  if (edits.sheets && typeof edits.sheets === 'object') Object.keys(edits.sheets).forEach((id) => syncNow_(year, id))
+  return state
 }
 
 /**
@@ -554,13 +557,15 @@ function removeMember(email) {
  * 丸ごと書き戻すとその変更が消えるので、保存せずに知らせる
  */
 function saveYear(config, expectedUpdatedAt) {
-  return withLock_(() => {
+  let resync = []
+  const state = withLock_(() => {
     const user = requireAdmin_()
     checkConfig_(config)
     const sheet = sheet_(SHEET_YEARS)
     const rowIndex = findYearRow_(config.fiscalYear)
     if (rowIndex > 0) {
       checkNotChanged_(sheet, rowIndex, expectedUpdatedAt)
+      resync = sheetSettingsChanged_(sheet.getRange(rowIndex, 3).getValue(), config)
       setRow_(sheet, rowIndex, 3, [JSON.stringify(config), new Date(), user])
     } else if (expectedUpdatedAt) {
       // 画面を開いたときにはあった年度が、別のタブ・ほかの人に削除されていた（黙って作り直さない）
@@ -571,6 +576,16 @@ function saveYear(config, expectedUpdatedAt) {
     appendHistory_(user, config.fiscalYear, '保存', config)
     return getState()
   })
+  // 所属・点検表の並び・等分を変えたコースの点検表は、すぐ写す（先生の保存と同じ）
+  resync.forEach((id) => syncNow_(config.fiscalYear, id))
+  return state
+}
+
+/** 保存の前（年度の設定のシートの JSON）と後で、所属・点検表の並び・等分の設定が変わったコースの ID */
+function sheetSettingsChanged_(beforeJson, after) {
+  const before = parseJson_(String(beforeJson || ''))
+  const key = (c) => JSON.stringify([courseGroups_(c), c && c.checkById === true, c && c.checkOneColumn === true, (c && c.checkSplit) || 0])
+  return (after.courses || []).filter((c) => !before || key(courseOf_(before, c.id)) !== key(c)).map((c) => c.id)
 }
 
 /**
@@ -1811,14 +1826,63 @@ function saveStudentOrder(year, courseId, studentIds, groups) {
   return studentList_(year, course)
 }
 
+/** 点検表を書く操作の印（スクリプト プロパティ）と、印が切れるまでの時間（Apps Script の1回の実行の上限の6分） */
+const CHECK_LOCK_KEY = 'checkLock'
+const CHECK_LOCK_TTL = 6 * 60 * 1000
+/** 点検表をほかの人が書いているとき（待っても空かなかった）の言葉 */
+const CHECK_BUSY = '点検表を、ほかの先生か10分ごとの写しが書いています。少し待ってから、もう一度押してください'
+
+/**
+ * 点検表を書く操作どうしを、1つずつにする（10分ごとの写し・すぐの写し・点検表の画面の書き込み・割り振り）。
+ * 前は文書の鍵（getDocumentLock）だったが、ウェブアプリ（管理ページ）から呼ぶと null になり、点検表の画面から書けなかった（2026-11-09 の点検で分かった）。
+ * スクリプトの鍵は年度の設定の保存（withLock_）と共用で、写しの間（数十秒かかることがある）ずっと持つと保存を待たせるため、
+ * スクリプトの鍵は、印を立てる・下ろす一瞬だけ持つ。印は CHECK_LOCK_TTL で切れる（途中で止まった実行の印が残っても、いつまでも待たない）。
+ * waitMs まで待っても取れなければ、busy の言葉でエラーにする（busy がなければ、fn を呼ばずに undefined を返す）
+ */
+function withCheckLock_(waitMs, busy, fn) {
+  const props = PropertiesService.getScriptProperties()
+  const token = Utilities.getUuid()
+  const deadline = Date.now() + waitMs
+  for (;;) {
+    const lock = LockService.getScriptLock()
+    lock.waitLock(20000)
+    let got = false
+    try {
+      const held = parseJson_(props.getProperty(CHECK_LOCK_KEY) || '')
+      if (!held || !(Number(held.until) > Date.now())) {
+        props.setProperty(CHECK_LOCK_KEY, JSON.stringify({ token: token, until: Date.now() + CHECK_LOCK_TTL }))
+        got = true
+      }
+    } finally {
+      lock.releaseLock()
+    }
+    if (got) break
+    if (Date.now() >= deadline) {
+      if (busy) throw new Error(busy)
+      return undefined
+    }
+    Utilities.sleep(700)
+  }
+  try {
+    return fn()
+  } finally {
+    const lock = LockService.getScriptLock()
+    lock.waitLock(20000)
+    try {
+      const held = parseJson_(props.getProperty(CHECK_LOCK_KEY) || '')
+      if (held && held.token === token) props.deleteProperty(CHECK_LOCK_KEY)
+    } finally {
+      lock.releaseLock()
+    }
+  }
+}
+
 /**
  * 名簿 → 点検表（10分ごとの仕掛け。setupCheckSheets が作る）。終わった年度の点検表は、もう直さない。
- * ほかの写しが動いているあいだは、何もしない（次の10分で写す）
+ * ほかの写し・書き込みが動いているあいだは、何もしない（次の10分で写す）
  */
 function syncCheckSheets() {
-  const lock = LockService.getDocumentLock()
-  if (!lock.tryLock(1000)) return
-  try {
+  withCheckLock_(1000, '', () => {
     // 名簿のシートがまだない（だれも登録していない）ときも、点検表の見た目と守りは整える（学生のいる点検表は、syncCheckSheet_ が消さずに止まる）
     const roster = readRoster_() || []
     checkSheetEntries_().forEach((entry) => {
@@ -1832,24 +1896,18 @@ function syncCheckSheets() {
         console.error('点検表（' + entry.year + '年度・' + course.name + '）を直せませんでした：' + String(err && err.message ? err.message : err))
       }
     })
-  } finally {
-    lock.releaseLock()
-  }
+  })
 }
 
 /** 1つのコースの点検表を、今すぐ名簿から写す（点検表を開く・並びを直したとき。写せなくても、10分ごとの仕掛けがまた写す） */
 function syncNow_(year, courseId) {
   try {
-    const lock = LockService.getDocumentLock()
-    lock.waitLock(30000)
-    try {
+    withCheckLock_(30000, CHECK_BUSY, () => {
       const entry = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === courseId)
       const found = yearConfig_(year)
       const course = found && courseOf_(found.config, courseId)
       if (entry && course) syncCheckSheet_(entry, course, readRoster_() || [])
-    } finally {
-      lock.releaseLock()
-    }
+    })
   } catch (err) {
     console.error('点検表を直せませんでした：' + String(err && err.message ? err.message : err))
   }
@@ -1887,7 +1945,14 @@ function syncCheckSheet_(entry, course, roster) {
   const ordered = orderStudents_(knownGroups_(courseStudents_(roster, entry.year, course.id), course), course, manualOrderOk_(entry.year, course))
   // 並び順で等分するコース（所属を学生に選ばせず、上から N 等分して班にする。人数が変わったら分け直す：依頼者の選択 2026-11-09）
   const split = splitCount_(course)
-  const students = split ? splitGroups_(ordered, split) : ordered
+  // 教職員の試し（staff:）の行は、等分の人数に入れない（後ろに置き、班は空：2026-11-09 の点検）
+  const isStaff = (s) => String(s.id).indexOf('staff:') === 0
+  const students = split
+    ? splitGroups_(
+        ordered.filter((s) => !isStaff(s)),
+        split,
+      ).concat(ordered.filter(isStaff).map((s) => Object.assign({}, s, { group: '' })))
+    : ordered
   const layout = blockLayout_(students.length, course.checkOneColumn === true)
   // 所属の列（所属を登録した・等分するコースだけ。番号のすぐ右。依頼者の選択 2026-11-09 mockups/v118・v119）
   const wantGroup = effectiveGroups_(course).length > 0
@@ -2616,15 +2681,16 @@ function getCheckView(year, courseId) {
   const base = { exists: false, rounds: [], students: [], teachers: advisorSurnames_(course.advisors), groups: effectiveGroups_(course), split: splitCount_(course), assignment: readAssignment_(year, course.id) }
   const cs = openCheckSheet_(year, course.id)
   if (!cs) return base
-  const first = cs.blocks[0]
-  const labels = first ? first.rounds.map((r) => r.label) : []
+  // 回の名前（1段目の並び。先生が片方の段だけ名前を変えた・足したときは、ほかの段の回も後ろに足す：2026-11-09 の点検）
+  const labels = []
+  cs.blocks.forEach((b) => b.rounds.forEach((r) => labels.indexOf(r.label) < 0 && labels.push(r.label)))
   const text = (v) => String(v === undefined || v === null ? '' : v).trim()
   const rows = checkRows_(cs)
   const students = Object.keys(rows).map((key) => {
     const p = rows[key]
     const c = p.block.cols
     const at = (col) => (col >= 0 ? p.row[col] : '')
-    // 段ごとに回の列が違っても、名前で合わせる（1段目の回の並びで返す）
+    // 段ごとに回の列が違っても、名前で合わせる（その段にない回は空）
     const byLabel = {}
     p.block.rounds.forEach((x) => (byLabel[x.label] = p.row[x.col]))
     return {
@@ -2644,10 +2710,12 @@ function getCheckView(year, courseId) {
   return Object.assign(base, { exists: true, url: checkSheetUrl_(cs.entry.id), rounds: labels, students: students })
 }
 
-/** 自分の名字（✓ の記録に残す。登録した氏名 → メモ → 指導教員の名字 → アドレスの @ より前） */
+/** 自分の名字（✓ の記録に残す。登録した氏名の名字。なければ、メモにある指導教員の名字 → アドレスの @ より前） */
 function mySurname_(user, course) {
   const m = memberOf_(user)
-  return editorSurname_(user, m ? [m.name, m.memo].join(' ') : '', advisorSurnames_(course.advisors))
+  // 氏名を先に（メモにほかの先生の名字があっても、取り違えない：2026-11-09 の点検）
+  const own = m && m.name ? surnameOf_(m.name) : ''
+  return own || editorSurname_(user, m ? m.memo : '', advisorSurnames_(course.advisors))
 }
 
 /**
@@ -2659,9 +2727,7 @@ function setCheckCell(year, courseId, studentId, field) {
   const user = requireTeacher_()
   const course = requireCourse_(year, courseId)
   requireCourseAccess_(user, course.id)
-  const lock = LockService.getDocumentLock()
-  lock.waitLock(30000)
-  try {
+  withCheckLock_(30000, CHECK_BUSY, () => {
     const cs = openCheckSheet_(year, course.id)
     if (!cs) throw new Error('点検表がまだありません')
     const p = checkRows_(cs)[String(studentId)]
@@ -2686,9 +2752,7 @@ function setCheckCell(year, courseId, studentId, field) {
     } else {
       throw new Error('書く欄の形が正しくありません')
     }
-  } finally {
-    lock.releaseLock()
-  }
+  })
   return getCheckView(year, course.id).students.find((s) => s.key === String(studentId)) || null
 }
 
@@ -2715,15 +2779,10 @@ function saveAssignment(year, courseId, assignment) {
     })
   })
   const clean = { labels: a.labels.map((l) => String(l)), rows: rows }
-  const lock = LockService.getDocumentLock()
-  lock.waitLock(30000)
-  let written = 0
-  try {
+  const written = withCheckLock_(30000, CHECK_BUSY, () => {
     PropertiesService.getScriptProperties().setProperty('assign:' + Number(year) + ':' + course.id, JSON.stringify(clean))
-    written = applyAssignment_(year, course, false)
-  } finally {
-    lock.releaseLock()
-  }
+    return applyAssignment_(year, course, false)
+  })
   appendMemberHistory_(user, '担当の割り振りを点検表に入れる（' + Number(year) + '年度・' + course.name + ' コース・' + written + 'か所）')
   return getCheckView(year, course.id)
 }
@@ -2746,6 +2805,7 @@ function applyAssignment_(year, course, onlyMoved) {
     const p = rows[key]
     const c = p.block.cols
     const group = c.group >= 0 ? String(p.row[c.group]).trim() : ''
+    if (c.note >= 0 && String(p.row[c.note]).trim() === BROKEN_NOTE) return
     if (onlyMoved && seen[key] === group) return
     seen[key] = group
     const plan = assign.rows[group]

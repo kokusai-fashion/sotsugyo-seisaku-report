@@ -411,7 +411,8 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
         },
         releaseLock: () => {},
       }),
-      getDocumentLock: () => ({ tryLock: () => true, waitLock: () => {}, releaseLock: () => {} }),
+      // ウェブアプリ（管理ページ）からは null になる（本番と同じ。点検表を書く操作は withCheckLock_ を使う：2026-11-09 の点検）
+      getDocumentLock: () => null,
     },
     Logger: { log: (m: string) => void logs.push(m) },
     CacheService: { getScriptCache: () => ({ get: (k: string) => cache.get(k) ?? null, put: (k: string, v: string) => void cache.set(k, v) }) },
@@ -419,6 +420,7 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
       getScriptProperties: () => ({
         getProperty: (k: string) => (k === 'SHEET_ID' ? 'sheet-id' : (stored.get(k) ?? props[k] ?? null)),
         setProperty: (k: string, v: string) => void stored.set(k, v),
+        deleteProperty: (k: string) => void stored.delete(k),
       }),
     },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (text: string) => ({ text, setMimeType() { return this } }) },
@@ -447,6 +449,7 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
       newBlob: (bytes: number[], type: string, name: string) => ({ bytes, type, name }),
       // 日時は、いつも 2026-10-19 12:00（形に合わせて）
       formatDate: (_d: Date, _tz: string, pattern = 'yyyy-MM-dd HH:mm') => pattern.replace('yyyy', '2026').replace('MM', '10').replace('dd', '19').replace('HH', '12').replace('mm', '00'),
+      sleep: () => {},
       getUuid: () => `${(++uuids).toString(16).padStart(8, '0')}-0000-4000-8000-${'0'.repeat(12)}`,
     },
     console: { log: () => {}, warn: (m: string) => void logs.push(m), error: (m: string) => void logs.push(m) },
@@ -2393,6 +2396,28 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(() => admin().setCheckCell(2026, FILM.id, 'nobody', { kind: 'finalOk', on: true })).toThrow('この学生が見つかりません')
   })
 
+  it('点検表を書く操作の鍵（withCheckLock_。ウェブアプリでは文書の鍵が null のため）：ほかの書き込み中は写しを飛ばし、切れた印は無視する。終わると印を下ろす', () => {
+    setup()
+    for (let i = 0; i < 3; i++) register(api(), i)
+    admin().ensureCheckSheet(2026, FILM.id)
+    expect(stored.has('checkLock')).toBe(false)
+    // 画面の書き込み（文書の鍵を使っていた所）が、本番と同じく getDocumentLock が null でも書ける
+    admin().setCheckCell(2026, FILM.id, idOf(0), { round: '1回目', teacher: '梶田', state: 'done' })
+    expect(sheetStudents()[idOf(0)].cells['1回目']).toBe('梶田 済み')
+    expect(stored.has('checkLock')).toBe(false)
+    // ほかの書き込みの印が立っている間は、10分ごとの写しは何もしない（新しい学生は、まだ載らない）
+    register(api(), 3)
+    stored.set('checkLock', JSON.stringify({ token: 'other', until: Date.now() + 60000 }))
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(3)]).toBeUndefined()
+    expect(JSON.parse(stored.get('checkLock')!).token).toBe('other')
+    // 印が切れていれば（途中で止まった実行の印）、写す
+    stored.set('checkLock', JSON.stringify({ token: 'other', until: Date.now() - 1 }))
+    admin().syncCheckSheets()
+    expect(sheetStudents()[idOf(3)]).toBeDefined()
+    expect(stored.has('checkLock')).toBe(false)
+  })
+
   it('並び順で等分（checkSplit。依頼者の選択 2026-11-09「いつも等分し直す」）：所属のないコースは、点検表の並びを上から等分して 1班〜。人数が変わると分け直し、班が変わった学生には新しい班の割り振り。所属があれば等分しない', () => {
     setup()
     user = 'sensei@example.ac.jp'
@@ -2413,6 +2438,15 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(v.students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '2班', '2班', '2班', '3班', '3班'])
     expect(sheetStudents()[idOf(5)].cells['1回目']).toBe('佐藤 予定')
     expect(sheetStudents()[idOf(7)].cells['1回目']).toBe('加藤 予定')
+    // 教職員の試し（staff:）の行は、等分の人数に入れない（班は空。ほかの学生の班はずれない）
+    expect(post(api(), { ...registerBody(0, { familyName: '文化', givenName: '花子', familyKana: 'ア', givenKana: 'ア', studentId: '00ZZ0123' }), token: tokenOf('kato@example.ac.jp') })).toEqual({ ok: true })
+    admin().syncCheckSheets()
+    v = admin().getCheckView(2026, FILM.id)
+    expect(v.students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '2班', '2班', '2班', '3班', '3班', ''])
+    expect(v.students.at(-1).key).toBe('staff:kato@example.ac.jp')
+    // 分ける数を変えて保存すると、10分を待たずに点検表の班も変わる
+    admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: true, checkOneColumn: true, checkSplit: 2 } } })
+    expect(admin().getCheckView(2026, FILM.id).students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '1班', '2班', '2班', '2班', '2班', ''])
     // 分ける数は 2〜6
     expect(() => admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: true, checkOneColumn: true, checkSplit: 9 } } })).toThrow('並び順で分ける数が正しくありません')
     // 所属を登録すると、等分しない

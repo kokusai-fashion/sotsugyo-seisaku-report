@@ -455,12 +455,17 @@ function GroupRow({ course, changed, onChange }: { course: Course; changed: bool
    */
   const [chooseOpen, setChooseOpen] = useState(false)
   const mode: 'none' | 'choose' | 'split' = groups.length || chooseOpen ? 'choose' : course.checkSplit ? 'split' : 'none'
+  // ほかの形に替えたあと、戻したときに使う（所属の名前・分ける数。この画面を開いている間だけ：2026-11-09 の点検）
+  const lastGroups = useRef<string[]>(groups)
+  const lastSplit = useRef<number>(course.checkSplit ?? 3)
   const pick = (next: typeof mode) => {
     setProblem(null)
+    if (groups.length) lastGroups.current = groups
+    if (course.checkSplit) lastSplit.current = course.checkSplit
     setChooseOpen(next === 'choose')
     if (next === 'none') onChange({ ...course, groups: undefined, checkSplit: undefined })
-    if (next === 'choose') onChange({ ...course, checkSplit: undefined })
-    if (next === 'split') onChange({ ...course, groups: undefined, checkSplit: course.checkSplit ?? 3 })
+    if (next === 'choose') onChange({ ...course, groups: groups.length ? groups : lastGroups.current.length ? lastGroups.current : undefined, checkSplit: undefined })
+    if (next === 'split') onChange({ ...course, groups: undefined, checkSplit: course.checkSplit ?? lastSplit.current })
   }
   const set = (next: string[]) => onChange({ ...course, groups: next.length ? next : undefined })
   const add = () => {

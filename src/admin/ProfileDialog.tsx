@@ -12,7 +12,8 @@ import { Waiting } from './Wait'
  * 担当のコースは、いつも1つ（依頼者：「複数選択できると逆に間違っても困る」）
  */
 export function ProfileDialog({ courses, me, required, onDone, onClose }: { courses: Course[]; me: Profile | null; required: boolean; onDone: (p: Profile) => void; onClose: () => void }) {
-  const choices = courses.flatMap((c) => c.advisors.filter((a) => a.trim()).map((name) => ({ name: name.trim(), courseId: c.id, course: courseName(c) })))
+  // 名前の空白は全角1つにそろえる（サーバーも、そう直して保存する）
+  const choices = courses.flatMap((c) => c.advisors.filter((a) => a.trim()).map((name) => ({ name: name.trim().replace(/\s+/g, '　'), courseId: c.id, course: courseName(c) })))
   const known = (p: Profile | null) => !!p && choices.some((x) => x.name === p.name && x.courseId === p.courseId)
   const [pick, setPick] = useState<Profile | null>(me && known(me) ? me : null)
   // 一覧にないとき：氏名を入れて、コースを1つ選ぶ
@@ -35,7 +36,13 @@ export function ProfileDialog({ courses, me, required, onDone, onClose }: { cour
   }
   return (
     <Modal title="氏名と担当コース" className="profile-modal" onClose={required || busy ? () => undefined : onClose} closable={!required}>
-      <p className="lead">{required ? 'はじめに、お名前と担当のコースを登録してください。点検表で「自分の担当」を出すのに使います。' : 'お名前と担当のコースを直します。'}</p>
+      <p className="lead">
+        {required
+          ? 'はじめに、お名前と担当のコースを登録してください。管理ページには担当のコースだけが出て、点検表では「自分の担当」を出せます。'
+          : me?.name
+            ? 'お名前と担当のコースを直します。'
+            : '点検表で「自分の担当」を出したいときに登録します（管理者は、登録しなくても使えます）。'}
+      </p>
       {!typing ? (
         <>
           <p className="pf-h">お名前を押してください</p>
@@ -43,7 +50,7 @@ export function ProfileDialog({ courses, me, required, onDone, onClose }: { cour
             {choices.map((x) => {
               const on = pick?.name === x.name && pick.courseId === x.courseId
               return (
-                <button key={`${x.courseId}:${x.name}`} type="button" role="radio" aria-checked={on} className={on ? 'on' : ''} onClick={() => setPick({ name: x.name, courseId: x.courseId })}>
+                <button key={`${x.courseId}:${x.name}`} type="button" role="radio" aria-checked={on} className={on ? 'on' : ''} disabled={busy} onClick={() => setPick({ name: x.name, courseId: x.courseId })}>
                   <b>{x.name}</b>
                   <small>{x.course} コース</small>
                 </button>

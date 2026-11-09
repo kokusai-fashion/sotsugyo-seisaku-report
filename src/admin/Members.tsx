@@ -175,10 +175,10 @@ export function MembersSection({
                   {m.name ? (
                     <small className="prof">
                       {m.name}
-                      {m.courseId && `・${courseNames[m.courseId] ?? m.courseId} コース`}
+                      {m.courseId && `（${courseNames[m.courseId] ?? m.courseId} コース）`}
                     </small>
                   ) : (
-                    m.role === '先生' && <small className="prof none">氏名と担当コースは、まだ（次に開いたときに登録）</small>
+                    m.role === '先生' && <small className="prof none">氏名と担当コースは未登録です（次に開いたときに登録します）</small>
                   )}
                 </span>
                 <select className="sel" aria-label={`${m.email} の役割`} value={m.role} disabled={m.email.toLowerCase() === me.toLowerCase() || !!busy} onChange={(e) => changeRole(m, e.target.value as Member['role'])}>

@@ -49,9 +49,11 @@ interface Props {
   adminUrl?: string
   admin: boolean
   phone: boolean
+  /** 区切りの見出しのすぐ下に出す知らせ（氏名と担当コースを登録した など） */
+  notices?: ReactNode
 }
 
-export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Props) {
+export function CheckSection({ year, courses, me, adminUrl, admin, phone, notices }: Props) {
   const myName = me?.name ? surnameOf(me.name) : ''
   const [courseId, setCourseIdState] = useState(() => {
     let saved = ''
@@ -60,10 +62,17 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     } catch {
       // 覚えていなければ、担当のコースか、いちばん上のコース
     }
-    return [me?.courseId, saved].find((id) => id && courses.some((c) => c.id === id)) ?? courses[0]?.id ?? ''
+    return [saved, me?.courseId].find((id) => id && courses.some((c) => c.id === id)) ?? courses[0]?.id ?? ''
   })
   const setCourseId = (id: string) => {
     setCourseIdState(id)
+    // 前のコースの所属で絞ったまま0人に見えた・記録の欄が残った（2026-11-09 の点検）
+    setGroup('')
+    setPicked(null)
+    setLinkOpen(false)
+    setSub('check')
+    setTab('left')
+    setScope(null)
     try {
       localStorage.setItem(COURSE_KEY, id)
     } catch {
@@ -89,7 +98,8 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
   const [tab, setTab] = useState<number | 'left'>('left')
   const [sub, setSub] = useState<'check' | 'assign'>('check')
   const [picked, setPicked] = useState<string | null>(null)
-  const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [busyKeys, setBusyKeys] = useState<string[]>([])
+  const isBusy = (key: string) => busyKeys.includes(key)
   const [linkOpen, setLinkOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const slow = useSlow(!view && !error)
@@ -108,11 +118,33 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     }
   }, [year, courseId, reload])
 
+  // スマホ：カードを押すと、記録の欄はカードの一覧の下に出るので、そこまで動かす（前は画面が動かず、出たことが分からなかった：2026-11-09 の点検）
+  useEffect(() => {
+    if (!phone || !picked) return
+    const id = requestAnimationFrame(() => document.querySelector('.ck-panel')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+    return () => cancelAnimationFrame(id)
+  }, [phone, picked])
+  // 「この画面のリンク」の窓：Esc・窓の外を押すと閉じる
+  useEffect(() => {
+    if (!linkOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setLinkOpen(false)
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Element | null
+      if (t && !t.closest('.ck-pop, .ck-linkbtn')) setLinkOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [linkOpen])
+
   /** 1つの欄を書き、その学生の行を差し替える */
   const write = useCallback(
     async (s: CheckStudent, field: CheckField) => {
       const key = `${s.key}:${'round' in field ? field.round : field.kind}`
-      setBusyKey(key)
+      setBusyKeys((b) => [...b, key])
       setError('')
       try {
         const next = await server.setCheckCell(year, courseId, s.key, field)
@@ -120,7 +152,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
       } catch (e) {
         setError(`書けませんでした：${e instanceof Error ? e.message : String(e)}`)
       } finally {
-        setBusyKey(null)
+        setBusyKeys((b) => b.filter((x) => x !== key))
       }
     },
     [year, courseId],
@@ -147,9 +179,12 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
   }, [view, group, scopeNow, myName])
 
   const link = adminUrl ? `${adminUrl}${adminUrl.includes('?') ? '&' : '?'}view=check${admin ? `&course=${encodeURIComponent(courseId)}` : ''}` : ''
+  const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
     } catch {
       ;(document.querySelector('.ck-pop code') as HTMLElement | null)?.focus()
     }
@@ -175,7 +210,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     const label = `${x.teacher} ${x.state === 'done' ? '済み' : x.state === 'plan' ? '予定' : ''}`.trim()
     const cls = x.state === 'done' ? 'ck-chip' : `ck-chip plan${x.teacher === myName ? ' me' : ''}`
     const style = x.state === 'done' ? { background: t.bg, color: t.ink } : undefined
-    const busy = busyKey === `${s.key}:${view?.rounds[r]}`
+    const busy = isBusy(`${s.key}:${view?.rounds[r]}`)
     return (
       <button type="button" className={`${cls}${busy ? ' busy' : ''}`} style={style} disabled={busy} onClick={() => toggle(s, r)} aria-label={`${s.name}の${view?.rounds[r]}：${label}（押すと${x.state === 'done' ? '予定に戻す' : '済みにする'}）`}>
         {label}
@@ -183,7 +218,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     )
   }
   const sw = (s: CheckStudent, kind: 'abstractOk' | 'finalOk' | 'kyomu', label: string) => {
-    const busy = busyKey === `${s.key}:${kind}`
+    const busy = isBusy(`${s.key}:${kind}`)
     return (
       <button type="button" role="switch" aria-checked={s[kind]} aria-label={`${s.name}の${label}`} className={`ck-tog${s[kind] ? ' on' : ''}${busy ? ' busy' : ''}`} disabled={busy} onClick={() => void write(s, { kind, on: !s[kind] })} />
     )
@@ -206,8 +241,9 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     ) : null
   }
 
-  // ---- 上の段 ----
+  // ---- 上の段（知らせは、その下） ----
   const top = (
+    <>
     <div className="ck-top">
       <h1 className="sec-h">
         点検表
@@ -224,12 +260,14 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
         )}
       </h1>
       <span className="ck-acts">
+        {view?.exists && (
         <button type="button" className={`ck-btn${sub === 'assign' ? ' on' : ''}`} onClick={() => setSub(sub === 'assign' ? 'check' : 'assign')}>
           {sub === 'assign' ? AdminIcon.sheet : AdminIcon.people}
           {sub === 'assign' ? '点検にもどる' : '担当の割り振り'}
         </button>
+        )}
         {link && (
-          <button type="button" className={`ck-btn${linkOpen ? ' on' : ''}`} onClick={() => setLinkOpen(!linkOpen)} aria-expanded={linkOpen}>
+          <button type="button" className={`ck-btn ck-linkbtn${linkOpen ? ' on' : ''}`} onClick={() => setLinkOpen(!linkOpen)} aria-expanded={linkOpen}>
             {AdminIcon.link}この画面のリンク
           </button>
         )}
@@ -246,7 +284,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
             <span className="ck-url">
               <code tabIndex={0}>{link}</code>
               <button type="button" onClick={() => void copy()}>
-                コピー
+                {copied ? 'コピーしました' : 'コピー'}
               </button>
             </span>
             <small>ホーム画面への置き方：iPhone は共有 →「ホーム画面に追加」、Android は ⋮ →「ホーム画面に追加」</small>
@@ -254,9 +292,12 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
         )}
       </span>
     </div>
+    {notices}
+    </>
   )
 
-  if (!course) return <p className="ck-empty">点検表を見られるコースがありません。</p>
+  // 担当のコースが、この年度にない（学生に表示しないコースになった・前の年度のコース）：コースごとの設定と同じ言葉で知らせる
+  if (!course) return <p className="ck-empty">{admin ? '点検表を見られるコースがありません。' : 'この年度には、担当のコースがありません。上で年度を切り替えるか、左下の「氏名と担当コース」で担当のコースを確かめてください。'}</p>
   if (error && !view)
     return (
       <div className="ck">
@@ -367,6 +408,9 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     </div>
   )
   const empty = !view.students.length ? <p className="ck-empty">まだ学生が載っていません。学生がツールでコースと氏名を入れると、10分ほどで載ります。</p> : null
+  // 範囲が「自分の担当」なのに、このコースにまだ自分の担当が入っていない（全部済んだのではない）
+  const noMine = scopeNow === 'mine' && !!myName && !view.students.some((x) => x.rounds.some((c) => c.teacher === myName))
+  const noMineNote = noMine ? <p className="ck-empty">このコースには、まだ自分の担当が入っていません（「担当の割り振り」で決めるか、「コース全体」で見てください）。</p> : null
 
   // ---- 表 ----
   const tableView = () => {
@@ -484,7 +528,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
       <div>
         <div className="lbl">点検の回</div>
         {view.rounds.map((l, r) => (
-          <RoundRow key={l} label={l} cell={pickedStudent.rounds[r]} teachers={view.teachers} myName={myName} busy={busyKey === `${pickedStudent.key}:${l}`} tone={toneOf(pickedStudent.rounds[r].teacher)} onSet={(teacher, state) => void write(pickedStudent, { round: l, teacher, state })} />
+          <RoundRow key={l} label={l} cell={pickedStudent.rounds[r]} teachers={view.teachers} myName={myName} busy={isBusy(`${pickedStudent.key}:${l}`)} tone={toneOf(pickedStudent.rounds[r].teacher)} onSet={(teacher, state) => void write(pickedStudent, { round: l, teacher, state })} />
         ))}
       </div>
       <div className="perm">
@@ -510,7 +554,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     const current = tab === 'left' && !showLeft ? 0 : tab
     const blocks =
       current === 'left'
-        ? myBlocks({ ...view, students: shown }, myName)
+        ? myBlocks(view, myName, shown)
         : [{ r: current, label: view.rounds[current], kind: 'now' as const, list: shown.filter((s) => s.rounds[current].state !== 'done' && (scopeNow === 'all' || s.rounds[current].teacher === myName)) }]
     const r = current === 'left' ? view.rounds.findIndex((_, k) => !view.students.every((s) => !s.rounds[k].teacher || s.rounds[k].state === 'done')) : current
     const statRound = r < 0 ? 0 : r
@@ -519,7 +563,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
         <div className="ck-tabs" role="tablist">
           {showLeft && (
             <button type="button" role="tab" aria-selected={current === 'left'} className={current === 'left' ? 'on' : ''} onClick={() => setTab('left')}>
-              まだの分{leftCount({ ...view, students: shown }, myName) > 0 && <em>{leftCount({ ...view, students: shown }, myName)}</em>}
+              まだの分{leftCount(view, myName, shown) > 0 && <em>{leftCount(view, myName, shown)}</em>}
             </button>
           )}
           {view.rounds.map((l, k) => (
@@ -530,7 +574,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
         </div>
         <div className="ck-cgrid">
           <div className="ck-col">
-            {!blocks.length && <div className="ck-box ck-done">ここに出す学生はいません。{current === 'left' ? 'まだ済んでいない学生がいなくなりました。' : ''}</div>}
+            {!blocks.length && !noMine && <div className="ck-box ck-done">ここに出す学生はいません。{current === 'left' ? 'まだ済んでいない学生がいなくなりました。' : ''}</div>}
             {blocks.map((b) =>
               b.kind === 'later' ? (
                 <FoldBox key={b.r} label={b.label} count={b.list.length}>
@@ -573,9 +617,9 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
               })}
             </div>
             <div className="ck-box">
-              <h3>次にできること</h3>
+              <h3>気になる学生</h3>
               <div className="ck-wait-list">
-                {myName && <div>・前の回で、まだ済んでいない自分の担当：{leftCount(view, myName)}人</div>}
+                {myName && <div>・始まった回で、まだ済んでいない自分の担当：{leftCount(view, myName)}人</div>}
                 <div>・PDF をまだ出していない学生：{view.students.filter((s) => !s.pdf?.url).length}人</div>
                 <div>・最終提出のあとに書き換えた学生：{view.students.filter((s) => s.note.startsWith('書き換え')).length}人</div>
               </div>
@@ -586,7 +630,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
     )
   }
   const taskRow = (s: CheckStudent, r: number, strong: boolean) => {
-    const busy = busyKey === `${s.key}:${view.rounds[r]}`
+    const busy = isBusy(`${s.key}:${view.rounds[r]}`)
     const cell = s.rounds[r]
     // 割り振っていない回は、押した先生の名字で「済み」にする（割り振りを使わないコース）
     const who = cell.teacher || myName
@@ -599,9 +643,13 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
         </span>
         {pdf(s)}
         <span>{note(s)}</span>
-        <button type="button" className={`ck-do${strong ? ' strong' : ''}${busy ? ' busy' : ''}`} disabled={busy || !who} onClick={() => void write(s, { round: view.rounds[r], teacher: who, state: 'done' })}>
-          {busy ? <Waiting text="" /> : phone ? '済み' : '済みにする'}
-        </button>
+        {who ? (
+          <button type="button" className={`ck-do${strong ? ' strong' : ''}${busy ? ' busy' : ''}`} disabled={busy} onClick={() => void write(s, { round: view.rounds[r], teacher: who, state: 'done' })}>
+            {busy ? <Waiting text="" /> : '済みにする'}
+          </button>
+        ) : (
+          <span className="ck-muted">担当なし</span>
+        )}
       </div>
     )
   }
@@ -614,6 +662,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone }: Prop
       {mode === 'table' && legend}
       {error && <p className="ck-error">{error}</p>}
       {empty}
+      {!empty && noMineNote}
       {!empty && mode === 'table' && tableView()}
       {!empty && mode === 'card' && (
         <>
@@ -660,7 +709,7 @@ function RoundRow({ label, cell, teachers, myName, busy, tone, onSet }: { label:
         <i aria-hidden="true">▾</i>
         {/* 札の上に重ねた、見えない選ぶ欄（押すと先生の一覧） */}
         <select aria-label={`${label}の先生`} value={cell.teacher} disabled={busy} onChange={(e) => onSet(e.target.value, e.target.value ? (done ? 'done' : 'plan') : '')}>
-          <option value="">（なし）</option>
+          <option value="">—（先生なし）</option>
           {[...new Set([...teachers, cell.teacher].filter(Boolean))].map((t) => (
             <option key={t} value={t}>
               {t}
@@ -712,12 +761,13 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
       })
     : null
   const save = async () => {
+    if (!Object.values(rows).some((list) => list.some(Boolean))) return setNote({ ok: false, text: '先生がまだ選ばれていません。1回目から先生を選んでください。' })
     setSaving(true)
     setNote(null)
     try {
       const next = await server.saveAssignment(year, courseId, { labels: view.rounds, rows })
       onSaved(next)
-      setNote({ ok: true, text: '点検表に入れました。「済み」の欄はそのままです。あとから来た学生・班が変わった学生にも、10分ほどで入ります' })
+      setNote({ ok: true, text: `点検表に入れました。「済み」の欄はそのままです。${view.split ? '人数が変わって班が変わった学生にも' : 'あとから所属を選んだ学生にも'}、10分ほどで入ります。` })
     } catch (e) {
       setNote({ ok: false, text: `入れられませんでした：${e instanceof Error ? e.message : String(e)}` })
     } finally {
@@ -727,7 +777,7 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
   return (
     <>
       <div className="ck-asnote">
-        まとまり：<b>{view.split ? `並び順で${view.split}等分` : '所属（学生が選ぶ）'}</b>
+        分け方：<b>{view.split ? `並び順で${view.split}等分` : '所属（学生が選ぶ）'}</b>
         <small>{view.split ? `${view.students.length}人を、点検表の並びの上から分けます。人数が変わると分け直します。` : '所属は、学生がはじめに選びます。'}分け方は「コースごとの設定」の「所属」で変えられます。</small>
       </div>
       <div className="ck-ta assign">
@@ -783,7 +833,7 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
         <button type="button" className={`btn primary${saving ? ' busy' : ''}`} disabled={saving} onClick={() => void save()}>
           {saving ? <Waiting text="入れています…" /> : '点検表に入れる'}
         </button>
-        <small>1回目の先生を選んで「1回ずつずらして埋める」を押すと、2回目からは、先生が1つ下の{view.split ? '班' : '所属'}へずれて回ります。「点検表に入れる」で、点検表の回の欄に「名字 予定」が入ります（「済み」の欄は書き換えません）。</small>
+        <small>1回目の先生を選んで「1回ずつずらして埋める」を押すと、2回目からは、先生が1つ下の{view.split ? '班' : '所属'}へずれて回ります。「点検表に入れる」で、点検表の回の欄に「名字 予定」が入ります（「済み」の欄は書き換えません）。「—」にしても、もう入っている予定は消えません（消すときは、カードの右の欄で「—」）。{view.split ? '' : '所属をまだ選んでいない学生には入りません。'}</small>
       </div>
       {note && <p className={note.ok ? 'ck-ok' : 'ck-error'}>{note.text}</p>}
     </>
