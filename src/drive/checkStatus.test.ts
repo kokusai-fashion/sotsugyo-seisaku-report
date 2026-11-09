@@ -53,5 +53,10 @@ describe('先生の許可の仕組み（点検表）', () => {
     expect(registerPayload('t', named)).toMatchObject({ action: 'register', courseId: 'c1', studentId: '00ZZ0123', familyKana: 'ブンカ', givenKana: 'ハナコ' })
     const renamed = { ...named, basicInfo: { ...named.basicInfo, familyKana: 'ブンカン' } }
     expect(registerKey(renamed)).not.toBe(registerKey(named))
+    // 所属（mockups/v119）：所属と決めた日時を送る。所属を変えたら送り直す
+    const grouped = { ...named, basicInfo: { ...named.basicInfo, group: '①班', groupAt: '2026-11-09T00:00:00.000Z' } }
+    expect(registerPayload('t', named)).toMatchObject({ group: '', groupAt: '' })
+    expect(registerPayload('t', grouped)).toMatchObject({ group: '①班', groupAt: '2026-11-09T00:00:00.000Z' })
+    expect(registerKey(grouped)).not.toBe(registerKey(named))
   })
 })

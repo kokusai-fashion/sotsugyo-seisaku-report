@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import type { YearConfig } from '../config'
+import { courseGroups, type YearConfig } from '../config'
 import { newId } from '../editor/reportOps'
 import { formatReference, halfDigits, yearDigits } from '../layout/document'
 import { referenceFilled, referencesChanged } from '../model/references'
@@ -60,7 +60,28 @@ export function Modal({
 // ---- コースの選択（表紙のコース欄をクリックしたとき） ----
 // PC はコース欄のすぐ下（画面からはみ出すときは内側へずらす）、スマホは画面の下から出す（CSS）
 
-export function CourseMenu({ config, rect, current, onSelect, onClose }: { config: YearConfig; rect: DOMRect; current: string; onSelect: (id: string) => void; onClose: () => void }) {
+/**
+ * 今のコースに所属（制作グループなど）が登録してあれば、コースの下に所属も並べる（あとから所属を変える所：依頼者の選択 2026-11-09 mockups/v119 ③）
+ */
+export function CourseMenu({
+  config,
+  rect,
+  current,
+  onSelect,
+  group,
+  onSelectGroup,
+  onClose,
+}: {
+  config: YearConfig
+  rect: DOMRect
+  current: string
+  onSelect: (id: string) => void
+  /** 選んでいる所属 */
+  group?: string
+  onSelectGroup?: (group: string) => void
+  onClose: () => void
+}) {
+  const groups = courseGroups(config, current)
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const el = ref.current
@@ -92,6 +113,24 @@ export function CourseMenu({ config, rect, current, onSelect, onClose }: { confi
             {c.name} コース
           </button>
         ))}
+        {groups.length > 0 && onSelectGroup && (
+          <div className="course-menu-groups">
+            <div className="popover-title">所属</div>
+            {groups.map((g) => (
+              <button
+                key={g}
+                className={g === group ? 'on' : ''}
+                aria-current={g === group ? 'true' : undefined}
+                onClick={() => {
+                  onClose()
+                  onSelectGroup(g)
+                }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

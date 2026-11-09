@@ -571,6 +571,9 @@ body.resizing .page-viewport { pointer-events: none; }
 .app.phone .popover.course-menu { left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom)) !important; min-width: 0; padding: 8px; border-radius: 16px; box-shadow: 0 -8px 30px rgba(30, 25, 20, 0.2); animation: sheet-up 0.2s ease; }
 .app.phone .popover.course-menu .popover-title { padding: 6px 10px 8px; font-size: 12px; }
 .app.phone .popover.course-menu button { padding: 14px 12px; font-size: 15px; }
+/* 「コースを選ぶ」の下の所属（今のコースに所属が登録してあるとき。mockups/v119 ③） */
+.course-menu-groups { display: flex; flex-direction: column; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.app.phone .popover.course-menu { max-height: calc(100dvh - 16px - env(safe-area-inset-bottom)); overflow-y: auto; }
 
 /* ---- 印刷（PDFに保存）：紙面だけを、すべてのページを順に出す ---- */
 @media print {
@@ -665,7 +668,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .app.phone .popover.name-dialog { left: 8px !important; right: 8px !important; top: calc(8px + env(safe-area-inset-top)) !important; width: auto; padding: 12px 14px 14px; border-radius: 16px; animation: sheet-up 0.2s ease; }
 /* スマホ：案内は、コースを選ぶときと最後は画面の下、欄を書くときは画面の上（下に書く欄が出るため）に出す */
 .guide.narrow .g-tip { left: 8px; right: 8px; width: auto; top: 56px; padding: 14px 16px; }
-.guide.narrow.step-course .g-tip, .guide.narrow.step-done .g-tip { top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); }
+.guide.narrow.step-course .g-tip, .guide.narrow.step-group .g-tip, .guide.narrow.step-done .g-tip { top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); }
 .guide.narrow .g-tip::before { display: none; }
 .guide.narrow .g-tip h2 { font-size: 17px; }
 /* 横向きのスマホ：欄をタップしてもらう間は、案内を紙面の横に出す（位置と高さは app/StartGuide.tsx が決める。入りきらないときは案内の中を上下に動かす） */
@@ -934,7 +937,8 @@ body.resizing .page-viewport { pointer-events: none; }
 /* コースを選ぶ段階から、バックアップファイルで戻す（mockups/v77 ② 案A） */
 .g-word b { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; font-size: 12.5px; color: var(--accent); }
 .g-word svg { width: 17px; height: 17px; flex: none; }
-.guide.step-word .g-tip::before { display: none; }
+/* 「Word で書き始めていますか？」「所属を選んでください」は、どの欄も指さない（画面の真ん中に出す） */
+.guide:is(.step-word, .step-group) .g-tip::before { display: none; }
 .g-opts button.g-word-opt { display: flex; align-items: flex-start; gap: 10px; }
 .g-opts button.g-word-opt svg { width: 22px; height: 22px; flex: none; margin-top: 1px; }
 .g-opts button.g-word-opt small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; line-height: 1.5; color: var(--muted); }
@@ -942,7 +946,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .g-opts button.g-word-opt.no { padding-left: 46px; }
 .guide.narrow.step-word .g-tip { top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); }
 /* スマホの画面の下に出す案内が、小さい画面で上にはみ出さないように（はみ出すときは、案内の中を上下に動かす） */
-.guide.narrow:is(.step-course, .step-word, .step-done) .g-tip { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px - env(safe-area-inset-bottom)); overflow-y: auto; }
+.guide.narrow:is(.step-course, .step-word, .step-group, .step-done) .g-tip { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px - env(safe-area-inset-bottom)); overflow-y: auto; }
 
 /* ② 窓（ファイルを選ぶ・中身を確かめる） */
 .modal.word-mid { width: min(600px, calc(100vw - 32px)); }

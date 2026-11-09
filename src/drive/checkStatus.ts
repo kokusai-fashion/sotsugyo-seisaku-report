@@ -51,14 +51,15 @@ export function registerPayload(token: string, report: Report): Record<string, u
   const b = report.basicInfo
   const parts = nameParts(b)
   if (!b.courseId || !b.studentId.trim() || !namePartsDone(parts)) return null
-  return { action: 'register', token, year: report.fiscalYear, courseId: b.courseId, studentId: b.studentId.trim(), ...parts }
+  // 所属（コースに所属があるときに選ぶ。先生の点検表を所属ごとに並べる：依頼者の選択 2026-11-09 mockups/v119）。選んでいなければ ''
+  return { action: 'register', token, year: report.fiscalYear, courseId: b.courseId, studentId: b.studentId.trim(), ...parts, group: b.group ?? '', groupAt: b.group ? (b.groupAt ?? '') : '' }
 }
 
 /** 名簿に送った中身が同じかを見る印（変わったときだけ送り直す） */
 export function registerKey(report: Report): string {
   const b = report.basicInfo
   const p = nameParts(b)
-  return [report.fiscalYear, b.courseId, b.studentId.trim(), p.familyName, p.givenName, p.familyKana, p.givenKana].join('\t')
+  return [report.fiscalYear, b.courseId, b.studentId.trim(), p.familyName, p.givenName, p.familyKana, p.givenKana, b.group ?? ''].join('\t')
 }
 
 /** 窓口の答えを、学生のツールで使う形にする（形の崩れた答えは、なかったことにする） */

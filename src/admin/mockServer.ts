@@ -1,9 +1,9 @@
 import { BUILD_ID } from '../app/newVersion'
-import { currentConfig, type YearConfig } from '../config'
+import { currentConfig, type Course, type YearConfig } from '../config'
 import { DEV_TRIAL_SAMPLE } from '../trial/devSample'
 import { FEEDBACK_NOTIFY, type AdminServer, type AdminState, type FeedbackItem, type HistoryRow, type Member, type PdfFolder, type StudentEntry, type YearRow } from './server'
-import { applyNotices, applyPermissions, applySubtitles, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, folderIdFromLink, removedMemberMessage } from './serverRules'
-import { byKana, movedFlags } from './studentOrder'
+import { applyNotices, applyPermissions, applySheetSettings, applySubtitles, applyTemplates, changedMessage, checkConfig, cleanWords, deletedMessage, folderIdFromLink, removedMemberMessage } from './serverRules'
+import { byKana, comparerFor, movedFlags } from './studentOrder'
 
 /**
  * 開発用の試験サーバー（ブラウザ内だけで動く）。本番の gas/admin-project/Code.js と同じ振る舞いをまねる
@@ -125,12 +125,51 @@ function loadSheets(): Record<string, string> {
   }
   return {}
 }
-/** 点検表の並び（本番の studentList_ と同じ形。並べ替えてあればその順、あとから来た学生はふりがなの順で後ろに） */
-function mockStudentList(year: number, courseId: string): StudentEntry[] {
-  const all = byKana(MOCK_STUDENTS.map(([kana, name, studentId]) => ({ studentId, name, kana, moved: false })))
-  const saved = loadOrders()[`${year}:${courseId}`]
-  const list = saved ? [...saved.flatMap((id) => all.filter((s) => s.studentId === id)), ...all.filter((s) => !saved.includes(s.studentId))] : all
-  const moved = movedFlags(list)
+/** 先生が並びを直したときの順番（年度:コース → 学籍番号順か。本番のスクリプト プロパティ orderMode:）。順番を変えたら、直した並びは使わない */
+const ORDER_MODE_KEY = 'sotsugyo-admin-mock-order-mode'
+/** 先生が直した学生の所属（年度:コース → 学籍番号 → 所属。本番は名簿の「所属」） */
+const GROUP_FIX_KEY = 'sotsugyo-admin-mock-group-fix'
+function loadGroupFixes(): Record<string, Record<string, string>> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(GROUP_FIX_KEY) ?? 'null') as Record<string, Record<string, string>> | null
+    if (saved && typeof saved === 'object') return saved
+  } catch {
+    // 壊れていたら、直していない
+  }
+  return {}
+}
+function loadOrderModes(): Record<string, boolean> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ORDER_MODE_KEY) ?? 'null') as Record<string, boolean> | null
+    if (saved && typeof saved === 'object') return saved
+  } catch {
+    // 壊れていたら、五十音順で直したことに
+  }
+  return {}
+}
+/**
+ * 点検表の並び（本番の studentList_ と同じ形。並べ替えてあればその順、あとから来た学生は決まった順で後ろに）。
+ * 所属のあるコースは、試験用の学生に、登録した所属を順に割り当てる（最後の学生は、まだ選んでいない）
+ */
+function mockStudentList(year: number, courseId: string, course: Course | undefined): StudentEntry[] {
+  const groups = course?.groups ?? []
+  const compare = comparerFor(course)
+  const key = `${year}:${courseId}`
+  const fixes = loadGroupFixes()[key] ?? {}
+  const groupOf = (studentId: string, i: number) => {
+    const g = fixes[studentId] ?? (groups.length && i < MOCK_STUDENTS.length - 1 ? groups[i % groups.length] : '')
+    return groups.includes(g) ? g : ''
+  }
+  const all = byKana(
+    MOCK_STUDENTS.map(([kana, name, studentId], i) => ({ studentId, name, kana, group: groupOf(studentId, i), moved: false })),
+    compare,
+  )
+  const saved = (loadOrderModes()[key] ?? false) === !!course?.checkById ? loadOrders()[key] : undefined
+  // 所属は、いつも所属ごと（直した並びは、所属の中の順として使う）
+  const placed = saved ? [...saved.flatMap((id) => all.filter((s) => s.studentId === id)), ...all.filter((s) => !saved.includes(s.studentId))] : all
+  const rank = (e: StudentEntry) => (groups.includes(e.group) ? groups.indexOf(e.group) : groups.length)
+  const list = groups.length ? [...placed].sort((a, b) => rank(a) - rank(b)) : placed
+  const moved = movedFlags(list, compare)
   return list.map((s, i) => ({ ...s, moved: moved[i] }))
 }
 
@@ -292,6 +331,7 @@ export function createMockServer(): AdminServer {
           done.push(`書き間違えやすい語を保存（${config.wordChecks.length}語）`)
         }
         if (edits.permissions && typeof edits.permissions === 'object' && Object.keys(edits.permissions).length) done.push(`先生の許可を保存（${applyPermissions(config, edits.permissions).join('・')}）`)
+        if (edits.sheets && typeof edits.sheets === 'object' && Object.keys(edits.sheets).length) done.push(`所属と点検表の並びを保存（${applySheetSettings(config, edits.sheets).join('・')}）`)
         if (edits.subtitles && typeof edits.subtitles === 'object' && Object.keys(edits.subtitles).length) done.push(`サブタイトルを使うかを保存（${applySubtitles(config, edits.subtitles).join('・')}）`)
         return done.join('・') || '保存（変更なし）'
       })
@@ -330,9 +370,9 @@ export function createMockServer(): AdminServer {
       const store = load()
       requireTeacher(store)
       requireSavedCourse(store, year, courseId)
-      return mockStudentList(year, courseId)
+      return mockStudentList(year, courseId, findYear(store, year).config.courses.find((c) => c.id === courseId))
     },
-    async saveStudentOrder(year, courseId, studentIds) {
+    async saveStudentOrder(year, courseId, studentIds, groups) {
       await wait()
       const store = load()
       requireTeacher(store)
@@ -342,7 +382,15 @@ export function createMockServer(): AdminServer {
       if (studentIds) orders[`${year}:${courseId}`] = studentIds
       else delete orders[`${year}:${courseId}`]
       localStorage.setItem(ORDER_KEY, JSON.stringify(orders))
-      return mockStudentList(year, courseId)
+      const course = findYear(store, year).config.courses.find((c) => c.id === courseId)
+      if (groups && Object.keys(groups).length) {
+        if (Object.values(groups).some((g) => !(course?.groups ?? []).includes(g))) throw new Error('所属の形が正しくありません（コースに登録していない所属です）')
+        const all = loadGroupFixes()
+        all[`${year}:${courseId}`] = { ...(all[`${year}:${courseId}`] ?? {}), ...groups }
+        localStorage.setItem(GROUP_FIX_KEY, JSON.stringify(all))
+      }
+      localStorage.setItem(ORDER_MODE_KEY, JSON.stringify({ ...loadOrderModes(), [`${year}:${courseId}`]: !!course?.checkById }))
+      return mockStudentList(year, courseId, course)
     },
     async saveNotices(year, notices) {
       await wait()

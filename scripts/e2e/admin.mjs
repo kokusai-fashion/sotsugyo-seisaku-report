@@ -276,8 +276,8 @@ await withEdge(async (browser) => {
     ai: document.querySelector('.help-dock .help-ai')?.getAttribute('href') ?? '',
   }))
   check(
-    '見出しの横の「？ 使い方」で、右の端に先生・管理者用の使い方が出る（項目16・相談先はほかの管理者と引き継ぎ手順・いちばん下に印刷用の手引き（先生用・管理者用の PDF）と説明の資料一式を新しいタブで）',
-    adminHelp.topics === 16 && adminHelp.pressed === 'true' && adminHelp.content && adminHelp.label === '先生・管理者用' && adminHelp.foot.includes('ほかの管理者') &&
+    '見出しの横の「？ 使い方」で、右の端に先生・管理者用の使い方が出る（項目17・相談先はほかの管理者と引き継ぎ手順・いちばん下に印刷用の手引き（先生用・管理者用の PDF）と説明の資料一式を新しいタブで）',
+    adminHelp.topics === 17 && adminHelp.pressed === 'true' && adminHelp.content && adminHelp.label === '先生・管理者用' && adminHelp.foot.includes('ほかの管理者') &&
       adminHelp.pdf.join('|') === '先生用 https://kokusai-fashion.github.io/sotsugyo-seisaku-report/guides/teacher-guide.pdf _blank|管理者用 https://kokusai-fashion.github.io/sotsugyo-seisaku-report/guides/admin-guide.pdf _blank|説明の資料一式（スライド・動画・手引き・録画） https://example.com/materials _blank',
     JSON.stringify(adminHelp),
   )
@@ -571,7 +571,7 @@ await withEdge(async (browser) => {
   await teacher.click('.admin-header .help-open')
   await teacher.waitForSelector('.help-dock')
   const teacherHelp = await teacher.evaluate(() => ({ topics: document.querySelectorAll('.help-dock .help-list button').length, main: !!document.querySelector('.admin.help-on .content'), label: document.querySelector('.help-dock .help-title small')?.textContent ?? '', foot: document.querySelector('.help-dock .help-foot p')?.textContent ?? '' }))
-  check('先生の画面にも、見出しの横に「？ 使い方」があり、右の端に先生用の使い方が出る（項目16・相談先は管理者。その分、画面を左に寄せる）', teacherHelp.topics === 16 && teacherHelp.main && teacherHelp.label === '先生用' && teacherHelp.foot.includes('管理者に相談'), JSON.stringify(teacherHelp))
+  check('先生の画面にも、見出しの横に「？ 使い方」があり、右の端に先生用の使い方が出る（項目17・相談先は管理者。その分、画面を左に寄せる）', teacherHelp.topics === 17 && teacherHelp.main && teacherHelp.label === '先生用' && teacherHelp.foot.includes('管理者に相談'), JSON.stringify(teacherHelp))
   await teacher.keyboard.press('Escape')
   await teacher.waitForFunction(() => !document.querySelector('.help-dock'), { timeout: 5000 }).catch(() => {})
   check('Esc でも使い方の欄が閉じる', !(await teacher.$('.help-dock')))
@@ -1822,8 +1822,8 @@ await withEdge(async (browser) => {
   }
   await tv.setViewport({ width: 1366, height: 768 })
   check(
-    '先生の画面：左の見出しは「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つ。コースを開くと、指導教員・お知らせ・ひな形・サブタイトル（使う・使わないのスイッチ：依頼者の選択 2026-11-09）・表の空の行・先生の許可・点検表（並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
-    teacherView.nav === 'コースごとの設定|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|サブタイトル|表の空の行|先生の許可|点検表' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
+    '先生の画面：左の見出しは「コース」「書き方のチェック」「学生の画面を試す」「届いた声」の4つ。コースを開くと、指導教員・お知らせ・ひな形・サブタイトル（使う・使わないのスイッチ：依頼者の選択 2026-11-09）・表の空の行・先生の許可・点検表・所属・点検表の並び（所属と並び：依頼者の選択 2026-11-09。並べ替えのつまみはない）。右に「学生が最初に見る本文」の見本（見開きで送る見本の、本文のはじめのページから）',
+    teacherView.nav === 'コースごとの設定|書き方のチェック|学生の画面を試す|届いた声' && teacherView.labels === '指導教員|お知らせ|ひな形|サブタイトル|表の空の行|先生の許可|点検表|所属|点検表の並び' && teacherView.caption.startsWith('見本学生が最初に見る本文（映画・舞台衣装デザイナー コース）') && teacherView.outline && teacherView.page.startsWith('本文 1') && teacherView.grips === 0,
     JSON.stringify(teacherView),
   )
   // 見本は見開きで送る（mockups 案A：依頼者の選択 2026-10-22）。「‹」で表紙・抄録へ、「›」で本文へ。最初・最後の見開きでは押せない

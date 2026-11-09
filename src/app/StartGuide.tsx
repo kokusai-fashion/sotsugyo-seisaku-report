@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import type { YearConfig } from '../config'
-import { findCourse } from '../config'
+import { courseGroups, findCourse, needsGroup } from '../config'
 import type { EditorSnapshot, ReportEditor } from '../editor/reportEditor'
 import { FIELD_IDS } from '../layout/document'
 import { BAND_SIDE_QUERY } from './bandText'
@@ -16,10 +16,11 @@ import { NameFields, nameProblem } from './NameForm'
  * 表紙のコース欄に光を当ててコースを選ばせ、選んだコースの下書きを本文に入れる。
  * 続けて、学籍番号・氏名・サブタイトルの欄を順に案内する（どの段階でも「あとで」で閉じられる）。
  * 今年度だけ、コースを選んだあとに「Word で書き始めていますか？」と聞き、「はい」なら Word から読み込む（mockups/v24 ① 案C）。
+ * コースに所属（制作グループなど）が登録してあれば、氏名のあとに所属を選んでもらう（選ぶまで閉じられない。依頼者の選択 2026-11-09 mockups/v119）。
  */
 
 /** word：今年度だけ、コースを選んだあとに「Word で書き始めていますか？」と聞く（mockups/v24 ① 案C） */
-export type GuideStep = 'course' | 'word' | 'studentId' | 'name' | 'subtitle' | 'done'
+export type GuideStep = 'course' | 'word' | 'studentId' | 'name' | 'group' | 'subtitle' | 'done'
 
 const FIELD_OF: Partial<Record<GuideStep, string>> = {
   course: FIELD_IDS.course,
@@ -27,25 +28,27 @@ const FIELD_OF: Partial<Record<GuideStep, string>> = {
   name: FIELD_IDS.name,
   subtitle: FIELD_IDS.subtitleInput,
 }
-const NEXT: Record<GuideStep, GuideStep | null> = { course: 'studentId', word: 'studentId', studentId: 'name', name: 'subtitle', subtitle: 'done', done: null }
+const NEXT: Record<GuideStep, GuideStep | null> = { course: 'studentId', word: 'studentId', studentId: 'name', name: 'subtitle', group: 'subtitle', subtitle: 'done', done: null }
 const STEP_LABELS: [GuideStep, string][] = [
   ['course', 'コース'],
   ['word', 'Word'],
   ['studentId', '学籍番号'],
   ['name', '氏名'],
+  ['group', '所属'],
   ['subtitle', 'サブタイトル'],
 ]
 
-/** 選ぶまで、ほかの操作をできないようにする段階（コースを選ぶ・Word で書き始めているか） */
-const isChoiceStep = (step: GuideStep) => step === 'course' || step === 'word'
+/** 選ぶまで、ほかの操作をできないようにする段階（コースを選ぶ・Word で書き始めているか・所属を選ぶ） */
+const isChoiceStep = (step: GuideStep) => step === 'course' || step === 'word' || step === 'group'
 /**
  * 済ませるまで閉じられない段階。選ぶ段階と、氏名（姓・名・ふりがなを入れるまで閉じられない：依頼者の選択 2026-11-04。
  * 先生の点検表を、ふりがなの順に並べるため）
  */
 const isLockedStep = (step: GuideStep) => isChoiceStep(step) || step === 'name'
 
-/** 「いいえ、ここから書き始める」のあと：表紙の項目のうち、まだ入っていない最初のもの（全部入っていれば「表紙ができました」） */
-const firstCoverStep = (b: BasicInfo, subtitle: boolean): GuideStep => (!b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : subtitle && !b.subtitleInput.trim() ? 'subtitle' : 'done')
+/** 「いいえ、ここから書き始める」のあと：表紙の項目（と所属）のうち、まだ入っていない最初のもの（全部入っていれば「表紙ができました」） */
+const firstCoverStep = (b: BasicInfo, subtitle: boolean, group: boolean): GuideStep =>
+  !b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : group ? 'group' : subtitle && !b.subtitleInput.trim() ? 'subtitle' : 'done'
 
 /**
  * 「氏名」の段：姓・名・セイ・メイの4つの欄（mockups/v101 ①②）。入れ終わるまで次へ進めない。
@@ -130,7 +133,9 @@ interface Props {
   onWordImport?: () => void
   /** 最後の「表紙ができました」で「本文へ進む」「閉じる」を押した（このあと指差し確認を出す。mockups/v27） */
   onFinish?: () => void
-  /** 氏名のふりがなだけを頼んでいる（前から書いている原稿を開いた。「氏名」の段を済ませたら閉じる） */
+  /**
+   * 氏名のふりがな・所属だけを頼んでいる（前から書いている原稿を開いた・あとからコースを変えた。「氏名」「所属」の段を済ませたら閉じる）
+   */
   nameOnly?: boolean
 }
 
@@ -335,7 +340,17 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
   const pad = 8
   const close = () => onStep(null)
   // 「Word」の段は、今年度だけ出す
-  const stepLabels = STEP_LABELS.filter(([s]) => (wordImport || s !== 'word') && (subtitle || s !== 'subtitle'))
+  // 所属は、所属が登録してあるコースだけ（依頼者の選択 2026-11-09 mockups/v119）
+  const groups = courseGroups(config, snap.report.basicInfo.courseId)
+  const groupNeeded = needsGroup(config, snap.report.basicInfo.courseId, snap.report.basicInfo.group)
+  const stepLabels = STEP_LABELS.filter(([s]) => (wordImport || s !== 'word') && (subtitle || s !== 'subtitle') && (groups.length > 0 || s !== 'group'))
+  /** 所属を選んだあと（氏名・所属だけを頼んでいるときは閉じる） */
+  const afterGroup = (): GuideStep | null => (nameOnly ? null : snap.report.basicInfo.subtitleInput.trim() || !subtitle ? 'done' : 'subtitle')
+  // 所属の段なのに、選ぶ必要がなくなった（ほかのタブで選んだなど）：次へ進む（選ぶボタンのない、閉じられない案内にしない）
+  const skipGroup = step === 'group' && !groupNeeded
+  useEffect(() => {
+    if (skipGroup) onStep(nameOnly ? null : snap.report.basicInfo.subtitleInput.trim() || !subtitle ? 'done' : 'subtitle')
+  }, [skipGroup, nameOnly, subtitle, snap.report.basicInfo.subtitleInput, onStep])
   const index = stepLabels.findIndex(([s]) => s === step)
   // コースを選ぶ段階の見出し：開いたときはここに移る（読み上げで、案内の初めから読まれるように）。
   // 最初のコースのボタンに移すと、そのコースを選んでいるように見えてしまうため、見出しにする（見出しの枠は出さない。CSS）
@@ -400,7 +415,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
                 </span>
               </button>
               {/* まだ入っていない最初の項目から（入れ終わった氏名を、もう一度聞かない） */}
-              <button className="g-word-opt no" onClick={() => onStep(firstCoverStep(snap.report.basicInfo, subtitle))}>
+              <button className="g-word-opt no" onClick={() => onStep(firstCoverStep(snap.report.basicInfo, subtitle, groupNeeded))}>
                 <span>
                   いいえ、ここから書き始める
                   <small>{subtitle ? '学籍番号・氏名・サブタイトルを順に案内します' : '学籍番号と氏名を順に案内します'}</small>
@@ -419,7 +434,30 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
           </>
         )
       case 'name':
-        return <NameStep editor={editor} titleId={titleId} onDone={() => onStep(nameOnly ? null : snap.report.basicInfo.subtitleInput.trim() || !subtitle ? 'done' : 'subtitle')} />
+        // 所属を選んでいなければ、所属へ（氏名のあと：依頼者の選択 2026-11-09）
+        return <NameStep editor={editor} titleId={titleId} onDone={() => onStep(groupNeeded ? 'group' : afterGroup())} />
+      case 'group':
+        return (
+          <>
+            <h2 {...courseTitle}>所属を選んでください</h2>
+            <p>先生が登録した中から、自分の所属を選びます。先生の点検表は、所属ごとに並びます。</p>
+            <div className="g-opts">
+              {groups.map((g) => (
+                <button
+                  key={g}
+                  className="g-group"
+                  onClick={() => {
+                    editor.setGroup(g)
+                    onStep(afterGroup())
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            <span className="g-note">所属は、あとから表紙のコースの欄を{tap ? 'タップ' : 'クリック'}して変えられます</span>
+          </>
+        )
       case 'subtitle':
         return (
           <>

@@ -253,7 +253,14 @@ export function setText(report: Report, id: string, text: string): Report {
 }
 
 export function setCourse(report: Report, courseId: string): Report {
-  return { ...report, basicInfo: { ...report.basicInfo, courseId } }
+  return { ...report, basicInfo: withCourse(report.basicInfo, courseId) }
+}
+
+/** 表紙の情報のコースを変える（違うコースにしたら、選んでいた所属は消す：所属はコースごとのため） */
+export function withCourse(info: BasicInfo, courseId: string): BasicInfo {
+  if (info.courseId === courseId) return info
+  const { group: _dropped, groupAt: _droppedAt, ...rest } = info
+  return { ...rest, courseId }
 }
 
 // ---- 段落の分割・結合・貼り付け ----

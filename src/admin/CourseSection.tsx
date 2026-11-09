@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import type { Course, YearConfig } from '../config'
 import { AdminIcon } from './adminIcons'
+import { LIMITS } from '../config/validate'
 import { courseChanged, courseName } from './changes'
 import { server } from './server'
 import { StudentOrderDialog } from './StudentOrderDialog'
@@ -35,7 +36,11 @@ const BLANK_ROWS_HINT = '空のままの表の行を、セルフチェックで�
  */
 const PERMISSION_HINT = '使わないときは今のまま（抄録は学生が自分で「先生の許可が出た」を押す。PDF に「点検用」の印は入らない）'
 /** 点検表の説明（点検表は PDF の控えのコースのフォルダに置くので、見られる人はそのフォルダと同じ：依頼者 2026-11-04） */
-const CHECK_SHEET_HINT = '学生がコースを選ぶと、ふりがなの順に自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。'
+const CHECK_SHEET_HINT = '学生がコースと氏名を入れると、自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。'
+/** 所属の説明（依頼者の選択 2026-11-09 mockups/v119） */
+const GROUP_HINT = '制作グループなど。学生は、はじめて使うときに、この中から自分の所属を選びます。点検表は、所属ごとに並びます。使わないコースは、空のままにします。'
+/** 点検表の順番・並べ方の説明 */
+const SHEET_ORDER_HINT = '所属の中（所属を使わないときは全員）を、この順番に並べます。1人ずつ動かすときは「学生の並びを直す」から。'
 
 interface Props {
   draft: YearConfig
@@ -292,8 +297,21 @@ function CourseItem({
           )}
           {/* 先生の許可（コースごと。管理者もそのコースの先生も切り替えられる：依頼者の選択 2026-11-04。mockups/v103 ①） */}
           <PermissionRow course={course} changed={changed('permission')} onChange={onChange} />
-          {/* 点検表（コースごとの Google スプレッドシート）と、学生の並びを直す窓（mockups/v103 案1） */}
+        </div>
+        {/* 点検表のまとまり（依頼者の選択 2026-11-09 mockups/v120 案C）：点検表（コースごとの Google スプレッドシート）・所属・点検表の並び（と、学生の並びを直す窓）。
+            所属と並びは、管理者もそのコースの先生も変えられる（mockups/v119） */}
+        <div className="set-group">点検表</div>
+        <div className="grid set-list">
           <CheckSheetRow year={draft.fiscalYear} course={course} saved={base.courses.some((c) => c.id === course.id)} url={checkSheetUrl} />
+          <GroupRow course={course} changed={changed('groups')} onChange={onChange} />
+          <SheetOrderRow
+            year={draft.fiscalYear}
+            course={course}
+            savedCourse={base.courses.find((c) => c.id === course.id)}
+            unsaved={(['groups', 'checkById', 'checkOneColumn'] as const).some((k) => changed(k))}
+            changed={changed('checkById') || changed('checkOneColumn')}
+            onChange={onChange}
+          />
         </div>
         {/* このコースの誤り・確認（指導教員がいない・4名以上など）は、コースの欄の下に（上の枠に出すと、打っている間に欄がずれた：mockups/v49 G） */}
         <FieldProblems field={field} />
@@ -344,11 +362,10 @@ function PermissionRow({ course, changed, onChange }: { course: Course; changed:
 /**
  * 点検表（mockups/v103）：作ってある点検表は、「点検表を開く」がそのままリンク（サーバーに聞かずに、押すとすぐ新しいタブ。依頼者の試し 2026-11-04）。
  * まだないときだけ、サーバーが点検表を作ってから開く：押したらすぐ空のタブを開いておき、場所が届いたらそこへ移す（あとから開くと、ブラウザが新しいタブを止めるため）。
- * 「学生の並びを直す」は窓（StudentOrderDialog）。まだ保存していないコースは、保存してから使う
+ * まだ保存していないコースは、保存してから使う。「学生の並びを直す」は「点検表の並び」の欄（mockups/v120 案C）
  */
 function CheckSheetRow({ year, course, saved, url }: { year: number; course: Course; saved: boolean; url?: string }) {
   const [opening, setOpening] = useState(false)
-  const [ordering, setOrdering] = useState(false)
   const [note, setNote] = useState<{ kind: 'ok' | 'ng'; text: string } | null>(null)
   /** この画面で作った点検表の場所（次からは、リンクで開く） */
   const [created, setCreated] = useState<string | null>(null)
@@ -392,9 +409,6 @@ function CheckSheetRow({ year, course, saved, url }: { year: number; course: Cou
             {opening ? <Waiting text="用意しています…" /> : '点検表を開く'}
           </button>
         )}
-        <button type="button" className="btn sub sm cs-order" disabled={!saved} onClick={() => setOrdering(true)}>
-          学生の並びを直す
-        </button>
         <SlowNote show={slow} />
       </div>
       {link && (
@@ -407,14 +421,132 @@ function CheckSheetRow({ year, course, saved, url }: { year: number; course: Cou
           {note.text}
         </div>
       )}
-      {ordering && (
+    </Row>
+  )
+}
+
+/**
+ * 所属（名前の札。指導教員の欄と同じく、欄に入れて Enter で足す。依頼者の選択 2026-11-09 mockups/v119 ①）。
+ * 同じ名前・長すぎる名前は足さずに、欄の下で知らせる
+ */
+function GroupRow({ course, changed, onChange }: { course: Course; changed: boolean; onChange: (c: Course) => void }) {
+  const [text, setText] = useState('')
+  const [problem, setProblem] = useState<string | null>(null)
+  const groups = course.groups ?? []
+  const set = (next: string[]) => onChange({ ...course, groups: next.length ? next : undefined })
+  const add = () => {
+    const name = text.trim()
+    if (!name) return setProblem(null)
+    if (groups.includes(name)) return setProblem(`「${name}」は、もうあります`)
+    if (name.length > LIMITS.group) return setProblem(`所属の名前は${LIMITS.group}字までです`)
+    if (groups.length >= LIMITS.groups) return setProblem(`所属は${LIMITS.groups}個までです`)
+    set([...groups, name])
+    setText('')
+    setProblem(null)
+  }
+  return (
+    <Row label="所属" htmlFor={`c-${course.id}-group`} hint={GROUP_HINT} warn={problem ?? undefined} changed={changed} icon={AdminIcon.people} tone="t-people">
+      <div className="tags">
+        {groups.map((name, i) => (
+          <span key={`${name}-${i}`} className="tag">
+            {name}
+            <button aria-label={`${name}を削除`} onClick={() => set(groups.filter((_, j) => j !== i))}>
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          id={`c-${course.id}-group`}
+          className="in tag-input group-input"
+          value={text}
+          placeholder="所属の名前を入れて Enter"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              add()
+            }
+          }}
+          onBlur={add}
+        />
+      </div>
+    </Row>
+  )
+}
+
+/**
+ * 点検表の順番（五十音順・学籍番号順）と並べ方（26人からは2列・いつも縦1列。依頼者の選択 2026-11-09 mockups/v119 ①）と、
+ * 「学生の並びを直す」の窓（StudentOrderDialog。mockups/v103 案1。この欄に置く：mockups/v120 案C）。
+ * 窓の並べ方は、保存してある所属・順番（savedCourse）で決める。まだ保存していないコース・所属や並びを変えて保存していないときは、保存してから使う
+ */
+function SheetOrderRow({
+  year,
+  course,
+  savedCourse,
+  unsaved,
+  changed,
+  onChange,
+}: {
+  year: number
+  course: Course
+  savedCourse?: Course
+  unsaved: boolean
+  changed: boolean
+  onChange: (c: Course) => void
+}) {
+  const name = `c-${course.id}-sheet`
+  const pick = (key: 'checkById' | 'checkOneColumn', on: boolean) => onChange({ ...course, [key]: on || undefined })
+  const [ordering, setOrdering] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  const warn = !savedCourse ? 'このコースは、保存してから使えます' : unsaved ? '「学生の並びを直す」は、所属と点検表の並びを保存してから使えます' : undefined
+  return (
+    <Row label="点検表の並び" htmlFor={`c-${course.id}-sheet-order`} hint={SHEET_ORDER_HINT} warn={warn} changed={changed} icon={AdminIcon.sheet} tone="t-sheet">
+      <div className="seg-rows">
+        <span className="seg-key" id={`${name}-order-label`}>
+          順番
+        </span>
+        <div className="seg-pick" role="radiogroup" aria-labelledby={`${name}-order-label`}>
+          <label>
+            <input id={`c-${course.id}-sheet-order`} type="radio" name={`${name}-order`} checked={!course.checkById} onChange={() => pick('checkById', false)} />
+            <span>五十音順</span>
+          </label>
+          <label>
+            <input type="radio" name={`${name}-order`} checked={course.checkById === true} onChange={() => pick('checkById', true)} />
+            <span>学籍番号順</span>
+          </label>
+        </div>
+        <span className="seg-key" id={`${name}-columns-label`}>
+          並べ方
+        </span>
+        <div className="seg-pick" role="radiogroup" aria-labelledby={`${name}-columns-label`}>
+          <label>
+            <input id={`c-${course.id}-sheet-columns`} type="radio" name={`${name}-columns`} checked={!course.checkOneColumn} onChange={() => pick('checkOneColumn', false)} />
+            <span>26人からは2列</span>
+          </label>
+          <label>
+            <input type="radio" name={`${name}-columns`} checked={course.checkOneColumn === true} onChange={() => pick('checkOneColumn', true)} />
+            <span>いつも縦1列</span>
+          </label>
+        </div>
+      </div>
+      <div className="row-btns sheet-order-btns">
+        <button type="button" className="btn sub sm cs-order" disabled={!savedCourse || unsaved} onClick={() => setOrdering(true)}>
+          学生の並びを直す
+        </button>
+      </div>
+      {note && (
+        <div className="cs-note ok" role="status">
+          {note}
+        </div>
+      )}
+      {ordering && savedCourse && (
         <StudentOrderDialog
           year={year}
-          course={course}
+          course={savedCourse}
           onClose={() => setOrdering(false)}
           onSaved={() => {
             setOrdering(false)
-            setNote({ kind: 'ok', text: '学生の並びを保存しました。点検表も、この並びになります' })
+            setNote('学生の並びを保存しました。点検表も、この並びになります')
           }}
         />
       )}

@@ -1,5 +1,5 @@
 import type { Course, TemplateBlock, WordCheck, YearConfig } from '../config'
-import { LIMITS, templateRowName } from '../config/validate'
+import { LIMITS, groupProblems, templateRowName } from '../config/validate'
 import type { TemplateSet } from './server'
 
 /**
@@ -163,6 +163,43 @@ export function applySubtitles(config: YearConfig, subtitles: Record<string, unk
   return names
 }
 
+/** 所属の名前の形を確かめる（Code.js の checkGroups_。崩れていたらエラー） */
+export function checkGroups(groups: unknown, courseName: string): void {
+  if (!Array.isArray(groups) || groups.some((g) => typeof g !== 'string')) throw new Error('「' + courseName + '」の所属の形が正しくありません')
+  const problems = groupProblems(groups as string[])
+  if (problems.length) throw new Error('「' + courseName + '」の所属' + problems[0])
+}
+
+/** 点検表の並べ方の設定（先生も変えられる：所属・順番・並べ方。依頼者の選択 2026-11-09 mockups/v119） */
+export interface SheetSettings {
+  groups: string[]
+  checkById: boolean
+  checkOneColumn: boolean
+}
+
+/**
+ * 指定したコースの所属・点検表の順番・並べ方を書き換える（Code.js の applySheetSettings_。所属が空・五十音順・26人から2列（今のまま）なら、項目ごと消す）。
+ * 書き換えたコースの名前を返す
+ */
+export function applySheetSettings(config: YearConfig, sheets: Record<string, unknown>): string[] {
+  const names: string[] = []
+  config.courses.forEach((course) => {
+    if (!Object.prototype.hasOwnProperty.call(sheets, course.id)) return
+    const s = sheets[course.id] as Partial<Record<keyof SheetSettings, unknown>> | null
+    if (!isObj(s) || typeof s.checkById !== 'boolean' || typeof s.checkOneColumn !== 'boolean') throw new Error('「' + course.name + '」の点検表の並びの設定が正しくありません')
+    checkGroups(s.groups, course.name)
+    const groups = (s.groups as string[]).map((g) => g.trim())
+    if (groups.length) course.groups = groups
+    else delete course.groups
+    if (s.checkById) course.checkById = true
+    else delete course.checkById
+    if (s.checkOneColumn) course.checkOneColumn = true
+    else delete course.checkOneColumn
+    names.push(course.name)
+  })
+  return names
+}
+
 /** 保存する設定の形を確かめる（Code.js の checkConfig_。題目が空などの細かい確認は画面で行う） */
 export function checkConfig(config: unknown): void {
   if (!isObj(config) || Array.isArray(config)) throw new Error('設定の形が正しくありません')
@@ -190,6 +227,10 @@ export function checkConfig(config: unknown): void {
     if (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') throw new Error('「' + name + '」の表の空の行の設定が正しくありません')
     if (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean') throw new Error('「' + name + '」のサブタイトルを使うかの設定が正しくありません')
     if (course.permission !== undefined && course.permission !== null) checkPermission(course.permission, name)
+    if (course.groups !== undefined && course.groups !== null) checkGroups(course.groups, name)
+    if ((course.checkById !== undefined && typeof course.checkById !== 'boolean') || (course.checkOneColumn !== undefined && typeof course.checkOneColumn !== 'boolean')) {
+      throw new Error('「' + name + '」の点検表の並びの設定が正しくありません')
+    }
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords(config.wordChecks)
   // 標準のひな形（管理者が「詳細設定」で直したもの。ないときは、ツールに入っている標準のひな形）

@@ -47,7 +47,7 @@ const BLOCK_TYPES = ['chapter', 'subheading', 'paragraph', 'figure', 'materialTa
 // text：書き出しの文の段落の呼び名（行の種類ではない。mockups/v70）
 const BLOCK_LABELS = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表', text: '書き出しの文' }
 /** 文字数・数の上限（学生のツールの src/config/validate.ts の LIMITS と同じ値にする。tableColumns・tableRows：ひな形の表の列の数と、見出しの下の行の数） */
-const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
+const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9, groups: 20, group: 30 }
 
 /** 初期値（2026年度）。ビルド時に app/src/config/2026.json の内容が入る */
 const INITIAL_CONFIG = /*INITIAL_CONFIG*/ null
@@ -198,6 +198,10 @@ function saveTeacherEdits(year, edits, expectedUpdatedAt) {
     if (edits.permissions && typeof edits.permissions === 'object' && Object.keys(edits.permissions).length) {
       done.push('先生の許可を保存（' + applyPermissions_(config, edits.permissions).join('・') + '）')
     }
+    // 所属・点検表の順番・並べ方（先生も変えられる：依頼者の選択 2026-11-09 mockups/v119）
+    if (edits.sheets && typeof edits.sheets === 'object' && Object.keys(edits.sheets).length) {
+      done.push('所属と点検表の並びを保存（' + applySheetSettings_(config, edits.sheets).join('・') + '）')
+    }
     // サブタイトルを使うか（先生も切り替えられる：依頼者の選択 2026-11-09）
     if (edits.subtitles && typeof edits.subtitles === 'object' && Object.keys(edits.subtitles).length) {
       done.push('サブタイトルを使うかを保存（' + applySubtitles_(config, edits.subtitles).join('・') + '）')
@@ -298,6 +302,44 @@ function applySubtitles_(config, subtitles) {
     if (typeof off !== 'boolean') throw new Error('「' + course.name + '」のサブタイトルを使うかの設定が正しくありません')
     if (off) course.noSubtitle = true
     else delete course.noSubtitle
+    names.push(course.name)
+  })
+  return names
+}
+
+/**
+ * 所属の名前の形を確かめる（崩れていたらエラー。学生のツールの src/config/validate.ts の groupProblems と同じ決まり）：
+ * 文字の並び・20個まで・空の名前なし・30字まで・同じ名前は1つ
+ */
+function checkGroups_(groups, courseName) {
+  const label = '「' + courseName + '」の所属'
+  if (!Array.isArray(groups) || groups.some((g) => typeof g !== 'string')) throw new Error(label + 'の形が正しくありません')
+  if (groups.length > LIMITS.groups) throw new Error(label + 'が多すぎます（' + LIMITS.groups + '個まで）')
+  if (groups.some((g) => !g.trim())) throw new Error(label + 'に、空の名前があります')
+  const long = groups.find((g) => g.length > LIMITS.group)
+  if (long) throw new Error(label + '「' + long + '」が長すぎます（' + LIMITS.group + '字まで）')
+  const dup = groups.find((g, i) => groups.indexOf(g) !== i)
+  if (dup) throw new Error(label + '「' + dup + '」が2つあります')
+}
+
+/**
+ * 指定したコースの所属・点検表の順番（学籍番号順）・並べ方（いつも縦1列）を書き換える（src/admin/serverRules.ts の applySheetSettings と同じ）。
+ * 所属が空・五十音順・26人から2列（今のまま）なら、項目ごと消す。書き換えたコースの名前を返す
+ */
+function applySheetSettings_(config, sheets) {
+  const names = []
+  config.courses.forEach((course) => {
+    if (!Object.prototype.hasOwnProperty.call(sheets, course.id)) return
+    const s = sheets[course.id]
+    if (!s || typeof s !== 'object' || typeof s.checkById !== 'boolean' || typeof s.checkOneColumn !== 'boolean') throw new Error('「' + course.name + '」の点検表の並びの設定が正しくありません')
+    checkGroups_(s.groups, course.name)
+    const groups = s.groups.map((g) => g.trim())
+    if (groups.length) course.groups = groups
+    else delete course.groups
+    if (s.checkById) course.checkById = true
+    else delete course.checkById
+    if (s.checkOneColumn) course.checkOneColumn = true
+    else delete course.checkOneColumn
     names.push(course.name)
   })
   return names
@@ -844,6 +886,10 @@ function checkConfig_(config) {
     if (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') throw new Error('「' + name + '」の表の空の行の設定が正しくありません')
     if (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean') throw new Error('「' + name + '」のサブタイトルを使うかの設定が正しくありません')
     if (course.permission !== undefined && course.permission !== null) checkPermission_(course.permission, name)
+    if (course.groups !== undefined && course.groups !== null) checkGroups_(course.groups, name)
+    if ((course.checkById !== undefined && typeof course.checkById !== 'boolean') || (course.checkOneColumn !== undefined && typeof course.checkOneColumn !== 'boolean')) {
+      throw new Error('「' + name + '」の点検表の並びの設定が正しくありません')
+    }
   })
   if (config.wordChecks !== undefined && config.wordChecks !== null) cleanWords_(config.wordChecks)
   // 標準のひな形（管理者が「詳細設定」で直したもの。ないときは、ツールに入っている標準のひな形）
@@ -1023,9 +1069,13 @@ function sendFeedbackMail_(item, status, reply) {
 
 const SHEET_ROSTER = '学生の名簿'
 /** 学生の名簿の列（配信の窓口 gas/api-project/Code.js の ROSTER_HEADER と同じ）。年度と学籍番号で1行 */
-const ROSTER_HEADER = ['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時']
+const ROSTER_HEADER = ['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時', '所属', '所属の日時']
 /** 名簿の列の番号（0 から） */
-const ROSTER = { year: 0, course: 1, id: 2, familyName: 3, givenName: 4, familyKana: 5, givenKana: 6, order: 7, pdfId: 8, pdfAt: 9, touchedAt: 10, updatedAt: 11 }
+/**
+ * group：所属（制作グループなど。依頼者の選択 2026-11-09 mockups/v119）。groupAt：所属を決めた日時（ISO の文字。学生が選んだ・先生が直した。
+ * 新しく決めた方を使う：配信の窓口の register_）。前の名簿にはない列なので、いちばん右に足した
+ */
+const ROSTER = { year: 0, course: 1, id: 2, familyName: 3, givenName: 4, familyKana: 5, givenKana: 6, order: 7, pdfId: 8, pdfAt: 9, touchedAt: 10, updatedAt: 11, group: 12, groupAt: 13 }
 /** コースごとの点検表の一覧（年度・コース・スプレッドシートの ID。配信の窓口が読む） */
 const SHEET_CHECK_SHEETS = '点検表'
 const CHECK_SHEETS_HEADER = ['年度', 'コース', 'スプレッドシートの ID']
@@ -1035,9 +1085,9 @@ const CHECK_TAB = '点検表'
  * 点検表の見出し（空白・改行を除いたもの。配信の窓口の CHECK_COLUMNS と同じ）。ツールが決めておくのは、灰色の列と、許可の2列と、見えない列だけ。
  * これ以外の見出しのある列は、回の列（白い列。コースで自由に足す・消す・名前を変える）
  */
-const CHECK_COLUMNS = { no: '番号', name: '氏名', pdf: '最新PDF', abstractOk: '抄録許可', finalOk: '最終提出可', kyomu: '教務提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
+const CHECK_COLUMNS = { no: '番号', group: '所属', name: '氏名', pdf: '最新PDF', abstractOk: '抄録許可', finalOk: '最終提出可', kyomu: '教務提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
 /** 新しく作る点検表の見出しの字（mockups/v106・v107。狭い列は2行に） */
-const CHECK_HEAD_TEXT = { no: '番号', name: '氏名', pdf: '最新\nPDF', abstractOk: '抄録\n許可', finalOk: '最終\n提出可', kyomu: '教務\n提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
+const CHECK_HEAD_TEXT = { no: '番号', group: '所属', name: '氏名', pdf: '最新\nPDF', abstractOk: '抄録\n許可', finalOk: '最終\n提出可', kyomu: '教務\n提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
 /** 先生が書く列（行が動いても、学生と一緒に動かす）。回の列も先生が書く */
 const TEACHER_COLUMNS = ['abstractOk', 'finalOk', 'kyomu', 'abstractRec', 'finalRec']
 /** 見えない列（行を見つける印と、許可の記録） */
@@ -1060,9 +1110,9 @@ const PLAN_INK = '#a0a5ad'
  */
 const CHECK_COLORS = { toolHead: '#dadce0', toolInk: '#3c4043', roundHead: '#d6e4f5', roundInk: '#1f3f6b', permHead: '#f8dc8c', permInk: '#5c3b00', kyomuHead: '#d3ead6', kyomuInk: '#1e5b2a', toolCell: '#f3f4f6', permCell: '#fcf9ee', warnInk: '#c5221f', warnBg: '#fce8e6', dimInk: '#80868b' }
 /** 列の幅（px。見本の狭い列に合わせる） */
-const CHECK_WIDTHS = { no: 36, name: 96, pdf: 48, round: 76, abstractOk: 44, finalOk: 48, kyomu: 44, note: 80, key: 90, abstractRec: 160, finalRec: 160, gap: 12 }
+const CHECK_WIDTHS = { no: 36, group: 72, name: 96, pdf: 48, round: 76, abstractOk: 44, finalOk: 48, kyomu: 44, note: 80, key: 90, abstractRec: 160, finalRec: 160, gap: 12 }
 /** ツールが書く列（守る列。先生が書けるのは、回の列と ✓ の列だけ） */
-const TOOL_COLUMNS = ['no', 'name', 'pdf', 'note', 'key', 'abstractRec', 'finalRec']
+const TOOL_COLUMNS = ['no', 'group', 'name', 'pdf', 'note', 'key', 'abstractRec', 'finalRec']
 /** ツールが書く列と見出しの行を守るときの説明（先生が書こうとすると、この説明が出る） */
 const PROTECT_NOTE = 'ツールが書く列です（並べ替えは管理ページの「学生の並びを直す」から）'
 /**
@@ -1146,9 +1196,12 @@ function checkBlocks_(header) {
   })
 }
 
-/** 人数から、段の数と1段の人数（25人まで1段、26人からは半分ずつ2段。前半が左） */
-function blockLayout_(count) {
-  if (count <= ONE_BLOCK_MAX) return { count: count, blocks: 1, perBlock: count }
+/**
+ * 人数から、段の数と1段の人数（25人まで1段、26人からは半分ずつ2段。前半が左）。
+ * oneColumn：コースで「いつも縦1列」を選んだ（依頼者の選択 2026-11-09 mockups/v119）
+ */
+function blockLayout_(count, oneColumn) {
+  if (oneColumn || count <= ONE_BLOCK_MAX) return { count: count, blocks: 1, perBlock: count }
   return { count: count, blocks: 2, perBlock: Math.ceil(count / 2) }
 }
 
@@ -1205,17 +1258,59 @@ function compareStudents_(a, b) {
   return ka.localeCompare(kb, 'ja') || kanaKey_(a.givenKana).localeCompare(kanaKey_(b.givenKana), 'ja') || fullName_(a).localeCompare(fullName_(b), 'ja') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 }
 
+/** 学籍番号の順に比べる（念のため、同じならふりがなの順。教職員の試しの行は後ろ。管理ページの画面の compareById と同じ） */
+function compareById_(a, b) {
+  const staff = (s) => (String(s.id).indexOf('staff:') === 0 ? 1 : 0)
+  return staff(a) - staff(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) || compareStudents_(a, b)
+}
+
+/** コースの所属の名前（先生が登録した順。空の名前は除く） */
+function courseGroups_(course) {
+  return course && Array.isArray(course.groups) ? course.groups.filter((g) => typeof g === 'string' && g.trim()) : []
+}
+
 /**
- * 並びの中で「手で動かした」学生（ふりがなの順に並んでいる、いちばん長いつながりに入らない学生）。
- * 1人を動かすと、その1人だけに印が付く（ほかの学生は、ずれてもふりがなの順のまま）。管理ページの画面（src/admin/studentOrder.ts）と同じ決め方
+ * コースの点検表の並べ方（依頼者の選択 2026-11-09 mockups/v119）：所属があれば所属ごと（登録した順。選んでいない学生は後ろ）、
+ * その中は五十音順（ふりがなの順）か学籍番号順。管理ページの画面（src/admin/studentOrder.ts の comparerFor）と同じ決め方
  */
-function movedFlags_(list) {
+function comparerFor_(course) {
+  const groups = courseGroups_(course)
+  const inner = course && course.checkById ? compareById_ : compareStudents_
+  if (!groups.length) return inner
+  const rank = (s) => {
+    const i = groups.indexOf(s.group)
+    return i < 0 ? groups.length : i
+  }
+  return (a, b) => rank(a) - rank(b) || inner(a, b)
+}
+
+/** 学生の所属を、コースに登録してある所属だけにする（先生が名前を変えた・消した所属は、まだ選んでいないとみなす） */
+function knownGroups_(students, course) {
+  const groups = courseGroups_(course)
+  return students.map((s) => (groups.indexOf(s.group) >= 0 ? s : Object.assign({}, s, { group: '' })))
+}
+
+/**
+ * 先生が直した並び（名簿の「並び」）を使えるか：直したときの順番（五十音順・学籍番号順）が、今のコースの順番と同じとき。
+ * 順番を変えたら、前に直した並びは使わない（その順番で並び直す）。直したときの順番は、スクリプト プロパティ orderMode:年度:コース
+ */
+function manualOrderOk_(year, course) {
+  const mode = PropertiesService.getScriptProperties().getProperty('orderMode:' + Number(year) + ':' + course.id) || 'kana'
+  return mode === (course.checkById ? 'id' : 'kana')
+}
+
+/**
+ * 並びの中で「手で動かした」学生（決まった順（compare。はじめはふりがなの順）に並んでいる、いちばん長いつながりに入らない学生）。
+ * 1人を動かすと、その1人だけに印が付く（ほかの学生は、ずれても決まった順のまま）。管理ページの画面（src/admin/studentOrder.ts）と同じ決め方
+ */
+function movedFlags_(list, compare) {
+  const cmp = compare || compareStudents_
   const n = list.length
   const len = list.map(() => 1)
   const prev = list.map(() => -1)
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < i; j++) {
-      if (compareStudents_(list[j], list[i]) <= 0 && len[j] + 1 > len[i]) {
+      if (cmp(list[j], list[i]) <= 0 && len[j] + 1 > len[i]) {
         len[i] = len[j] + 1
         prev[i] = j
       }
@@ -1229,19 +1324,35 @@ function movedFlags_(list) {
 }
 
 /**
- * 点検表の並び：先生が並べ替えていなければ、ふりがなの順。並べ替えてあれば（名簿の「並び」）その順で、
- * あとから来た学生（並びが空）は、ふりがなの順の所（手で動かした学生は目印にしない）に入れる
+ * 点検表の並び：先生が並べ替えていなければ、コースの順番（五十音順＝ふりがなの順・学籍番号順）。並べ替えてあれば（名簿の「並び」）その順で、
+ * あとから来た学生（並びが空）は、その順番の所（手で動かした学生は目印にしない）に入れる。
+ * 所属のあるコースは、所属ごと（登録した順。選んでいない学生は後ろ）に分けて、その中を並べる。
+ * course：コースの設定（所属・順番。なければ五十音順）。manualOk が false なら、先生が直した並びは使わない（順番を変えたあと）
  */
-function orderStudents_(students) {
-  const byKana = students.slice().sort(compareStudents_)
-  const placed = students.filter((s) => s.order > 0).sort((a, b) => a.order - b.order || compareStudents_(a, b))
+function orderStudents_(students, course, manualOk) {
+  const compare = comparerFor_(course)
+  const groups = courseGroups_(course)
+  if (!groups.length) return orderWithin_(students, compare, manualOk)
+  // 所属ごとに分け（登録した順。選んでいない学生は後ろ）、それぞれの中を並べる（点検表は、いつも所属ごとに並ぶ）
+  const buckets = groups.map(() => []).concat([[]])
+  students.forEach((s) => {
+    const i = groups.indexOf(s.group)
+    buckets[i < 0 ? groups.length : i].push(s)
+  })
+  return [].concat.apply([], buckets.map((b) => orderWithin_(b, compare, manualOk)))
+}
+
+/** 1つのまとまり（所属の中・所属のないコースは全員）を並べる（orderStudents_ の中身。manualOk が false なら、先生が直した並びは使わない） */
+function orderWithin_(students, compare, manualOk) {
+  const byKana = students.slice().sort(compare)
+  const placed = manualOk === false ? [] : students.filter((s) => s.order > 0).sort((a, b) => a.order - b.order || compare(a, b))
   if (!placed.length) return byKana
-  const moved = movedFlags_(placed)
+  const moved = movedFlags_(placed, compare)
   const out = placed.map((s, i) => ({ s: s, anchor: !moved[i] }))
   byKana
     .filter((s) => !(s.order > 0))
     .forEach((s) => {
-      let at = out.findIndex((x) => x.anchor && compareStudents_(s, x.s) < 0)
+      let at = out.findIndex((x) => x.anchor && compare(s, x.s) < 0)
       if (at < 0) at = out.length
       out.splice(at, 0, { s: s, anchor: true })
     })
@@ -1386,6 +1497,7 @@ function readRoster_(book) {
         pdfId: s(r[ROSTER.pdfId]),
         pdfAt: r[ROSTER.pdfAt],
         touchedAt: r[ROSTER.touchedAt],
+        group: s(r[ROSTER.group]),
       }
     })
   return Object.keys(byKey).map((k) => byKey[k])
@@ -1600,31 +1712,50 @@ function ensureCheckSheet(year, courseId) {
   return { url: checkSheetUrl_(id) }
 }
 
-/** 並べ替えの窓の一覧：[{ studentId, name, kana, moved }]（点検表の並び。moved：手で動かした） */
-function studentList_(year, courseId) {
-  const ordered = orderStudents_(courseStudents_(readRoster_(), year, courseId))
-  const moved = movedFlags_(ordered)
-  return ordered.map((s, i) => ({ studentId: s.id, name: fullName_(s), kana: [s.familyKana, s.givenKana].filter(Boolean).join(' '), moved: moved[i] }))
+/** 並べ替えの窓の一覧：[{ studentId, name, kana, group, moved }]（点検表の並び。group：所属（まだ選んでいなければ ''）。moved：手で動かした） */
+function studentList_(year, course) {
+  const ordered = orderStudents_(knownGroups_(courseStudents_(readRoster_(), year, course.id), course), course, manualOrderOk_(year, course))
+  const moved = movedFlags_(ordered, comparerFor_(course))
+  return ordered.map((s, i) => ({ studentId: s.id, name: fullName_(s), kana: [s.familyKana, s.givenKana].filter(Boolean).join(' '), group: s.group || '', moved: moved[i] }))
 }
 
 /** 「学生の並びを直す」の窓の一覧（先生も使える） */
 function listStudents(year, courseId) {
   requireTeacher_()
-  requireCourse_(year, courseId)
-  return studentList_(year, String(courseId))
+  return studentList_(year, requireCourse_(year, courseId))
 }
 
 /**
  * 「この並びにする」（先生も使える）：名簿の「並び」に書き、点検表をこの並びにする。
- * studentIds が null なら、ふりがなの順に戻す（並びを空にする）。一覧にない学生（窓を開いたあとに来た学生）は、並びを空のまま（ふりがなの所に入る）
+ * studentIds が null なら、決まった順（五十音順・学籍番号順）に戻す（並びを空にする）。一覧にない学生（窓を開いたあとに来た学生）は、並びを空のまま（決まった順の所に入る）。
+ * groups：先生が直した学生の所属（学籍番号 → 所属。依頼者の選択 2026-11-09：学生が間違えて選んだときに、先生も直せる）。
+ * 所属の日時を今にする（学生のツールは、点検表の様子を聞いたときに受け取り、学生の画面の所属も直す）
  */
-function saveStudentOrder(year, courseId, studentIds) {
+function saveStudentOrder(year, courseId, studentIds, groups) {
   const course = withLock_(() => {
     const user = requireTeacher_()
     const found = requireCourse_(year, courseId)
     if (studentIds !== null && (!Array.isArray(studentIds) || studentIds.length > 2000 || studentIds.some((x) => typeof x !== 'string'))) throw new Error('並びの形が正しくありません')
+    const known = courseGroups_(found)
+    const fixes = groups && typeof groups === 'object' ? groups : {}
+    if (Object.keys(fixes).length > 2000 || Object.keys(fixes).some((id) => known.indexOf(fixes[id]) < 0)) throw new Error('所属の形が正しくありません（コースに登録していない所属です）')
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ROSTER)
     if (!sheet) return found
+    // 先生が直した所属（所属と、決めた日時）
+    const fixed = []
+    if (Object.keys(fixes).length) {
+      if (!String(sheet.getRange(1, ROSTER.group + 1).getValue())) sheet.getRange(1, ROSTER.group + 1, 1, 2).setValues([[ROSTER_HEADER[ROSTER.group], ROSTER_HEADER[ROSTER.groupAt]]]).setFontWeight('bold')
+      const now = new Date().toISOString()
+      sheet
+        .getDataRange()
+        .getValues()
+        .forEach((r, i) => {
+          const id = String(r[ROSTER.id]).trim()
+          if (i === 0 || String(r[ROSTER.year]).trim() !== String(Number(year)) || String(r[ROSTER.course]).trim() !== found.id || !Object.prototype.hasOwnProperty.call(fixes, id)) return
+          sheet.getRange(i + 1, ROSTER.group + 1, 1, 2).setValues([["'" + fixes[id], "'" + now]])
+          fixed.push(id)
+        })
+    }
     const rank = new Map()
     ;(studentIds || []).forEach((id, i) => rank.has(id) || rank.set(id, i + 1))
     const values = sheet.getDataRange().getValues()
@@ -1638,11 +1769,13 @@ function saveStudentOrder(year, courseId, studentIds) {
       hi = i
     }
     if (lo > 0) sheet.getRange(lo + 1, ROSTER.order + 1, hi - lo + 1, 1).setValues(column.slice(lo, hi + 1).map((v) => [v]))
-    appendMemberHistory_(user, '点検表の学生の並びを' + (studentIds ? '直す' : 'ふりがなの順に戻す') + '（' + Number(year) + '年度・' + found.name + ' コース）')
+    // 直したときの順番を覚える（あとで順番を変えたら、この並びは使わない：manualOrderOk_）
+    PropertiesService.getScriptProperties().setProperty('orderMode:' + Number(year) + ':' + found.id, found.checkById ? 'id' : 'kana')
+    appendMemberHistory_(user, '点検表の学生の並びを' + (studentIds ? '直す' : (found.checkById ? '学籍番号順' : '五十音順') + 'に戻す') + (fixed.length ? '・' + fixed.length + '人の所属を直す' : '') + '（' + Number(year) + '年度・' + found.name + ' コース）')
     return found
   })
   syncNow_(year, course.id)
-  return studentList_(year, course.id)
+  return studentList_(year, course)
 }
 
 /**
@@ -1718,8 +1851,10 @@ function syncCheckSheet_(entry, course, roster) {
   const sheet = book.getSheetByName(CHECK_TAB) || book.getSheets()[0]
   const title = checkSheetTitle_(entry.year, course)
   if (book.getName() !== title) book.rename(title)
-  const students = orderStudents_(courseStudents_(roster, entry.year, course.id))
-  const layout = blockLayout_(students.length)
+  const students = orderStudents_(knownGroups_(courseStudents_(roster, entry.year, course.id), course), course, manualOrderOk_(entry.year, course))
+  const layout = blockLayout_(students.length, course.checkOneColumn === true)
+  // 所属の列（所属を登録したコースだけ。番号のすぐ右。依頼者の選択 2026-11-09 mockups/v118・v119）
+  const wantGroup = courseGroups_(course).length > 0
   const surnames = advisorSurnames_(course.advisors)
 
   let values = sheet.getDataRange().getValues()
@@ -1769,6 +1904,26 @@ function syncCheckSheet_(entry, course, roster) {
   Object.keys(untrusted).forEach((key) => delete kept[key])
   // 名簿が空なのに点検表に学生がいる：名簿のシートが読めなかったなど。消さない
   if (!students.length && lastRow > 0) throw new Error('名簿にこのコースの学生がいません（点検表は、そのままにしました）')
+
+  // 所属の列を足す・消す（所属を登録した・全部消した）。右の段から（左の段の列の場所が変わらないように）
+  let groupFixed = false
+  blocks
+    .slice()
+    .reverse()
+    .forEach((b) => {
+      if (wantGroup && b.cols.group < 0 && b.cols.no >= 0) {
+        sheet.insertColumnAfter(b.cols.no + 1)
+        sheet.getRange(h + 1, b.cols.no + 2).setValue(CHECK_HEAD_TEXT.group)
+        groupFixed = true
+      } else if (!wantGroup && b.cols.group >= 0) {
+        sheet.deleteColumn(b.cols.group + 1)
+        groupFixed = true
+      }
+    })
+  if (groupFixed) {
+    values = sheet.getDataRange().getValues()
+    blocks = checkBlocks_(values[h])
+  }
 
   // 1段 ↔ 2段 の組み直し（2段目は、1段目の見出しを写して、1段目の右に、すき間の列を1つあけて作る）
   const fresh = []
@@ -1826,9 +1981,19 @@ function syncCheckSheet_(entry, course, roster) {
   // 見た目と守り（並べ方・人数・見出し・先生が変わったときだけ）
   const props = PropertiesService.getScriptProperties()
   // v：見た目の決まりを変えたら上げる（今ある点検表も、次に写すときに1回だけ整え直す。3：案内の行を黄色の帯に 2026-11-07。4：帯を文字の終わりの先まで。5：見出しを役目ごとの色に・氏名を折り返す。6：案内を2行に。7：1人目の先生の色を薄赤に）
-  const signature = JSON.stringify({ v: 7, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames })
+  // 所属の境（段ごと、所属が前の行と変わる行。0 から）。境には太い線を引く
+  const edges = blocks.slice(0, layout.blocks).map((b, bi) => {
+    const out = []
+    if (!wantGroup) return out
+    for (let r = 1; r < layout.perBlock; r++) {
+      const i = bi * layout.perBlock + r
+      if (i < students.length && students[i].group !== students[i - 1].group) out.push(r)
+    }
+    return out
+  })
+  const signature = JSON.stringify({ v: 8, top: h, layout: layout, heads: blocks.slice(0, layout.blocks).map((b) => blockColumns_(header, b).map((x) => x.name)), surnames: surnames, edges: edges })
   if (props.getProperty('checkLayout:' + entry.id) !== signature) {
-    formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh)
+    formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh, edges)
     props.setProperty('checkLayout:' + entry.id, signature)
   }
 }
@@ -1908,6 +2073,8 @@ function cellValue_(column, s, index, kept, untrusted, align) {
       return index + 1
     case 'name':
       return sheetName_(s)
+    case 'group':
+      return s.group || ''
     case 'pdf':
       return pdfFormula_(s)
     case 'note':
@@ -1941,7 +2108,7 @@ function cellValue_(column, s, index, kept, untrusted, align) {
 /** シートに書く形（学生の氏名・学籍番号は ' を付けて文字に。最新 PDF は式。ほかの字は、先頭が = + - @ なら文字に） */
 function writeValue_(kind, value) {
   if (kind === 'pdf') return value
-  if (kind === 'name' || kind === 'key') return value === '' ? '' : "'" + value
+  if (kind === 'name' || kind === 'key' || kind === 'group') return value === '' ? '' : "'" + value
   return cell_(value)
 }
 
@@ -1952,7 +2119,7 @@ function writeValue_(kind, value) {
  * いちばん上の案内の行と見出しの行は固定する。ツールが書く列（見出しから下まで。すき間の列も）・✓ の列の見出し・案内の行のはじめの3列は、
  * デプロイした人だけが書けるように守る（作り直す）。白い回の列は、見出しも中身も守らない（先生がコースで自由に足す・消す・名前を変える）
  */
-function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh) {
+function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fresh, edges) {
   sheet.setFrozenRows(h + 1)
   sheet.setRowHeight(h + 1, 36)
   const checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build()
@@ -1969,7 +2136,7 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
     const filled = Math.max(0, Math.min(layout.perBlock, layout.count - bi * layout.perBlock))
     blockColumns_(header, b).forEach((x) => {
       const kind = x.kind
-      const tool = kind === 'no' || kind === 'name' || kind === 'pdf' || kind === 'note'
+      const tool = kind === 'no' || kind === 'group' || kind === 'name' || kind === 'pdf' || kind === 'note'
       const perm = kind === 'abstractOk' || kind === 'finalOk'
       const role = kind === 'round' ? 'round' : perm ? 'perm' : kind === 'kyomu' ? 'kyomu' : 'tool'
       sheet
@@ -1991,13 +2158,18 @@ function formatCheckSheet_(sheet, h, header, blocks, layout, surnames, rows, fre
         cells.setDataValidation(perm || kind === 'kyomu' ? checkbox : kind === 'round' ? dropdown : null)
         cells.setHorizontalAlignment(kind === 'name' || kind === 'note' ? 'left' : kind === 'no' ? 'right' : 'center')
         // 長い氏名（留学生など）は折り返す：その学生の行だけ2行の高さになる（依頼者の選択 2026-11-07 案1。前は列の幅で切れた）。行の中の字は上下の真ん中に
-        cells.setVerticalAlignment('middle').setWrap(kind === 'name')
+        cells.setVerticalAlignment('middle').setWrap(kind === 'name' || kind === 'group')
         cells.setFontWeight(kind === 'name' ? 'bold' : null)
         if (kind === 'key') cells.setNumberFormat('@')
         if (kind === 'round') roundRanges.push(cells)
         if (kind === 'note') noteRanges.push(cells)
       }
       if (rows > filled) sheet.getRange(h + 2 + filled, x.col + 1, rows - filled, 1).setBackground(null).setDataValidation(null).setFontWeight(null)
+    })
+    // 所属の境の太い線（引き直す：前の線を消してから。所属のないコースは消すだけ。mockups/v118）
+    if (rows > 0) sheet.getRange(h + 2, b.start + 1, rows, b.end - b.start + 1).setBorder(false, false, false, false, false, false)
+    ;((edges && edges[bi]) || []).forEach((r) => {
+      sheet.getRange(h + 2 + r, b.start + 1, 1, b.end - b.start + 1).setBorder(true, null, null, null, null, null, '#6b7280', SpreadsheetApp.BorderStyle.SOLID_MEDIUM)
     })
     // 2段のときの、段のあいだのすき間の列（見出しのない列。ここも守る。先生が見出しを書いた列は、1段目の回の列になる）
     if (bi === 0 && layout.blocks === 2) {

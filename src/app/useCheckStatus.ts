@@ -36,13 +36,17 @@ function readCache(report: Report): CheckStatus | null {
  * - 開いたとき（ログインできたとき）・学籍番号やコースが変わったとき・「確かめ直す」・ほかのタブから10分以上たって戻ったときに読み直す
  * - 学生の名簿：コースと氏名の4つの欄がそろったとき・変わったときに入れる（先生の点検表は、この名簿から作る）
  * - 最終提出の許可のあとに原稿を書き換えたら、1日1回まで知らせる（点検表の「知らせ」に出る）
+ * - 先生が管理ページで学生の所属を直したら、点検表の様子を聞いたときに受け取る（onGroup。名簿の所属が、原稿の所属より新しく決めたものなら。
+ *   依頼者の選択 2026-11-09：学生が間違えて選んだときに、先生も直せる）
  * 答えはこの端末に覚えておく（つながらないときは前の答え）
  */
-export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabled: boolean, report: Report | null) {
+export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabled: boolean, report: Report | null, onGroup?: (group: string, at: string) => void) {
   const [status, setStatus] = useState<CheckStatus | null>(() => (report ? readCache(report) : null))
   const reportRef = useRef(report)
+  const onGroupRef = useRef(onGroup)
   useEffect(() => {
     reportRef.current = report
+    onGroupRef.current = onGroup
   })
   /** 名簿へ送っている途中・書き換えの知らせを送っている途中（重ねて送らない） */
   const registering = useRef(false)
@@ -70,11 +74,16 @@ export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabl
     if (!token) return null
     const asked = whoOf(r)
     try {
-      const answer = await postStudentApi<{ row?: unknown }>(API_URL, { action: 'checkStatus', token: token.accessToken, year: r.fiscalYear, studentId: r.basicInfo.studentId.trim(), courseId: r.basicInfo.courseId })
+      const answer = await postStudentApi<{ row?: unknown; group?: unknown; groupAt?: unknown }>(API_URL, { action: 'checkStatus', token: token.accessToken, year: r.fiscalYear, studentId: r.basicInfo.studentId.trim(), courseId: r.basicInfo.courseId })
       // 聞いている間に、学生・コースが変わった（アカウントを替えたなど）：前の学生の答えを使わない
       if (whoOf(reportRef.current) !== asked) return null
       const next = { row: readCheckRow(answer.row), at: new Date().toISOString() }
       setStatus(next)
+      // 名簿の所属が、原稿の所属より新しく決めたもの（先生が直した）なら受け取る
+      const group = typeof answer.group === 'string' ? answer.group : ''
+      const groupAt = typeof answer.groupAt === 'string' ? answer.groupAt : ''
+      const mine = reportRef.current?.basicInfo
+      if (mine && group && groupAt && group !== (mine.group ?? '') && groupAt > (mine.groupAt ?? '')) onGroupRef.current?.(group, groupAt)
       try {
         localStorage.setItem(statusKey(r), JSON.stringify(next))
       } catch {

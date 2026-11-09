@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { currentConfig, findCourse, usesSubtitle, type YearConfig } from './config'
+import { courseGroups, currentConfig, findCourse, needsGroup, usesSubtitle, type YearConfig } from './config'
 import { loadYearConfig, sameConfig, startConfigLoad, type ConfigSource } from './config/remote'
 import { ReportEditor, type EditorSnapshot } from './editor/reportEditor'
 import { preloadGis } from './drive/driveApi'
@@ -98,7 +98,16 @@ const firstEmptyCoverStep = (report: Report, config: YearConfig): GuideStep | nu
   const b = report.basicInfo
   // 氏名は、ふりがなまで入っていなければ、まだ（Word から読み込んだ氏名にも、ふりがなを入れてもらう：依頼者の選択 2026-11-04）。
   // サブタイトルを使わないコースは、サブタイトルを聞かない（依頼者の選択 2026-11-09）
-  return !b.studentId.trim() ? 'studentId' : !namePartsDone(nameParts(b)) ? 'name' : !subtitleFilled(report, config) ? 'subtitle' : null
+  // 所属は、氏名のあと（コースに所属が登録してあるときだけ：依頼者の選択 2026-11-09 mockups/v119）
+  return !b.studentId.trim()
+    ? 'studentId'
+    : !namePartsDone(nameParts(b))
+      ? 'name'
+      : needsGroup(config, b.courseId, b.group)
+        ? 'group'
+        : !subtitleFilled(report, config)
+          ? 'subtitle'
+          : null
 }
 
 /** 表紙のサブタイトルが入っているか（使わないコースは、いつも入っているとみなす） */
@@ -378,6 +387,7 @@ export default function App() {
   const startGuide = useCallback((cfg: YearConfig, report: Report, isNew: boolean) => {
     // 開いて準備している間に、バックアップファイルから戻した：戻した原稿の上に案内を出さない（restoreFile）
     if (restoredRef.current) return
+    setNameOnly(false)
     if (!findCourse(cfg, report.basicInfo.courseId)) setGuide('course')
     else if (isNew) setGuide(wordImportOffered(cfg) ? 'word' : report.basicInfo.studentId.trim() ? 'name' : 'studentId')
     else {
@@ -386,7 +396,7 @@ export default function App() {
       const empty = firstEmptyCoverStep(report, cfg)
       if (left && left !== 'course' && empty) {
         // ふりがなだけを聞いている途中で読み込み直した（前から書いている学生）：済ませたら閉じる（「表紙ができました」に進まない。見直しで分かった）
-        if (empty === 'name' && subtitleFilled(report, cfg)) setNameOnly(true)
+        if ((empty === 'name' || empty === 'group') && subtitleFilled(report, cfg)) setNameOnly(true)
         setGuide(left === 'word' && wordImportOffered(cfg) ? 'word' : empty)
       }
       // ふりがなをまだ入れていない（氏名の欄が1つだったころから書いている）：開いたときに、氏名の4つの欄を入れてもらう（入れるまで閉じられない。
@@ -394,6 +404,12 @@ export default function App() {
       else if (!trialMode && !namePartsDone(nameParts(report.basicInfo))) {
         setNameOnly(true)
         setGuide('name')
+      }
+      // 所属をまだ選んでいない（先生があとから所属を登録した・名前を変えた）：開いたときに、所属を選んでもらう（選ぶまで閉じられない。
+      // 依頼者の選択 2026-11-09 mockups/v119。先生の点検表を所属ごとに並べるため）。先生のお試しでは聞かない
+      else if (!trialMode && needsGroup(cfg, report.basicInfo.courseId, report.basicInfo.group)) {
+        setNameOnly(true)
+        setGuide('group')
       } else {
         if (left) forgetGuide()
         if (!tourSeen() && firstOpenInTab()) setTourWanted(true)
@@ -1005,7 +1021,7 @@ export default function App() {
       }
       // ふりがなだけを聞くとき（表紙のほかの項目は Word から入った）：済ませたら案内を閉じて本文へ（「表紙ができました」・指差し確認は出さない。
       // 前と同じく、読み込んだらすぐ「つぎにすること」へ進む）
-      setNameOnly(next === 'name' && subtitleFilled(editor.getSnapshot().report, configRef.current))
+      setNameOnly((next === 'name' || next === 'group') && subtitleFilled(editor.getSnapshot().report, configRef.current))
       setGuide(next)
       if (next) {
         afterGuideRef.current = () => void toBody()
@@ -1081,7 +1097,13 @@ export default function App() {
   // 書き出した PDF を、自分のドライブの「卒業制作報告書」フォルダにも置く（ログインして使っているときだけ。PDF の窓に1行で知らせる）
   const drivePdf = useDrivePdf(drive, !driveStopped)
   // 先生の許可の仕組み（点検表）：自分の行を読む・学生の名簿に入れる（ログインして使っているときだけ。docs/設計_許可の仕組み.md）
-  const checkStatus = useCheckStatus(drive, !!driveState?.email, !driveStopped, snap?.report ?? null)
+  // 先生が管理ページで直した所属を受け取る（そのコースに登録してある所属のときだけ。依頼者の選択 2026-11-09）
+  const checkStatus = useCheckStatus(drive, !!driveState?.email, !driveStopped, snap?.report ?? null, (group, at) => {
+    const r = editor?.getSnapshot().report
+    if (!editor || !r || !courseGroups(configRef.current, r.basicInfo.courseId).includes(group)) return
+    editor.setGroup(group, at)
+    editor.showNotice(`先生が、所属を「${group}」に直しました`)
+  })
   const myCourse = snap ? findCourse(config, snap.report.basicInfo.courseId) : undefined
   const finalGate = snap ? finalGateOf(myCourse, checkStatus.status, snap.report.updatedAt) : ({ kind: 'off' } as const)
   // 抄録の欄の案内（許可を待つ・許可が出た）を、紙面に伝える
@@ -1106,6 +1128,14 @@ export default function App() {
   // 指差し確認を出さないとき：ログインの窓・どの原稿で続けるか・学籍番号の確かめ・Word の読み込みなどの窓・別のタブで開いている・
   // はじめての案内・使い方を開いている
   const tourBlocked = !snap?.layout || !!loadError || !!guide || !!gate || !!dialog || !!driveDialog || tabLock.locked || help || reloginShown
+  // 書いている途中に所属を選ぶ必要ができた（表紙のコース欄からコースを変えた。所属はコースごと）：ほかの窓や案内が出ていないときに、
+  // 所属だけを聞く（選ぶまで閉じられない。依頼者の選択 2026-11-09 mockups/v119）。先生のお試しでは聞かない
+  const groupWanted = !trialMode && !!snap && !tourBlocked && !tourOn && needsGroup(config, snap.report.basicInfo.courseId, snap.report.basicInfo.group)
+  useEffect(() => {
+    if (!groupWanted) return
+    setNameOnly(true)
+    setGuide('group')
+  }, [groupWanted])
   // 紙面を組み直している・ページを送っている・書いている途中は、始めない（光を当てる場所が動くため）
   const tourSettling = !snap || snap.rendering || snap.turning || !!snap.editingId
   // 出したいとき、出せるようになったら出す（描く途中で合わせる。一度出したら、とばすか見終えるまで出したまま）
@@ -1301,7 +1331,15 @@ export default function App() {
       )}
 
       {dialog?.kind === 'course' && snap && editor && (
-        <CourseMenu config={config} rect={dialog.rect} current={snap.report.basicInfo.courseId} onSelect={chooseCourse} onClose={() => setDialog(null)} />
+        <CourseMenu
+          config={config}
+          rect={dialog.rect}
+          current={snap.report.basicInfo.courseId}
+          onSelect={chooseCourse}
+          group={snap.report.basicInfo.group}
+          onSelectGroup={(g) => editor.setGroup(g)}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog?.kind === 'name' && snap && editor && !guide && (
         <NameDialog rect={dialog.rect} initial={nameParts(snap.report.basicInfo)} onSave={(p) => editor.setNameParts(p)} onClose={() => setDialog(null)} />

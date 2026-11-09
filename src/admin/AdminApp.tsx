@@ -19,7 +19,7 @@ import { HistorySection } from './HistorySection'
 import { MembersSection } from './Members'
 import { newYearSteps, type NewYearStep } from './newYearSteps'
 import { Preview } from './Preview'
-import { checkSheetUrls, isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type PermissionSet, type TemplateSet, type YearRow } from './server'
+import { checkSheetUrls, isMockServer, roleOf, server, type AdminState, type HistoryRow, type Member, type PermissionSet, type SheetSettingSet, type TemplateSet, type YearRow } from './server'
 import { TemplateEditor } from './TemplateEditor'
 import { STANDARD_COURSE, TemplateOverlay } from './TemplateOverlay'
 import { TrialSection } from './TrialSection'
@@ -830,10 +830,10 @@ export function AdminApp() {
           confirmLeave={confirmLeave}
           onPending={setPending}
           confirmUnappliedWords={confirmUnappliedWords}
-          onSave={(templates, words, notices, permissions, subtitles) =>
+          onSave={(templates, words, notices, permissions, subtitles, sheets) =>
             // ひな形・お知らせ・書き間違えやすい語・先生の許可を、まとめて1回で保存する（途中で失敗して一部だけ保存されないように）
             // 画面を開いたときの更新日時も送る（そのあとにほかの先生などが保存していたら、その変更を消さないよう保存しない）
-            void run('save', savedMessage(row.status, 'teacher'), () => server.saveTeacherEdits(row.year, { templates, notices, ...(words ? { words } : {}), ...(Object.keys(permissions).length ? { permissions } : {}), ...(Object.keys(subtitles).length ? { subtitles } : {}) }, row.updatedAt), {
+            void run('save', savedMessage(row.status, 'teacher'), () => server.saveTeacherEdits(row.year, { templates, notices, ...(words ? { words } : {}), ...(Object.keys(permissions).length ? { permissions } : {}), ...(Object.keys(subtitles).length ? { subtitles } : {}), ...(Object.keys(sheets).length ? { sheets } : {}) }, row.updatedAt), {
               recover: { verb: '保存', button: saveButtonLabel(row.status) },
             })
           }
@@ -1254,8 +1254,8 @@ function TeacherView({
   /** words は、書き間違えやすい語を変えたときだけ（変えていなければ null） */
   /** 書き方のチェックで直している語を反映しないまま、保存してよいか */
   confirmUnappliedWords: (verb: '保存') => Promise<boolean>
-  /** notices は、書き換えたコースのお知らせだけ（コースの ID → お知らせ）。permissions は、切り替えたコースの先生の許可だけ。subtitles は、切り替えたコースのサブタイトルを使うかだけ（使わないなら true） */
-  onSave: (templates: TemplateSet, words: WordCheck[] | null, notices: Record<string, string>, permissions: PermissionSet, subtitles: Record<string, boolean>) => void
+  /** notices は、書き換えたコースのお知らせだけ（コースの ID → お知らせ）。permissions は、切り替えたコースの先生の許可だけ。subtitles は、切り替えたコースのサブタイトルを使うかだけ（使わないなら true）。sheets は、所属・点検表の順番・並べ方を変えたコースだけ */
+  onSave: (templates: TemplateSet, words: WordCheck[] | null, notices: Record<string, string>, permissions: PermissionSet, subtitles: Record<string, boolean>, sheets: SheetSettingSet) => void
 }) {
   const [section, setSectionState] = useState<Section>(() => loadSection(TEACHER_SECTIONS))
   const [editing, setEditing] = useState<number | null>(null)
@@ -1322,13 +1322,20 @@ function TeacherView({
     draft.courses.forEach((c) => {
       if (courseChanged(row.config, draft, c.id, 'noSubtitle')) subtitles[c.id] = c.noSubtitle === true
     })
+    // 所属・点検表の順番・並べ方（先生も変えられる：依頼者の選択 2026-11-09 mockups/v119）。変えたコースだけ、3つまとめて送る
+    const sheets: SheetSettingSet = {}
+    draft.courses.forEach((c) => {
+      if ((['groups', 'checkById', 'checkOneColumn'] as const).some((k) => courseChanged(row.config, draft, c.id, k))) {
+        sheets[c.id] = { groups: c.groups ?? [], checkById: c.checkById === true, checkOneColumn: c.checkOneColumn === true }
+      }
+    })
     // 長すぎるお知らせは、送る前に知らせる（サーバーでも同じ言葉で断られる）
     const long = draft.courses.find((c) => c.id in notices && notices[c.id].length > LIMITS.notice)
     if (long) return onMessage({ kind: 'ng', text: `「${long.name}」のお知らせ${tooLong(LIMITS.notice, notices[long.id].length)}` })
     // 学生に届く年度（公開中・終了）は、何が変わるかを示して確かめる
     const text = saveConfirmText(row.status, row.year, changes.map(changeLine))
     if (text && !(await ask(text, { title: `${saveButtonLabel(row.status)}しますか？`, ok: saveButtonLabel(row.status) }))) return
-    onSave(templates, words, notices, permissions, subtitles)
+    onSave(templates, words, notices, permissions, subtitles, sheets)
   }
   const navItems: NavItem[] = [
     { key: 'course', icon: AdminIcon.course, title: SECTION_TITLES.course, sub: 'お知らせ・ひな形', count: counts.course },

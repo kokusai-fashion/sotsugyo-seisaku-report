@@ -1,5 +1,5 @@
 import { findCourse, type TemplateBlock, type YearConfig } from '../config'
-import { numbering, textToContent } from '../editor/reportOps'
+import { numbering, textToContent, withCourse } from '../editor/reportOps'
 import { templateProblems } from '../config/validate'
 import { contentKey } from './starter'
 import { materialTable, tableFromTemplate } from './table'
@@ -157,7 +157,7 @@ export function abstractEmpty(report: Report): boolean {
 export function applyCourseTemplate(report: Report, config: YearConfig, courseId: string): Report {
   return {
     ...report,
-    basicInfo: { ...report.basicInfo, courseId },
+    basicInfo: withCourse(report.basicInfo, courseId),
     body: bodyFromTemplate(courseTemplate(config, courseId)),
     abstract: abstractEmpty(report) ? { ...report.abstract, paragraphs: [emptyParagraph(abstractHint(config, courseId))] } : report.abstract,
   }

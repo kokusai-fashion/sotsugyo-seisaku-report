@@ -2,7 +2,7 @@
 // - コースの欄の「表の空の行」のあとに「先生の許可」（2つの切り替え）と「点検表」（点検表を開く・学生の並びを直す）。管理者の画面にも先生の画面にも
 // - 先生の許可は、管理者も先生も保存できる（読み込み直しても残る。先生が保存したものは管理者の画面にも出る）
 // - 「点検表を開く」で、新しいタブに点検表（試験用サーバーは空のページ）
-// - 「学生の並びを直す」の窓（案1）：⋮⋮ のドラッグと ▲▼ で動かすと「手で動かした」。「この並びにする」で保存（開き直しても残る）。「ふりがなの順に戻す」・「やめる」
+// - 「学生の並びを直す」の窓（案1）：⋮⋮ のドラッグと ▲▼ で動かすと「手で動かした」。「この並びにする」で保存（開き直しても残る）。「五十音順に戻す」・「やめる」
 // - スマホの幅でも、窓と欄が横にはみ出さない
 import { withEdge } from '../poc/edge.mjs'
 
@@ -62,7 +62,9 @@ const courseState = (page) =>
       permHint: perm?.querySelector('.hint')?.textContent ?? '',
       swDesc: [...(perm?.querySelectorAll('.sw-desc') ?? [])].map((d) => d.textContent).join('|'),
       permChanged: !!lb('先生の許可')?.querySelector('.chg'),
-      sheetButtons: [...(ctl('点検表')?.querySelectorAll('button') ?? [])].map((b) => `${b.textContent.trim()}${b.disabled ? '（押せない）' : ''}`),
+      // 点検表の欄と、点検表の並びの欄（「学生の並びを直す」はこちら：mockups/v120 案C）のボタン
+      sheetButtons: [...(ctl('点検表')?.querySelectorAll('button') ?? []), ...(ctl('点検表の並び')?.querySelectorAll('button') ?? [])].map((b) => `${b.textContent.trim()}${b.disabled ? '（押せない）' : ''}`),
+      groupHead: [...course.querySelectorAll('.set-group')].map((g) => g.textContent).join('|'),
       sheetHint: ctl('点検表')?.querySelector('.hint')?.textContent ?? '',
       bar: document.querySelector('.dirty-bar .tx span')?.textContent ?? '',
     }
@@ -124,12 +126,13 @@ await withEdge(async (browser) => {
     let s = await courseState(page)
     check(
       `${who}：コースの欄の「表の空の行」のあとに「先生の許可」と「点検表」。はじめは両方とも切ってある`,
-      /表の空の行\|先生の許可\|点検表/.test(s.labels) &&
+      /表の空の行\|先生の許可\|点検表\|所属\|点検表の並び/.test(s.labels) &&
+        s.groupHead.endsWith('|点検表') &&
         s.checks.join('|') === '☐抄録は、先生の許可が出てから書ける|☐提出用の PDF は、先生の許可が出てから作れる' &&
         s.permHint === '使わないときは今のまま（抄録は学生が自分で「先生の許可が出た」を押す。PDF に「点検用」の印は入らない）' &&
         s.swDesc === '点検表の「抄録許可」に ✓ を入れて許可します|点検表の「最終提出可」に ✓ を入れて許可します' &&
         s.sheetButtons.join('|') === '点検表を開く|学生の並びを直す' &&
-        s.sheetHint === '学生がコースを選ぶと、ふりがなの順に自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。',
+        s.sheetHint === '学生がコースと氏名を入れると、自動で載ります。見られるのは、PDF の控えのフォルダを見られる先生方です。',
       JSON.stringify(s),
     )
     await clickCheck(page, '抄録は')
@@ -203,14 +206,14 @@ await withEdge(async (browser) => {
     await openDialog(page)
     let d = await dialogState(page)
     check(
-      '「学生の並びを直す」で窓：題・説明・見出し。はじめはふりがなの順で、手で動かした印はない。「ふりがなの順に戻す」は押せない',
+      '「学生の並びを直す」で窓：題・説明・見出し。はじめは五十音順（ふりがなの順）で、手で動かした印はない。「五十音順に戻す」は押せない',
       d.title === '学生の並び（映画・舞台衣装デザイナー コース）' &&
-        d.lead === 'ふりがなの順に自動で並んでいます。⋮⋮ をドラッグするか、▲▼ で動かします。この並びが点検表の順になります。' &&
+        d.lead === '五十音順に自動で並んでいます。⋮⋮ をドラッグするか、▲▼ で動かします。この並びが点検表の順になります。' &&
         d.head === '|番号|ふりがな|氏名|学籍番号|動かす' &&
         d.rows.join(',') === rowsOf(kanaOrder).join(',') &&
         d.tags.length === 0 &&
         d.kanaDisabled === true &&
-        d.buttons === 'ふりがなの順に戻す|やめる|この並びにする',
+        d.buttons === '五十音順に戻す|やめる|この並びにする',
       JSON.stringify(d),
     )
     // ▲ で文化 花子を6つ上げる（12番目 → 6番目）
@@ -259,15 +262,15 @@ await withEdge(async (browser) => {
     await openDialog(page)
     d = await dialogState(page)
     check('「やめる」で閉じると、動かした並びは保存しない', d.rows[0] === '1:アオキ ミサキ' && d.rows[3] === '4:ブンカ ハナコ*', JSON.stringify(d.rows.slice(0, 5)))
-    // ふりがなの順に戻す
-    await footButton(page, 'ふりがなの順に戻す')
+    // 五十音順に戻す
+    await footButton(page, '五十音順に戻す')
     await wait(150)
     d = await dialogState(page)
     const back = d.rows.join(',') === rowsOf(kanaOrder).join(',') && d.tags.length === 0 && d.kanaDisabled === true
     await footButton(page, 'この並びにする')
     await page.waitForFunction(() => !document.querySelector('.so-modal'), { timeout: 10000 })
     const cleared = await page.evaluate((id) => !(`2026:${id}` in JSON.parse(localStorage.getItem('sotsugyo-admin-mock-order') ?? '{}')), FILM)
-    check('「ふりがなの順に戻す」でふりがなの順になり、保存すると並びを空にする（あとから来た学生も、ふりがなの所に入る）', back && cleared, JSON.stringify({ rows: d.rows, cleared }))
+    check('「五十音順に戻す」でふりがなの順になり、保存すると並びを空にする（あとから来た学生も、ふりがなの所に入る）', back && cleared, JSON.stringify({ rows: d.rows, cleared }))
     // Esc でも閉じる
     await openDialog(page)
     await page.keyboard.press('Escape')

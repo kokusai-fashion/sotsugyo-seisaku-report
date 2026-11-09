@@ -56,6 +56,9 @@ const COURSE_LABELS: Record<string, string> = {
   abstractExample: '抄録の書き出し例',
   blankRowsOk: '表の空の行',
   permission: '先生の許可',
+  groups: '所属',
+  checkById: '点検表の順番',
+  checkOneColumn: '点検表の並べ方',
   notice: 'お知らせ',
 }
 const OTHER = 'そのほかの設定'
@@ -96,7 +99,9 @@ function normTop(key: string, value: unknown): unknown {
 /** コースの項目の、意味の同じ書き方をそろえる（空のお知らせ・書き出し例・ひな形は「ない」と同じ） */
 function normCourse(key: string, value: unknown): unknown {
   if (key === 'notice' || key === 'abstractExample') return value === '' ? undefined : value
-  if (key === 'hidden' || key === 'blankRowsOk') return value ? true : undefined
+  if (key === 'hidden' || key === 'blankRowsOk' || key === 'noSubtitle' || key === 'checkById' || key === 'checkOneColumn') return value ? true : undefined
+  // 所属：空の一覧は「使わない」と同じ
+  if (key === 'groups') return Array.isArray(value) && value.length === 0 ? undefined : value
   if (key === 'template') return Array.isArray(value) && value.length === 0 ? undefined : value
   // 先生の許可：切ってある項目・項目のない入れ物は「使わない」と同じ
   if (key === 'permission') {
@@ -201,7 +206,7 @@ const TOP_TARGETS: Record<string, string> = {
   studentIdPattern: 'd-studentId',
 }
 /** 「この欄へ」で入る欄の id（コースの項目） */
-const COURSE_TARGETS: Record<string, string> = { name: 'name', advisors: 'advisor', subtitleTemplate: 'before', noSubtitle: 'subtitle-use', notice: 'notice', blankRowsOk: 'blankrows', permission: 'perm-abstract' }
+const COURSE_TARGETS: Record<string, string> = { name: 'name', advisors: 'advisor', subtitleTemplate: 'before', noSubtitle: 'subtitle-use', notice: 'notice', blankRowsOk: 'blankrows', permission: 'perm-abstract', groups: 'group', checkById: 'sheet-order', checkOneColumn: 'sheet-columns' }
 
 /** 変更前・変更後に出す、短い文字（長い文は縮める。空は「（なし）」） */
 function brief(v: unknown): string | undefined {
@@ -237,6 +242,9 @@ function courseValue(course: Course, key: string): string | undefined {
   if (key === 'blankRowsOk') return course.blankRowsOk ? '空のままでよい' : '空いている所に数える'
   if (key === 'permission') return permissionText(course)
   if (key === 'noSubtitle') return course.noSubtitle ? '使わない' : '使う'
+  if (key === 'checkById') return course.checkById ? '学籍番号順' : '五十音順'
+  if (key === 'checkOneColumn') return course.checkOneColumn ? 'いつも縦1列' : '26人からは2列'
+  if (key === 'groups') return brief(course.groups ?? [])
   if (key === 'name' || key === 'advisors' || key === 'subtitleTemplate' || key === 'notice') return brief(course[key as keyof Course])
   return undefined
 }

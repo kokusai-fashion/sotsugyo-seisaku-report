@@ -17,6 +17,8 @@ interface CellFormat {
   fontSize?: number
   color?: string
   wrap?: boolean
+  /** 上の線（所属の境の太い線。null・なしは線なし） */
+  borderTop?: string | null
 }
 /** 守った範囲（Protection の簡易版） */
 interface FakeProtection {
@@ -129,6 +131,8 @@ class FakeSheet {
     while (this.cols.length < after) this.cols.push({})
     this.cols.splice(after, 0, ...Array.from({ length: n }, () => ({})))
   }
+  insertColumnAfter = (after: number) => this.insertColumnsAfter(after, 1)
+  deleteColumn = (pos: number) => this.deleteColumns(pos, 1)
   deleteColumns = (pos: number, n: number) => {
     for (const row of this.rows) row.splice(pos - 1, n)
     for (const row of this.fmts) row.splice(pos - 1, n)
@@ -157,6 +161,12 @@ class FakeSheet {
       setFontSize: (n: number) => (each((f) => (f.fontSize = n)), range),
       setFontColor: (c: string) => (each((f) => (f.color = c)), range),
       setWrap: (on: boolean) => (each((f) => (f.wrap = on)), range),
+      // 上の線だけを覚える（true：引く、false：消す、null：そのまま）
+      setBorder: (top: boolean | null, ..._rest: unknown[]) => {
+        const style = (_rest[6] as string | undefined) ?? 'SOLID'
+        if (top !== null) each((f) => (f.borderTop = top ? style : null))
+        return range
+      },
       setHorizontalAlignment: () => range,
       setVerticalAlignment: () => range,
       // 守ると、はじめは共有している人（先生）も書ける（本物と同じ。ツールが外す）
@@ -372,6 +382,7 @@ function load(project: 'admin-project' | 'api-project', { values = {}, props = {
       newDataValidation: validationBuilder,
       newConditionalFormatRule: ruleBuilder,
       ProtectionType: { RANGE: 'RANGE', SHEET: 'SHEET' },
+      BorderStyle: { SOLID: 'SOLID', SOLID_MEDIUM: 'SOLID_MEDIUM' },
     },
     DriveApp: {
       Permission: { OWNER: 'OWNER', EDIT: 'EDIT', VIEW: 'VIEW' },
@@ -1661,7 +1672,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
   it('register：学生の名簿に入れる・直す（年度と学籍番号で1行）。形の正しくないもの・ほかの学生の学籍番号は断る。教職員の試しは別の行', () => {
     const a = setup()
     expect(register(a, 0)).toEqual({ ok: true })
-    expect(roster()[0]).toEqual(['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時'])
+    expect(roster()[0]).toEqual(['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時', '所属', '所属の日時'])
     expect(rosterOf(0).slice(0, 8)).toEqual([2026, FILM.id, '00ZZ0100', '青木', '美咲', 'アオキ', 'ミサキ', ''])
     expect(rosterOf(0)[11]).toBeInstanceOf(Date)
     // 直す：同じ行（「wu」＋学籍番号のアドレスも同じ学生）
@@ -1760,7 +1771,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     admin().ensureCheckSheet(2026, FILM.id)
     // 前の版で作った点検表のふり：1行目は前の文・灰色の小さな字、見た目の決まりは前の版（v2）
     tab().getRange(1, 1).setValue(OLD_TOP_NOTE).setFontSize(9).setFontColor('#7a8088').setFontWeight(null).setBackground(null)
-    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":7', '{"v":3'))
+    for (const k of [...stored.keys()].filter((k) => k.startsWith('checkLayout:'))) stored.set(k, stored.get(k)!.replace('{"v":8', '{"v":3'))
     admin().syncCheckSheets()
     expect(tab().rows[0][0]).toBe(TOP_NOTE)
     expect(tab().fmtAt(0, 0)).toMatchObject({ fontSize: 12, color: '#5c3b00', bold: true, background: '#fff1c2' })
@@ -1858,7 +1869,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     register(a, 0)
     register(a, 1)
     // 点検表がまだない：row は null
-    expect(status(a, 0)).toEqual({ ok: true, enabled: { abstract: false, final: false }, row: null })
+    expect(status(a, 0)).toEqual({ ok: true, enabled: { abstract: false, final: false }, row: null, group: '', groupAt: '' })
     user = 'sensei@example.ac.jp'
     admin().saveTeacherEdits(2026, { permissions: { [FILM.id]: { abstract: true } } })
     admin().ensureCheckSheet(2026, FILM.id)
@@ -1883,10 +1894,12 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
         abstractOk: { at: '2026-12-15T03:00:00.000Z', by: '梶田' },
         finalOk: { at: '', by: '' },
       },
+      group: '',
+      groupAt: '',
     })
     expect(status(a, 1).row).toMatchObject({ abstractOk: null, finalOk: null })
     // 名簿にない学生：row は null。ほかの学生の学籍番号では問い合わせられない
-    expect(status(a, 5)).toEqual({ ok: true, enabled: { abstract: false, final: false }, row: null })
+    expect(status(a, 5)).toEqual({ ok: true, enabled: { abstract: false, final: false }, row: null, group: '', groupAt: '' })
     expect(post(a, { action: 'checkStatus', token: tokenOf(mailOf(0)), year: 2026, studentId: idOf(1) }).ok).toBe(false)
     // 先生が回の列を足した・名前を変えた（見出しのある列は、どれも回の列）
     const { h, header } = layoutOf()
@@ -2065,6 +2078,74 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(g.blockLayout_(25)).toEqual({ count: 25, blocks: 1, perBlock: 25 })
     expect(g.blockLayout_(26)).toEqual({ count: 26, blocks: 2, perBlock: 13 })
     expect(g.blockLayout_(27)).toEqual({ count: 27, blocks: 2, perBlock: 14 })
+    // いつも縦1列（依頼者の選択 2026-11-09 mockups/v119）
+    expect(g.blockLayout_(40, true)).toEqual({ count: 40, blocks: 1, perBlock: 40 })
+    // 所属ごと（登録した順。選んでいない学生は後ろ）・学籍番号順。順番を変えたあと（manualOk が false）は、先生が直した並びを使わない
+    const course = { id: 'c', groups: ['②班', '①班'], checkById: true }
+    const gs = (id: string, kana: string, group: string, order = 0) => ({ ...st(id, kana, order), group })
+    expect(ids(g.orderStudents_([gs('03', 'ア', '①班'), gs('02', 'イ', '②班'), gs('01', 'ウ', ''), gs('04', 'エ', '②班')], course))).toEqual(['02', '04', '03', '01'])
+    const fixed = [gs('04', 'エ', '②班', 1), gs('02', 'イ', '②班', 2)]
+    expect(ids(g.orderStudents_(fixed, course, true))).toEqual(['04', '02'])
+    expect(ids(g.orderStudents_(fixed, course, false))).toEqual(['02', '04'])
+  })
+
+  it('所属（依頼者の選択 2026-11-09 mockups/v119）：所属ごと・学籍番号順・いつも縦1列。所属の列と境の線。先生が直した所属は、学生の古い所属で上書きしない', () => {
+    setup()
+    user = 'sensei@example.ac.jp'
+    // 先生も、所属・順番・並べ方を保存できる（同じ名前の所属は断る）
+    expect(() => admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: ['①班', '①班'], checkById: true, checkOneColumn: true } } })).toThrow('「①班」が2つあります')
+    admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: ['①班', '②班'], checkById: true, checkOneColumn: true } } })
+    let a = api()
+    // 26人：偶数は①班・奇数は②班、最後の1人はまだ選んでいない
+    const chosenAt = '2020-01-01T00:00:00.000Z'
+    for (let i = 0; i < 26; i++) expect(register(a, i, i === 25 ? { group: '', groupAt: '' } : { group: i % 2 ? '②班' : '①班', groupAt: chosenAt })).toEqual({ ok: true })
+    expect(rosterOf(0).slice(12, 14)).toEqual(['①班', chosenAt])
+    admin().ensureCheckSheet(2026, FILM.id)
+    const { header, starts } = layoutOf()
+    // いつも縦1列（26人でも1段）。所属の列は番号の右
+    expect(starts).toHaveLength(1)
+    expect(header.slice(0, 3)).toEqual(['番号', '所属', '氏名'])
+    const s = sheetStudents()
+    const rows = Object.entries(s)
+      .sort((x, y) => x[1].row - y[1].row)
+      .map(([k]) => k)
+    const evens = Array.from({ length: 13 }, (_, k) => idOf(k * 2))
+    const odds = Array.from({ length: 12 }, (_, k) => idOf(k * 2 + 1))
+    expect(rows).toEqual([...evens, ...odds, idOf(25)])
+    expect([s[idOf(0)].cells['所属'], s[idOf(1)].cells['所属'], s[idOf(25)].cells['所属']]).toEqual(['①班', '②班', ''])
+    // 所属の境（②班の最初・選んでいない学生）の上に太い線
+    expect(tab().fmtAt(s[idOf(1)].row, 0).borderTop).toBe('SOLID_MEDIUM')
+    expect(tab().fmtAt(s[idOf(25)].row, 0).borderTop).toBe('SOLID_MEDIUM')
+    expect(tab().fmtAt(s[idOf(2)].row, 0).borderTop ?? null).toBeNull()
+
+    // 先生が直す：学生0 を②班に（名簿の所属と日時。学生のツールは、点検表の様子を聞いたときに受け取る）
+    admin().saveStudentOrder(2026, FILM.id, null, { [idOf(0)]: '②班' })
+    expect(rosterOf(0)[12]).toBe('②班')
+    const fixedAt = String(rosterOf(0)[13])
+    expect(fixedAt > chosenAt).toBe(true)
+    expect(sheetStudents()[idOf(0)].cells['所属']).toBe('②班')
+    a = api()
+    expect(status(a, 0)).toMatchObject({ group: '②班', groupAt: fixedAt })
+    // 学生の別の端末から、直す前の所属（古い日時）が届いても、上書きしない
+    expect(register(a, 0, { group: '①班', groupAt: chosenAt })).toEqual({ ok: true })
+    expect(rosterOf(0)[12]).toBe('②班')
+    // 学生があとで選び直した（新しい日時）なら書く
+    expect(register(a, 0, { group: '①班', groupAt: new Date(Date.now() + 60000).toISOString() })).toEqual({ ok: true })
+    expect(rosterOf(0)[12]).toBe('①班')
+    // 登録していない所属は、まだ選んでいないことにする。前の版のツール（所属を送らない）は、名簿の所属を変えない
+    expect(register(a, 2, { group: 'ない班', groupAt: new Date().toISOString() })).toEqual({ ok: true })
+    expect(rosterOf(2)[12]).toBe('')
+    expect(register(a, 4)).toEqual({ ok: true })
+    expect(rosterOf(4)[12]).toBe('①班')
+    // 先生は、コースに登録していない所属には直せない
+    expect(() => admin().saveStudentOrder(2026, FILM.id, null, { [idOf(1)]: 'ない班' })).toThrow('所属の形が正しくありません')
+    // 並べ替えの窓の一覧には、所属が付く
+    expect(admin().listStudents(2026, FILM.id).find((e: { studentId: string }) => e.studentId === idOf(1))).toMatchObject({ group: '②班' })
+    // 所属を全部消すと、所属の列もなくなる
+    admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: false, checkOneColumn: false } } })
+    admin().syncCheckSheets()
+    expect(layoutOf().header).not.toContain('所属')
+    expect(layoutOf().starts).toHaveLength(2)
   })
 
   it('学生の並びを直す：listStudents・saveStudentOrder（名簿の「並び」と点検表の順）。null でふりがなの順に戻す。コースを変えた学生の並びは消す', () => {
@@ -2072,7 +2153,7 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     for (const i of [4, 3, 2, 1, 0]) register(a, i)
     admin().ensureCheckSheet(2026, FILM.id)
     user = 'sensei@example.ac.jp'
-    expect(admin().listStudents(2026, FILM.id)).toEqual([0, 1, 2, 3, 4].map((i) => ({ studentId: idOf(i), name: nameOf(i), kana: `${PEOPLE[i][2]} ${PEOPLE[i][3]}`, moved: false })))
+    expect(admin().listStudents(2026, FILM.id)).toEqual([0, 1, 2, 3, 4].map((i) => ({ studentId: idOf(i), name: nameOf(i), kana: `${PEOPLE[i][2]} ${PEOPLE[i][3]}`, group: '', moved: false })))
     // 遠藤（4番目）を2番目に
     const order = [0, 3, 1, 2, 4].map(idOf)
     const saved = admin().saveStudentOrder(2026, FILM.id, order)

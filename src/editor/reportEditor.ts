@@ -4202,6 +4202,15 @@ export class ReportEditor {
     this.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, ...next, name } }))
   }
 
+  /**
+   * 所属を選ぶ（はじめての案内・表紙のコース欄の「コースを選ぶ」から。依頼者の選択 2026-11-09 mockups/v119）。変わっていなければ何もしない。
+   * at：決めた日時（先生が管理ページで直した所属を受け取ったときは、その日時。学生が選んだときは今）
+   */
+  setGroup(group: string, at = new Date().toISOString()): void {
+    if (this.report.basicInfo.group === group) return
+    this.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, group, groupAt: at } }))
+  }
+
   /** 本文を書き始めているか（そのコースのひな形のままでなければ、書き始めているとみなす） */
   bodyWritten(): boolean {
     return bodyWritten(this.report, this.config)

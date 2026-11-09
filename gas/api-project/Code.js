@@ -432,6 +432,10 @@ function sheetWithHeader_(name, header) {
     sheet.appendRow(header)
     sheet.getRange(1, 1, 1, header.length).setFontWeight('bold')
     sheet.setFrozenRows(1)
+  } else {
+    // あとから右に足した列（名簿の「所属」など）の見出しが、前からあるシートにまだなければ書く（ほかの見出しはそのまま）
+    const top = sheet.getRange(1, 1, 1, header.length).getValues()[0]
+    if (top.some((v, i) => v === '' && header[i])) sheet.getRange(1, 1, 1, header.length).setValues([top.map((v, i) => (v === '' ? header[i] : v))]).setFontWeight('bold')
   }
   return sheet
 }
@@ -560,9 +564,14 @@ function errorLog_(request) {
 
 const SHEET_ROSTER = '学生の名簿'
 /** 学生の名簿の列（管理ページ gas/admin-project/Code.js の ROSTER_HEADER と同じ）。年度と学籍番号で1行 */
-const ROSTER_HEADER = ['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時']
+const ROSTER_HEADER = ['年度', 'コース', '学籍番号', '姓', '名', 'セイ', 'メイ', '並び', 'PDF の ID', 'PDF の日時', '書き換え日時', '更新日時', '所属', '所属の日時']
 /** 名簿の列の番号（0 から。管理ページの ROSTER と同じ） */
-const ROSTER = { year: 0, course: 1, id: 2, familyName: 3, givenName: 4, familyKana: 5, givenKana: 6, order: 7, pdfId: 8, pdfAt: 9, touchedAt: 10, updatedAt: 11 }
+/**
+ * group：所属（制作グループなど。依頼者の選択 2026-11-09 mockups/v119）。groupAt：所属を決めた日時（ISO の文字。学生が選んだ・先生が直した）。
+ * 学生も先生も所属を直せるので、新しく決めた方を使う（学生の別の端末から、先生が直す前の所属を送ってきても、上書きしない）。
+ * 前の名簿にはない列なので、いちばん右に足した
+ */
+const ROSTER = { year: 0, course: 1, id: 2, familyName: 3, givenName: 4, familyKana: 5, givenKana: 6, order: 7, pdfId: 8, pdfAt: 9, touchedAt: 10, updatedAt: 11, group: 12, groupAt: 13 }
 /** 管理ページが作った点検表の一覧（年度・コース・スプレッドシートの ID） */
 const SHEET_CHECK_SHEETS = '点検表'
 /** 点検表の中のシートの名前（なければ、いちばん左のシート） */
@@ -575,7 +584,9 @@ const BROKEN_NOTE = '並びが崩れています'
  * 点検表の見出し（空白・改行を除いたもの。管理ページの CHECK_COLUMNS と同じ）。
  * これ以外の見出しのある列は、回の列（1回目・2回目…。先生がコースで自由に足す・消す・名前を変える）
  */
-const CHECK_COLUMNS = { no: '番号', name: '氏名', pdf: '最新PDF', abstractOk: '抄録許可', finalOk: '最終提出可', kyomu: '教務提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
+const CHECK_COLUMNS = { no: '番号', group: '所属', name: '氏名', pdf: '最新PDF', abstractOk: '抄録許可', finalOk: '最終提出可', kyomu: '教務提出', note: '知らせ', key: '学籍番号', abstractRec: '抄録許可の記録', finalRec: '最終提出可の記録' }
+/** 所属の名前の長さの上限（管理ページの LIMITS.group と同じ） */
+const GROUP_MAX = 30
 
 function withLock_(fn) {
   const lock = LockService.getScriptLock()
@@ -686,6 +697,15 @@ function renameInCheckSheet_(year, courseId, key, before, after) {
   }
 }
 
+/** 端末から届いた日時（ISO の文字）を、名簿に書く形に（読めなければ ''。先の日時（端末の時計のずれ）は今にする） */
+function isoNotAfterNow_(text) {
+  if (!text) return ''
+  const at = new Date(text)
+  if (isNaN(at.getTime())) return ''
+  const now = new Date()
+  return (at.getTime() > now.getTime() + 5 * 60 * 1000 ? now : at).toISOString()
+}
+
 /** 名簿の新しい行（年度と鍵だけ。ほかは空） */
 function blankRosterRow_(year, key) {
   const row = ROSTER_HEADER.map(() => '')
@@ -695,19 +715,28 @@ function blankRosterRow_(year, key) {
 }
 
 /**
- * 学生のツールから届く：{ action: 'register', token, year, courseId, studentId, familyName, givenName, familyKana, givenKana }
- * （ツールは、コースと氏名の4つの欄がそろったとき・変わったときに送る）。名簿に入れる・直す。答え：{ ok: true } ／ { ok: false, error }
+ * 学生のツールから届く：{ action: 'register', token, year, courseId, studentId, familyName, givenName, familyKana, givenKana, group }
+ * （ツールは、コースと氏名の4つの欄がそろったとき・変わったときに送る）。名簿に入れる・直す。答え：{ ok: true } ／ { ok: false, error }。
+ * group：所属（依頼者の選択 2026-11-09 mockups/v119）。コースに登録してある所属でなければ ''。前の版のツールは送らない（そのときは名簿の所属を変えない）。
+ * groupAt：学生が所属を選んだ日時（ISO）。名簿の所属の日時（先生が直した日時など）より古ければ、所属は書かない（コースを変えたときは書く）
  */
 function register_(request) {
   const year = String(request.year)
   const courseId = field_(request.courseId, 100)
   const parts = ['familyName', 'givenName', 'familyKana', 'givenKana'].map((k) => field_(request[k], NAME_PART_MAX))
-  if (!/^\d{4}$/.test(year) || !courseId || parts.some((v) => v === null)) return { ok: false, error: '送られた内容の形が正しくありません' }
+  const sentGroup = Object.prototype.hasOwnProperty.call(request, 'group')
+  const groupText = field_(request.group, GROUP_MAX)
+  const groupAtText = field_(request.groupAt, 40)
+  if (!/^\d{4}$/.test(year) || !courseId || parts.some((v) => v === null) || groupText === null || groupAtText === null) return { ok: false, error: '送られた内容の形が正しくありません' }
   const names = parts.map(namePart_)
   if (!names[0] && !names[1]) return { ok: false, error: '氏名が空です' }
   const who = signedIn_(request, year)
   if (!who.ok) return who
-  if (!courseOf_(who.config, courseId)) return { ok: false, error: 'そのコースは、この年度の設定にありません' }
+  const course = courseOf_(who.config, courseId)
+  if (!course) return { ok: false, error: 'そのコースは、この年度の設定にありません' }
+  const groups = Array.isArray(course.groups) ? course.groups : []
+  const group = groups.indexOf(groupText.trim()) >= 0 ? groupText.trim() : ''
+  const groupAt = isoNotAfterNow_(groupAtText)
   withLock_(() => {
     const sheet = sheetWithHeader_(SHEET_ROSTER, ROSTER_HEADER)
     const found = rosterRow_(sheet, year, who.key)
@@ -718,6 +747,9 @@ function register_(request) {
       // コースを変えたら、前のコースで先生が決めた並びは使わない（新しいコースでは、ふりがなの順）
       if (!sameCourse) sheet.getRange(found.index, ROSTER.order + 1).setValue('')
       sheet.getRange(found.index, ROSTER.updatedAt + 1).setValue(now)
+      // 所属は、名簿の所属より新しく決めたときだけ（先生が直したあとに、学生の別の端末が前の所属を送ってきても、上書きしない）。コースを変えたときは書く
+      const rosterAt = String(found.values[ROSTER.groupAt] === undefined ? '' : found.values[ROSTER.groupAt]).trim()
+      if (sentGroup && (!sameCourse || !rosterAt || (groupAt && groupAt >= rosterAt))) sheet.getRange(found.index, ROSTER.group + 1, 1, 2).setValues([[text_(group), text_(group ? groupAt : '')]])
       // 氏名を直したら、点検表の氏名もすぐ直す（点検表の氏名と名簿の氏名が違う行は「並びが崩れた」とみなすため。点検表の氏名が前の氏名のときだけ）
       const before = rosterSheetName_(found.values, who.key)
       const after = rosterSheetName_([found.values[ROSTER.year], courseId, who.key].concat(names), who.key)
@@ -727,6 +759,8 @@ function register_(request) {
       row[ROSTER.course] = text_(courseId)
       names.forEach((n, i) => (row[ROSTER.familyName + i] = text_(n)))
       row[ROSTER.updatedAt] = now
+      row[ROSTER.group] = text_(group)
+      row[ROSTER.groupAt] = text_(group ? groupAt : '')
       sheet.appendRow(row)
     }
   })
@@ -885,8 +919,10 @@ function checkStatus_(request) {
   const enabled = { abstract: permission.abstract === true, final: permission.final === true }
   const sheetId = course && found ? checkSheetIdOf_(book, year, courseId) : ''
   const place = sheetId ? findCheckRow_(sheetId, who.key) : null
-  // 氏名が名簿と違う行（並びが崩れた行）は、許可も回の記録も渡さない（row: null。次の写しで「並びが崩れています」と出る）
-  return { ok: true, enabled: enabled, row: place && validPlace_(place, found.values, who.key) ? statusOf_(place) : null }
+  // 氏名が名簿と違う行（並びが崩れた行）は、許可も回の記録も渡さない（row: null。次の写しで「並びが崩れています」と出る）。
+  // 名簿の所属と、決めた日時も返す（先生が管理ページで直した所属を、学生のツールが受け取る：依頼者の選択 2026-11-09）
+  const cell = (i) => (found ? String(found.values[i] === undefined || found.values[i] === null ? '' : found.values[i]).trim() : '')
+  return { ok: true, enabled: enabled, row: place && validPlace_(place, found.values, who.key) ? statusOf_(place) : null, group: cell(ROSTER.group), groupAt: cell(ROSTER.groupAt) }
 }
 
 /**

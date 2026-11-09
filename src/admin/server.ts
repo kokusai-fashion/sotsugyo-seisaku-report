@@ -78,6 +78,9 @@ export type TemplateSet = Record<string, { template: TemplateBlock[]; abstractEx
 /** コースごとの先生の許可（コースID → 抄録・提出用の PDF。依頼者の選択 2026-11-04） */
 export type PermissionSet = Record<string, { abstract: boolean; final: boolean }>
 
+/** コースごとの所属・点検表の順番・並べ方（コースID → 設定。先生も変えられる：依頼者の選択 2026-11-09 mockups/v119） */
+export type SheetSettingSet = Record<string, { groups: string[]; checkById: boolean; checkOneColumn: boolean }>
+
 /** 「学生の並びを直す」の窓の1行（点検表の並び。moved：手で動かした。studentId が「staff:」で始まるのは教職員の試し） */
 export interface StudentEntry {
   studentId: string
@@ -85,6 +88,8 @@ export interface StudentEntry {
   name: string
   /** セイ メイ */
   kana: string
+  /** 学生が選んだ所属（所属を使わないコース・まだ選んでいない学生は ''） */
+  group: string
   moved: boolean
 }
 
@@ -112,7 +117,7 @@ export interface AdminServer {
    * 先生の画面の保存：ひな形・お知らせ・書き間違えやすい語・先生の許可を、まとめて1回で。
    * expectedUpdatedAt：画面を開いたときの更新日時（そのあとにほかの人が保存していたら、保存せずに知らせる）
    */
-  saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[]; permissions?: PermissionSet; subtitles?: Record<string, boolean> }, expectedUpdatedAt?: string): Promise<AdminState>
+  saveTeacherEdits(year: number, edits: { templates?: TemplateSet; notices?: Record<string, string>; words?: WordCheck[]; permissions?: PermissionSet; subtitles?: Record<string, boolean>; sheets?: SheetSettingSet }, expectedUpdatedAt?: string): Promise<AdminState>
   /**
    * コースの点検表を作る（管理者・先生。まだ点検表がないときに「点検表を開く」から）。PDF の控えのコースのフォルダに作り、名簿から写してから、場所を返す。
    * もうあれば、すぐ場所を返す（gas/admin-project の ensureCheckSheet。依頼者の選択 2026-11-04）
@@ -125,7 +130,8 @@ export interface AdminServer {
   /** 「学生の並びを直す」の窓の一覧（点検表の並び） */
   listStudents(year: number, courseId: string): Promise<StudentEntry[]>
   /** 「この並びにする」（studentIds が null なら、ふりがなの順に戻す）。返り値は直したあとの一覧 */
-  saveStudentOrder(year: number, courseId: string, studentIds: string[] | null): Promise<StudentEntry[]>
+  /** groups：先生が直した学生の所属（学籍番号 → 所属。依頼者の選択 2026-11-09：学生が間違えて選んだときに、先生も直せる） */
+  saveStudentOrder(year: number, courseId: string, studentIds: string[] | null, groups?: Record<string, string>): Promise<StudentEntry[]>
   getMembers(): Promise<Member[]>
   /** mustExist：一覧の役割を変えるとき（登録されていない人は書き足さない） */
   addMember(email: string, role: Member['role'], memo: string, mustExist?: boolean): Promise<Member[]>
@@ -220,7 +226,7 @@ function appsScriptServer(): AdminServer {
     updateFeedback: (id, status, reply, memo, notify) => call('updateFeedback', id, status, reply, memo, notify),
     ensureCheckSheet: (year, courseId) => call('ensureCheckSheet', year, courseId),
     listStudents: (year, courseId) => call('listStudents', year, courseId),
-    saveStudentOrder: (year, courseId, studentIds) => call('saveStudentOrder', year, courseId, studentIds),
+    saveStudentOrder: (year, courseId, studentIds, groups) => call('saveStudentOrder', year, courseId, studentIds, groups ?? {}),
     getPdfFolder: () => call('getPdfFolder'),
     setPdfFolder: (link) => call('setPdfFolder', link),
   }

@@ -31,6 +31,19 @@ describe('validateConfig', () => {
     expect(errors({ ...currentConfig, courses: [{ ...course, noSubtitle: 'yes' as never }, ...currentConfig.courses.slice(1)] })).toEqual(['courses.0'])
   })
 
+  it('所属（mockups/v119）：文字の並びで20個まで・30字まで・空の名前なし・同じ名前は1つ。崩れていたら、学生のツールでは所属を使わない', () => {
+    const course = currentConfig.courses[0]
+    const withCourse = (patch: object) => ({ ...currentConfig, courses: [{ ...course, ...patch }, ...currentConfig.courses.slice(1)] })
+    expect(validateConfig(withCourse({ groups: ['①班', '②班'], checkById: true, checkOneColumn: true }))).toEqual([])
+    expect(errors(withCourse({ groups: ['①班', '①班'] }))).toEqual(['courses.0'])
+    expect(errors(withCourse({ groups: ['あ'.repeat(31)] }))).toEqual(['courses.0'])
+    expect(errors(withCourse({ groups: [' '] }))).toEqual(['courses.0'])
+    expect(errors(withCourse({ groups: 'ab' as never }))).toEqual(['courses.0'])
+    expect(errors(withCourse({ checkById: 'yes' as never }))).toEqual(['courses.0'])
+    expect(repairConfig(withCourse({ groups: ['①班', '①班'] })).courses[0].groups).toBeUndefined()
+    expect(repairConfig(withCourse({ groups: ['①班'] })).courses[0].groups).toEqual(['①班'])
+  })
+
   it('表示するコースが1つもないと公開できない。指導教員が未登録なら警告', () => {
     const hiddenOnly = { ...currentConfig, courses: currentConfig.courses.map((c) => ({ ...c, hidden: true })) }
     expect(errors(hiddenOnly)).toEqual(['courses'])

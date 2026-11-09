@@ -1,4 +1,8 @@
+import type { Course } from '../config'
 import type { StudentEntry } from './server'
+
+/** 2人の学生の比べ方（前なら負） */
+export type CompareStudents = (a: StudentEntry, b: StudentEntry) => number
 
 /**
  * 「学生の並びを直す」の窓（mockups/v103 案1。依頼者の選択 2026-11-04）の並びの決め方。
@@ -29,16 +33,37 @@ export function compareStudents(a: StudentEntry, b: StudentEntry): number {
   return fa.localeCompare(fb, 'ja') || ga.localeCompare(gb, 'ja') || a.name.localeCompare(b.name, 'ja') || (a.studentId < b.studentId ? -1 : a.studentId > b.studentId ? 1 : 0)
 }
 
+/** 学籍番号の順に比べる（学籍番号が同じことはないが、念のため、ふりがなの順で。教職員の試しの行は後ろ） */
+export function compareById(a: StudentEntry, b: StudentEntry): number {
+  const staff = (s: StudentEntry) => (s.studentId.startsWith('staff:') ? 1 : 0)
+  return staff(a) - staff(b) || (a.studentId < b.studentId ? -1 : a.studentId > b.studentId ? 1 : 0) || compareStudents(a, b)
+}
+
 /**
- * 「手で動かした」学生：ふりがなの順に並んでいる、いちばん長いつながりに入らない学生。
- * 1人を動かすと、その1人だけに印が付く（ほかの学生は、ずれてもふりがなの順のまま）
+ * コースの点検表の並べ方（依頼者の選択 2026-11-09 mockups/v119）：所属があれば所属ごと（先生が登録した順。所属を選んでいない学生は後ろ）、
+ * その中は五十音順（ふりがなの順）か学籍番号順。サーバー（gas/admin-project/Code.js の comparerFor_）と同じ決め方
  */
-export function movedFlags(list: StudentEntry[]): boolean[] {
+export function comparerFor(course: Pick<Course, 'groups' | 'checkById'> | undefined): CompareStudents {
+  const groups = course?.groups ?? []
+  const inner = course?.checkById ? compareById : compareStudents
+  if (!groups.length) return inner
+  const rank = (s: StudentEntry) => {
+    const i = groups.indexOf(s.group)
+    return i < 0 ? groups.length : i
+  }
+  return (a, b) => rank(a) - rank(b) || inner(a, b)
+}
+
+/**
+ * 「手で動かした」学生：決まった順（compare。はじめはふりがなの順）に並んでいる、いちばん長いつながりに入らない学生。
+ * 1人を動かすと、その1人だけに印が付く（ほかの学生は、ずれても決まった順のまま）
+ */
+export function movedFlags(list: StudentEntry[], compare: CompareStudents = compareStudents): boolean[] {
   const len = list.map(() => 1)
   const prev = list.map(() => -1)
   for (let i = 0; i < list.length; i++) {
     for (let j = 0; j < i; j++) {
-      if (compareStudents(list[j], list[i]) <= 0 && len[j] + 1 > len[i]) {
+      if (compare(list[j], list[i]) <= 0 && len[j] + 1 > len[i]) {
         len[i] = len[j] + 1
         prev[i] = j
       }
@@ -51,14 +76,14 @@ export function movedFlags(list: StudentEntry[]): boolean[] {
   return keep.map((k) => !k)
 }
 
-/** ふりがなの順に並べ直した一覧（「ふりがなの順に戻す」） */
-export function byKana(list: StudentEntry[]): StudentEntry[] {
-  return [...list].sort(compareStudents)
+/** 決まった順（compare。はじめはふりがなの順）に並べ直した一覧（「五十音順に戻す」「学籍番号順に戻す」） */
+export function byKana(list: StudentEntry[], compare: CompareStudents = compareStudents): StudentEntry[] {
+  return [...list].sort(compare)
 }
 
 /** ふりがなの順のままか（このときは、名簿の並びを空にして保存する：あとから来た学生も、ふりがなの所に入る） */
-export function isKanaOrder(list: StudentEntry[]): boolean {
-  return list.every((s, i) => i === 0 || compareStudents(list[i - 1], s) <= 0)
+export function isKanaOrder(list: StudentEntry[], compare: CompareStudents = compareStudents): boolean {
+  return list.every((s, i) => i === 0 || compare(list[i - 1], s) <= 0)
 }
 
 /** 学籍番号の欄の字（教職員の試しの行は「試し」） */

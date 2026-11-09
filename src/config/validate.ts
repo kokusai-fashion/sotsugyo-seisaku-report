@@ -18,7 +18,7 @@ export interface ConfigProblem {
  * 文字数・数の上限（管理ページのサーバー gas/admin-project/Code.js の LIMITS と同じ値にする）。
  * tableColumns・tableRows：ひな形の表の列の数と、見出しの下の行の数（学生の表と同じ：model/table.ts の TABLE_SIZE）
  */
-export const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9 }
+export const LIMITS = { blocks: 100, name: 100, hint: 300, text: 500, abstractExample: 500, notice: 1000, words: 300, word: 50, wordNote: 200, tableColumns: 6, tableRows: 9, groups: 20, group: 30 }
 
 const BLOCK_LABELS: Record<TemplateBlock['type'], string> = { chapter: '大見出し', subheading: '中見出し', paragraph: '説明', figure: '図の枠', materialTable: '素材表', pageBreak: '改ページ', table: '表' }
 /** 行の呼び名の種類（'text'：書き出しの文の段落。mockups/v70） */
@@ -272,7 +272,13 @@ export function validateConfig(config: YearConfig, options: ValidateOptions = {}
       return
     }
     const course = c as unknown as Course
-    if ((course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') || (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean')) {
+    if (
+      (course.blankRowsOk !== undefined && typeof course.blankRowsOk !== 'boolean') ||
+      (course.noSubtitle !== undefined && typeof course.noSubtitle !== 'boolean') ||
+      (course.checkById !== undefined && typeof course.checkById !== 'boolean') ||
+      (course.checkOneColumn !== undefined && typeof course.checkOneColumn !== 'boolean') ||
+      (course.groups !== undefined && !(Array.isArray(course.groups) && course.groups.every(isText)))
+    ) {
       error(field, `${i + 1}番目のコースの形が正しくありません`)
       return
     }
@@ -301,6 +307,22 @@ function courseProblems(course: Course): string[] {
   if (example) problems.push(`の抄録の書き出し例${example}`)
   const notice = optionalTextProblem(course.notice, LIMITS.notice)
   if (notice) problems.push(`のお知らせ${notice}`)
+  if (Array.isArray(course.groups)) problems.push(...groupProblems(course.groups).map((p) => `の所属${p}`))
+  return problems
+}
+
+/**
+ * 所属の名前の問題（多すぎる・空の名前・長すぎる・同じ名前が2つ。管理ページのサーバー gas/admin-project/Code.js の checkGroups_ と同じ決まり）。
+ * 学生のツールでは、問題があれば所属を使わない（repairConfig）
+ */
+export function groupProblems(groups: string[]): string[] {
+  const problems: string[] = []
+  if (groups.length > LIMITS.groups) problems.push(`が多すぎます（${LIMITS.groups}個まで）`)
+  if (groups.some((g) => !g.trim())) problems.push('に、空の名前があります')
+  const long = groups.find((g) => g.length > LIMITS.group)
+  if (long) problems.push(`「${long}」が長すぎます（${LIMITS.group}字まで）`)
+  const dup = groups.find((g, i) => groups.indexOf(g) !== i)
+  if (dup) problems.push(`「${dup}」が2つあります`)
   return problems
 }
 
@@ -322,6 +344,8 @@ export function repairConfig(config: YearConfig): YearConfig {
         if (course.template !== undefined && course.template !== null && templateProblems(course.template).length > 0) delete course.template
         if (optionalTextProblem(course.abstractExample, LIMITS.abstractExample)) delete course.abstractExample
         if (optionalTextProblem(course.notice, LIMITS.notice)) delete course.notice
+        // 所属が崩れていたら、所属を使わない（学生に選ばせない）
+        if (course.groups !== undefined && !(Array.isArray(course.groups) && course.groups.every(isText) && groupProblems(course.groups).length === 0)) delete course.groups
         return course
       })
     : config.courses

@@ -18,6 +18,21 @@ export function usesSubtitle(config: YearConfig, courseId: string): boolean {
   return !findCourse(config, courseId)?.noSubtitle
 }
 
+/** そのコースの所属の名前（先生が登録した順。空の名前は除く。所属を使わないコース・コースがまだ決まっていないときは []） */
+export function courseGroups(config: YearConfig, courseId: string): string[] {
+  const groups = findCourse(config, courseId)?.groups
+  return Array.isArray(groups) ? groups.filter((g) => typeof g === 'string' && g.trim()) : []
+}
+
+/**
+ * 学生に所属を選んでもらう必要があるか（そのコースに所属が登録してあり、選んだ所属がその中にない。
+ * 先生があとから所属を登録した・名前を変えた・コースを変えたときも、選び直してもらう）
+ */
+export function needsGroup(config: YearConfig, courseId: string, group: string | undefined): boolean {
+  const groups = courseGroups(config, courseId)
+  return groups.length > 0 && !groups.includes(group ?? '')
+}
+
 /**
  * 文の中に書いてあるコースの名前から、コースを探す（Word の表紙・抄録など。長い名前から。見つからなければ null）。
  * 全角・半角と空白の違いは見ない。提出前チェック（check/wordParts.ts の findCourseId）と、学生用ツールの「Word から読み込む」で使う
