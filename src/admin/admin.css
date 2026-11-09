@@ -559,6 +559,7 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .tpl-line .tpl-acts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .tpl-line .tpl-old { font-size: 14px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
 .tpl-line .tpl-old:hover { color: var(--accent); }
+.tpl-line .tpl-pc { font-size: 13px; color: var(--muted); }
 /* 重ねた窓（画面いっぱい。中はツールの帯・紙面・右の欄）。「×」はツールの帯の右の端に重ねる */
 .tpl-overlay { position: fixed; inset: 0; z-index: 60; display: grid; padding: 10px; background: rgba(20, 22, 30, 0.55); }
 .tpl-window { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: 12px; background: #ebe8e3; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
@@ -822,12 +823,14 @@ button.busy:disabled { opacity: 1; cursor: progress; }
 .ck { display: flex; flex-direction: column; gap: 14px; min-width: 0; font-size: 14px; }
 .ck-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: relative; }
 .ck-top .sec-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; }
-.ck-course { font-size: 16px; font-weight: 700; color: #223; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; padding: 5px 12px; }
+.ck-course { font-size: 16px; font-weight: 700; color: #223; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; padding: 5px 12px; max-width: 100%; min-width: 0; }
+.ck-top .sec-h { min-width: 0; max-width: 100%; }
 .ck-course.fixed { display: inline-block; border-color: transparent; background: none; padding-left: 4px; }
 .ck-acts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; position: relative; }
 .ck-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cfd5de; border-radius: 8px; background: #fff; padding: 7px 12px; font-size: 13.5px; color: #334; text-decoration: none; cursor: pointer; }
 .ck-btn svg { width: 15px; height: 15px; color: #667; }
 .ck-btn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.ck-btn.ck-refresh { min-width: 8.6em; justify-content: center; }
 .ck-gs { width: 11px; height: 15px; border-radius: 2px; background: #188038; display: inline-block; }
 .ck-pop { position: absolute; right: 0; top: 44px; z-index: 20; width: min(360px, calc(100vw - 32px)); background: #fff; border: 1px solid #dfe3ea; border-radius: 12px; box-shadow: 0 10px 30px rgba(20, 30, 60, 0.16); padding: 14px 16px; font-size: 13.5px; line-height: 1.7; display: flex; flex-direction: column; gap: 6px; }
 .ck-pop b { font-size: 14px; }

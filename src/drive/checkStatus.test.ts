@@ -46,6 +46,12 @@ describe('先生の許可の仕組み（点検表）', () => {
     expect(finalGateOf(course({ final: true }), status(ok), '2027-01-14T12:00:00+09:00')).toEqual({ kind: 'granted', by: '1/13　山本先生', editedAfter: '1/14' })
   })
 
+  it('教職員の試し（staff）は点検表に載らないので、許可を使うコースでも許可を待たない（依頼者の選択 2026-11-09）', () => {
+    const staff = { row: null, at: '2026-11-09T00:00:00Z', staff: true }
+    expect(abstractGateOf(course({ abstract: true }), staff)).toEqual({ kind: 'self' })
+    expect(finalGateOf(course({ final: true }), staff, '2027-01-14T00:00:00Z')).toEqual({ kind: 'off' })
+  })
+
   it('学生の名簿：コースと氏名の4つの欄がそろうまで送らない。変わったら送り直す', () => {
     const r = { formatVersion: 2, fiscalYear: 2026, basicInfo: { studentId: '', name: '', courseId: 'c1', subtitleInput: '' }, abstract: { paragraphs: [] }, body: [], references: [], workPhotos: [], updatedAt: '' } as Report
     expect(registerPayload('t', r)).toBeNull()

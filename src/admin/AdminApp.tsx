@@ -515,6 +515,15 @@ function Work({ content, stage, locked, formWidth, onBack, backLabel = '管理�
   const [preview, setPreview] = useState(false)
   /** 見本を開く前に見ていた位置（閉じたら戻す。前はページのいちばん上に戻り、余白の欄などを探し直した：管理ページの試し 2026-10-27） */
   const scrollBack = useRef(0)
+  // スマホ：コースの「ひな形を見る」からも見本を開く（ひな形を作る画面はパソコン用のため：依頼者の選択 2026-11-09）
+  useEffect(() => {
+    const open = () => {
+      scrollBack.current = window.scrollY
+      setPreview(true)
+    }
+    window.addEventListener('sotsugyo-admin-show-preview', open)
+    return () => window.removeEventListener('sotsugyo-admin-show-preview', open)
+  }, [])
   return (
     <div className={`work${stage ? '' : ' wide'}${preview ? ' pv-open' : ''}`} style={stage ? formWidth.style : undefined}>
       <section className="content" inert={locked} aria-busy={locked}>

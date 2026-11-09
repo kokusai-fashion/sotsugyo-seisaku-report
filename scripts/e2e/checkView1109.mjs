@@ -275,6 +275,17 @@ await withEdge(async (browser) => {
     const panelTop = await page.evaluate(() => Math.round(document.querySelector('.ck-panel').getBoundingClientRect().top))
     check('スマホ：カードを押すと、記録の欄が見える所まで動く', panelTop >= -5 && panelTop < 400, String(panelTop))
     await shot(page, '08-phone-card-panel')
+    // スマホのコースごとの設定：ひな形は「ひな形を見る」（押すと見本が開く。作る画面はパソコン用：依頼者の選択 2026-11-09）
+    await page.evaluate(() => document.querySelector('.phone-back')?.click())
+    await wait(400)
+    await nav(page, 'コースごとの設定')
+    await page.waitForSelector('.course.open .tpl-open', { timeout: 10000 })
+    const tplBtn = await page.evaluate(() => ({ text: document.querySelector('.course.open .tpl-open').textContent, pc: document.querySelector('.course.open .tpl-pc')?.textContent ?? '' }))
+    await page.evaluate(() => document.querySelector('.course.open .tpl-open').click())
+    await wait(500)
+    const opened = await page.evaluate(() => !!document.querySelector('.work.pv-open') && !document.querySelector('.tpl-overlay'))
+    check('スマホでは「ひな形を見る」（作る・直すのはパソコンで）。押すと見本が開く', tplBtn.text === 'ひな形を見る' && tplBtn.pc.includes('パソコン') && opened, JSON.stringify({ ...tplBtn, opened }))
+    await shot(page, '09-phone-template-view')
     await context.close()
   }
 

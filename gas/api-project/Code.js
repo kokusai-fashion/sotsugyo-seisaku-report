@@ -910,6 +910,8 @@ function checkStatus_(request) {
   if (!/^\d{4}$/.test(year) || courseHint === null) return { ok: false, error: '送られた内容の形が正しくありません' }
   const who = signedIn_(request, year)
   if (!who.ok) return who
+  // 教職員の試し（staff:）は点検表に載らない（依頼者の選択 2026-11-09）：許可を待たずに試せるよう、許可を使わない形で返す（staff: true）
+  if (String(who.key).indexOf('staff:') === 0) return { ok: true, staff: true, enabled: { abstract: false, final: false }, row: null, group: '', groupAt: '' }
   const book = SpreadsheetApp.openById(sheetId_())
   const roster = book.getSheetByName(SHEET_ROSTER)
   const found = roster ? rosterRow_(roster, year, who.key) : null

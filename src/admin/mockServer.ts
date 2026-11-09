@@ -239,7 +239,7 @@ export function createMockServer(): AdminServer {
   const requireCourseAccess = (store: Store, courseId: string) => {
     const m = me(store)
     if (!m || m.role === '管理者' || !m.courseId) return
-    if (m.courseId !== courseId) throw new Error('担当のコースだけを見られます（担当のコースは、「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で確かめられます）')
+    if (m.courseId !== courseId) throw new Error('担当のコースだけを見られます。担当のコースは「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で確かめられます')
   }
   /** 氏名と担当コースの形（本番の cleanProfile_ と同じ） */
   const cleanProfile = (store: Store, name: string, courseId: string) => {

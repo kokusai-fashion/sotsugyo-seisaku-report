@@ -1550,7 +1550,8 @@ function readRoster_(book) {
 
 /** その年度・コースの学生（名簿から） */
 function courseStudents_(roster, year, courseId) {
-  return (roster || []).filter((r) => r.year === String(Number(year)) && r.course === courseId)
+  // 教職員の試し（staff:）の行は、点検表に載せない（依頼者の選択 2026-11-09「試しの行はいつも出さない」。前に載った行は、次の写しで消える）
+  return (roster || []).filter((r) => r.year === String(Number(year)) && r.course === courseId && String(r.id).indexOf('staff:') !== 0)
 }
 
 /** コースごとの点検表の一覧（{ index：シートの行番号, year, courseId, id }） */
@@ -1957,13 +1958,7 @@ function rosterOrder_(year, course, roster) {
   const ordered = orderStudents_(knownGroups_(courseStudents_(roster, year, course.id), course), course, manualOrderOk_(year, course))
   // 並び順で等分するコース（所属を学生に選ばせず、上から N 等分して班にする。人数が変わったら分け直す：依頼者の選択 2026-11-09）
   const split = splitCount_(course)
-  if (!split) return ordered
-  // 教職員の試し（staff:）の行は、等分の人数に入れない（後ろに置き、班は空：2026-11-09 の点検）
-  const isStaff = (s) => String(s.id).indexOf('staff:') === 0
-  return splitGroups_(
-    ordered.filter((s) => !isStaff(s)),
-    split,
-  ).concat(ordered.filter(isStaff).map((s) => Object.assign({}, s, { group: '' })))
+  return split ? splitGroups_(ordered, split) : ordered
 }
 
 function syncCheckSheet_(entry, course, roster) {
@@ -2546,7 +2541,7 @@ function memberOf_(email) {
 function requireCourseAccess_(user, courseId) {
   const m = memberOf_(user)
   if (!m || m.role === ROLE_ADMIN || !m.courseId) return
-  if (m.courseId !== String(courseId)) throw new Error('担当のコースだけを見られます（担当のコースは、「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で確かめられます）')
+  if (m.courseId !== String(courseId)) throw new Error('担当のコースだけを見られます。担当のコースは「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で確かめられます')
 }
 
 /** 先生の画面から届いた、コースごとの編集（コースの ID → 中身）が、担当のコースだけか */
@@ -2747,8 +2742,10 @@ function getCheckView(year, courseId) {
       }
     })
   } else {
-    // 名簿がまだない（だれも登録していない）：スプレッドシートの行のまま
-    students = Object.keys(rows).map(fromSheet)
+    // 名簿がまだない（だれも登録していない）：スプレッドシートの行のまま（教職員の試しの行は出さない）
+    students = Object.keys(rows)
+      .filter((key) => key.indexOf('staff:') !== 0)
+      .map(fromSheet)
     students.sort((a, b) => a.no - b.no)
   }
   return Object.assign(base, { exists: true, url: checkSheetUrl_(cs.entry.id), rounds: labels, students: students })

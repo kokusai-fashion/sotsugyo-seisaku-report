@@ -283,14 +283,24 @@ function CourseItem({
                 )}
               </b>
               {/* 学生と同じ紙面で作る画面を、管理ページの上に重ねて開く（mockups/v44 案A）。開けないときの予備に、前の窓も残す */}
-              <span className="tpl-acts">
-                <button className="btn sub sm tpl-open" onClick={onOpenTemplate}>
-                  {AdminIcon.template}ひな形を作る画面を開く
-                </button>
-                <button className="link tpl-old" onClick={onEditTemplate}>
-                  前の作り方で直す
-                </button>
-              </span>
+              {phone ? (
+                // スマホ：ひな形を作る画面はパソコン用（紙面・ページの一覧・右の欄を並べるため）。スマホでは、学生が最初に見る形で見る（管理ページの見本。依頼者の選択 2026-11-09）
+                <span className="tpl-acts">
+                  <button className="btn sub sm tpl-open" onClick={() => window.dispatchEvent(new Event('sotsugyo-admin-show-preview'))}>
+                    {AdminIcon.eye}ひな形を見る
+                  </button>
+                  <small className="tpl-pc">作る・直すのはパソコンで</small>
+                </span>
+              ) : (
+                <span className="tpl-acts">
+                  <button className="btn sub sm tpl-open" onClick={onOpenTemplate}>
+                    {AdminIcon.template}ひな形を作る画面を開く
+                  </button>
+                  <button className="link tpl-old" onClick={onEditTemplate}>
+                    前の作り方で直す
+                  </button>
+                </span>
+              )}
             </div>
           </Row>
           {/* サブタイトル：使う・使わないは先生も切り替えられる。前後の文字は管理者だけ（依頼者の選択 2026-11-09） */}

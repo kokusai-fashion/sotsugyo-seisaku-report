@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Course } from '../config'
 import { AdminIcon } from './adminIcons'
 import { courseName } from './changes'
@@ -82,6 +82,11 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   }
   const course = courses.find((c) => c.id === courseId)
   const [view, setView] = useState<CheckView | null>(null)
+  /** いま見ている年度・コース。書く・更新する・割り振るの返事は、押したときと同じときだけ使う（途中でコースを替えると、前のコースの表が出た：2026-11-09 の点検） */
+  const showing = useRef('')
+  useEffect(() => {
+    showing.current = `${year}:${courseId}`
+  }, [year, courseId])
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [mode, setModeState] = useState<Mode>(() => loadMode(phone, !!myName))
@@ -177,11 +182,13 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       const key = `${s.key}:${'round' in field ? field.round : field.kind}`
       setBusyKeys((b) => [...b, key])
       setError('')
+      const asked = `${year}:${courseId}`
       try {
         const next = await server.setCheckCell(year, courseId, s.key, field)
+        if (showing.current !== asked) return
         if (next) setView((v) => (v ? { ...v, students: v.students.map((x) => (x.key === next.key ? next : x)) } : v))
       } catch (e) {
-        setError(`書けませんでした：${e instanceof Error ? e.message : String(e)}`)
+        if (showing.current === asked) setError(`書けませんでした：${e instanceof Error ? e.message : String(e)}`)
       } finally {
         setBusyKeys((b) => b.filter((x) => x !== key))
       }
@@ -225,12 +232,15 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   const refresh = async () => {
     setRefreshing('busy')
     setError('')
+    const asked = `${year}:${courseId}`
     try {
       const next = await server.refreshCheckView(year, courseId)
+      if (showing.current !== asked) return
       setView(next)
       setRefreshing('done')
       setTimeout(() => setRefreshing((r) => (r === 'done' ? null : r)), 2500)
     } catch (e) {
+      if (showing.current !== asked) return
       setError(`更新できませんでした：${e instanceof Error ? e.message : String(e)}`)
       setRefreshing(null)
     }
@@ -313,8 +323,8 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
         </button>
         )}
         {view?.exists && (
-          <button type="button" className={`ck-btn${refreshing === 'busy' ? ' busy' : ''}`} disabled={refreshing === 'busy'} aria-busy={refreshing === 'busy'} onClick={() => void refresh()} title="10分ごとの写しを待たずに、新しく登録した学生・並び・PDF の日付などを、いまスプレッドシートの点検表に入れて、読み直します">
-            {refreshing === 'busy' ? <Waiting text="更新しています…" /> : <>{AdminIcon.reset}{refreshing === 'done' ? '更新しました' : '今すぐ更新'}</>}
+          <button type="button" className={`ck-btn ck-refresh${refreshing === 'busy' ? ' busy' : ''}`} disabled={refreshing === 'busy'} aria-busy={refreshing === 'busy'} onClick={() => void refresh()} title="スプレッドシートには10分ごとに自動で入ります。待たずにいま入れて、この画面も読み直します（新しく登録した学生・並び・PDF の日付など）">
+            {refreshing === 'busy' ? <Waiting text="更新中…" /> : <>{AdminIcon.reset}{refreshing === 'done' ? '更新しました' : '今すぐ更新'}</>}
           </button>
         )}
         {link && (
@@ -380,7 +390,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       </div>
     )
 
-  if (sub === 'assign') return <div className="ck">{top}<AssignPanel key={view.groups.join('\n')} view={view} year={year} courseId={courseId} onSaved={setView} /></div>
+  if (sub === 'assign') return <div className="ck">{top}{error && <p className="ck-error">{error}</p>}<AssignPanel key={view.groups.join('\n')} view={view} year={year} courseId={courseId} onSaved={(v) => showing.current === `${year}:${courseId}` && setView(v)} /></div>
 
   // ---- 切り替え ----
   const filters = (
@@ -458,7 +468,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       <span>札を押すと「済み」になります（もう一度押すと「予定」に戻ります）</span>
     </div>
   )
-  const empty = !view.students.length ? <p className="ck-empty">まだ学生が載っていません。学生がツールでコースと氏名を入れると、10分ほどで載ります。</p> : null
+  const empty = !view.students.length ? <p className="ck-empty">まだ学生がいません。学生がツールでコースと氏名を入れると、ここに出ます。</p> : null
   // 範囲が「自分の担当」なのに、このコースにまだ自分の担当が入っていない（全部済んだのではない）
   const noMine = scopeNow === 'mine' && !!myName && !view.students.some((x) => x.rounds.some((c) => c.teacher === myName))
   // 所属で絞って、その所属に自分の担当がいない

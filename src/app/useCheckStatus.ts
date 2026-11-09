@@ -74,10 +74,10 @@ export function useCheckStatus(drive: DriveSync | null, signedIn: boolean, enabl
     if (!token) return null
     const asked = whoOf(r)
     try {
-      const answer = await postStudentApi<{ row?: unknown; group?: unknown; groupAt?: unknown }>(API_URL, { action: 'checkStatus', token: token.accessToken, year: r.fiscalYear, studentId: r.basicInfo.studentId.trim(), courseId: r.basicInfo.courseId })
+      const answer = await postStudentApi<{ row?: unknown; group?: unknown; groupAt?: unknown; staff?: unknown }>(API_URL, { action: 'checkStatus', token: token.accessToken, year: r.fiscalYear, studentId: r.basicInfo.studentId.trim(), courseId: r.basicInfo.courseId })
       // 聞いている間に、学生・コースが変わった（アカウントを替えたなど）：前の学生の答えを使わない
       if (whoOf(reportRef.current) !== asked) return null
-      const next = { row: readCheckRow(answer.row), at: new Date().toISOString() }
+      const next = { row: readCheckRow(answer.row), at: new Date().toISOString(), ...(answer.staff === true ? { staff: true } : {}) }
       setStatus(next)
       // 名簿の所属が、原稿の所属より新しく決めたもの（先生が直した）なら受け取る
       const group = typeof answer.group === 'string' ? answer.group : ''

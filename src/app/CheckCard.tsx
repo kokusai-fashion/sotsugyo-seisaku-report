@@ -30,6 +30,8 @@ export function CheckCard({ status, course, foldable = false }: { status: CheckS
       // 覚えておけなくても、今は開いたまま・閉じたまま
     }
   }, [open, foldable])
+  // 教職員の試しは点検表に載らない（依頼者の選択 2026-11-09）
+  if (status?.staff) return null
   const row = status?.row ?? null
   const perm = course?.permission ?? {}
   const rounds = (row?.rounds ?? []).filter((r) => r.teacher)

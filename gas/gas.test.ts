@@ -1630,52 +1630,38 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     return `${j.getUTCMonth() + 1}/${j.getUTCDate()}`
   }
 
-  it('並びの崩れていない行を「並びが崩れています」にしない（依頼者の試し 2026-11-04）：教職員の試しの「（試し）」・氏名の書き方の違い・名簿の氏名を直した直後。ほかの学生の氏名が見えている行だけが崩れた行', () => {
-    // 依頼者の試しと同じ値：教職員のアカウント（管理者）で学生のツールから登録 → 点検表を開く → 学生の並びの窓 → 回を選ぶ → また開く
+  it('教職員の試し（staff:）は、点検表・点検表の画面・並べ替えの窓に載せない（依頼者の選択 2026-11-09「試しの行はいつも出さない」）。前に載った試しの行は、次の写しで消える。学生のツールへは、許可を使わない形で返す', () => {
     user = 'jun-kato@example.ac.jp'
     owner = user
     const a = setup()
     const key = 'staff:jun-kato@example.ac.jp'
     const staff = { ...registerBody(0, { familyName: '文化', givenName: '花子', familyKana: 'ブンカ', givenKana: 'ハナコ', studentId: '00ZZ0123' }), token: tokenOf('jun-kato@example.ac.jp') }
-    const staffStatus = () => post(api(), { action: 'checkStatus', token: tokenOf('jun-kato@example.ac.jp'), year: 2026, studentId: '00ZZ0123' })
+    // 試しの登録は、名簿には別の行で入る（学生の行は書き換えない）
     expect(post(a, staff)).toEqual({ ok: true })
-    expect(roster()[1].slice(0, 11)).toEqual([2026, FILM.id, key, '文化', '花子', 'ブンカ', 'ハナコ', '', '', '', ''])
-    admin().ensureCheckSheet(2026, FILM.id)
-    const { h } = layoutOf()
-    expect(tab().rows[h + 1].slice(0, 13)).toEqual([1, '（試し）文化　花子', '', '', '', '', '', '', false, false, false, 'PDF まだ', key])
-    admin().listStudents(2026, FILM.id)
-    for (const [round, value] of [['1回目', '梶田 予定'], ['2回目', '佐藤 予定'], ['3回目', '加藤 予定']]) edit(key, round, value, 'jun-kato@example.ac.jp')
-    expect(post(a, staff)).toEqual({ ok: true })
-    admin().ensureCheckSheet(2026, FILM.id)
-    admin().syncCheckSheets()
-    expect(sheetStudents()[key].cells).toMatchObject({ 氏名: '（試し）文化　花子', '1回目': '梶田 予定', 知らせ: 'PDF まだ' })
-    expect(staffStatus().row.rounds[0]).toEqual({ label: '1回目', teacher: '梶田', state: 'plan' })
-    // 見える氏名が、書き方だけ違う・（試し）がない・名簿を直す前の古い氏名・だれの氏名でもない：崩れたとはみなさず、氏名を書き直す
-    for (const shown of ["'（試し）文化　花子", '(試し) 文化 花子', '文化　花子', '（試し）文化　花', '見本　太郎']) {
-      setCell(key, '氏名', shown)
-      admin().syncCheckSheets()
-      expect(sheetStudents()[key].cells, shown).toMatchObject({ 氏名: '（試し）文化　花子', 知らせ: 'PDF まだ', '1回目': '梶田 予定' })
-    }
-    // 書き方の違いだけなら、学生のツールへの答えも出す（字の幅・空白・（試し））
-    setCell(key, '氏名', '(試し) 文化 花子')
-    expect(staffStatus().row).not.toBeNull()
-    // ✓ を入れるときも同じ（古い氏名のままでも、並びが崩れたとはみなさず、記録を残す）
-    setCell(key, '氏名', '（試し）文化　花')
-    edit(key, '抄録許可', true, 'jun-kato@example.ac.jp')
-    expect(sheetStudents()[key].cells.知らせ).toBe('PDF まだ')
-    expect(String(sheetStudents()[key].cells.抄録許可の記録)).toMatch(/ \/ jun-kato$/)
-    // 学生のツールへは、写して氏名がそろってから（古い氏名の間は、許可を渡さない）
-    expect(staffStatus().row).toBeNull()
-    admin().syncCheckSheets()
-    expect(staffStatus().row.abstractOk.by).toBe('jun-kato')
-    // ほかの学生（石田 遥）の氏名が見えている行だけは、並びが崩れた行（今までどおり）
+    expect(roster()[1].slice(0, 7)).toEqual([2026, FILM.id, key, '文化', '花子', 'ブンカ', 'ハナコ'])
     register(a, 1)
+    admin().ensureCheckSheet(2026, FILM.id)
+    expect(Object.keys(sheetStudents())).toEqual([idOf(1)])
+    expect(admin().getCheckView(2026, FILM.id).students.map((x: { key: string }) => x.key)).toEqual([idOf(1)])
+    expect(admin().listStudents(2026, FILM.id).map((e: { studentId: string }) => e.studentId)).toEqual([idOf(1)])
+    // 前に載った試しの行（この決まりの前に写した点検表）は、次の写しで消える
+    const { h } = layoutOf()
+    const width = tab().rows[h + 1].length
+    const old = Array.from({ length: width }, () => '' as Cell)
+    old[0] = 2
+    old[1] = '（試し）文化　花子'
+    old[layoutOf().header.indexOf('学籍番号')] = key
+    tab().rows.splice(h + 2, 0, old)
+    expect(Object.keys(sheetStudents())).toContain(key)
     admin().syncCheckSheets()
-    setCell(key, '氏名', '石田　遥')
-    expect(staffStatus().row).toBeNull()
-    admin().syncCheckSheets()
-    expect(sheetStudents()[key].cells).toMatchObject({ 氏名: '（試し）文化　花子', 知らせ: '並びが崩れています' })
-    expect(logs.some((l) => l.includes('並びが崩れています') && l.includes(key))).toBe(true)
+    expect(Object.keys(sheetStudents())).toEqual([idOf(1)])
+    // 学生のツールへ：許可を使うコースでも、試しのアカウントは許可を待たない（点検表には載らない）
+    const config = admin().getState().years[0].config
+    admin().saveYear({ ...config, courses: config.courses.map((c: { id: string }) => (c.id === FILM.id ? { ...c, permission: { abstract: true, final: true } } : c)) })
+    const st = post(api(), { action: 'checkStatus', token: tokenOf('jun-kato@example.ac.jp'), year: 2026, studentId: '00ZZ0123' })
+    expect(st).toMatchObject({ ok: true, staff: true, row: null, enabled: { abstract: false, final: false } })
+    // 学生は今までどおり
+    expect(status(api(), 1)).toMatchObject({ ok: true, enabled: { abstract: true, final: true } })
     // 名字・名前を比べる形
     const g = admin()
     expect(["'（試し）文化　花子", '(試し) 文化 花子', '文化花子', 'ﾌﾞﾝｶ'].map((n) => g.nameKey_(n))).toEqual(['文化花子', '文化花子', '文化花子', 'ブンカ'])
@@ -2486,15 +2472,15 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(v.students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '2班', '2班', '2班', '3班', '3班'])
     expect(sheetStudents()[idOf(5)].cells['1回目']).toBe('佐藤 予定')
     expect(sheetStudents()[idOf(7)].cells['1回目']).toBe('加藤 予定')
-    // 教職員の試し（staff:）の行は、等分の人数に入れない（班は空。ほかの学生の班はずれない）
+    // 教職員の試し（staff:）の行は、点検表に載らない（等分の人数にも入らず、ほかの学生の班はずれない）
     expect(post(api(), { ...registerBody(0, { familyName: '文化', givenName: '花子', familyKana: 'ア', givenKana: 'ア', studentId: '00ZZ0123' }), token: tokenOf('kato@example.ac.jp') })).toEqual({ ok: true })
     admin().syncCheckSheets()
     v = admin().getCheckView(2026, FILM.id)
-    expect(v.students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '2班', '2班', '2班', '3班', '3班', ''])
-    expect(v.students.at(-1).key).toBe('staff:kato@example.ac.jp')
+    expect(v.students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '2班', '2班', '2班', '3班', '3班'])
+    expect(v.students.some((s: { key: string }) => s.key.startsWith('staff:'))).toBe(false)
     // 分ける数を変えて保存すると、10分を待たずに点検表の班も変わる
     admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: true, checkOneColumn: true, checkSplit: 2 } } })
-    expect(admin().getCheckView(2026, FILM.id).students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '1班', '2班', '2班', '2班', '2班', ''])
+    expect(admin().getCheckView(2026, FILM.id).students.map((s: { group: string }) => s.group)).toEqual(['1班', '1班', '1班', '1班', '2班', '2班', '2班', '2班'])
     // 分ける数は 2〜6
     expect(() => admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: true, checkOneColumn: true, checkSplit: 9 } } })).toThrow('並び順で分ける数が正しくありません')
     // 所属を登録すると、等分しない

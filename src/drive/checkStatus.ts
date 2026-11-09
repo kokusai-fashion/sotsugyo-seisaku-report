@@ -32,6 +32,8 @@ export interface CheckRow {
 export interface CheckStatus {
   /** 点検表の自分の行（点検表がまだない・まだ載っていなければ null） */
   row: CheckRow | null
+  /** 教職員のアカウントで試している（点検表には載らない。許可を使わない形にする：依頼者の選択 2026-11-09） */
+  staff?: boolean
   /** 窓口に聞いた時刻（ISO） */
   at: string
 }
@@ -101,14 +103,14 @@ export type FinalGate =
 
 /** 抄録を書き始める前の案内の形（許可を使わないコースは今のまま、学生が押す） */
 export function abstractGateOf(course: Course | undefined, status: CheckStatus | null): AbstractGate {
-  if (!course?.permission?.abstract) return { kind: 'self' }
+  if (!course?.permission?.abstract || status?.staff) return { kind: 'self' }
   const ok = status?.row?.abstractOk
   return ok ? { kind: 'granted', by: markText(ok) } : { kind: 'waiting' }
 }
 
 /** 最終提出の許可の状態。窓口にまだ聞けていない（ログインしていないなど）ときは、許可の前として扱う */
 export function finalGateOf(course: Course | undefined, status: CheckStatus | null, updatedAt: string): FinalGate {
-  if (!course?.permission?.final) return { kind: 'off' }
+  if (!course?.permission?.final || status?.staff) return { kind: 'off' }
   const ok = status?.row?.finalOk
   if (!ok) return { kind: 'before' }
   const edited = new Date(updatedAt).getTime() > new Date(ok.at).getTime() ? new Date(updatedAt) : null

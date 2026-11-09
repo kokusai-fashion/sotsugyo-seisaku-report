@@ -1,0 +1,88 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;padding:24px;background:#eef1f5;font-family:"Noto Sans JP","Yu Gothic UI",sans-serif;color:#222;display:flex;gap:26px;align-items:flex-start}
+section{width:390px}h2{margin:0 0 4px;font-size:18px}h2 i{font-style:normal;font-size:12px;background:#1e3a8a;color:#fff;border-radius:999px;padding:2px 8px;vertical-align:3px}
+.note{margin:0 0 10px;font-size:12.5px;line-height:1.6;color:#4a5160;min-height:80px}
+.phone{position:relative;width:390px;height:844px;background:#f2f0ec;border:1px solid #cfd3da;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(20,30,60,.15)}
+.banner{display:flex;align-items:center;gap:8px;padding:12px 14px;background:#fbe6b0;border-bottom:2px solid #d8a93a;font-size:14px;color:#5a4410}.banner b{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.banner .x{font-size:20px}
+.screen{flex:1;overflow:hidden;padding:12px 10px 0}.screen.dim .paper{opacity:.55}
+.paper{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.12);padding:20px 16px 30px;font-family:"Yu Mincho","Noto Serif JP",serif;font-size:13px;line-height:1.75;min-height:620px}
+.h1{font-size:13.5px;margin:4px 0}.h2{font-size:13px;margin:10px 0 2px}
+.hint{color:#6070a0;font-size:12px;position:relative;padding-left:2px}.hint .tag{display:inline-block;font-family:"Noto Sans JP",sans-serif;font-size:10px;color:#7a5200;background:#fdf3d0;border:1px solid #e8c766;border-radius:6px;padding:0 5px;margin-right:6px;vertical-align:1px}
+.hint.picked{outline:2px solid #1e3a8a;outline-offset:3px;border-radius:4px;opacity:1}
+.kind{display:inline-flex;margin:4px 0 4px;border:1px solid #c9cfd9;border-radius:8px;overflow:hidden;font-family:"Noto Sans JP",sans-serif}.kind button{border:0;background:#fff;font-size:11.5px;padding:4px 9px;color:#445}.kind button.on{background:#fdf3d0;color:#7a5200;font-weight:700}
+.editing{border:2px solid #1e3a8a;border-radius:6px;padding:6px 8px;color:#6070a0;font-size:12px;background:#fbfcff}.caret{display:inline-block;width:1.5px;height:14px;background:#1e3a8a;vertical-align:-2px;margin-left:2px}
+.fig{margin:12px 0}.frame{margin:0 auto;width:62%;height:110px;border:1px dashed #b9bec7;background:repeating-linear-gradient(45deg,#f6f6f6 0 8px,#fff 8px 16px);display:grid;place-items:center;font-size:11px;color:#8a909a;font-family:"Noto Sans JP",sans-serif}.cap{text-align:center;font-size:12px;margin-top:4px}
+.tools{display:flex;align-items:center;gap:2px;padding:8px 8px;background:#fff;border-top:1px solid #e3e6ec}.tools .t{flex:1;text-align:center;font-size:17px;color:#334}.tools .t small{display:block;font-size:10.5px}.tools .red{color:#c0392b}.tools .done{background:#1e3a8a;color:#fff;border-radius:10px;padding:10px 12px;font-weight:700;font-size:14px}
+.actbar{display:flex;gap:8px;padding:10px 12px 16px;background:#fff;border-top:1px solid #e3e6ec}.actbar button{border-radius:10px;font-size:14.5px;padding:12px 10px;font-family:inherit}.actbar .primary{flex:1;background:#1e3a8a;color:#fff;border:0;font-weight:700}.actbar .sub{background:#fff;border:1px solid #c9cfd9;color:#334;min-width:86px}
+.sheet{position:absolute;left:0;right:0;bottom:74px;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -8px 24px rgba(20,30,60,.18);padding:8px 16px 14px;display:flex;flex-direction:column;gap:10px}
+.grip{width:40px;height:4px;border-radius:2px;background:#d0d4db;margin:0 auto}.sh-head{display:flex;align-items:center}.sh-head b{flex:1;font-size:15px}.sh-head .x{font-size:20px;color:#778}
+.seg2{display:grid;grid-template-columns:1fr 1fr;gap:6px}.seg2 button{border:1px solid #c9cfd9;border-radius:10px;background:#fff;padding:8px 6px;font-size:13px;font-weight:700;color:#334;font-family:inherit}.seg2 button small{display:block;font-size:10.5px;font-weight:400;color:#667}.seg2 button.on{border-color:#d8a93a;background:#fdf3d0;color:#7a5200}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#667}.fld textarea{font-family:inherit;font-size:14px;border:1px solid #c9cfd9;border-radius:8px;padding:8px;height:64px;resize:none}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.row3 button{border:1px solid #c9cfd9;border-radius:10px;background:#fff;padding:9px;font-size:13px;font-family:inherit}.row3 .red{color:#c0392b;border-color:#e8b4ae}
+.ctop{padding:10px 12px 6px}.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid #c9cfd9;border-radius:10px;overflow:hidden;background:#fff}.seg button{border:0;background:none;padding:9px;font-size:13.5px;font-family:inherit;color:#334}.seg button.on{background:#1e3a8a;color:#fff;font-weight:700}
+.list{flex:1;overflow:hidden;padding:4px 12px;display:flex;flex-direction:column;gap:6px}
+.lrow{display:grid;grid-template-columns:100px 1fr 18px;gap:8px;align-items:start;background:#fff;border:1px solid #e3e6ec;border-radius:10px;padding:9px 10px;font-size:13.5px;line-height:1.5}
+.lk{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;text-align:center;align-self:start;white-space:nowrap}.lt em{display:block;font-style:normal;font-size:11.5px;color:#6070a0}.lm{color:#9aa1ad;text-align:center}
+.k1 .lk{background:#e3e9f6;color:#1e3a8a}.k1 .lt{font-weight:700}.k2 .lk{background:#eef1f7;color:#334a7a}.k2{margin-left:10px}.kh .lk{background:#fdf3d0;color:#7a5200}.kh{margin-left:20px}.kh .lt{color:#6070a0;font-size:12.5px}.kt .lk{background:#e2f0e6;color:#2d6a3e}.kt{margin-left:20px}.kf .lk{background:#f2f3f6;color:#556}.kf{margin-left:20px}.kb .lk{background:#f2f3f6;color:#556}
+.addrow{border:1.5px dashed #b9c3d6;background:#f8faff;color:#1e3a8a;border-radius:10px;padding:10px;font-size:13px;font-family:inherit;font-weight:700}
+</style></head><body>
+<section><h2>案A　紙面で直す</h2><p class="note">学生のスマホと同じ紙面。段落を押して書き、上の「ここに書くこと／書き出しの文」で切り替える（書き出しの文のときは、下に「続きの説明」の欄）。下に道具の列と「管理ページに戻して反映」。パソコンと同じ形で、慣れている人に分かりやすい。紙面の小ささと、キーボードで隠れる所に気をつける</p><div class="phone">
+<div class="banner"><span class="ic">▤</span><b>ひな形を作っています：映画・舞台衣装…</b><span class="x">×</span></div>
+<div class="screen">
+  <div class="paper">
+    <div class="h1">Ⅰ．企画・立案</div>
+    <div class="h2">ⅰ．担当衣装のキャラクター</div>
+    <div class="hint"><span class="tag">ここに書くこと</span>担当したキャラクターの性格や、物語の中での役割を書く</div>
+    <div class="h2">ⅱ．デザイン説明</div>
+    <div class="kind"><button class="on">ここに書くこと</button><button>書き出しの文</button></div>
+    <div class="editing">デザインのもとにした時代・地域の装いと、込めた意図を書く<span class="caret"></span></div>
+    <div class="fig"><div class="frame">（学生が写真を入れる枠）</div><div class="cap">図1．デザイン画</div></div>
+    <div class="h2">ⅲ．使用素材</div>
+    <div class="hint"><span class="tag">ここに書くこと</span>使った素材と使った場所を表1にまとめ、文中に「表1」と書く</div>
+  </div>
+</div>
+<div class="tools">
+  <span class="t red">🗑<small>削除</small></span><span class="t">↶<small>戻す</small></span><span class="t">▣<small>図の枠</small></span><span class="t">▦<small>表</small></span><span class="t">≡<small>見出し</small></span><span class="t">⎘<small>改ページ</small></span><span class="done">完了</span>
+</div>
+<div class="actbar"><button class="primary">管理ページに戻して反映</button><button class="sub">閉じる</button></div>
+</div></section>
+<section><h2>案B　紙面＋下から出る欄</h2><p class="note">紙面は見るのが中心。段落・見出しを押すと、下から「この段落」の欄が出て、種類・文・続きの説明・上へ下へ・削除をまとめて直す。打つのは大きい欄の中なので、小さい紙面の上で打たなくてよい。「＋ 足す」で見出し・段落・図の枠・表・改ページ</p><div class="phone">
+<div class="banner"><span class="ic">▤</span><b>ひな形を作っています：映画・舞台衣装…</b><span class="x">×</span></div>
+<div class="screen dim">
+  <div class="paper">
+    <div class="h1">Ⅰ．企画・立案</div>
+    <div class="h2">ⅰ．担当衣装のキャラクター</div>
+    <div class="hint"><span class="tag">ここに書くこと</span>担当したキャラクターの性格や、物語の中での役割を書く</div>
+    <div class="h2">ⅱ．デザイン説明</div>
+    <div class="hint picked"><span class="tag">ここに書くこと</span>デザインのもとにした時代・地域の装いと、込めた意図を書く</div>
+    <div class="fig"><div class="frame">（学生が写真を入れる枠）</div><div class="cap">図1．デザイン画</div></div>
+  </div>
+</div>
+<div class="sheet">
+  <div class="grip"></div>
+  <div class="sh-head"><b>この段落</b><span class="x">×</span></div>
+  <div class="seg2"><button class="on">ここに書くこと<small>学生に薄い字で出る</small></button><button>書き出しの文<small>本文にそのまま入る</small></button></div>
+  <label class="fld"><span>文</span><textarea>デザインのもとにした時代・地域の装いと、込めた意図を書く</textarea></label>
+  <div class="row3"><button>▲ 上へ</button><button>▼ 下へ</button><button class="red">削除</button></div>
+</div>
+<div class="actbar"><button class="sub">＋ 足す</button><button class="primary">管理ページに戻して反映</button></div>
+</div></section>
+<section><h2>案C　一覧で直す <i>おすすめ</i></h2><p class="note">紙面ではなく、見出しと説明を上から並べた一覧で直す（押すと直す欄、⋮ で上へ下へ・削除）。スマホでいちばん打ちやすく、作りも単純で不具合が出にくい。仕上がりは「紙面で見る」で確かめる。パソコンの紙面とは見た目が違う</p><div class="phone">
+<div class="banner"><span class="ic">▤</span><b>ひな形を作っています：映画・舞台衣装…</b><span class="x">×</span></div>
+<div class="ctop"><div class="seg"><button class="on">一覧で直す</button><button>紙面で見る</button></div></div>
+<div class="list">
+  <div class="lrow k1"><span class="lk">大見出し</span><span class="lt">Ⅰ．企画・立案</span><span class="lm">⋮</span></div>
+  <div class="lrow k2"><span class="lk">中見出し</span><span class="lt">ⅰ．担当衣装のキャラクター</span><span class="lm">⋮</span></div>
+  <div class="lrow kh"><span class="lk">ここに書くこと</span><span class="lt">担当したキャラクターの性格や、物語の中での役割を書く</span><span class="lm">⋮</span></div>
+  <div class="lrow k2"><span class="lk">中見出し</span><span class="lt">ⅱ．デザイン説明</span><span class="lm">⋮</span></div>
+  <div class="lrow kt"><span class="lk">書き出しの文</span><span class="lt">本作品は、中世アラビアの船乗りをもとにデザインした。<em>続き：デザインのもとにした作品や時代を書く</em></span><span class="lm">⋮</span></div>
+  <div class="lrow kf"><span class="lk">図の枠</span><span class="lt">図1．デザイン画</span><span class="lm">⋮</span></div>
+  <div class="lrow k2"><span class="lk">中見出し</span><span class="lt">ⅲ．使用素材</span><span class="lm">⋮</span></div>
+  <div class="lrow kh"><span class="lk">ここに書くこと</span><span class="lt">使った素材と使った場所を表1にまとめ、文中に「表1」と書く</span><span class="lm">⋮</span></div>
+  <div class="lrow kf"><span class="lk">表</span><span class="lt">表1．使用素材表（名称・使用箇所・生地見本）</span><span class="lm">⋮</span></div>
+  <div class="lrow kb"><span class="lk">改ページ</span><span class="lt"></span><span class="lm">⋮</span></div>
+  <button class="addrow">＋ 足す（見出し・段落・図の枠・表・改ページ）</button>
+</div>
+<div class="actbar"><button class="primary">管理ページに戻して反映</button><button class="sub">閉じる</button></div>
+</div></section>
+</body></html>
