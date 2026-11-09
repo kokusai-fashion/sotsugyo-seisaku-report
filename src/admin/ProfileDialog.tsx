@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Course } from '../config'
 import { courseName } from './changes'
 import { Modal } from './Modal'
@@ -21,6 +21,12 @@ export function ProfileDialog({ courses, me, required, onDone, onClose }: { cour
   const [name, setName] = useState(me?.name && !known(me) ? me.name : '')
   const [courseId, setCourseId] = useState(me?.courseId && !known(me) ? me.courseId : '')
   const [busy, setBusy] = useState(false)
+  // 開いたときは、説明の文に入る（1人目の名前に枠が出て、選ばれているように見えた：2026-11-09 の点検）
+  const lead = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => lead.current?.focus())
+    return () => cancelAnimationFrame(id)
+  }, [])
   const [error, setError] = useState('')
   const chosen: Profile | null = typing ? (name.trim() && courseId ? { name: name.trim(), courseId } : null) : pick
   const save = async () => {
@@ -36,7 +42,7 @@ export function ProfileDialog({ courses, me, required, onDone, onClose }: { cour
   }
   return (
     <Modal title="氏名と担当コース" className="profile-modal" onClose={required || busy ? () => undefined : onClose} closable={!required}>
-      <p className="lead">
+      <p className="lead" ref={lead} tabIndex={-1}>
         {required
           ? 'はじめに、お名前と担当のコースを登録してください。管理ページには担当のコースだけが出て、点検表では「自分の担当」を出せます。'
           : me?.name

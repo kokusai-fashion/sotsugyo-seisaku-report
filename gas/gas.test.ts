@@ -2425,6 +2425,47 @@ describe('先生の許可の仕組み（学生の名簿・点検表。docs/設�
     expect(sheetStudents()[idOf(4)]).toBeDefined()
   })
 
+  it('今すぐ更新（refreshCheckView。依頼者の選択 2026-11-09）：10分ごとの写しを待たずに、新しく登録した学生を点検表に入れて返す。先生は担当のコースだけ', () => {
+    setup()
+    register(api(), 0)
+    admin().ensureCheckSheet(2026, FILM.id)
+    register(api(), 1)
+    expect(sheetStudents()[idOf(1)]).toBeUndefined()
+    const v = admin().refreshCheckView(2026, FILM.id)
+    expect(v.students.map((x: { key: string }) => x.key)).toContain(idOf(1))
+    expect(sheetStudents()[idOf(1)]).toBeDefined()
+    expect(stored.has(`checkLock:2026:${FILM.id}`)).toBe(false)
+    // ほかの書き込みの途中で、待っても空かなければ知らせる（試験では待ち時間を短くできないので、印の名前だけ確かめる）
+    user = 'sensei@example.ac.jp'
+    admin().setMyProfile('梶田　貴子', FILM.id)
+    expect(admin().refreshCheckView(2026, FILM.id).exists).toBe(true)
+  })
+
+  it('点検表の画面の学生は名簿から（依頼者の選択 2026-11-09）：登録したばかりの学生も、10分ごとの写しを待たずに出る（知らせは「スプレッドシートにはまだ」）。書くと、そのコースをその場で写してから書く。割り振りも入る', () => {
+    setup()
+    register(api(), 1)
+    admin().ensureCheckSheet(2026, FILM.id)
+    register(api(), 0)
+    expect(sheetStudents()[idOf(0)]).toBeUndefined()
+    let v = admin().getCheckView(2026, FILM.id)
+    // 名簿の並び（五十音順）：あとから来た青木が先頭。番号も名簿の並び
+    expect(v.students.map((x: { key: string }) => x.key)).toEqual([idOf(0), idOf(1)])
+    expect(v.students[0]).toMatchObject({ no: 1, name: nameOf(0), note: 'スプレッドシートにはまだ', abstractOk: false })
+    expect(v.students[0].rounds.every((r: { teacher: string }) => r.teacher === '')).toBe(true)
+    // 書くと、写してから書く
+    const s = admin().setCheckCell(2026, FILM.id, idOf(0), { round: '1回目', teacher: '梶田', state: 'done' })
+    expect(s.rounds[0]).toEqual({ teacher: '梶田', state: 'done' })
+    expect(sheetStudents()[idOf(0)].cells['1回目']).toBe('梶田 済み')
+    expect(admin().getCheckView(2026, FILM.id).students[0].note).not.toBe('スプレッドシートにはまだ')
+    // 割り振り：まだ写っていない学生にも入る
+    admin().saveTeacherEdits(2026, { sheets: { [FILM.id]: { groups: [], checkById: true, checkOneColumn: true, checkSplit: 2 } } })
+    register(api(), 2)
+    v = admin().getCheckView(2026, FILM.id)
+    expect(v.students.find((x: { key: string }) => x.key === idOf(2)).note).toBe('スプレッドシートにはまだ')
+    admin().saveAssignment(2026, FILM.id, { labels: ['2回目'], rows: { '1班': ['佐藤'], '2班': ['加藤'] } })
+    expect(sheetStudents()[idOf(2)].cells['2回目']).toBe('加藤 予定')
+  })
+
   it('並び順で等分（checkSplit。依頼者の選択 2026-11-09「いつも等分し直す」）：所属のないコースは、点検表の並びを上から等分して 1班〜。人数が変わると分け直し、班が変わった学生には新しい班の割り振り。所属があれば等分しない', () => {
     setup()
     user = 'sensei@example.ac.jp'

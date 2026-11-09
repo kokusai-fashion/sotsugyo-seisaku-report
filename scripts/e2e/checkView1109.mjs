@@ -338,13 +338,17 @@ await withEdge(async (browser) => {
     await wait(200)
     await nav(page, '点検表')
     await page.waitForSelector('.ck-ta', { timeout: 10000 })
-    // 点検表の画面の見出しの「保存して学生に反映」で保存する
+    // ②グループで絞ったまま、点検表の画面の見出しの「保存して学生に反映」で保存する
+    await click(page, '.ck-filter .ck-chips button', '②グループ')
+    await wait(200)
     await page.evaluate(() => [...document.querySelectorAll('.save-group button, .dirty-bar button')].find((b) => b.offsetParent !== null && !b.disabled && b.textContent.includes('保存')).click())
     const modal = await page.waitForSelector('.confirm-modal', { timeout: 3000 }).catch(() => null)
     if (modal) await page.evaluate(() => document.querySelector('.confirm-modal [data-confirm="ok"]').click())
     await page.waitForFunction(() => [...document.querySelectorAll('.ck-ta tr.gh')].some((tr) => tr.textContent.startsWith('1班')), { timeout: 10000 })
     const heads = (await tableRows(page)).filter((r) => r.startsWith('#')).map((r) => r.replace(/\d+人$/, ''))
     check('点検表の画面から等分の設定を保存すると、点検表を読み直して 1班・2班・3班', heads.join() === '#1班,#2班,#3班', heads.join())
+    const after = await page.evaluate(() => ({ on: document.querySelector('.ck-filter .ck-chips button.on:not(:first-child)') ? 'x' : document.querySelector('.ck-filter .ck-chips button.on')?.textContent ?? '', rows: document.querySelectorAll('.ck-ta tbody tr:not(.gh)').length, label: [...document.querySelectorAll('.ck-filter .ck-grp .k')].map((k) => k.textContent).join('|') }))
+    check('所属で絞ったまま保存しても、絞り込みは「すべて」に戻り、表は空にならない。等分のコースは見出しも「班」', after.on === 'すべて' && after.rows >= 10 && after.label.includes('班'), JSON.stringify(after))
     await click(page, '.ck-btn', '担当の割り振り')
     await page.waitForSelector('.ck-ta.assign', { timeout: 5000 })
     for (let g = 0; g < 3; g++) await page.select(`.ck-ta.assign tbody tr:nth-child(${g + 1}) td:nth-child(2) select`, ['梶田', '佐藤', '加藤'][g])

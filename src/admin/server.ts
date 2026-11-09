@@ -198,6 +198,8 @@ export interface AdminServer {
   setMemberProfile(email: string, name: string, courseId: string): Promise<Member[]>
   /** 点検表の画面の中身（先生は担当のコースだけ） */
   getCheckView(year: number, courseId: string): Promise<CheckView>
+  /** 「今すぐ更新」：10分ごとの写しを待たずに、いま名簿から点検表に写して、中身を返す */
+  refreshCheckView(year: number, courseId: string): Promise<CheckView>
   /** 点検表の画面から1つの欄を書く。返り値は、その学生の書いたあとの行 */
   setCheckCell(year: number, courseId: string, studentId: string, field: CheckField): Promise<CheckStudent | null>
   /** 担当の割り振りを保存して、点検表に入れる。返り値は入れたあとの中身 */
@@ -289,6 +291,7 @@ function appsScriptServer(): AdminServer {
     setMyProfile: (name, courseId) => call('setMyProfile', name, courseId),
     setMemberProfile: (email, name, courseId) => call('setMemberProfile', email, name, courseId),
     getCheckView: (year, courseId) => call('getCheckView', year, courseId),
+    refreshCheckView: (year, courseId) => call('refreshCheckView', year, courseId),
     setCheckCell: (year, courseId, studentId, field) => call('setCheckCell', year, courseId, studentId, field),
     saveAssignment: (year, courseId, assignment) => call('saveAssignment', year, courseId, assignment),
     getMembers: () => call('getMembers'),

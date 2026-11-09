@@ -885,6 +885,7 @@ export function AdminApp() {
           if (state.me?.courseId) setStartCheck(false)
           setState({ ...state, me: p })
           setProfileOpen(false)
+          if (role === 'admin') server.getMembers().then(setMembers, () => undefined)
           const c = state.years.flatMap((y) => y.config.courses).find((x) => x.id === p.courseId)
           setMessage({ kind: 'ok', text: `氏名と担当コースを登録しました：${p.name}（${c ? courseName(c) : ''} コース）` })
         }}
@@ -899,6 +900,7 @@ export function AdminApp() {
           key={state.me?.courseId ?? ''}
           startCheck={startCheck}
           onProfile={async () => {
+            if (busy) return
             // 保存していない変更があれば、確かめの窓（どの区切り・スマホの一覧からでも見える）。破棄するときは、保存してある内容に戻してから開く
             if (dirty) {
               if (!(await ask('保存していない変更があります。破棄して「氏名と担当コース」を開きますか？（残すときは「やめる」を押して、先に保存してください）', { ok: '破棄して開く', danger: true }))) return

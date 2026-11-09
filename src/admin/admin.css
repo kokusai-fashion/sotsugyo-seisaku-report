@@ -889,7 +889,10 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
 .ck-gb { display: flex; flex-direction: column; gap: 8px; }
 .ck-gb h3 { margin: 4px 0 0; font-size: 15px; display: flex; align-items: center; gap: 10px; }
 .ck-gb h3 small { font-weight: 400; color: #667; font-size: 12.5px; }
-.ck-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.ck-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 10px; }
+@media (max-width: 1100px) {
+  .ck-split.with-panel { grid-template-columns: minmax(0, 1fr) 290px; }
+}
 .ck-card { background: #fff; border: 1px solid #e3e6ec; border-radius: 12px; padding: 10px 12px 10px 14px; position: relative; display: flex; flex-direction: column; gap: 7px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .ck-card::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 0 3px 3px 0; background: var(--g); }
 .ck-card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 4px 14px rgba(30, 58, 138, 0.15); }
@@ -975,6 +978,7 @@ button.ck-chip:hover { box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.15); }
 .side-nav .me .pname { color: var(--ink); font-size: 14px; }
 .side-nav .me .profile-link { margin-top: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .profile-modal .pf-h { margin: 0 0 8px; font-weight: 700; }
+.profile-modal .lead:focus { outline: none; }
 .pf-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 46vh; overflow: auto; padding: 2px; }
 .pf-list button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; border: 1px solid #cfd5de; border-radius: 10px; background: #fff; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .pf-list button b { font-size: 15.5px; }

@@ -239,7 +239,7 @@ export function createMockServer(): AdminServer {
   const requireCourseAccess = (store: Store, courseId: string) => {
     const m = me(store)
     if (!m || m.role === '管理者' || !m.courseId) return
-    if (m.courseId !== courseId) throw new Error('担当のコースだけを見られます（担当のコースは、左下の「氏名と担当コース」で確かめられます）')
+    if (m.courseId !== courseId) throw new Error('担当のコースだけを見られます（担当のコースは、「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で確かめられます）')
   }
   /** 氏名と担当コースの形（本番の cleanProfile_ と同じ） */
   const cleanProfile = (store: Store, name: string, courseId: string) => {
@@ -517,6 +517,14 @@ export function createMockServer(): AdminServer {
       requireTeacher(store)
       requireSavedCourse(store, year, courseId)
       requireCourseAccess(store, courseId)
+      return checkView(store, year, courseId)
+    },
+    // 試験用は、読むたびに名簿から作るので、読むのと同じ（本番は、いま名簿から点検表に写す）
+    async refreshCheckView(year, courseId) {
+      await wait()
+      const store = load()
+      requireTeacher(store)
+      requireSavedCourse(store, year, courseId)
       requireCourseAccess(store, courseId)
       return checkView(store, year, courseId)
     },

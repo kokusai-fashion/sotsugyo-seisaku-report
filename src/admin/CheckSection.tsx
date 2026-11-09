@@ -73,6 +73,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
     setSub('check')
     setTab('left')
     setScope(null)
+    setRefreshing(null)
     try {
       localStorage.setItem(COURSE_KEY, id)
     } catch {
@@ -102,6 +103,8 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   const isBusy = (key: string) => busyKeys.includes(key)
   const [linkOpen, setLinkOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  /** 「今すぐ更新」：'busy' 写している・'done' 写し終わった（数秒「更新しました」） */
+  const [refreshing, setRefreshing] = useState<'busy' | 'done' | null>(null)
   const slow = useSlow(!view && !error)
 
   // 保存したコースの設定のうち、点検表の中身に効くもの（変わったら読み直す：点検表の画面から保存したとき、表示が古いまま残った：2026-11-09 の点検）
@@ -120,12 +123,26 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
     }
   }, [year, courseId, reload, settingsKey])
 
-  // スマホ：カードを押すと、記録の欄はカードの一覧の下に出るので、そこまで動かす（前は画面が動かず、出たことが分からなかった：2026-11-09 の点検）
+  // 読み直した点検表に、選んでいた所属・学生がなければ、はじめに戻す（所属で絞ったまま設定を保存すると、表が空になった：2026-11-09 の点検）
   useEffect(() => {
-    if (!phone || !picked) return
-    const id = requestAnimationFrame(() => document.querySelector('.ck-panel')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+    if (!view) return
+    if (group && !view.groups.includes(group)) setGroup('')
+    if (picked && !view.students.some((s) => s.key === picked)) setPicked(null)
+  }, [view, group, picked])
+  // 見ているコースを選べなくなったら（学生に表示しないにして保存した など）、いちばん上のコースへ
+  useEffect(() => {
+    if (!course && courses.length) setCourseIdState(courses[0].id)
+  }, [course, courses])
+  // 記録の欄が画面の外（カードの一覧の下。スマホ・狭い画面）に出たら、そこまで動かす（前は画面が動かず、出たことが分からなかった：2026-11-09 の点検）
+  useEffect(() => {
+    if (!picked) return
+    const id = requestAnimationFrame(() => {
+      const panel = document.querySelector('.ck-panel')
+      const r = panel?.getBoundingClientRect()
+      if (panel && r && (r.top > innerHeight * 0.6 || r.bottom < 0)) panel.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
     return () => cancelAnimationFrame(id)
-  }, [phone, picked])
+  }, [picked])
   // 「この画面のリンク」の窓：Esc・窓の外を押すと閉じる
   useEffect(() => {
     if (!linkOpen) return
@@ -146,7 +163,12 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   const closePanel = () => {
     const key = picked
     setPicked(null)
-    if (phone && key) requestAnimationFrame(() => document.querySelector(`.ck-card[data-key="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'center' }))
+    if (key)
+      requestAnimationFrame(() => {
+        const card = document.querySelector(`.ck-card[data-key="${CSS.escape(key)}"]`)
+        const r = card?.getBoundingClientRect()
+        if (card && r && (r.top < 0 || r.bottom > innerHeight)) card.scrollIntoView({ block: 'center' })
+      })
   }
 
   /** 1つの欄を書き、その学生の行を差し替える */
@@ -196,6 +218,21 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       setTimeout(() => setCopied(false), 2500)
     } catch {
       ;(document.querySelector('.ck-pop code') as HTMLElement | null)?.focus()
+    }
+  }
+
+  /** 今すぐ更新（10分ごとの写しを待たずに、名簿から点検表に写して読み直す） */
+  const refresh = async () => {
+    setRefreshing('busy')
+    setError('')
+    try {
+      const next = await server.refreshCheckView(year, courseId)
+      setView(next)
+      setRefreshing('done')
+      setTimeout(() => setRefreshing((r) => (r === 'done' ? null : r)), 2500)
+    } catch (e) {
+      setError(`更新できませんでした：${e instanceof Error ? e.message : String(e)}`)
+      setRefreshing(null)
     }
   }
 
@@ -275,6 +312,11 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
           {sub === 'assign' ? '点検にもどる' : '担当の割り振り'}
         </button>
         )}
+        {view?.exists && (
+          <button type="button" className={`ck-btn${refreshing === 'busy' ? ' busy' : ''}`} disabled={refreshing === 'busy'} aria-busy={refreshing === 'busy'} onClick={() => void refresh()} title="10分ごとの写しを待たずに、新しく登録した学生・並び・PDF の日付などを、いまスプレッドシートの点検表に入れて、読み直します">
+            {refreshing === 'busy' ? <Waiting text="更新しています…" /> : <>{AdminIcon.reset}{refreshing === 'done' ? '更新しました' : '今すぐ更新'}</>}
+          </button>
+        )}
         {link && (
           <button type="button" className={`ck-btn ck-linkbtn${linkOpen ? ' on' : ''}`} onClick={() => setLinkOpen(!linkOpen)} aria-expanded={linkOpen}>
             {AdminIcon.link}この画面のリンク
@@ -306,7 +348,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
   )
 
   // 担当のコースが、この年度にない（学生に表示しないコースになった・前の年度のコース）：コースごとの設定と同じ言葉で知らせる
-  if (!course) return <p className="ck-empty">{admin ? '点検表を見られるコースがありません。' : 'この年度には、担当のコースがありません。上で年度を切り替えるか、左下の「氏名と担当コース」で担当のコースを確かめてください。'}</p>
+  if (!course) return <p className="ck-empty">{admin ? '点検表を見られるコースがありません。' : 'この年度には、担当のコースがありません。上で年度を切り替えるか、「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で担当のコースを確かめてください。'}</p>
   if (error && !view)
     return (
       <div className="ck">
@@ -347,10 +389,10 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
         <span className="ck-grp">
           <span className="k">範囲</span>
           <span className="ck-chips">
-            <button type="button" className={scopeNow === 'mine' ? 'on' : ''} onClick={() => setScope('mine')}>
+            <button type="button" className={scopeNow === 'mine' ? 'on' : ''} onClick={() => (setScope('mine'), setPicked(null))}>
               自分の担当（{myName}）
             </button>
-            <button type="button" className={scopeNow === 'all' ? 'on' : ''} onClick={() => setScope('all')}>
+            <button type="button" className={scopeNow === 'all' ? 'on' : ''} onClick={() => (setScope('all'), setPicked(null))}>
               コース全体
             </button>
           </span>
@@ -358,10 +400,10 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
       )}
       {view.groups.length > 0 && (
         <span className="ck-grp">
-          <span className="k">所属</span>
+          <span className="k">{view.split ? '班' : '所属'}</span>
           <span className="ck-chips">
             {['', ...view.groups].map((g) => (
-              <button type="button" key={g || 'all'} className={group === g ? 'on' : ''} onClick={() => setGroup(g)}>
+              <button type="button" key={g || 'all'} className={group === g ? 'on' : ''} onClick={() => (setGroup(g), setPicked(null))}>
                 {g || 'すべて'}
               </button>
             ))}
@@ -570,7 +612,7 @@ export function CheckSection({ year, courses, me, adminUrl, admin, phone, notice
     const blocks =
       current === 'left'
         ? myBlocks(view, myName, shown)
-        : [{ r: current, label: view.rounds[current], kind: 'now' as const, list: shown.filter((s) => s.rounds[current].state !== 'done' && (scopeNow === 'all' || s.rounds[current].teacher === myName)) }]
+        : [{ r: current, label: view.rounds[current], kind: 'now' as const, list: shown.filter((s) => s.rounds[current].state !== 'done' && (scopeNow === 'all' || s.rounds[current].teacher === myName)) }].filter((b) => b.list.length > 0)
     const r = current === 'left' ? view.rounds.findIndex((_, k) => !view.students.every((s) => !s.rounds[k].teacher || s.rounds[k].state === 'done')) : current
     const statRound = r < 0 ? 0 : r
     return (
@@ -762,6 +804,10 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
   const [rows, setRows] = useState<Record<string, string[]>>(initial)
   const [saving, setSaving] = useState(false)
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+  // 知らせが出たら、1回だけ見える所まで動かす（スマホで画面の外に出ていた。描き直しのたびには動かさない）
+  useEffect(() => {
+    if (note) document.querySelector('.ck-asmsg')?.scrollIntoView({ block: 'nearest' })
+  }, [note])
   if (!view.groups.length)
     return (
       <div className="ck-box">
@@ -819,7 +865,7 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
                       {g}
                     </span>
                     <small className="ck-muted">
-                      {view.students.filter((s) => s.group === g).length}人{ranges ? `　${ranges[gi]}` : ''}
+                      {view.students.filter((s) => s.group === g).length}人{ranges && <span style={{ whiteSpace: 'nowrap' }}>{`　${ranges[gi]}`}</span>}
                     </small>
                   </td>
                   {view.rounds.map((l, r) => {
@@ -853,11 +899,11 @@ function AssignPanel({ view, year, courseId, onSaved }: { view: CheckView; year:
           {saving ? <Waiting text="入れています…" /> : '点検表に入れる'}
         </button>
         {note && (
-          <p ref={(el) => el?.scrollIntoView({ block: 'nearest' })} className={`ck-asmsg ${note.ok ? 'ck-ok' : 'ck-error'}`} role="status">
+          <p className={`ck-asmsg ${note.ok ? 'ck-ok' : 'ck-error'}`} role="status">
             {note.text}
           </p>
         )}
-        <small>1回目の先生を選んで「1回ずつずらして埋める」を押すと、2回目からは、先生が1つ下の{view.split ? '班' : '所属'}へずれて回ります。「点検表に入れる」で、点検表の回の欄に「名字 予定」が入ります（「済み」の欄は書き換えません）。「—」にしても、もう入っている予定は消えません（消すときは、カードの右の欄で「—」）。{view.split ? '' : '所属をまだ選んでいない学生には入りません。'}</small>
+        <small>1回目の先生を選んで「1回ずつずらして埋める」を押すと、2回目からは、先生が1つ下の{view.split ? '班' : '所属'}へずれて回ります。「点検表に入れる」で、点検表の回の欄に「名字 予定」が入ります（「済み」の欄は書き換えません）。「—」にしても、もう入っている予定は消えません（消すときは、カードを押して出る欄で「—（先生なし）」）。{view.split ? '' : '所属をまだ選んでいない学生には入りません。'}</small>
       </div>
     </>
   )

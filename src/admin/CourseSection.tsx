@@ -88,7 +88,7 @@ export function CourseSection({ draft, base, teacher = false, openId, onOpen, on
   if (only && !current)
     return (
       <>
-        <SectionHead title="コースごとの設定" lead="この年度には、担当のコースがありません。上で年度を切り替えるか、左下の「氏名と担当コース」で担当のコースを確かめてください。" />
+        <SectionHead title="コースごとの設定" lead="この年度には、担当のコースがありません。上で年度を切り替えるか、「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で担当のコースを確かめてください。" />
         {notices}
       </>
     )
@@ -481,7 +481,7 @@ function GroupRow({ course, saved, changed, onChange }: { course: Course; saved?
   }
   const name = `c-${course.id}-gmode`
   return (
-    <Row label="所属" htmlFor={`c-${course.id}-group-mode`} hint={mode === 'split' ? SPLIT_HINT : mode === 'choose' ? GROUP_HINT : GROUP_NONE_HINT} warn={problem ?? undefined} changed={changed} icon={AdminIcon.people} tone="t-people">
+    <Row label="所属" htmlFor={`c-${course.id}-group-mode`} hint={mode === 'split' ? SPLIT_HINT : mode === 'choose' ? (groups.length ? GROUP_HINT : `${GROUP_HINT}所属を入れずに保存すると「使わない」になります。`) : GROUP_NONE_HINT} warn={problem ?? undefined} changed={changed} icon={AdminIcon.people} tone="t-people">
       <div className="seg-pick group-mode" role="radiogroup" aria-label="まとまりの作り方">
         {(
           [

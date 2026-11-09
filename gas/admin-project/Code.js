@@ -1733,6 +1733,8 @@ function ensureCheckSheet(year, courseId) {
   rememberAdminBook_()
   const existing = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
   if (existing && usableSheet_(existing.id)) return { url: checkSheetUrl_(existing.id) }
+  const status = yearConfig_(year)
+  if (status && status.status === STATUS_ENDED) throw new Error('終わった年度には、新しく点検表を作れません（学生は載りません）')
   const id = withLock_(() => {
     const found = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
     if (found && usableSheet_(found.id)) return found.id
@@ -1894,8 +1896,8 @@ function withCheckLock_(key, waitMs, busy, fn) {
  * ほかの写し・書き込みが動いているあいだは、何もしない（次の10分で写す）
  */
 function syncCheckSheets() {
-  // 名簿のシートがまだない（だれも登録していない）ときも、点検表の見た目と守りは整える（学生のいる点検表は、syncCheckSheet_ が消さずに止まる）
-  const roster = readRoster_() || []
+  // 名簿のシートがまだない（だれも登録していない）ときも、点検表の見た目と守りは整える（学生のいる点検表は、syncCheckSheet_ が消さずに止まる）。
+  // 名簿は、点検表ごとの印を取ってから読む（写しの途中に先生が並びを直したとき、古い名簿で戻さないように：2026-11-09 の点検）
   checkSheetEntries_().forEach((entry) => {
     const found = yearConfig_(entry.year)
     if (!found || !found.config || found.status === STATUS_ENDED) return
@@ -1903,7 +1905,7 @@ function syncCheckSheets() {
     if (!course) return
     try {
       // 点検表ごとの印（ほかの書き込みの途中なら、この点検表は次の10分で写す）
-      withCheckLock_(checkLockKey_(entry.year, course.id), 1000, '', () => syncCheckSheet_(entry, course, roster))
+      withCheckLock_(checkLockKey_(entry.year, course.id), 1000, '', () => syncCheckSheet_(entry, course, readRoster_() || []))
     } catch (err) {
       console.error('点検表（' + entry.year + '年度・' + course.name + '）を直せませんでした：' + String(err && err.message ? err.message : err))
     }
@@ -1948,22 +1950,28 @@ function sameCell_(a, b) {
  * 先生が書いた列（回の列・許可・教務提出・許可の記録）は、学籍番号（見えない列）で学生と一緒に動かす。
  * 変わったセルだけを書く（先生が同じ時に書いているセルを、なるべく上書きしない）。見た目は、並べ方が変わったときだけ整える
  */
+/**
+ * 名簿から、点検表に並べる学生（並べた順・所属（等分するコースは班）付き）。10分ごとの写しと、点検表の画面（getCheckView）の両方で使う
+ */
+function rosterOrder_(year, course, roster) {
+  const ordered = orderStudents_(knownGroups_(courseStudents_(roster, year, course.id), course), course, manualOrderOk_(year, course))
+  // 並び順で等分するコース（所属を学生に選ばせず、上から N 等分して班にする。人数が変わったら分け直す：依頼者の選択 2026-11-09）
+  const split = splitCount_(course)
+  if (!split) return ordered
+  // 教職員の試し（staff:）の行は、等分の人数に入れない（後ろに置き、班は空：2026-11-09 の点検）
+  const isStaff = (s) => String(s.id).indexOf('staff:') === 0
+  return splitGroups_(
+    ordered.filter((s) => !isStaff(s)),
+    split,
+  ).concat(ordered.filter(isStaff).map((s) => Object.assign({}, s, { group: '' })))
+}
+
 function syncCheckSheet_(entry, course, roster) {
   const book = SpreadsheetApp.openById(entry.id)
   const sheet = book.getSheetByName(CHECK_TAB) || book.getSheets()[0]
   const title = checkSheetTitle_(entry.year, course)
   if (book.getName() !== title) book.rename(title)
-  const ordered = orderStudents_(knownGroups_(courseStudents_(roster, entry.year, course.id), course), course, manualOrderOk_(entry.year, course))
-  // 並び順で等分するコース（所属を学生に選ばせず、上から N 等分して班にする。人数が変わったら分け直す：依頼者の選択 2026-11-09）
-  const split = splitCount_(course)
-  // 教職員の試し（staff:）の行は、等分の人数に入れない（後ろに置き、班は空：2026-11-09 の点検）
-  const isStaff = (s) => String(s.id).indexOf('staff:') === 0
-  const students = split
-    ? splitGroups_(
-        ordered.filter((s) => !isStaff(s)),
-        split,
-      ).concat(ordered.filter(isStaff).map((s) => Object.assign({}, s, { group: '' })))
-    : ordered
+  const students = rosterOrder_(entry.year, course, roster)
   const layout = blockLayout_(students.length, course.checkOneColumn === true)
   // 所属の列（所属を登録した・等分するコースだけ。番号のすぐ右。依頼者の選択 2026-11-09 mockups/v118・v119）
   const wantGroup = effectiveGroups_(course).length > 0
@@ -2538,7 +2546,7 @@ function memberOf_(email) {
 function requireCourseAccess_(user, courseId) {
   const m = memberOf_(user)
   if (!m || m.role === ROLE_ADMIN || !m.courseId) return
-  if (m.courseId !== String(courseId)) throw new Error('担当のコースだけを見られます（担当のコースは、左下の「氏名と担当コース」で確かめられます）')
+  if (m.courseId !== String(courseId)) throw new Error('担当のコースだけを見られます（担当のコースは、「氏名と担当コース」（パソコンは左下、スマホは一覧のいちばん下）で確かめられます）')
 }
 
 /** 先生の画面から届いた、コースごとの編集（コースの ID → 中身）が、担当のコースだけか */
@@ -2697,7 +2705,7 @@ function getCheckView(year, courseId) {
   cs.blocks.forEach((b) => b.rounds.forEach((r) => labels.indexOf(r.label) < 0 && labels.push(r.label)))
   const text = (v) => String(v === undefined || v === null ? '' : v).trim()
   const rows = checkRows_(cs)
-  const students = Object.keys(rows).map((key) => {
+  const fromSheet = (key) => {
     const p = rows[key]
     const c = p.block.cols
     const at = (col) => (col >= 0 ? p.row[col] : '')
@@ -2716,10 +2724,53 @@ function getCheckView(year, courseId) {
       finalOk: at(c.finalOk) === true,
       kyomu: at(c.kyomu) === true,
     }
-  })
-  students.sort((a, b) => a.no - b.no)
+  }
+  // 学生の一覧は名簿から作る（学生が登録すると、10分ごとの写しを待たずに、この画面にはすぐ出る：依頼者の選択 2026-11-09）。
+  // 回・許可・知らせはスプレッドシートから。まだ写っていない学生は空で、知らせに「スプレッドシートにはまだ」（書くと、そのコースをその場で写す：setCheckCell）
+  const roster = readRoster_()
+  let students
+  if (roster) {
+    students = rosterOrder_(year, course, roster).map((s, i) => {
+      const row = rows[s.id] ? fromSheet(s.id) : null
+      const pdfAt = dateOf_(s.pdfAt)
+      return {
+        key: s.id,
+        no: i + 1,
+        name: sheetName_(s),
+        group: s.group || '',
+        pdf: row ? row.pdf : s.pdfId && /^[\w-]+$/.test(s.pdfId) ? { url: 'https://drive.google.com/file/d/' + s.pdfId + '/view', label: pdfAt ? monthDay_(pdfAt) : 'PDF' } : null,
+        note: row ? row.note : PENDING_NOTE,
+        rounds: row ? row.rounds : labels.map(() => ({ teacher: '', state: '' })),
+        abstractOk: row ? row.abstractOk : false,
+        finalOk: row ? row.finalOk : false,
+        kyomu: row ? row.kyomu : false,
+      }
+    })
+  } else {
+    // 名簿がまだない（だれも登録していない）：スプレッドシートの行のまま
+    students = Object.keys(rows).map(fromSheet)
+    students.sort((a, b) => a.no - b.no)
+  }
   return Object.assign(base, { exists: true, url: checkSheetUrl_(cs.entry.id), rounds: labels, students: students })
 }
+
+/**
+ * 点検表の画面の「今すぐ更新」（依頼者の選択 2026-11-09）：そのコースの点検表を、10分ごとの写しを待たずに、いま名簿から写して、画面の中身を返す
+ * （新しく登録した学生・並び・所属・PDF の日付など。先生は担当のコースだけ）。ほかの書き込みや写しの途中なら、待ってから写す（待っても空かなければ知らせる）
+ */
+function refreshCheckView(year, courseId) {
+  const user = requireTeacher_()
+  const course = requireCourse_(year, courseId)
+  requireCourseAccess_(user, course.id)
+  const entry = checkSheetEntries_().find((e) => e.year === Number(year) && e.courseId === course.id)
+  const found = yearConfig_(year)
+  // 終わった年度の点検表は、もう直さない（10分ごとの写しと同じ）
+  if (entry && found && found.status !== STATUS_ENDED) withCheckLock_(checkLockKey_(year, course.id), CHECK_WAIT, CHECK_BUSY, () => syncCheckSheet_(entry, course, readRoster_() || []))
+  return getCheckView(year, course.id)
+}
+
+/** 点検表の画面で、名簿にいて、スプレッドシートにまだ写っていない学生の知らせ */
+const PENDING_NOTE = 'スプレッドシートにはまだ'
 
 /** 自分の名字（✓ の記録に残す。登録した氏名の名字。なければ、メモにある指導教員の名字 → アドレスの @ より前） */
 function mySurname_(user, course) {
@@ -2727,7 +2778,10 @@ function mySurname_(user, course) {
   // 氏名を先に（メモにほかの先生の名字があっても、取り違えない：2026-11-09 の点検）
   const surnames = advisorSurnames_(course.advisors)
   const own = m && m.name ? surnameOf_(m.name) : ''
-  return own && surnames.indexOf(own) >= 0 ? own : editorSurname_(user, m ? [m.name, m.memo].join(' ') : '', surnames)
+  if (own && surnames.indexOf(own) >= 0) return own
+  // 氏名・メモの中にある指導教員の名字。なければ、登録した氏名の名字（指導教員でない管理者・一覧にない名前で登録した先生）。それもなければアドレス
+  const hit = editorSurname_('', m ? [m.name, m.memo].join(' ') : '', surnames)
+  return hit || own || editorSurname_(user, '', [])
 }
 
 /**
@@ -2740,9 +2794,16 @@ function setCheckCell(year, courseId, studentId, field) {
   const course = requireCourse_(year, courseId)
   requireCourseAccess_(user, course.id)
   withCheckLock_(checkLockKey_(year, course.id), CHECK_WAIT, CHECK_BUSY, () => {
-    const cs = openCheckSheet_(year, course.id)
+    let cs = openCheckSheet_(year, course.id)
     if (!cs) throw new Error('点検表がまだありません')
-    const p = checkRows_(cs)[String(studentId)]
+    let p = checkRows_(cs)[String(studentId)]
+    if (!p) {
+      // 名簿にいて、まだスプレッドシートに写っていない学生（点検表の画面には、名簿から出る）：このコースをいま写してから書く
+      syncCheckSheet_(cs.entry, course, readRoster_() || [])
+      SpreadsheetApp.flush()
+      cs = openCheckSheet_(year, course.id)
+      p = cs ? checkRows_(cs)[String(studentId)] : null
+    }
     if (!p) throw new Error('点検表にこの学生が見つかりません（10分ほどで載ります）')
     const c = p.block.cols
     if (c.note >= 0 && String(p.row[c.note]).trim() === BROKEN_NOTE) throw new Error('この行は並びが崩れています。点検表で確かめてください')
@@ -2793,6 +2854,13 @@ function saveAssignment(year, courseId, assignment) {
   const clean = { labels: a.labels.map((l) => String(l)), rows: rows }
   const written = withCheckLock_(checkLockKey_(year, course.id), CHECK_WAIT, CHECK_BUSY, () => {
     PropertiesService.getScriptProperties().setProperty('assign:' + Number(year) + ':' + course.id, JSON.stringify(clean))
+    // 名簿にいて、まだスプレッドシートに写っていない学生がいれば、先に写す（点検表の画面には出ているので、割り振りも入るように）
+    const cs = openCheckSheet_(year, course.id)
+    const roster = readRoster_() || []
+    if (cs) {
+      const rows = checkRows_(cs)
+      if (courseStudents_(roster, year, course.id).some((s) => !rows[s.id])) syncCheckSheet_(cs.entry, course, roster)
+    }
     return applyAssignment_(year, course, false)
   })
   appendMemberHistory_(user, '担当の割り振りを点検表に入れる（' + Number(year) + '年度・' + course.name + ' コース・' + written + 'か所）')

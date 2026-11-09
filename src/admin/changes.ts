@@ -247,7 +247,7 @@ function courseValue(course: Course, key: string): string | undefined {
   if (key === 'checkById') return course.checkById ? '学籍番号順' : '五十音順'
   if (key === 'checkOneColumn') return course.checkOneColumn ? 'いつも縦1列' : '26人からは2列'
   if (key === 'groups') return brief(course.groups ?? [])
-  if (key === 'checkSplit') return course.checkSplit ? `並び順で${course.checkSplit}等分` : '並び順で等分しない'
+  if (key === 'checkSplit') return course.checkSplit ? `並び順で${course.checkSplit}等分` : (course.groups ?? []).length ? '学生が選ぶ' : '使わない'
   if (key === 'name' || key === 'advisors' || key === 'subtitleTemplate' || key === 'notice') return brief(course[key as keyof Course])
   return undefined
 }
