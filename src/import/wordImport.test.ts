@@ -10,7 +10,7 @@ import type { Chapter, FigureRowBlock, ParagraphBlock, TableBlock } from '../mod
 import type { WordImportResult } from './types'
 import { isPlaceholderOnly, isReferencesTitle, isWriting, parseCaptionLine } from './wordImport'
 import { headingFromText } from '../model/headingText'
-import { applyWordImport, chapterOrder, importPrints, lostByImport, readWordFiles, subtitleFromWord, WordImportError } from './wordImport'
+import { applyWordImport, chapterOrder, importPrints, looksLikeReferenceEntry, lostByImport, readWordFiles, subtitleFromWord, WordImportError } from './wordImport'
 import { bodyFromTemplate, courseTemplate } from '../model/template'
 import { exifOrientation, imageInfo, prepareImage } from './wordImages'
 
@@ -477,6 +477,75 @@ describe('学生の書き方の違い', () => {
     expect(result.problems[0].message).toBe('参考文献（2行）は写していません')
     expect(['参考文献', '【引用・参考文献】', '参考資料', 'Ⅳ．参考文献', '参考URL'].every((t) => isReferencesTitle(t.replace(/^Ⅳ．/, '')))).toBe(true)
     expect(isReferencesTitle('参考にした資料')).toBe(false)
+  })
+
+  it('途中の中見出し「参考資料」に図や文があれば、ふつうの中見出しとして写し、あとの中見出し・図・表も消さない（依頼者の選択 2026-11-10）', async () => {
+    const result = await read(
+      makeDocx({
+        media: { 'a.png': DESIGN, 'b.png': BACK },
+        body: [
+          p('Ⅰ．企画・立案'),
+          p('ⅰ．担当衣装のキャラクター'),
+          p('主人公は旅を続ける若い船乗りである。'),
+          p('ⅱ．参考資料'),
+          p('中東の民族衣装を参考にした（図1）。'),
+          p(inlineImage(rid('a.png'))),
+          p('図1　参考にした民族衣装'),
+          p('ⅲ．デザイン説明'),
+          p('デザイン画を図2に示す。'),
+          p(inlineImage(rid('b.png'))),
+          p('図2　デザイン画'),
+          p('ⅳ．使用素材'),
+          p('使用した素材を表1に示す。'),
+          p('表1　使用素材'),
+          table([
+            ['名称', '使用箇所'],
+            ['綿ブロード', '上着'],
+          ]),
+          p('Ⅱ．制作過程'),
+          p('型紙を作った。'),
+        ].join(''),
+      }),
+    )
+    expect(kinds(result.body[0]).filter((k) => k.startsWith('s:'))).toEqual(['s:担当衣装のキャラクター', 's:参考資料', 's:デザイン説明', 's:使用素材'])
+    expect(result.body[0].blocks.filter((b) => b.type === 'figureRow')).toHaveLength(2)
+    expect(result.body[0].blocks.filter((b) => b.type === 'table')).toHaveLength(1)
+    expect(result.problems.some((x) => x.message.includes('参考文献'))).toBe(false)
+  })
+
+  it('途中の「参考文献」の並びは、次の中見出し・文の段落で終わり、そのあとは写す（前は次の大見出しまで消えていた）', async () => {
+    const result = await read(
+      makeDocx({
+        media: { 'a.png': DESIGN },
+        body: [
+          p('Ⅰ．制作過程'),
+          p('ⅰ．ジャケット'),
+          p('前身頃に金のブレードを付けた。'),
+          p('ⅱ．参考文献'),
+          p('文化花子『中東の服飾史』文化出版、2020年'),
+          p('https://www.example.com/costume（2026年6月1日閲覧）'),
+          p('ⅲ．仮面'),
+          p('仮面は革で作った（図1）。'),
+          p(inlineImage(rid('a.png'))),
+          p('図1　仮面'),
+          p('Ⅱ．まとめ'),
+          p('参考文献'),
+          p('服飾造形講座、文化出版局、2009年'),
+          p('本制作にあたり、ご指導いただいた先生方に感謝する。'),
+        ].join(''),
+      }),
+    )
+    // 章は、コースのひな形の順に並ぶ（Word にない「企画・立案」は、ひな形のまま入る）ので、名前で探す
+    const at = (title: string) => result.body.findIndex((c) => c.title === title)
+    expect(kinds(result.body[at('制作過程')]).filter((k) => k.startsWith('s:'))).toEqual(['s:ジャケット', 's:仮面'])
+    // （図2）：ひな形の「企画・立案」にデザイン画の図（図1）があるため
+    expect(paragraphs(result.body, at('制作過程'))).toEqual(['前身頃に金のブレードを付けた。', '仮面は革で作った（図2）。'])
+    expect(result.body[at('制作過程')].blocks.filter((b) => b.type === 'figureRow')).toHaveLength(1)
+    // 謝辞の文は、文献の並びのあとでも写す
+    expect(paragraphs(result.body, at('まとめ'))).toEqual(['本制作にあたり、ご指導いただいた先生方に感謝する。'])
+    expect(result.problems.find((x) => x.message.startsWith('参考文献'))?.message).toBe('参考文献（3行）は写していません')
+    expect(looksLikeReferenceEntry('文化花子『中東の服飾史』文化出版、2020年')).toBe(true)
+    expect(looksLikeReferenceEntry('2019年のパリコレクションの衣装を参考にした。')).toBe(false)
   })
 
   it('「2-1 仮縫い」の形の行は、見出しの形でない行として知らせる。「①」「1)」が続いた行（箇条書き）は知らせない（試し 2026-10-27）', async () => {

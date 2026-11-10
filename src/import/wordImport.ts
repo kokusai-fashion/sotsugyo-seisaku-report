@@ -76,6 +76,19 @@ export function isReferencesTitle(text: string): boolean {
   return /^(引用・?参考文献|参考・?引用文献|引用文献|参考文献|参考資料|参考URL|参考サイト|参考文献・資料|参考資料・文献|文献)(一覧|リスト)?$/i.test(t)
 }
 
+/**
+ * 参考文献の並びの1行らしいか（URL・『書名』・「題」・年・出版社・閲覧日など）。「〜した。」のような文の段落は、文献ではない。
+ * 「参考文献」「参考資料」の題のあと、写さないのは、この形の行だけ（依頼者の選択 2026-11-10：途中の中見出し「参考資料」のあとが、
+ * 次の大見出しまで消えていた。Word のルール違反の試し S10d）
+ */
+export function looksLikeReferenceEntry(text: string): boolean {
+  const t = text.replace(/\s+/g, ' ').trim()
+  if (!t) return false
+  if (/https?:\/\/|www\.|ISBN/i.test(t)) return true
+  if (t.length > 150 || /(た|る|だ|い|す|う|く|ん|ず)。$/.test(t)) return false
+  return /『[^』]+』|「[^」]+」|(19|20)\d{2}|[１２][０-９]{3}|出版|書房|書店|新聞|雑誌|閲覧|参照日|アクセス|pp?\.\s*\d|頁/.test(t)
+}
+
 /** 学生が書いた文か（仮の文字・ひな形にもとからある文だけではない） */
 export function isWriting(text: string): boolean {
   const core = coreText(text)
@@ -373,12 +386,27 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
   let inToc = false
   /** 目次の小見出しの名前（目次のファイルのものと、本文のファイルの目次の行のもの） */
   const tocMinors = new Set(known.tocMinors)
-  /** 参考文献の中（「参考文献」の行のあと。次の大見出しまで） */
+  /** 参考文献の中（「参考文献」の行のあとの、文献の並び。見出し・図・表・文の段落で終わる） */
   let inRefs = false
+  /**
+   * 「参考文献」「参考資料」の題のあと、最初の中身が文献の並びか（次の見出しまで何もなくても、そうみなす）。
+   * 図・表・文の段落なら、ふつうの見出し（段落）として写す（中見出し「参考資料」に参考画像を入れた原稿など）
+   */
+  const refsFollow = (from: number): boolean => {
+    for (const b of blocks.slice(from + 1)) {
+      if (b.type === 'table' || b.images.length || b.boxes.length) return false
+      const text = b.text.replace(/[\n\t]/g, '').trim()
+      if (!text) continue
+      if (headingFromText(b.text) || b.headingLevel || (b.romanLevel && text.length <= 40)) return true
+      return looksLikeReferenceEntry(text)
+    }
+    return true
+  }
   for (const [at, block] of blocks.entries()) {
     if (block.type === 'table') {
       inToc = false
-      if (inRefs) continue
+      // 表で、参考文献の並びは終わり
+      inRefs = false
       if (isFigureTable(block)) {
         // 画像と図のタイトルを表に並べただけのもの：図にする（行ごとに左から）
         for (const row of block.rows) {
@@ -422,15 +450,17 @@ function classify(blocks: WordBlock[], known: KnownHeadings): Event[] {
     const minorTitle = short ? minorFromText(p.listPrefix + line) : null
     const tocMinor = minorTitle !== null && tocMinors.has(comparable(minorTitle))
     const level = headingText?.level ?? p.headingLevel ?? (p.romanLevel && short ? p.romanLevel : null) ?? (tocMinor ? 3 : null)
-    // 参考文献：「参考文献」の行（見出しでも）から、次の大見出しまでは写さない（ツールでは「参考文献」の道具で入れる。依頼者の選択 2026-10-27）
+    // 参考文献：「参考文献」の行（見出しでも）と、そのあとの文献の並びは写さない（ツールでは「参考文献」の道具で入れる。依頼者の選択 2026-10-27）。
+    // 並びは、見出し・図・表・文の段落で終わる（前は次の大見出しまで写さず、途中の中見出し「参考資料」のあとの中見出し・図・表が消えていた：
+    // 依頼者の選択 2026-11-10）。題のあとが図・表・文なら、題もふつうに写す
     const title = level && line ? (headingText?.title ?? (tocMinor && minorTitle !== null && !p.headingLevel ? minorTitle : stripHeadingNumber(p.text))) : ''
-    if (isReferencesTitle(level ? title : line)) {
+    if (isReferencesTitle(level ? title : line) && refsFollow(at)) {
       closeGroup()
       inRefs = true
       events.push({ k: 'refs' })
       continue
     }
-    if (inRefs && level !== 1) {
+    if (inRefs && !level && !p.images.length && !p.boxes.length && (!line || looksLikeReferenceEntry(line))) {
       if (line) events.push({ k: 'refsLine' })
       continue
     }
