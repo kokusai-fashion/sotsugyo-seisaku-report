@@ -1,6 +1,7 @@
 import { findCourse, subtitleInputOnly, usesSubtitle, type YearConfig } from '../config'
-import { contentToText, editables, figureMentionOrder, numbering, parenthetical, subheadingName, type EditableKind } from '../editor/reportOps'
+import { bodySections, contentToText, editables, figureMentionOrder, misplacedFigureRow, numbering, parenthetical, subheadingName, type EditableKind } from '../editor/reportOps'
 import { COVER_SUBTITLE, OVERFLOW_RATIO, yearDigits } from '../layout/document'
+import { chapterLabel, subheadingLabel } from '../layout/bodyHtml'
 import type { LayoutInfo } from '../layout/measure'
 import type { TypedHeading } from '../model/headingText'
 import type { Report, TableBlock, TableRow } from '../model/types'
@@ -600,6 +601,36 @@ export function checkReport(report: Report, config: YearConfig, layout?: LayoutI
       continue
     }
     latest = { at, n }
+  }
+  // 図の場所：図が、本文で「（図n）」と書いた段落と違う見出し（中見出し・大見出し）の下にある（依頼者の選択 2026-11-10。
+  // Word から写した原稿で、ⅱ で（図2）と書き、図は ⅲ の下に入れていた）。図を指した段落が、同じ見出しの下に1つでもあればよい
+  // （「まとめ」でもう一度指す、など）。正しく置いていることもあるので要確認（学生が「このままにする」で外せる）。
+  // 直し方は、図を押して「段落の下へ移す」（見出しを越えて動かせるのは、この図だけ：editor/reportOps.ts の misplacedFigureRow）
+  {
+    const sections = bodySections(report)
+    const sectionName = (key: string) => {
+      const [ci, sub] = key.split('-').map(Number)
+      const chapter = report.body[ci]
+      if (sub === undefined) return `${chapterLabel(ci)}${chapter?.title ?? ''}`
+      const heading = chapter?.blocks.filter((x) => x.type === 'subheading' && !x.level)[sub]
+      return `${subheadingLabel(sub)}${heading?.type === 'subheading' ? heading.title : ''}`
+    }
+    for (const row of report.body.flatMap((c) => c.blocks)) {
+      if (row.type !== 'figureRow' || !row.figures.length) continue
+      const at = misplacedFigureRow(report, row.figures[0].id, sections)
+      if (!at) continue
+      const label = row.figures.map((f) => `図${num.numbers.get(f.id)}`).join('・')
+      findings.push({
+        ruleId: 'figure-section',
+        severity: 'warning',
+        source: 'supplementary',
+        title: `${label}が、本文で指した段落と違う見出しの下にある`,
+        detail: `本文で指しているのは「${sectionName(at.refSection)}」の段落ですが、${label}は「${sectionName(at.rowSection)}」の下にあります。パソコンで図を押し、「段落の下へ移す」で、指した段落のすぐ下へ移します`,
+        area: 'body',
+        blockId: row.figures[0].id,
+        key: `figure-section|${row.id}|${at.refSection}|${at.rowSection}`,
+      })
+    }
   }
   // 存在しない図表の番号（削除された図への参照「図?」や、手で書いた「（図9）」）
   for (const e of list.filter((x) => x.kind === 'paragraph')) {

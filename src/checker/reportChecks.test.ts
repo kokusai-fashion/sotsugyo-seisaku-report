@@ -188,6 +188,58 @@ describe('checkReport', () => {
     expect(found?.detail).toContain('本文では「（図2）」が「（図1）」より先に出てきます')
   })
 
+  it('図が、本文で指した段落と違う見出しの下にあれば要確認（このままにできる。2026-11-10）', () => {
+    // 図1（r1）を、ⅱ．デザイン説明（（図1）を書いた段落 p2）から、ⅲ．使用素材の段落 p3 のあとへ動かす
+    const moved = (r: Report): Report => {
+      const fig = r.body[0].blocks.find((b) => b.id === 'r1')!
+      const blocks = r.body[0].blocks.filter((b) => b.id !== 'r1')
+      blocks.splice(blocks.findIndex((b) => b.id === 'p3') + 1, 0, fig)
+      return { ...r, body: r.body.map((c, i) => (i === 0 ? { ...c, blocks } : c)) }
+    }
+    const r = moved(cleanReport())
+    const found = checkReport(r, currentConfig, layout()).find((f) => f.ruleId === 'figure-section')
+    expect(found).toMatchObject({ severity: 'warning', source: 'supplementary', blockId: 'f1', title: '図1が、本文で指した段落と違う見出しの下にある' })
+    expect(found?.detail).toBe('本文で指しているのは「ⅱ．デザイン説明」の段落ですが、図1は「ⅲ．使用素材」の下にあります。パソコンで図を押し、「段落の下へ移す」で、指した段落のすぐ下へ移します')
+    // 「段落の下へ移す」：（図1）の段落 p2 のすぐ下へ戻り、要確認は消える
+    expect(ops.figurePlacement(r, 'f1')).toMatchObject({ misplaced: true, toParagraph: true, toSectionEnd: false })
+    const back = ops.moveFigureRow(r, 'f1', 'paragraph')
+    const order = back.body[0].blocks.map((b) => b.id)
+    expect(order.indexOf('r1')).toBe(order.indexOf('p2') + 1)
+    expect(ids(back, layout())).not.toContain('figure-section')
+    expect(ops.figurePlacement(back, 'f1').misplaced).toBe(false)
+    // 同じ見出しの下の段落でも指していれば、出さない
+    const ref = { type: 'ref' as const, targetId: 'f1', withParens: true }
+    const again = { ...r, body: r.body.map((c) => ({ ...c, blocks: c.blocks.map((b) => (b.id === 'p3' && b.type === 'paragraph' ? { ...b, content: [...b.content, ref] } : b)) })) }
+    expect(ids(again, layout())).not.toContain('figure-section')
+    // 「このままにする」で外せる
+    expect(ids({ ...r, acknowledged: [found!.key!] }, layout())).not.toContain('figure-section')
+    // もとの場所なら出さない
+    expect(ids(cleanReport(), layout())).not.toContain('figure-section')
+  })
+
+  it('大見出しを越えて違う所にある図も、要確認になり、「段落の下へ移す」で戻せる', () => {
+    // 図1（r1）を、Ⅱ．の中見出し s4 のすぐ下へ動かす（（図1）は Ⅰ．の ⅱ．デザイン説明の段落 p2）
+    const base = cleanReport()
+    const fig = base.body[0].blocks.find((b) => b.id === 'r1')!
+    const r: Report = {
+      ...base,
+      body: base.body.map((c, i) => {
+        if (i === 0) return { ...c, blocks: c.blocks.filter((b) => b.id !== 'r1') }
+        if (i !== 1) return c
+        const blocks = [...c.blocks]
+        blocks.splice(blocks.findIndex((b) => b.id === 's4') + 1, 0, fig)
+        return { ...c, blocks }
+      }),
+    }
+    const found = checkReport(r, currentConfig, layout()).find((f) => f.ruleId === 'figure-section')
+    expect(found?.detail).toContain('「ⅱ．デザイン説明」の段落ですが、図1は「ⅰ．ジャケット」の下にあります')
+    const back = ops.moveFigureRow(r, 'f1', 'paragraph')
+    const first = back.body[0].blocks.map((b) => b.id)
+    expect(first.indexOf('r1')).toBe(first.indexOf('p2') + 1)
+    expect(back.body[1].blocks.some((b) => b.id === 'r1')).toBe(false)
+    expect(ids(back, layout())).not.toContain('figure-section')
+  })
+
   it('本文から参照されていない図表を指摘する', () => {
     const r = ops.setText(cleanReport(), 'p2', 'デザインを考えた。')
     expect(ids(r, layout())).toContain('figure-unreferenced')

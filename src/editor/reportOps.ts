@@ -985,13 +985,16 @@ export function figurePlacement(
   upBlock: FigureMoveBlock | null
   downBlock: FigureMoveBlock | null
   inSubsection: boolean
+  /** （図n）を書いた段落と違う見出しの下にある（「段落の下へ移す」で、見出しを越えて移せる。依頼者の選択 2026-11-10） */
+  misplaced: boolean
 } {
+  const misplaced = !!misplacedFigureRow(report, figureId)
   for (const chapter of report.body) {
     const t = figureRowTargets(chapter, figureId, refOnlyLater(report, chapter, figureId), figureMentionOrder(report))
     if (t)
       return {
-        toSectionEnd: t.sectionEnd !== null,
-        toParagraph: t.paragraph !== null,
+        toSectionEnd: !misplaced && t.sectionEnd !== null,
+        toParagraph: misplaced || t.paragraph !== null,
         up: t.up !== null || t.joinUp,
         down: t.down !== null || t.joinDown,
         upJoin: t.joinUp,
@@ -999,9 +1002,10 @@ export function figurePlacement(
         upBlock: t.upBlock,
         downBlock: t.downBlock,
         inSubsection: t.inSubsection,
+        misplaced,
       }
   }
-  return { toSectionEnd: false, toParagraph: false, up: false, down: false, upJoin: false, downJoin: false, upBlock: null, downBlock: null, inSubsection: false }
+  return { toSectionEnd: false, toParagraph: false, up: false, down: false, upJoin: false, downJoin: false, upBlock: null, downBlock: null, inSubsection: false, misplaced: false }
 }
 
 /** 図（のまとまり）を参照している段落が、その図の章より後ろの章にしかないか（その章や前の章にあれば false） */
@@ -1013,6 +1017,73 @@ function refOnlyLater(report: Report, chapter: Chapter, figureId: string): boole
   return at > report.body.indexOf(chapter)
 }
 
+/**
+ * 本文の段落・図が、どの見出しのまとまりにあるか（大見出しの何番目と、中見出しの何番目。小見出しは見ない）。
+ * 値は「章」または「章-中見出し」（中見出しより前の、大見出しのはじめの部分は「章」）
+ */
+export function bodySections(report: Pick<Report, 'body'>): Map<string, string> {
+  const of = new Map<string, string>()
+  report.body.forEach((chapter, ci) => {
+    let key = `${ci}`
+    let sub = 0
+    for (const b of chapter.blocks) {
+      if (b.type === 'subheading' && !b.level) key = `${ci}-${sub++}`
+      else if (b.type === 'paragraph') of.set(b.id, key)
+      else if (b.type === 'figureRow') {
+        of.set(b.id, key)
+        for (const f of b.figures) of.set(f.id, key)
+      }
+    }
+  })
+  return of
+}
+
+/**
+ * 図のまとまり（figureId の図を含む）が、それを指した段落（本文の（図n））と違う見出しの下にある（同じ見出しの下で指した段落が1つもない）とき、
+ * 最初に指した段落と、それぞれの見出しのまとまり（bodySections の値）。そうでなければ null。
+ * Word から写した原稿で、ⅱ で（図2）と書き、図は ⅲ の下に入れていた（依頼者の選択 2026-11-10：要確認を出し、「段落の下へ移す」で直せるようにする）
+ */
+export function misplacedFigureRow(report: Pick<Report, 'body'>, figureId: string, sections = bodySections(report)): { rowId: string; paragraphId: string; refSection: string; rowSection: string } | null {
+  const row = report.body.flatMap((c) => c.blocks).find((b): b is FigureRowBlock => b.type === 'figureRow' && b.figures.some((f) => f.id === figureId))
+  if (!row) return null
+  const ids = new Set(row.figures.map((f) => f.id))
+  const rowSection = sections.get(row.id)
+  const refs = report.body.flatMap((c) => c.blocks).filter((b): b is ParagraphBlock => b.type === 'paragraph' && b.content.some((n) => n.type === 'ref' && ids.has(n.targetId)))
+  if (!refs.length || rowSection === undefined || refs.some((p) => sections.get(p.id) === rowSection)) return null
+  const refSection = sections.get(refs[0].id)
+  return refSection === undefined ? null : { rowId: row.id, paragraphId: refs[0].id, refSection, rowSection }
+}
+
+/**
+ * 違う見出しの下にある図のまとまりを、最初に指した段落のすぐ下へ移す（見出し・大見出しを越えて）。
+ * 段落のすぐ下に図・表が続くときは、本文でこの図より先に出てくる図の後ろに入れる（図の順を、本文で出てくる順のままにする）
+ */
+function moveMisplacedRow(report: Report, figureId: string): Report {
+  const at = misplacedFigureRow(report, figureId)
+  if (!at) return report
+  const row = report.body.flatMap((c) => c.blocks).find((b) => b.id === at.rowId) as FigureRowBlock
+  const mentions = figureMentionOrder(report)
+  const firstMention = (b: BodyBlock): number | null => {
+    if (b.type !== 'figureRow') return null
+    const m = b.figures.map((f) => mentions.get(f.id)).filter((n): n is number => n !== undefined)
+    return m.length ? Math.min(...m) : null
+  }
+  const self = firstMention(row)
+  const body = report.body.map((c) => ({ ...c, blocks: c.blocks.filter((b) => b.id !== at.rowId) }))
+  const ci = body.findIndex((c) => c.blocks.some((b) => b.id === at.paragraphId))
+  if (ci < 0) return report
+  const blocks = [...body[ci].blocks]
+  const p = blocks.findIndex((b) => b.id === at.paragraphId)
+  let insert = p + 1
+  for (let i = p + 1; i < blocks.length && isAttachment(blocks[i]); i++) {
+    const them = firstMention(blocks[i])
+    if (self !== null && them !== null && them < self) insert = i + 1
+  }
+  blocks.splice(insert, 0, row)
+  body[ci] = { ...body[ci], blocks }
+  return { ...report, body }
+}
+
 /** 図を動かす先：中見出しのまとまりのいちばん下・最初に参照している段落のすぐ下・1つ上・1つ下 */
 export type FigureMove = 'sectionEnd' | 'paragraph' | 'up' | 'down'
 
@@ -1021,6 +1092,8 @@ export type FigureMove = 'sectionEnd' | 'paragraph' | 'up' | 'down'
  * 1つ上へ（'up'）・1つ下へ（'down'）動かす。動かせなければ同じ原稿
  */
 export function moveFigureRow(report: Report, figureId: string, to: FigureMove): Report {
+  // 違う見出しの下にある図は、「段落の下へ移す」で、見出しを越えて（図n）の段落の下へ（依頼者の選択 2026-11-10）
+  if (to === 'paragraph' && misplacedFigureRow(report, figureId)) return moveMisplacedRow(report, figureId)
   let moved = false
   const mentions = figureMentionOrder(report)
   const body = report.body.map((chapter) => {

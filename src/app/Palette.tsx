@@ -621,7 +621,13 @@ export function SelectionTools({ editor, snap, phone, template }: SelectionTools
             onClick={() => void editor.moveFigure(figureId, 'sectionEnd')}
           />
         ) : place.toParagraph ? (
-          <Tool label={'段落の下へ\n戻す'} icon={Icon.toParagraph} title="この図を、この図のことを書いた段落のすぐ下へ戻す" onClick={() => void editor.moveFigure(figureId, 'paragraph')} />
+          <Tool
+            // （図n）と違う見出しの下にある図は「移す」（見出しを越えて動かす。依頼者の選択 2026-11-10）
+            label={place.misplaced ? '段落の下へ\n移す' : '段落の下へ\n戻す'}
+            icon={Icon.toParagraph}
+            title={place.misplaced ? 'この図を、本文で（図n）と書いた段落のすぐ下へ移す（見出しを越えて動かします）' : 'この図を、この図のことを書いた段落のすぐ下へ戻す'}
+            onClick={() => void editor.moveFigure(figureId, 'paragraph')}
+          />
         ) : null}
         {/* 並んでいる図は「並びから外す」、1枚だけの図がすぐ上・下に続くときは「横に並べる」（依頼者の選択 2026-10-24：帯に1つ足す） */}
         {pairing.split && <Tool label={'並びから\n外す'} className="tb-pair" icon={Icon.splitRow} title="この図を並びから外して、1枚ずつの図にする（図の番号はそのまま）" onClick={() => void editor.splitFigure(figureId)} />}
