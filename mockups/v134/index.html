@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>v134 Word の案内の右上</title>
+<!-- 「Word で書き始めた人へ」の案内の右上（依頼者 2026-11-10）：QR コードは学生用の手引きにもあり、別のものと思わせないように外す。
+     空いたところに、Word からツールへ移すことを表す絵を置く案。紙面と同じ大きさ（mm）で、見出しの部分だけを並べる。
+     node scripts/mockup-v134-word-mark.mjs → mockups/v134/v134-word-mark.png -->
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/400.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udpgothic/700.css">
+<link rel="stylesheet" href="../../node_modules/@fontsource/biz-udmincho/400.css">
+<style>
+  :root { --ink: #23262b; --muted: #5b5e65; --accent: #2f3e75; --accent-soft: #e8ebf5; --line: #e2ddd5; --stage: #ebe8e3; --word: #2b5797; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 8mm 8mm 10mm; width: 240mm; background: #f3f1ec; color: var(--ink); font-family: 'BIZ UDPGothic', sans-serif; font-size: 9.5pt; line-height: 1.55; }
+  .title { font-size: 15pt; font-weight: 700; margin: 0 0 1mm; }
+  .intro { font-size: 10pt; color: var(--muted); margin: 0 0 5mm; line-height: 1.6; }
+  .opt { margin-bottom: 5mm; }
+  .opt > h2 { margin: 0 0 1.6mm; font-size: 11.5pt; display: flex; align-items: baseline; gap: 2.4mm; }
+  .opt > h2 small { font-size: 9pt; font-weight: 400; color: var(--muted); }
+  .opt > h2 .rec { padding: 0.3mm 2.4mm; border-radius: 9mm; background: var(--ink); color: #fff; font-size: 8.5pt; }
+  .opt.now > h2 { color: var(--muted); }
+  /* 紙面（見出しの部分だけ） */
+  .sheet { width: 210mm; padding: 10mm 12mm 0; background: #fff; box-shadow: 0 0.4mm 2mm rgba(30, 25, 20, 0.12); }
+  h1, p { margin: 0; }
+  .fn { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; letter-spacing: 0.01em; }
+  .hd { display: grid; grid-template-columns: 1fr auto; gap: 6mm; align-items: end; padding-bottom: 3.2mm; border-bottom: 1.2pt solid var(--accent); }
+  .kicker { display: flex; align-items: center; gap: 2.2mm; color: var(--accent); font-size: 9pt; letter-spacing: 0.06em; }
+  .mark { width: 7mm; height: 7mm; flex: none; display: grid; place-items: center; border: 1pt solid var(--accent); border-radius: 1.8mm; font-family: 'BIZ UDMincho', serif; font-size: 11pt; letter-spacing: 0; }
+  h1 { margin: 2.4mm 0 2mm; font-family: 'BIZ UDMincho', serif; font-weight: 400; font-size: 21pt; line-height: 1.3; letter-spacing: 0.04em; }
+  h1 .lat { font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.01em; }
+  h1 .sub { display: block; margin-top: 0.6mm; font-size: 14pt; color: var(--accent); letter-spacing: 0.06em; }
+  .lead { font-size: 10pt; line-height: 1.65; }
+  .url { display: flex; align-items: baseline; gap: 2mm; margin-top: 1.6mm; font-size: 9.5pt; }
+  .url b { flex: none; color: var(--accent); }
+  .url .fn { font-size: 10.5pt; font-weight: 600; }
+  .next { height: 7mm; margin-top: 3mm; border-radius: 2.6mm 2.6mm 0 0; border: 1.4pt solid #c0392b; border-bottom: 0; background: #fbeeec; opacity: 0.5; }
+
+  /* 右上の枠（今の QR の枠と同じ大きさ） */
+  .qr { width: 35mm; display: flex; flex-direction: column; align-items: center; gap: 1.2mm; padding: 2.6mm 2.4mm 2mm; border: 1pt solid var(--line); border-radius: 3mm; text-align: center; }
+  .qr img { width: 27mm; height: 27mm; display: block; }
+  .qr b { font-size: 9.5pt; color: var(--accent); }
+  .move { width: 38mm; align-self: stretch; justify-content: center; display: flex; flex-direction: column; align-items: center; gap: 1.8mm; padding: 2.6mm 2.4mm 2.2mm; border: 1pt solid var(--line); border-radius: 3mm; text-align: center; }
+  .move > b { font-size: 9.5pt; color: var(--accent); line-height: 1.35; }
+  .tool { display: block; border-radius: 22%; }
+  .lbl { display: block; font-size: 7.5pt; color: var(--muted); line-height: 1.2; white-space: nowrap; }
+  .lbl.fn { font-size: 7pt; }
+
+  /* 案A：横に並べる */
+  .a .row { display: flex; align-items: center; gap: 0.8mm; }
+  .a .it { display: flex; flex-direction: column; align-items: center; gap: 0.8mm; }
+  .a .doc { width: 12mm; height: 14.7mm; }
+  .a .tool { width: 13.5mm; height: 13.5mm; margin: 0.6mm 0; }
+  .a .arr { width: 6mm; height: 4mm; margin-bottom: 4mm; }
+
+  /* 案B：上から下へ（絵の右に名前） */
+  .b .rowv { display: grid; grid-template-columns: 12mm 1fr; gap: 0.8mm 2mm; align-items: center; width: 100%; text-align: left; }
+  .b .doc { width: 11mm; height: 13.5mm; justify-self: center; }
+  .b .tool { width: 12mm; height: 12mm; justify-self: center; }
+  .b .arr { width: 4mm; height: 5mm; justify-self: center; }
+  .b .nm { font-size: 8.5pt; line-height: 1.3; white-space: nowrap; }
+  .b .nm small { display: block; font-size: 7pt; color: var(--muted); }
+
+  /* 案C：中身（見出し・図・表）が移る */
+  .c .row { display: flex; align-items: center; gap: 0.6mm; }
+  .c .doc { width: 10mm; height: 12.3mm; }
+  .c .tool { width: 11.5mm; height: 11.5mm; }
+  .c .mid { display: flex; flex-direction: column; align-items: center; gap: 0.5mm; }
+  .c .bits { display: flex; gap: 0.5mm; }
+  .c .bits svg { width: 2.9mm; height: 2.9mm; }
+  .c .arr { width: 9mm; height: 3.4mm; }
+  .c .lbls { display: flex; justify-content: space-between; width: 100%; padding: 0 2mm; }
+
+  /* 案D：ツールの紙面に重ねる（Word の紙が、ツールの中へ） */
+  .d .stack { position: relative; width: 31mm; height: 22mm; }
+  .d .doc { position: absolute; left: 0.8mm; top: 0.4mm; width: 12.5mm; height: 15.3mm; transform: rotate(-8deg); }
+  .d .tool { position: absolute; right: 0.5mm; bottom: 0; width: 15mm; height: 15mm; box-shadow: 0 0.3mm 1.2mm rgba(30, 25, 20, 0.25); }
+  .d .arr { position: absolute; left: 10.5mm; top: 0.6mm; width: 11.5mm; height: 9.2mm; }
+  .d .lbls { display: flex; justify-content: space-between; width: 31mm; padding: 0 1.5mm; }
+</style>
+</head>
+<body>
+  <p class="title">v134 「Word で書き始めた人へ」の右上</p>
+  <p class="intro">QR コードを外して、Word からツールへ移すことを表す絵にする案です。紙面と同じ大きさで、見出しの部分だけを並べています。<br>
+    Word の絵は、Word の書類だと分かる形にしました（Microsoft のロゴそのものは使いません）。ツールの絵は、学生のツールのアイコンです。</p>
+
+  <section class="opt now">
+    <h2>今<small>QR コード（学生用の手引きと同じもの）</small></h2>
+    <div class="sheet" data-qr></div>
+  </section>
+
+  <section class="opt a">
+    <h2>案A　横に並べる<small>左の Word から、右のツールへ</small><span class="rec">おすすめ</span></h2>
+    <div class="sheet">
+      <div class="move">
+        <div class="row">
+          <div class="it"><svg class="doc" data-doc></svg><span class="lbl fn">Word</span></div>
+          <svg class="arr" data-arr="r"></svg>
+          <div class="it"><img class="tool" src="../../public/icons/icon-192.png" alt=""><span class="lbl">ツール</span></div>
+        </div>
+        <b>ツールに写す</b>
+      </div>
+    </div>
+  </section>
+
+  <section class="opt b">
+    <h2>案B　上から下へ<small>絵の横に名前。何から何へ移すかを、字でも示す</small></h2>
+    <div class="sheet">
+      <div class="move">
+        <div class="rowv">
+          <svg class="doc" data-doc></svg><span class="nm">Word の原稿<small class="fn">04_本文.docx</small></span>
+          <svg class="arr" data-arr="d"></svg><span></span>
+          <img class="tool" src="../../public/icons/icon-192.png" alt=""><span class="nm">報告書作成<br>ツール</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="opt c">
+    <h2>案C　中身が移る<small>矢印の上に、見出し・図・表の小さな絵（写すのは中身だけ）</small></h2>
+    <div class="sheet">
+      <div class="move">
+        <div class="row">
+          <svg class="doc" data-doc></svg>
+          <div class="mid">
+            <div class="bits" data-bits></div>
+            <svg class="arr" data-arr="r"></svg>
+          </div>
+          <img class="tool" src="../../public/icons/icon-192.png" alt="">
+        </div>
+        <div class="lbls"><span class="lbl fn">Word</span><span class="lbl">ツール</span></div>
+        <b>中身だけ写す</b>
+      </div>
+    </div>
+  </section>
+
+  <section class="opt d">
+    <h2>案D　重ねて動きを出す<small>傾けた Word の紙から、曲がった矢印でツールへ</small></h2>
+    <div class="sheet">
+      <div class="move">
+        <div class="stack">
+          <svg class="doc" data-doc></svg>
+          <svg class="arr" data-arr="curve"></svg>
+          <img class="tool" src="../../public/icons/icon-192.png" alt="">
+        </div>
+        <div class="lbls"><span class="lbl fn">Word</span><span class="lbl">ツール</span></div>
+        <b>ツールに写す</b>
+      </div>
+    </div>
+  </section>
+
+<script>
+  const HEAD = `<header class="hd"><div>
+    <p class="kicker"><span class="mark">卒</span>卒業制作報告書　国際ファッション文化学科　今年度だけのお知らせ</p>
+    <h1><span class="lat">Word</span> で書き始めた人へ<span class="sub">報告書作成ツールへの移り方（今年度だけ）</span></h1>
+    <p class="lead">学科の Word のひな形に書いた分をツールに写して、そこから先はツールで書き進めます。</p>
+    <p class="url"><b>ツールの URL</b><span class="fn">https://kokusai-fashion.github.io/sotsugyo-seisaku-report/</span></p>
+  </div>@@</header><div class="next"></div>`
+  const QR = `<div class="qr"><img src="../../docs/guide-images/qr.svg" alt=""><b>スマホで開く</b></div>`
+  document.querySelectorAll('.sheet').forEach((s) => {
+    const right = s.hasAttribute('data-qr') ? QR : s.innerHTML
+    s.innerHTML = HEAD.replace('@@', right)
+  })
+  // Word の書類：角を折った紙・字の行・左下に「W」の青い札（Word の書類だと分かる形。ロゴそのものではない）
+  const DOC = `<svg viewBox="0 0 44 54" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 2h27l11 11v38a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" fill="#fff" stroke="#2b5797" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M30 2v10a1 1 0 0 0 1 1h10" fill="#dfe7f3" stroke="#2b5797" stroke-width="2.2" stroke-linejoin="round"/>
+    <g stroke="#9fb3d4" stroke-width="2.4" stroke-linecap="round"><path d="M18 20h17M18 26h17M18 32h17M9 39h26M9 45h20"/></g>
+    <rect x="0" y="16" width="16" height="16" rx="2.4" fill="#2b5797"/>
+    <path d="M3.6 20.2l2.1 8 2.3-6.6 2.3 6.6 2.1-8" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`
+  const ARR = {
+    r: `<svg viewBox="0 0 24 16" xmlns="http://www.w3.org/2000/svg"><path d="M1 8h19M14 2l7 6-7 6" fill="none" stroke="#2f3e75" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    d: `<svg viewBox="0 0 16 20" xmlns="http://www.w3.org/2000/svg"><path d="M8 1v16M2 11l6 7 6-7" fill="none" stroke="#2f3e75" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    curve: `<svg viewBox="0 0 40 32" xmlns="http://www.w3.org/2000/svg"><path d="M4 6C18 0 30 6 32 22" fill="none" stroke="#2f3e75" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="0.1 4.4"/><path d="M26 18l6 7 5-8" fill="none" stroke="#2f3e75" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  }
+  const BITS = [
+    `<svg viewBox="0 0 12 12"><rect x="1" y="2" width="10" height="2.4" rx="0.6" fill="#2f3e75"/><rect x="1" y="6.2" width="10" height="1.4" rx="0.5" fill="#9aa3c4"/><rect x="1" y="9" width="7" height="1.4" rx="0.5" fill="#9aa3c4"/></svg>`,
+    `<svg viewBox="0 0 12 12"><rect x="1" y="1.5" width="10" height="9" rx="1" fill="none" stroke="#2f3e75" stroke-width="1.2"/><path d="M2 9.5l3-3.5 2 2 1.5-1.5 2.5 3" fill="none" stroke="#2f3e75" stroke-width="1.1" stroke-linejoin="round"/><circle cx="8.3" cy="4.3" r="1" fill="#2f3e75"/></svg>`,
+    `<svg viewBox="0 0 12 12"><rect x="1" y="1.5" width="10" height="9" rx="0.8" fill="none" stroke="#2f3e75" stroke-width="1.2"/><path d="M1 4.5h10M1 7.5h10M5 1.5v9" stroke="#2f3e75" stroke-width="1"/></svg>`,
+  ]
+  document.querySelectorAll('[data-doc]').forEach((el) => { el.outerHTML = DOC.replace('<svg ', `<svg class="${el.getAttribute('class')}" `) })
+  document.querySelectorAll('[data-arr]').forEach((el) => { el.outerHTML = ARR[el.dataset.arr].replace('<svg ', `<svg class="${el.getAttribute('class')}" `) })
+  document.querySelectorAll('[data-bits]').forEach((el) => { el.innerHTML = BITS.join('') })
+</script>
+</body>
+</html>

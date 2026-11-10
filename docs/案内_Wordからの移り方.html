@@ -7,6 +7,7 @@
 <!--
   学生に配る案内「Word で書き始めた人へ：報告書作成ツールへの移り方（今年度だけ）」。A4 縦 1枚。
   ・PDF（案内_Wordからの移り方.pdf）は node scripts/make-guide-word.mjs で作る（画面の画像 guide-images/ も撮り直す）。
+  ・右上は QR コードではなく、Word からツールへ移る絵（依頼者 2026-11-10：学生用の手引きの QR と別のものと思わせない。mockups/v134 案A）。
   ・文や日付だけを直したときは node scripts/make-guide-word.mjs --pdf-only で PDF だけ作り直せる（1ページに収まっているかも確かめる）。
   ・いつまでに移すか（日付・時期）は書かない（依頼者 2026-10-23「案内の締切日はいりません」「それすらも不要です」）。
   ・公開のリポジトリに入るので、先生の名前・連絡先などは書かない。
@@ -55,9 +56,16 @@
   .url { display: flex; align-items: baseline; gap: 2mm; margin-top: 1.6mm; font-size: 9.5pt; }
   .url b { flex: none; color: var(--accent); }
   .url .fn { font-size: 10.5pt; font-weight: 600; }
-  .qr { width: 35mm; display: flex; flex-direction: column; align-items: center; gap: 1.2mm; padding: 2.6mm 2.4mm 2mm; border: 1pt solid var(--line); border-radius: 3mm; text-align: center; }
-  .qr img { width: 27mm; height: 27mm; display: block; }
-  .qr b { font-size: 9.5pt; color: var(--accent); }
+  /* 右上：Word からツールへ移ることを表す絵（mockups/v134 案A。依頼者 2026-11-10）。
+     前は QR コードだったが、学生用の手引きにも QR があり、別のものと思わせないように外した */
+  .move { width: 38mm; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.8mm; padding: 2.6mm 2.4mm 2.2mm; border: 1pt solid var(--line); border-radius: 3mm; text-align: center; }
+  .move .row { display: flex; align-items: center; gap: 0.8mm; }
+  .move .it { display: flex; flex-direction: column; align-items: center; gap: 0.8mm; }
+  .move .doc { display: block; width: 12mm; height: 14.7mm; }
+  .move .tool { display: block; width: 13.5mm; height: 13.5mm; margin: 0.6mm 0; border-radius: 22%; }
+  .move .arr { display: block; width: 6mm; height: 4mm; margin-bottom: 4mm; }
+  .move .lbl { font-size: 7.5pt; line-height: 1.2; color: var(--muted); white-space: nowrap; }
+  .move > b { font-size: 9.5pt; line-height: 1.35; color: var(--accent); }
 
 
   /* ---- 手順 ---- */
@@ -121,9 +129,26 @@
       <p class="lead">学科の Word のひな形に書いた分をツールに写して、そこから先はツールで書き進めます。</p>
       <p class="url"><b>ツールの URL</b><span class="fn">https://kokusai-fashion.github.io/sotsugyo-seisaku-report/</span></p>
     </div>
-    <div class="qr">
-      <img src="guide-images/qr.svg" alt="報告書作成ツールの QR コード">
-      <b>スマホで開く</b>
+    <div class="move">
+      <div class="row">
+        <div class="it">
+          <!-- Word の書類（角を折った紙・字の行・左に「W」の青い札。Word の書類だと分かる形で、Microsoft のロゴそのものではない） -->
+          <svg class="doc" viewBox="0 0 44 54" role="img" aria-label="Word の原稿">
+            <path d="M3 2h27l11 11v38a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" fill="#fff" stroke="#2b5797" stroke-width="2.2" stroke-linejoin="round"/>
+            <path d="M30 2v10a1 1 0 0 0 1 1h10" fill="#dfe7f3" stroke="#2b5797" stroke-width="2.2" stroke-linejoin="round"/>
+            <g stroke="#9fb3d4" stroke-width="2.4" stroke-linecap="round"><path d="M18 20h17M18 26h17M18 32h17M9 39h26M9 45h20"/></g>
+            <rect x="0" y="16" width="16" height="16" rx="2.4" fill="#2b5797"/>
+            <path d="M3.6 20.2l2.1 8 2.3-6.6 2.3 6.6 2.1-8" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="lbl fn">Word</span>
+        </div>
+        <svg class="arr" viewBox="0 0 24 16" aria-hidden="true"><path d="M1 8h19M14 2l7 6-7 6" fill="none" stroke="#2f3e75" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="it">
+          <img class="tool" src="../public/icons/icon-192.png" alt="報告書作成ツール">
+          <span class="lbl">ツール</span>
+        </div>
+      </div>
+      <b>ツールに写す</b>
     </div>
   </header>
 
