@@ -176,12 +176,15 @@ export function migrateReport(input: unknown): Report {
       // 姓・名・ふりがな（2026-11-04 から。前の原稿には無い：model/personName.ts の nameParts が氏名から分ける）
       ...(['familyName', 'givenName', 'familyKana', 'givenKana'] as const).reduce((o, k) => (typeof basic[k] === 'string' ? { ...o, [k]: basic[k] } : o), {}),
       courseId: str(basic.courseId),
+      // 所属と、それを決めた日時（2026-11-09 から）。前はここで落ちていて、読み込み直す・別の端末で開くと所属が消え、また選ばされていた（2026-11-10 に見つけた）
+      ...(['group', 'groupAt'] as const).reduce((o, k) => (typeof basic[k] === 'string' && basic[k] ? { ...o, [k]: basic[k] } : o), {}),
       subtitleInput: str(basic.subtitleInput),
     },
     abstract: migrateAbstract(abstract),
     body: migrateBody(list(raw.body)),
     references: migrateReferences(raw.references),
     ...(Array.isArray(raw.acknowledged) ? { acknowledged: (raw.acknowledged as unknown[]).filter((k): k is string => typeof k === 'string') } : {}),
+    ...(raw.wordLater === true ? { wordLater: true } : {}),
     workPhotos: migratePhotos(raw.workPhotos),
     updatedAt: str(raw.updatedAt) || new Date().toISOString(),
   }

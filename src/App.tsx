@@ -49,7 +49,7 @@ import { WordImportDialog, WordTodoCard } from './app/WordImport'
 import { useAsk } from './app/ask'
 import { NewVersionBanner, useNewVersion } from './app/newVersion'
 import { useKeepWritingVisible, writingArea } from './app/writingArea'
-import { rememberImportPrints, useWordTodo, wordImportOffered, type WordTodo } from './app/useWordTodo'
+import { rememberImportPrints, useWordTodo, withoutWordLater, wordImportOffered, type WordTodo } from './app/useWordTodo'
 import { HelpView } from './help/HelpView'
 import { STUDENT_TOPICS } from './help/helpTopics'
 import { STUDENT_GUIDE_PATH, STUDENT_HELP_IMAGES } from './help/links'
@@ -244,6 +244,8 @@ export default function App() {
   const [guide, setGuide] = useState<GuideStep | null>(null)
   /** 案内で、氏名のふりがなだけを頼んでいる（前から書いている原稿を開いた。「氏名」の段を済ませたら閉じる） */
   const [nameOnly, setNameOnly] = useState(false)
+  /** 前に「あとで読み込む」を押した原稿を、パソコンで開いた：「Word で書き始めていますか？」を、もう一度聞いている（mockups/v135 案A） */
+  const [wordAgain, setWordAgain] = useState(false)
   /** 案内を出しているか（紙面の部品は1回だけ作るので、いつも今の段階を見られるように） */
   const guideRef = useRef<GuideStep | null>(null)
   useEffect(() => {
@@ -328,6 +330,11 @@ export default function App() {
   const localAtStart = useRef<Report | null>(null)
   // スマホ（画面の幅が狭いとき）は、並べ方と書き方を変える
   const narrow = useNarrow()
+  // 開いたときの案内（startGuide）から、今スマホの並べ方かを見る
+  const narrowRef = useRef(narrow)
+  useEffect(() => {
+    narrowRef.current = narrow
+  })
   // スマホは紙面に直接書く（予備：リンクの ?direct=0 で、その端末だけ前の「下から出る書く欄」に。app/phoneDirect.ts）
   const [direct] = useState(readPhoneDirect)
   const phoneDirect = narrow && direct
@@ -388,6 +395,7 @@ export default function App() {
     // 開いて準備している間に、バックアップファイルから戻した：戻した原稿の上に案内を出さない（restoreFile）
     if (restoredRef.current) return
     setNameOnly(false)
+    setWordAgain(false)
     if (!findCourse(cfg, report.basicInfo.courseId)) setGuide('course')
     else if (isNew) setGuide(wordImportOffered(cfg) ? 'word' : report.basicInfo.studentId.trim() ? 'name' : 'studentId')
     else {
@@ -410,6 +418,12 @@ export default function App() {
       else if (!trialMode && needsGroup(cfg, report.basicInfo.courseId, report.basicInfo.group)) {
         setNameOnly(true)
         setGuide('group')
+      }
+      // 前に「あとで読み込む」を押した（教室のスマホで登録だけを済ませた）：パソコンで開いたら、「Word で書き始めていますか？」をもう一度聞く
+      // （依頼者の選択 2026-11-10 mockups/v135 案A。配った「Word で書き始めた人へ」の 3 と同じ画面。スマホでは聞かない）
+      else if (!trialMode && report.wordLater && wordImportOffered(cfg) && !narrowRef.current) {
+        setWordAgain(true)
+        setGuide('word')
       } else {
         if (left) forgetGuide()
         if (!tourSeen() && firstOpenInTab()) setTourWanted(true)
@@ -993,7 +1007,8 @@ export default function App() {
       await Promise.all(result.images.map(putImage))
       editor.addImages(result.images)
       // courseId：確認の窓で、表紙の Word のコースを選んだ（本文は読み込む本文のまま、コースの名前を変える）
-      editor.replace(applyWordImport(before, result, courseId ? { courseId, config: configRef.current } : undefined))
+      // 読み込んだら「あとで読み込む」の印は外す（パソコンで、もう聞かない）
+      editor.replace(withoutWordLater(applyWordImport(before, result, courseId ? { courseId, config: configRef.current } : undefined)))
       rememberImportPrints(wordPrints(result))
       // 前の読み込みの「つぎにすること」は、この読み込みを戻したときに、また出す（何回か戻しても、そのつど1つ前の分を出す。
       // 前は1つ前の分だけで、2回戻すと1回目の分が出なかった：学生の試し 3回目 2026-10-29。たくさん続けて読み込んでも重くならないよう、5つ前まで）
@@ -1054,7 +1069,8 @@ export default function App() {
     editor.commitEditing()
     // 控えの名前に、読み込んだ Word のファイル名を入れる（何回か戻すと、同じ名前の控えが並んでいた：学生の試し 3回目 2026-10-29）
     await keepSnapshot(editor.getSnapshot().report, wordTodo?.fileName ? `Word（${wordTodo.fileName}）から読み込んだ原稿（戻す前）` : 'Word から読み込んだ原稿（戻す前）')
-    editor.replace(kept.report)
+    // 「あとで読み込む」の印は戻さない（読み込んだあとに戻しても、パソコンで開くたびに聞かれないように）
+    editor.replace(withoutWordLater(kept.report))
     await matchYear(editor, kept.report)
     // 2回目の読み込みを戻した：1回目の「つぎにすること」を、また出す（前は消えていた：学生の試し 2026-10-29）
     setWordTodo(wordTodo?.previous ?? null)
@@ -1386,6 +1402,16 @@ export default function App() {
           }}
           wordImport={wordOffered}
           onWordImport={() => setDialog({ kind: 'word' })}
+          // 「あとで読み込む」で原稿に印をつけ、「いいえ」で外す（mockups/v135 案A。印はドライブで別の端末にも伝わる）
+          onWordAnswer={(answer) => {
+            const later = answer === 'later'
+            if (!!editor.getSnapshot().report.wordLater === later) return
+            // 印は「戻す」の対象にしない（コースを選んだばかりで、まだ戻せるものがなければ、戻せない状態のままにする）
+            const fresh = !editor.getSnapshot().canUndo
+            editor.update((r) => (later ? { ...r, wordLater: true } : withoutWordLater(r)))
+            if (fresh) editor.forgetHistory()
+          }}
+          wordAgain={wordAgain}
           onFinish={() => {
             // 案内を終えたら、指差し確認を出す（この端末でまだ見ていなければ）
             if (!tourSeen()) setTourWanted(true)

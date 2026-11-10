@@ -137,11 +137,26 @@ interface Props {
    * 氏名のふりがな・所属だけを頼んでいる（前から書いている原稿を開いた・あとからコースを変えた。「氏名」「所属」の段を済ませたら閉じる）
    */
   nameOnly?: boolean
+  /**
+   * 今年度だけ：「Word で書き始めていますか？」の「あとで読み込む」（later）・「いいえ」（no）を押した（原稿の印をつける・外す。mockups/v135 案A）。
+   * 渡したときだけ「あとで読み込む」を出す
+   */
+  onWordAnswer?: (answer: 'later' | 'no') => void
+  /** 前に「あとで読み込む」を押した原稿を、パソコンで開いた：同じ質問を、もう一度だけ聞く（答えたら閉じる。mockups/v135） */
+  wordAgain?: boolean
 }
+
+/** 「あとで読み込む」の絵（時計） */
+const clockIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12.5" r="8" />
+    <path d="M12 8v4.5l3 2" />
+  </svg>
+)
 
 // （コースを選ぶ画面の「バックアップから戻す」は、使う学生が少なく、はじめの画面が込み入るのでやめた：依頼者の判断 2026-10-30。
 //  バックアップファイルからは、メニューの「バックアップ・作り直す」で戻す）
-export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish, nameOnly }: Props) {
+export function StartGuide({ editor, snap, config, configMissing, narrow, step, onStep, onChooseCourse, wordImport, onWordImport, onFinish, nameOnly, onWordAnswer, wordAgain }: Props) {
   const field = FIELD_OF[step]
   const [rect, setRect] = useState<DOMRect | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -399,10 +414,19 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             )}
           </>
         )
-      case 'word':
+      case 'word': {
+        // 「あとで」「いいえ」のあと：はじめての案内は、まだ入っていない最初の項目へ（入れ終わった氏名を、もう一度聞かない）。
+        // もう一度聞いているとき（登録は済んでいる）は、案内を閉じる
+        const answer = (a: 'later' | 'no') => {
+          onWordAnswer?.(a)
+          if (!wordAgain) return onStep(firstCoverStep(snap.report.basicInfo, subtitle, groupNeeded))
+          onStep(null)
+          onFinish?.()
+        }
         return (
           <>
             <h2 {...courseTitle}>Word で書き始めていますか？</h2>
+            {wordAgain && <p className="g-said">前に「あとで読み込む」を選んでいました。</p>}
             <p>
               学科が配った Word のひな形（<span className="fn">04_本文.docx</span> など）に書いた分があれば、このツールに写せます。
             </p>
@@ -414,11 +438,20 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
                   <small>本文の Word と、書いていれば表紙の Word を選びます</small>
                 </span>
               </button>
-              {/* まだ入っていない最初の項目から（入れ終わった氏名を、もう一度聞かない） */}
-              <button className="g-word-opt no" onClick={() => onStep(firstCoverStep(snap.report.basicInfo, subtitle, groupNeeded))}>
+              {/* 教室ではスマホで登録だけを済ませ、Word はあとでパソコンから読み込む学生のため（依頼者の選択 2026-11-10 mockups/v135 案A） */}
+              {onWordAnswer && (
+                <button className="g-word-opt later" onClick={() => answer('later')}>
+                  {clockIcon}
+                  <span>
+                    あとで読み込む
+                    <small>{wordAgain ? '次にパソコンで開いたときに、もう一度聞きます' : 'Word がいま手元にないとき。次にパソコンで開いたときに、もう一度聞きます'}</small>
+                  </span>
+                </button>
+              )}
+              <button className="g-word-opt no" onClick={() => answer('no')}>
                 <span>
-                  いいえ、ここから書き始める
-                  <small>{subtitle ? '学籍番号・氏名・サブタイトルを順に案内します' : '学籍番号と氏名を順に案内します'}</small>
+                  {wordAgain ? 'いいえ、Word では書いていない' : 'いいえ、ここから書き始める'}
+                  <small>{wordAgain ? 'もう聞きません（メニューからは、いつでも読み込めます）' : subtitle ? '学籍番号・氏名・サブタイトルを順に案内します' : '学籍番号と氏名を順に案内します'}</small>
                 </span>
               </button>
             </div>
@@ -426,6 +459,7 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
             <span className="g-note">あとからでも、{narrow ? '右上の ≡（メニュー）' : '右上の「メニュー」'}の「Word で書いた分を読み込む」から読み込めます（今年度だけ）。</span>
           </>
         )
+      }
       case 'studentId':
         return (
           <>
@@ -550,7 +584,8 @@ export function StartGuide({ editor, snap, config, configMissing, narrow, step, 
         aria-describedby={titleId}
         onMouseDown={(e) => !(e.target instanceof HTMLInputElement) && e.preventDefault()}
       >
-        {step !== 'done' && (
+        {/* もう一度聞いているとき（登録は済んでいる）は、段階の並びを出さない */}
+        {step !== 'done' && !(wordAgain && step === 'word') && (
           <div className="g-steps">
             {stepLabels.map(([s, label], i) => (
               <span key={s} className={i === index ? 'on' : i < index ? 'past' : ''}>

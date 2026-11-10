@@ -123,6 +123,21 @@ describe('migrateReport', () => {
     expect(r.basicInfo).toEqual({ studentId: '', name: '文化　花子', familyName: '文化', givenName: '花子', familyKana: 'ブンカ', courseId: '', subtitleInput: '' })
   })
 
+  it('所属と、それを決めた日時を残す（前は落ちていて、読み込み直す・別の端末で開くと、所属をまた選ばされていた）', () => {
+    const r = migrateReport({ formatVersion: 2, body: [], basicInfo: { name: '文化　花子', courseId: 'c', group: '制作グループA', groupAt: '2026-11-09T05:00:00.000Z' } })
+    expect(r.basicInfo).toMatchObject({ group: '制作グループA', groupAt: '2026-11-09T05:00:00.000Z' })
+    // 空・文字でないものは持たない
+    const empty = migrateReport({ formatVersion: 2, body: [], basicInfo: { group: '', groupAt: 3 } })
+    expect(empty.basicInfo).not.toHaveProperty('group')
+    expect(empty.basicInfo).not.toHaveProperty('groupAt')
+  })
+
+  it('「あとで読み込む」の印を残す（true のときだけ。mockups/v135）', () => {
+    expect(migrateReport({ formatVersion: 2, body: [], wordLater: true }).wordLater).toBe(true)
+    expect(migrateReport({ formatVersion: 2, body: [], wordLater: 'yes' })).not.toHaveProperty('wordLater')
+    expect(migrateReport({ formatVersion: 2, body: [] })).not.toHaveProperty('wordLater')
+  })
+
   it('細工したファイルや壊れたファイルでも、形を確かめてから使う（紙面に HTML を入れられない・画面が止まらない）', () => {
     const r = migrateReport({
       formatVersion: 1,

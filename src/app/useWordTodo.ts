@@ -3,6 +3,7 @@ import type { YearConfig } from '../config'
 import type { EditorSnapshot } from '../editor/reportEditor'
 import type { ImportProblem } from '../import/types'
 import { scoped } from '../model/scope'
+import type { Report } from '../model/types'
 
 /**
  * 今年度だけ：Word のひな形（01_表紙.docx・04_本文.docx）で書き始めた分を、ツールに写す「Wordから読み込む」（mockups/v24）。
@@ -14,6 +15,13 @@ export const WORD_IMPORT_YEAR = 2026
 
 /** この原稿（年度の設定）で「Wordから読み込む」を出すか */
 export const wordImportOffered = (config: YearConfig): boolean => config.fiscalYear === WORD_IMPORT_YEAR
+
+/** 「あとで読み込む」の印を外した原稿（Word を読み込んだ・「いいえ」を押した・読み込む前の原稿に戻した。mockups/v135） */
+export const withoutWordLater = (report: Report): Report => {
+  if (!report.wordLater) return report
+  const { wordLater: _done, ...rest } = report
+  return rest
+}
 
 /** 写したあとの「つぎにすること」。閉じる（×）まで、この端末に覚えておく */
 export interface WordTodo {

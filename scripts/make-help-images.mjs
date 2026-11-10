@@ -5,6 +5,7 @@
 //   自動テスト用にまとめた版（dist-e2e）で撮るとき：scripts/e2e/serveBuilt.mjs で出して（PORT=4241 node scripts/e2e/serveBuilt.mjs）、
 //   APP_URL=http://localhost:4241 node scripts/make-help-images.mjs（ページの中の部品は window.__import で読むので、どちらでも動く）
 //   SHOTS=student（学生用ツール）／SHOTS=admin（管理ページ） node scripts/make-help-images.mjs … 一部だけ撮り直す
+//   FILES=word（写真の名前。, で区切る）… その写真だけを書き換える（例：SHOTS=student FILES=word）
 //   Edge は EDGE_PORT（ふだんは 9403）で起動する
 // 学生用ツールは Google のログインとドライブを偽物（scripts/e2e/fakeGoogle.mjs）に差し替える。本物の Google にはつながない。
 // 見本の原稿は、衣装コースの架空の学生（文化花子・00ZZ0123）の「シンドバッド」（2026-11-01 に組み立てを見直したもの。
@@ -33,6 +34,7 @@ const MAX = 900
 const QUALITY = 0.8
 const SHOT_ONLY = (process.env.SHOTS ?? '').split(',').filter(Boolean)
 const doShot = (k) => !SHOT_ONLY.length || SHOT_ONLY.includes(k)
+const FILES = (process.env.FILES ?? '').split(',').filter(Boolean)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const PC = { width: 1440, height: 900, deviceScaleFactor: 2 }
 const PHONE = { width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true }
@@ -124,6 +126,8 @@ async function grab(page, clip) {
 
 /** PNG を、長い辺 MAX px 以下の JPEG にして public/help/<name>.jpg に書き出す。いくつかなら、同じ高さで横に並べる（間にすき間） */
 async function writeJpeg(name, pngs) {
+  // FILES=word,login …：その写真だけを書き出す（ほかの写真は、撮っても書き換えない）
+  if (FILES.length && !FILES.includes(name)) return
   const out = await shrinker.evaluate(
     async (pngs, max, quality) => {
       const imgs = []
@@ -287,6 +291,8 @@ async function studentShots(browser) {
   await clickText(page, '.guide .g-opts button', '映画・舞台衣装')
   await page.waitForSelector('.guide.step-word .g-word-opt.no')
   await ready(page)
+  // コースのボタンを押したマウスが、そのまま「あとで読み込む」の上に来て、押せる色に見えていた（2026-11-10）
+  await page.mouse.move(5, 5)
   await sleep(900)
   await capture(page, 'word', pad(await R(page, '.g-tip'), 14))
   await page.evaluate(() => document.querySelector('.g-word-opt.no').click())
