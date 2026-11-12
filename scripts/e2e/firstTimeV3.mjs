@@ -309,10 +309,17 @@ export async function firstTimeV3Pc(browser, check) {
   const polluted = await snap()
   await page.screenshot({ path: `${OUT}/03-name-overflow-errors.png` })
   const nameErrors = polluted.findings.filter((f) => f.blockId === 'basic:name' && f.severity === 'error').map((f) => f.ruleId)
+  // 長い氏名は、表紙の欄に入るまで字を小さくする（学生の声 1112-001。2026-11-12）。この長さは小さくすれば入るので、「はみ出す」は出ない
+  check('氏名に「学籍番号」や数字が入っていると、エラーになる（直すところに残る）', nameErrors.includes('name-text'), JSON.stringify(nameErrors))
+  // いちばん小さく（12pt）しても入らない長さなら、「はみ出す」のエラー
+  await page.evaluate(() => window.__editor.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, name: '文化　花子'.repeat(6) } })))
+  await pause(600)
+  await ready()
+  const tooLong = await snap()
   check(
-    '氏名に「学籍番号」や数字が入っている・表紙の欄からはみ出す、はエラーになる（直すところに残る）',
-    nameErrors.includes('name-text') && nameErrors.includes('cover-field-fit'),
-    JSON.stringify(nameErrors),
+    '小さくしても表紙の欄に入らない氏名は、「はみ出す」のエラーになる',
+    tooLong.findings.some((f) => f.ruleId === 'cover-field-fit' && f.blockId === 'basic:name'),
+    JSON.stringify(tooLong.findings.filter((f) => f.blockId === 'basic:name').map((f) => f.ruleId)),
   )
   await page.evaluate(() => window.__editor.update((r) => ({ ...r, basicInfo: { ...r.basicInfo, studentId: '00ZZ0123-0123456789' } })))
   await pause(600)
