@@ -176,8 +176,8 @@ function looksLikeHeading(text: string): boolean {
 
 interface Caption {
   kind: '図' | '表'
-  /** Word に書いてあった番号 */
-  number: number
+  /** Word に書いてあった番号。番号も仮の文字（「図〇　デザイン画」）なら null（ツールの番号のとおりにする） */
+  number: number | null
   /** 名前（「デザイン画」）。仮の文字だけなら空 */
   name: string
   centerX: number | null
@@ -185,20 +185,23 @@ interface Caption {
 }
 
 function parseOneCaption(s: string): Caption | null {
-  const m = /^([図表])[\s　]*([0-9０-９]+)([\s　]*[.．:：、,，\-－‐]?[\s　]*)(.*)$/s.exec(s.trim())
+  // 番号は数字か、仮の文字（「図〇〇〇〇」「図〇　デザイン画」：仮のタイトルのつもりで〇と書いたもの。前は図のタイトルにならず、
+  // 図の下にふつうの段落として残り、「デザイン画」もタイトルに写らなかった：依頼者の選択 2026-11-12）
+  const m = /^([図表])[\s　]*([0-9０-９]+|[〇○◯●]+)([\s　]*[.．:：、,，\-－‐]?[\s　]*)(.*)$/s.exec(s.trim())
   if (!m) return null
   const name = m[4].trim()
   // 「図1に示す…。」のような文はタイトルではない
   if (/。$/.test(name) || name.length > 40) return null
   if (!m[3] && /^[はにのをでがともへやよ、。，,）)]/.test(name)) return null
-  return { kind: m[1] as '図' | '表', number: Number(m[2].normalize('NFKC')), name: isPlaceholderOnly(name) ? '' : name, centerX: null, xFrom: null }
+  const number = /^[0-9０-９]+$/.test(m[2]) ? Number(m[2].normalize('NFKC')) : null
+  return { kind: m[1] as '図' | '表', number, name: isPlaceholderOnly(name) ? '' : name, centerX: null, xFrom: null }
 }
 
 /** 1行が図・表のタイトル（「図1 デザイン画」。2つ並んだ「図2 前 図3 後ろ」も）なら、そのタイトル */
 export function parseCaptionLine(line: string): Caption[] | null {
   const t = line.replace(/\t/g, '　').trim()
   if (!/^[図表]/.test(t)) return null
-  const parts = t.split(/[\s　]+(?=[図表][\s　]*[0-9０-９]+(?![0-9０-９]))/)
+  const parts = t.split(/[\s　]+(?=[図表][\s　]*(?:[0-9０-９]+(?![0-9０-９])|[〇○◯●]))/)
   const captions = parts.map(parseOneCaption)
   return captions.every((c): c is Caption => c !== null) ? captions : null
 }
@@ -210,7 +213,7 @@ function boxCaptions(box: TextBox): { captions: Caption[]; others: string[] } {
   const others: string[] = []
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i]
-    if (/^[図表][\s　]*[0-9０-９]+$/.test(line) && lines[i + 1] && !parseCaptionLine(lines[i + 1])) line = `${line}　${lines[++i]}`
+    if (/^[図表][\s　]*([0-9０-９]+|[〇○◯●])$/.test(line) && lines[i + 1] && !parseCaptionLine(lines[i + 1])) line = `${line}　${lines[++i]}`
     const found = parseCaptionLine(line)
     if (found) captions.push(...found.map((c) => ({ ...c, centerX: box.centerX, xFrom: box.xFrom })))
     else if (!isPlaceholderOnly(line)) others.push(line)
@@ -622,9 +625,9 @@ function pairGroup(group: Group): { figures: DraftFigure[]; leftover: Caption[] 
   const floatLine = floating.length === 2 && spreadOut(floating) ? Math.min(...floating.map((i) => group.lines.get(i) ?? 0)) : null
   const lineOf = (image: ImageRef) => (floatLine !== null && image.centerX !== null ? floatLine : (group.lines.get(image) ?? null))
   const figures: DraftFigure[] = images.map((image) => ({ image, caption: assigned.get(image) ?? null, line: lineOf(image) }))
-  // タイトルの番号の順に並べる（タイトルのない図は、その位置のまま）
-  const slots = figures.map((f, i) => (f.caption ? i : -1)).filter((i) => i >= 0)
-  const sorted = slots.map((i) => figures[i]).sort((a, b) => (a.caption as Caption).number - (b.caption as Caption).number)
+  // タイトルの番号の順に並べる（タイトルのない図・番号が〇の図は、その位置のまま）
+  const slots = figures.map((f, i) => (f.caption && f.caption.number !== null ? i : -1)).filter((i) => i >= 0)
+  const sorted = slots.map((i) => figures[i]).sort((a, b) => (a.caption?.number ?? 0) - (b.caption?.number ?? 0))
   slots.forEach((slot, k) => (figures[slot] = sorted[k]))
   return { figures, leftover }
 }
@@ -738,7 +741,7 @@ function pairFigures(chapters: DraftChapter[], groups: Map<DraftBlock, Group>) {
     for (const section of sections)
       for (const block of figureBlocks(section))
         for (const figure of block.figures) {
-          last = figure.caption ? figure.caption.number : last + 1
+          last = figure.caption?.number ?? last + 1
           if (!figure.caption) expected.set(figure, last)
         }
     return expected
@@ -750,7 +753,8 @@ function pairFigures(chapters: DraftChapter[], groups: Map<DraftBlock, Group>) {
     let bestDistance = Infinity
     for (let i = 0; i < blocks.length; i++) {
       for (const figure of blocks[i].figures) {
-        if (figure.caption || !figure.image || expected.get(figure) !== caption.number) continue
+        // 番号が〇のタイトルは、番号を見ずに、いちばん近いタイトルのない図に付ける
+        if (figure.caption || !figure.image || (caption.number !== null && expected.get(figure) !== caption.number)) continue
         // 同じ近さなら、前（タイトルより上）の図にする
         const distance = Math.abs(i - at) + (i > at ? 0.5 : 0)
         if (distance < bestDistance) {
@@ -1401,7 +1405,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
         })
       if (section.lostTableCaptions.length > 0)
         addProblem(ci, si, {
-          message: `表のタイトル（${section.lostTableCaptions.map((c) => `「表${c.number}　${c.name}」`).join('')}）はありましたが、表が見つかりませんでした`,
+          message: `表のタイトル（${section.lostTableCaptions.map((c) => `「表${c.number ?? '〇'}　${c.name}」`).join('')}）はありましたが、表が見つかりませんでした`,
           detail: '表を画像にして貼り付けていると、表としては写せません。読み込んだあと、ツールで表を作ってください。',
         })
       if (section.boxTexts.length > 0)

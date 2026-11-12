@@ -118,6 +118,15 @@ describe('文字の見分け方', () => {
       { number: 3, name: 'トワル（後ろ）' },
     ])
     expect(parseCaptionLine('図2　〇〇〇〇')).toMatchObject([{ number: 2, name: '' }])
+    // 番号も〇の仮のタイトル（依頼者の選択 2026-11-12）
+    expect(parseCaptionLine('図〇〇〇〇')).toMatchObject([{ kind: '図', number: null, name: '' }])
+    expect(parseCaptionLine('図〇　〇〇〇〇')).toMatchObject([{ number: null, name: '' }])
+    expect(parseCaptionLine('図○○○○')).toMatchObject([{ number: null, name: '' }])
+    expect(parseCaptionLine('図〇　デザイン画')).toMatchObject([{ number: null, name: 'デザイン画' }])
+    expect(parseCaptionLine('表〇　使用材料表')).toMatchObject([{ kind: '表', number: null, name: '使用材料表' }])
+    expect(parseCaptionLine('図〇　前　　図〇　後ろ')).toMatchObject([{ name: '前' }, { name: '後ろ' }])
+    expect(parseCaptionLine('図〇に示すように、袖を広げた。')).toBeNull()
+    expect(parseCaptionLine('図〇のように袖を広げた')).toBeNull()
     expect(parseCaptionLine('図1に示すように、袖を広げた。')).toBeNull()
     expect(parseCaptionLine('図1は、デザイン画である。')).toBeNull()
     expect(parseCaptionLine('表1に使用した素材をまとめる。')).toBeNull()
@@ -547,6 +556,37 @@ describe('学生の書き方の違い', () => {
       expect(refs, ref).toHaveLength(2)
       expect(textOf(result.body, para), ref).toMatch(/デザインを示す（図\d+）（図\d+）。$/)
     }
+  })
+
+  it('番号も〇の仮のタイトル（「図〇〇〇〇」「図〇　デザイン画」）は、すぐ上の図のタイトルにし、段落に残さない（依頼者の選択 2026-11-12）', async () => {
+    const result = await read(
+      makeDocx({
+        media: { 'a.png': DESIGN, 'b.png': BACK, 'c.png': SWATCH },
+        body: [
+          p('Ⅰ．企画・立案'),
+          p('ⅰ．デザイン説明'),
+          p('デザイン画を示す（図1）。'),
+          p(inlineImage(rid('a.png'))),
+          p('図〇　デザイン画'),
+          p('後ろ姿を示す（図2）。'),
+          p(inlineImage(rid('b.png'))),
+          p('図〇〇〇〇'),
+          p('袖は大きく膨らませた。'),
+          // 図を並べた表に、〇のタイトル（前は図の表と分からず、ふつうの表になっていた）
+          table([[{ images: [rid('c.png')] }], ['図〇　生地見本']]),
+        ].join(''),
+      }),
+    )
+    const rows = figureRows(result.body)
+    expect(rows.flatMap((r) => r.figures.map((f) => f.caption))).toEqual(['デザイン画', '', '生地見本'])
+    expect(rows.every((r) => r.figures.every((f) => f.imageId))).toBe(true)
+    expect(tables(result.body)).toHaveLength(0)
+    // 「図〇…」の行は段落に残らない。本文の（図1）（図2）は、ツールの番号のとおりにつながる
+    expect(paragraphs(result.body)).toEqual(['デザイン画を示す（図1）。', '後ろ姿を示す（図2）。', '袖は大きく膨らませた。'])
+    const refTargets = result.body[0].blocks.flatMap((b) => (b.type === 'paragraph' ? b.content.flatMap((n) => (n.type === 'ref' ? [n.targetId] : [])) : []))
+    expect(refTargets).toEqual(rows.slice(0, 2).map((r) => r.figures[0].id))
+    // 「タイトルが見つかりませんでした」とは出さない（タイトルがまだ〇のことは、ツールのセルフチェックが知らせる）
+    expect(result.problems.filter((x) => x.message.includes('タイトル'))).toEqual([])
   })
 
   it('途中の「参考文献」の並びは、次の中見出し・文の段落で終わり、そのあとは写す（前は次の大見出しまで消えていた）', async () => {
