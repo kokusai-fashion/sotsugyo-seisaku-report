@@ -10,7 +10,7 @@ import type { Chapter, FigureRowBlock, ParagraphBlock, TableBlock } from '../mod
 import type { WordImportResult } from './types'
 import { isPlaceholderOnly, isReferencesTitle, isWriting, parseCaptionLine } from './wordImport'
 import { headingFromText } from '../model/headingText'
-import { applyWordImport, chapterOrder, importPrints, looksLikeReferenceEntry, lostByImport, readWordFiles, subtitleFromWord, WordImportError } from './wordImport'
+import { applyWordImport, chapterOrder, importPrints, looksLikeReferenceEntry, lostByImport, readWordFiles, splitCombinedRefs, subtitleFromWord, WordImportError } from './wordImport'
 import { bodyFromTemplate, courseTemplate } from '../model/template'
 import { exifOrientation, imageInfo, prepareImage } from './wordImages'
 
@@ -511,6 +511,42 @@ describe('学生の書き方の違い', () => {
     expect(result.body[0].blocks.filter((b) => b.type === 'figureRow')).toHaveLength(2)
     expect(result.body[0].blocks.filter((b) => b.type === 'table')).toHaveLength(1)
     expect(result.problems.some((x) => x.message.includes('参考文献'))).toBe(false)
+  })
+
+  it('まとめて書いた図表の番号（（図1・2）など）は、1つずつの参照に書き換える（依頼者の選択 2026-11-12）', () => {
+    const cases: [string, string][] = [
+      ['前と後ろを示す（図1・2）。', '前と後ろを示す（図1）（図2）。'],
+      ['前と後ろを示す（図1、2）。', '前と後ろを示す（図1）（図2）。'],
+      ['前と後ろを示す（図1，２）。', '前と後ろを示す（図1）（図2）。'],
+      ['前と後ろを示す（図1・図2）。', '前と後ろを示す（図1）（図2）。'],
+      ['工程を示す（図1～3）。', '工程を示す（図1）（図2）（図3）。'],
+      ['素材を示す（表1・2）。', '素材を示す（表1）（表2）。'],
+      ['デザインと素材（図1・表1）。', 'デザインと素材（図1）（表1）。'],
+      ['図1・2に示す。', '図1・図2に示す。'],
+      ['図1～3に工程を示す。', '図1・図2・図3に工程を示す。'],
+      // 書き換えないもの：図の番号のまとめではない「、2つ」・漢字に続く「設計図1・2」・逆の範囲・広すぎる範囲・1つだけの参照
+      ['図1、2つの素材を使った。', '図1、2つの素材を使った。'],
+      ['設計図1・2を描いた。', '設計図1・2を描いた。'],
+      ['（図3～1）', '（図3～1）'],
+      ['（図1～20）', '（図1～20）'],
+      ['（図1）と（図2）', '（図1）と（図2）'],
+    ]
+    for (const [from, to] of cases) expect(splitCombinedRefs(from), from).toBe(to)
+  })
+
+  it('Word の（図1・2）（図1、2）は、読み込むと（図1）（図2）になり、どちらの図にもつながる（図2を指していないエラーにならない）', async () => {
+    for (const ref of ['（図1・2）', '（図1、2）']) {
+      const result = await read(
+        makeDocx({
+          media: { 'a.png': DESIGN, 'b.png': BACK },
+          body: [p('Ⅰ．企画・立案'), p('ⅰ．デザイン説明'), p(`前と後ろのデザインを示す${ref}。`), p(inlineImage(rid('a.png'))), p('図1　前'), p(inlineImage(rid('b.png'))), p('図2　後ろ')].join(''),
+        }),
+      )
+      const para = result.body.flatMap((c) => c.blocks).find((b): b is ParagraphBlock => b.type === 'paragraph' && b.content.some((n) => n.type === 'text' && n.text.includes('デザインを示す')))!
+      const refs = para.content.filter((n) => n.type === 'ref')
+      expect(refs, ref).toHaveLength(2)
+      expect(textOf(result.body, para), ref).toMatch(/デザインを示す（図\d+）（図\d+）。$/)
+    }
   })
 
   it('途中の「参考文献」の並びは、次の中見出し・文の段落で終わり、そのあとは写す（前は次の大見出しまで消えていた）', async () => {

@@ -103,6 +103,49 @@ const halfDigitsInRefs = (text: string) =>
     .replace(/(?<![㐀-鿿々])([図表])[\s　]+(?=[0-9０-９])/g, '$1')
     .replace(/([図表][\s　]*)([０-９]+)/g, (_, head: string, digits: string) => head + digits.normalize('NFKC'))
 
+/**
+ * まとめて書いた図表の番号を、1つずつの参照に書き換える（依頼者の選択 2026-11-12。前は「（図1・2）」の「2」が字のまま残り、
+ * 図2を指していないエラーになった。番号がずれると、その「2」だけ古いまま残る）。
+ * - 括弧の中：「（図1・2）」「（図1、2）」「（図1，2）」「（図1・図2）」「（図1～3）」「（図1・表1）」→「（図1）（図2）」…（ツールの書き方）
+ * - 括弧なし：「図1・2に示す」→「図1・図2に示す」、「図1～3に示す」→「図1・図2・図3に示す」（「、」は「図1、2つの…」と区別できないので、括弧の中だけ）
+ * 範囲は10個までで、前より後ろの番号が大きいときだけ。番号は半角にしてから（halfDigitsInRefs のあと）
+ */
+export function splitCombinedRefs(text: string): string {
+  const num = (s: string) => Number(s.normalize('NFKC'))
+  type Item = { kind: string; n: number }
+  /** 「図1」「・2」「・表1」の並びを、1つずつの番号にする（範囲は広げる）。読めなければ null */
+  const expand = (kind: string, first: string, rest: string): Item[] | null => {
+    const items: Item[] = [{ kind, n: num(first) }]
+    const range = /^[\s　]*[～〜~][\s　]*([図表]?)[\s　]*([0-9０-９]+)[\s　]*$/.exec(rest)
+    if (range) {
+      const to = num(range[2])
+      const k = range[1] || kind
+      if (k !== kind || to <= items[0].n || to - items[0].n > 9) return null
+      for (let n = items[0].n + 1; n <= to; n++) items.push({ kind, n })
+      return items
+    }
+    let k = kind
+    for (const m of rest.matchAll(/[\s　]*[・･、，,][\s　]*([図表]?)[\s　]*([0-9０-９]+)/g)) {
+      k = m[1] || k
+      items.push({ kind: k, n: num(m[2]) })
+    }
+    return items.length > 1 ? items : null
+  }
+  return (
+    text
+      // 括弧の中
+      .replace(/[（(][\s　]*([図表])[\s　]*([0-9０-９]+)((?:[\s　]*[・･、，,][\s　]*[図表]?[\s　]*[0-9０-９]+)+|[\s　]*[～〜~][\s　]*[図表]?[\s　]*[0-9０-９]+)[\s　]*[）)]/g, (all, kind: string, first: string, rest: string) => {
+        const items = expand(kind, first, rest)
+        return items ? items.map((i) => `（${i.kind}${i.n}）`).join('') : all
+      })
+      // 括弧なし（「・」と範囲だけ）。直前が漢字の「設計図1・2」のような語は、そのまま
+      .replace(/(?<![㐀-鿿々])([図表])([0-9]+)((?:[・･][図表]?[0-9０-９]+)+|[～〜~][図表]?[0-9０-９]+)/g, (all, kind: string, first: string, rest: string) => {
+        const items = expand(kind, first, rest)
+        return items ? items.map((i) => `${i.kind}${i.n}`).join('・') : all
+      })
+  )
+}
+
 // ---- 見出し ----
 
 // 行の頭のローマ数字で見出しを見分ける部品（headingFromText）は、段落に見出しの形で打ったときにも使うので、model/headingText.ts に置く
@@ -1285,7 +1328,7 @@ export async function readWordFiles(files: WordFiles, context: { config: YearCon
   for (const chapter of body) {
     chapter.blocks = chapter.blocks.map((b) => {
       const text = b.type === 'paragraph' ? paragraphTexts.get(b.id) : undefined
-      return text === undefined ? b : { ...b, content: textToContent(normalizeParagraph(halfDigitsInRefs(text)), wordNumbering) }
+      return text === undefined ? b : { ...b, content: textToContent(normalizeParagraph(splitCombinedRefs(halfDigitsInRefs(text))), wordNumbering) }
     })
   }
 
