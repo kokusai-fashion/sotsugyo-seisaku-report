@@ -376,6 +376,12 @@ export class ReportEditor {
   private version = 0
   private snapshotCache: EditorSnapshot | null = null
   private readonly highlights = { error: new Highlight(), warning: new Highlight(), focus: new Highlight() }
+  /**
+   * 書いている欄の中の、指摘の印（赤・黄の下線）。PC の段落の書く欄は、打つたび・打つ手が止まって測り直したときに中身を作り直すので、
+   * 作り直したら印を付け直す（前は、作り直した字から印が外れ、右の一覧には出ているのに、書いている段落の字は赤くならなかった：依頼者の報告 2026-11-12）
+   */
+  private editingMarks: { range: Range; target: Highlight }[] = []
+  private editingMarksObserver: MutationObserver | null = null
 
   /**
    * @param stage 紙面を置く台（大きさに合わせて紙面の倍率を決める）
@@ -1371,15 +1377,35 @@ export class ReportEditor {
     }
     this.highlights.error.clear()
     this.highlights.warning.clear()
+    this.editingMarks = []
     for (const f of this.findings) {
-      if (!f.blockId || f.start === undefined || f.end === undefined) continue
+      if (!f.blockId || f.start === undefined || f.end === undefined || f.blockId === this.overlay.blockId) continue
       const target = f.severity === 'error' ? this.highlights.error : this.highlights.warning
-      if (f.blockId === this.overlay.blockId) {
-        const range = this.overlay.range(f.start, f.end)
-        if (range) target.add(range)
-      } else {
-        for (const range of this.renderer.pageView.ranges(f.blockId, f.start, f.end)) target.add(range)
-      }
+      for (const range of this.renderer.pageView.ranges(f.blockId, f.start, f.end)) target.add(range)
+    }
+    this.markEditing()
+  }
+
+  /** 書いている欄の中の指摘に、印を付け直す（書く欄の中身を作り直したとき・指摘が変わったとき） */
+  private markEditing(): void {
+    // 書く欄の中身が作り直されたら、すぐ（画面を描く前に）付け直す
+    if (!this.editingMarksObserver) {
+      this.editingMarksObserver = new MutationObserver(() => {
+        if (this.editingMarks.length || this.overlay.blockId) this.markEditing()
+      })
+      this.editingMarksObserver.observe(this.overlay.element, { childList: true, subtree: true, characterData: true })
+    }
+    for (const { range, target } of this.editingMarks) target.delete(range)
+    this.editingMarks = []
+    const id = this.overlay.blockId
+    if (!id) return
+    for (const f of this.findings) {
+      if (f.blockId !== id || f.start === undefined || f.end === undefined) continue
+      const range = this.overlay.range(f.start, f.end)
+      if (!range || range.collapsed) continue
+      const target = f.severity === 'error' ? this.highlights.error : this.highlights.warning
+      target.add(range)
+      this.editingMarks.push({ range, target })
     }
   }
 
