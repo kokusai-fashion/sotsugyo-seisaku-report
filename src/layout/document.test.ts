@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { currentConfig } from '../config'
 import { createReport } from '../model/newReport'
-import { ABSTRACT_SUBTITLE, abstractHtml, abstractRowFontPt, buildReportDocument, buildReportParts, COVER_SUBTITLE, coverHeadingPt, coverHtml, fitLineFontPt, formatReference, partList, refitLineFontPt, subtitleLine, textUnits, TOC_NOT_STARTED_NOTE, TOC_TARGET_ATTR, TOC_TEXT, yearDigits } from './document'
+import { ABSTRACT_SUBTITLE, abstractHtml, abstractRowFontPt, buildReportDocument, buildReportParts, COVER_SUBTITLE, coverHeadingPt, coverHtml, coverTextUnits, fitLineFontPt, formatReference, partList, refitLineFontPt, subtitleLine, textUnits, TOC_NOT_STARTED_NOTE, TOC_TARGET_ATTR, TOC_TEXT, yearDigits } from './document'
 import { documentCss } from './documentCss'
 
 describe('抄録の見出し（学籍番号・氏名と指導教員を1行に）', () => {
@@ -80,6 +80,25 @@ describe('サブタイトルが長いとき、1行に入るまで文字を小さ
     // 30字：37字分は 12pt（150mm に 35字ほど）では入らない
     expect(subtitleHtml('あ'.repeat(30))).toContain('style="font-size:11pt"')
     expect(fitLineFontPt('あ'.repeat(60), ABSTRACT_SUBTITLE)).toBe(9)
+  })
+})
+
+describe('表紙の氏名が長いとき、下線の幅の1行に入るまで文字を小さくする（学生の声 1112-001。2026-11-12）', () => {
+  const named = (name: string) => {
+    const r = createReport(currentConfig)
+    return { ...r, basicInfo: { ...r.basicInfo, name } }
+  }
+  const nameStyle = (name: string) => /class="el name-value"( style="[^"]*")?/.exec(coverHtml(named(name), currentConfig))?.[1] ?? ''
+  it('ふつうの長さの氏名は 20pt のまま', () => {
+    expect(nameStyle('文化　花子')).toBe('')
+    expect(nameStyle('長谷川　ひとみ')).toBe('')
+  })
+  it('ローマ字の長い氏名は小さくし、字の下の端は下線の上のまま（上に空きを足す）', () => {
+    // 架空の氏名（大文字 10字＋10字）。表紙の書体では、大文字は全角の7割ほどの幅
+    expect(coverTextUnits('KATARINESS　WILHELMINA')).toBe(16)
+    expect(nameStyle('KATARINESS　WILHELMINA')).toBe(' style="font-size:16.5pt;padding-top:3.5pt"')
+    // とても長くても 12pt より小さくはしない（それでも入らなければ、セルフチェックのエラー）
+    expect(nameStyle('A'.repeat(60))).toBe(' style="font-size:12pt;padding-top:8pt"')
   })
 })
 

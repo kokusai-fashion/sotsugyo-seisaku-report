@@ -100,6 +100,9 @@ export function coverHtml(report: Report, config: YearConfig, options: Pick<Docu
   // 見出しが長いときは字を小さくし、行の真ん中の高さは同じにする
   const headingPt = coverHeadingPt(config.cover.heading)
   const headingStyle = headingPt < COVER_HEADING_PT ? ` style="font-size:${headingPt}pt;padding-top:${(COVER_HEADING_PT - headingPt) / 2}pt"` : ''
+  // 氏名が長いときは、下線の幅の1行に入るまで小さくする。字の下の端は、下線の上のまま（上に空きを足す）
+  const namePt = fitLineFontPt(basicInfo.name, COVER_NAME, coverTextUnits)
+  const nameStyle = namePt < COVER_NAME_PT ? ` style="font-size:${namePt}pt;padding-top:${COVER_NAME_PT - namePt}pt"` : ''
   return `<section class="cover">
 <div class="frame"></div>
 <div class="el center year">${escapeHtml(fullWidthYear)}年度</div>
@@ -115,7 +118,7 @@ ${course?.noSubtitle ? '' : `<div class="el subtitle" style="font-size:${subtitl
 <div class="el id-value">${field(FIELD_IDS.studentId, basicInfo.studentId, '（学籍番号）')}</div>
 <div class="rule id-rule"></div>
 <div class="el name-label">氏　名　：</div>
-<div class="el name-value">${field(FIELD_IDS.name, basicInfo.name, '（氏名）')}</div>
+<div class="el name-value"${nameStyle}>${field(FIELD_IDS.name, basicInfo.name, '（氏名）')}</div>
 <div class="rule name-rule"></div>
 <div class="rule bottom-rule"></div>
 <div class="el center university">${escapeHtml(spaced(config.university))}</div>
@@ -158,9 +161,25 @@ const FIT_STEP_PT = 0.5
 /** 文字の幅 ÷ 欄の幅（組んだ紙面で測った値）が、この値をこえたら「はみ出している」とする（測り方の細かい誤差は見ない） */
 export const OVERFLOW_RATIO = 1.002
 
+/**
+ * 表紙の氏名の欄（下線の右の端まで。文字は下線より少し右から始まる）。長い氏名は、1行に入るまで文字を小さくする
+ * （学生の声 1112-001：ローマ字の長い氏名が「表紙の氏名が長く、欄に入りません」になり、直しようがなかった。2026-11-12）。
+ * それでも入らなければ、今までどおりセルフチェックのエラー（cover-field-fit）
+ */
+export const COVER_NAME: LineBox = { widthMm: 94.3, maxPt: 20, minPt: 12 }
+export const COVER_NAME_PT = 20
+
+/**
+ * 表紙の書体（字の幅がそろっていない BIZ UDPゴシック）での、文字列の幅の見積もり（全角1字を1として）。
+ * ローマ字の大文字は、半角でも全角の7割ほどの幅がある（測ると 0.72 ほど）ので、少し大きめに見積もる
+ */
+export function coverTextUnits(text: string): number {
+  return [...text].reduce((n, c) => n + (/[A-Z]/.test(c) ? 0.75 : /[ -~]/.test(c) ? 0.6 : /[｡-ﾟ]/.test(c) ? 0.5 : 1), 0)
+}
+
 /** 1行に収まる文字の大きさ（pt）を字数から見積もる（全角を1、半角を0.5字として数える）。いちばん小さくしても入らなければ、いちばん小さい値 */
-export function fitLineFontPt(text: string, box: LineBox): number {
-  const units = textUnits(text)
+export function fitLineFontPt(text: string, box: LineBox, unitsOf: (text: string) => number = textUnits): number {
+  const units = unitsOf(text)
   for (let pt = box.maxPt; pt >= box.minPt; pt -= FIT_STEP_PT) {
     if (units * pt * PT_TO_MM <= box.widthMm) return pt
   }
