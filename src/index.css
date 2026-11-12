@@ -1206,7 +1206,7 @@ body.resizing .page-viewport { pointer-events: none; }
 .app.phone .continue-row.tight { font-size: 12px; }
 @media print { .continue-row { display: none !important; } }
 
-/* ---- v32 ② 削除の「戻す」の知らせを PC にも出し、8秒（前は15秒）か次の操作まで出す（mockups/v32 ② 案A。部品は app/UndoBar.tsx） ---- */
+/* ---- v32 ② 削除の「戻す」の知らせを PC にも出し、5秒（前は15秒・8秒）か次の操作まで出す（mockups/v32 ② 案A。部品は app/UndoBar.tsx） ---- */
 /* PC：紙面の台の下の真ん中（紙面の下に少し重なる）。スマホは前からの .undo-area のまま（下のタブの上） */
 /* 紙面の台の上の真ん中に出す（ページの上の余白。前は台の下で紙面の最後の行に重なり、その行を押すと「戻す」が押されてしまった：
    学生の試し 2026-10-29、依頼者の選択 mockups/v73 ② 案A。その前は右下の帯に重なっていた：mockups/v55 ① 案A） */

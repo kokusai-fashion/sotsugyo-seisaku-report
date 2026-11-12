@@ -408,7 +408,7 @@ await withEdge(async (browser) => {
   await ready()
 
   // 選んだ表を削除すると、画面の下に「表を削除しました［戻す］」が出て、「戻す」で元に戻る（mockups/v23 ⑦ 案A）。
-  // 15秒か次の操作まで出し、下の細い線で残りの時間を示す。戻すと「✓ 表を戻しました」と出て、戻した表が光る（mockups/v32 ② 案A）
+  // 5秒か次の操作まで出し、下の細い線で残りの時間を示す。戻すと「✓ 表を戻しました」と出て、戻した表が光る（mockups/v32 ② 案A）
   await page.evaluate((id) => window.__editor.select({ kind: 'table', id }), tableId)
   await page.waitForSelector('.sel-bar .tb')
   await page.evaluate(() => [...document.querySelectorAll('.sel-bar .tb')].find((b) => b.textContent.includes('削除')).click())
@@ -430,10 +430,10 @@ await withEdge(async (browser) => {
     undoAt.shown && undoAt.covers.length === 0 && undoAt.below.includes('.pager') && undoAt.inside && undoAt.buttonH >= 44,
     JSON.stringify(undoAt),
   )
-  check('選んだ表を削除すると、画面の下に「表を削除しました［戻す］」が出る（読み上げにも伝わる・残りの時間の線は8秒）', tableGone && toast.text.includes('表を削除しました') && toast.role === 'status' && toast.line === '8s', JSON.stringify(toast))
+  check('選んだ表を削除すると、画面の下に「表を削除しました［戻す］」が出る（読み上げにも伝わる・残りの時間の線は5秒）', tableGone && toast.text.includes('表を削除しました') && toast.role === 'status' && toast.line === '5s', JSON.stringify(toast))
   check('知らせの「戻す」は、押せる範囲が高さ 44px 以上', toast.hitH >= 44, `${toast.hitH}px`)
-  await wait(7000)
-  check('7秒たっても、知らせは出たまま（前は6秒ほどで消えていた）', !!(await page.$('.undo-toast button')))
+  await wait(2500)
+  check('2.5秒たっても、知らせは出たまま（5秒出す。依頼者の指摘 2026-11-13）', !!(await page.$('.undo-toast button')))
   await page.click('.undo-toast button')
   await ready()
   await wait(150)

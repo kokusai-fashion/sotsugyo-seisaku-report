@@ -1610,7 +1610,7 @@ await withEdge(async (browser) => {
     JSON.stringify(idsAfter) === JSON.stringify(idsBefore.filter((id) => id !== doomed)) && (!stillRendering || openedDuring === null),
     JSON.stringify({ stillRendering, openedDuring, removed: idsBefore.filter((id) => !idsAfter.includes(id)) }),
   )
-  // PC でも、紙面の台の下に「段落を削除しました［戻す］」が出る。15秒か、次の操作まで（下の細い線は残りの時間。mockups/v32 ② 案A）
+  // PC でも、紙面の台の下に「段落を削除しました［戻す］」が出る。5秒か、次の操作まで（下の細い線は残りの時間。mockups/v32 ② 案A）
   const pcBar = () =>
     page.evaluate(() => {
       const area = document.querySelector('.stage .undo-area')
@@ -1629,11 +1629,11 @@ await withEdge(async (browser) => {
     })
   const barNow = await pcBar()
   await page.screenshot({ path: `${OUT}/2-delete-bar.png` })
-  check('PC でも、段落を削除すると紙面の台の上の真ん中に「段落を削除しました［戻す］」が出る（残りの時間の線・読み上げにも伝わる）', barNow.text === '段落を削除しました戻す' && barNow.role === 'status' && barNow.button && barNow.line?.duration === '8s' && barNow.centered, JSON.stringify(barNow))
-  // 出しておく時間は8秒（前は15秒で長すぎた：依頼者の指摘 2026-10-25）
-  await pause0(4000)
+  check('PC でも、段落を削除すると紙面の台の上の真ん中に「段落を削除しました［戻す］」が出る（残りの時間の線・読み上げにも伝わる）', barNow.text === '段落を削除しました戻す' && barNow.role === 'status' && barNow.button && barNow.line?.duration === '5s' && barNow.centered, JSON.stringify(barNow))
+  // 出しておく時間は5秒（前は15秒・8秒で長すぎた：依頼者の指摘 2026-10-25・2026-11-13）
+  await pause0(2500)
   const barLater = await pcBar()
-  check('4秒たっても知らせは出たまま（8秒出す）で、残りの時間の線は縮んでいる', barLater.button && barLater.line && barLater.line.scale < 0.7 && barLater.line.scale > 0.3, JSON.stringify(barLater.line))
+  check('2.5秒たっても知らせは出たまま（5秒出す）で、残りの時間の線は縮んでいる', barLater.button && barLater.line && barLater.line.scale < 0.7 && barLater.line.scale > 0.2, JSON.stringify(barLater.line))
   await page.click('.stage .undo-area .undo-toast button')
   await ready()
   const restoredPc = await page.evaluate((id) => ({ text: document.querySelector('.stage .undo-area')?.textContent ?? '', flash: !!document.querySelector(`.page-viewport.front .undo-flash[data-block-id="${id}"]`), page: window.__editor.getSnapshot().page, at: window.__editor.pageOfBlock(id) }), doomed)
