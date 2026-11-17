@@ -6,4 +6,5 @@ import './check.css'
 import { CheckApp } from './CheckApp'
 
 // 提出前チェック（Word のひな形で書いている学生が、提出の前に確かめて、1つの PDF にまとめるページ）
-createRoot(document.getElementById('root')!).render(<CheckApp />)
+// 古いブラウザ（public/old-browser.js が知らせを出した）では、その上に画面を作らない（依頼者の選択 2026-11-17 mockups/v136 案B）
+if (!(window as Window & { sotsugyoOldBrowser?: boolean }).sotsugyoOldBrowser) createRoot(document.getElementById('root')!).render(<CheckApp />)

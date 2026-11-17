@@ -28,4 +28,6 @@ startPhraseWrap()
 
 // StrictMode は使わない（組版エンジンを二重に起動しないため）
 // 確認の窓・知らせの窓は、画面の中に出す（app/ask.tsx）
-createRoot(document.getElementById('root')!).render(<AskProvider>{templateMode ? <TemplateApp /> : <App />}</AskProvider>)
+// 古いブラウザ（public/old-browser.js が知らせを出した）では、その上に画面を作らない（依頼者の選択 2026-11-17 mockups/v136 案B）
+if (!(window as Window & { sotsugyoOldBrowser?: boolean }).sotsugyoOldBrowser)
+  createRoot(document.getElementById('root')!).render(<AskProvider>{templateMode ? <TemplateApp /> : <App />}</AskProvider>)

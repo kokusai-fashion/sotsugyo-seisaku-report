@@ -14,6 +14,8 @@
   <body>
     <!-- 読み込んでいる間も、何かが出ているように（学生の試し 6回目 2026-10-30）。プログラムが動き始めると、この中身は入れ替わる -->
     <div id="root"><p style="margin: 0; padding-top: 42vh; text-align: center; font: 15px/1.6 sans-serif; color: #77736b">読み込んでいます…</p></div>
+    <!-- 古いブラウザ（古い macOS の Safari など）では、真っ白にせずに知らせる（依頼者の選択 2026-11-17 mockups/v136 案B。public/old-browser.js）。プログラムより前に読む -->
+    <script src="./old-browser.js" data-name="提出前チェック"></script>
     <script type="module" src="/src/check/main.tsx"></script>
   </body>
 </html>
